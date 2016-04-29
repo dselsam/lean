@@ -47,7 +47,7 @@ let ctx : context A := λ n, match n with O => some a | 1 => some b | 2 => some 
 ------------
 denote ctx (reify (quote (a * (b * (c * a)))))
 =
-denote ctx (monoid.reify (quote ((a * b) * (c * a))))
+denote ctx (reify (quote ((a * b) * (c * a))))
 
 [tactic] apply correct
 
