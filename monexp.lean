@@ -7,10 +7,10 @@ In contrast, contexts only make sense inside lambdas.
 import algebra.group
 
 constants (name : Type) (expr : Type) (list : Type → Type)
-          (context : Type → Type) (context.lookup : Π {A : Type}, ℕ → context A → option A)
+          (context : Type → Type) (context.lookup : Π {A : Type}, name → context A → option A)
 
 inductive monexp (A : Type) [A_mon : monoid A] :=
-| atom : ℕ → monexp A
+| atom : name → monexp A
 | ident : monexp A
 | op : monexp A → monexp A → monexp A
 
@@ -54,7 +54,7 @@ denote ctx (reify (quote ((a * b) * (c * a))))
 a : A
 b : A
 c : A
-let ctx : context A := λ n, match n with O => some a | 1 => some b | 2 => some c | none
+let ctx : context A := λ n : name, match n with "a" => some a | "b" => some b | "c" => some c | _ => none
 ------------
 denote ctx (flatten (reify (quote (a * (b * (c * a))))))
 =
