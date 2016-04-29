@@ -25,9 +25,9 @@ theorem correct {A : Type} [monoid A] :
   ∀ (m₁ m₂ : monexp A), denote (flatten m₁) = denote (flatten m₂) → denote m₁ = denote m₂ := sorry
 
 definition reify {A : Type} [monoid A] : expr → monexp A
-| (loc n) := atom (loc n)
 | (const "monoid.one") := ident
 | (app4 (app2 (const "monoid.mul") _ _) _ _ e1 e2) := op (reify e1) (reify e2)
+| e := atom e
 
 definition reify_eq {A : Type} [monoid A] : expr → expr
 | (app3 (const "eq") _ e1 e2) := app3 (const "eq") _ (quote (denote (reify e1))) (quote (denote (reify e2)))
