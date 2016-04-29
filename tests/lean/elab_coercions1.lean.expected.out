@@ -1,0 +1,27 @@
+coe_arg
+no_implicits
+>> op a b
+>> op (coe a) b
+>> op b a
+>> op b (coe a)
+one_implicits
+>> op a b
+>> op B (coe a) b
+>> op b a
+>> op B b (coe a)
+inst_implicit
+>> op a b
+>> op B T_B (coe a) b
+>> op b a
+>> op B T_B b (coe a)
+coe_arg_with_composite
+one_implicit
+>> lcons a bs
+>> lcons B (coe a) bs
+>> rcons bs a
+>> rcons B bs (coe a)
+inst_implicit
+>> lcons a bs
+>> lcons B T_B (coe a) bs
+>> rcons bs a
+>> rcons B T_B bs (coe a)
