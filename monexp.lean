@@ -43,7 +43,7 @@ a * (b * (c * a)) = (a * b) * (c * a)
 a : A
 b : A
 c : A
-let ctx : context A := λ n, match n with O => some a | 1 => some b | 2 => some c | none
+let ctx : context A := λ n : name, match n with "a" => some a | "b" => some b | "c" => some c | _ => none
 ------------
 denote ctx (reify (quote (a * (b * (c * a)))))
 =
@@ -65,7 +65,7 @@ denote ctx (flatten (reify (quote ((a * b) * (c * a)))))
 a : A
 b : A
 c : A
-let ctx : context A := λ n, match n with O => some a | 1 => some b | 2 => some c | none
+let ctx : context A := λ n : name, match n with "a" => some a | "b" => some b | "c" => some c | _ => none
 ------------
 a * (b * (c * a)) = a * (b * (c * a))
 
