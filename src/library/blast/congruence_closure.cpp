@@ -658,6 +658,38 @@ int congruence_closure::eq_congr_key_cmp::operator()(eq_congr_key const & k1, eq
     return expr_quick_cmp()(k1.m_expr, k2.m_expr);
 }
 
+/** \brief Return true iff the given function application are congruent */
+static bool is_lambda_congruent(expr const & e1, expr const & e2) {
+    lean_assert(is_lambda(e1) && is_lambda(e2));
+    expr dom1 = binding_domain(e1);
+    expr dom2 = binding_domain(e2);
+    expr body1 = binding_body(e1);
+    expr body2 = binding_body(e1);
+
+    if (g_cc->get_root(get_eq_name(), body1) != g_cc->get_root(get_eq_name(), body2)) {
+        /* body1 and body2 are not equivalent */
+        return false;
+    }
+    if (g_cc->get_root(get_eq_name(), dom1) != g_cc->get_root(get_eq_name(), dom2)) {
+        /* dom1 and dom2 are not equivalent */
+        return false;
+    }
+    if (!is_def_eq(infer_type(dom1), infer_type(dom2))) {
+        /* dom1 and dom2 are only heterogeneously equal */
+        return false;
+    }
+    return true;
+}
+
+int congruence_closure::lambda_congr_key_cmp::operator()(lambda_congr_key const & k1, lambda_congr_key const & k2) const {
+    lean_assert(g_heq_based);
+    if (k1.m_hash != k2.m_hash)
+        return unsigned_cmp()(k1.m_hash, k2.m_hash);
+    if (is_lambda_congruent(k1.m_expr, k2.m_expr))
+        return 0;
+    return expr_quick_cmp()(k1.m_expr, k2.m_expr);
+}
+
 /* \brief Create a equality congruence table key.
    \remark This table and key are only used when heterogeneous equality support is enabled. */
 auto congruence_closure::mk_eq_congr_key(expr const & e) const -> eq_congr_key {
