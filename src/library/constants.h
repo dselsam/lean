@@ -71,6 +71,8 @@ name const & get_heq_refl_name();
 name const & get_heq_symm_name();
 name const & get_heq_trans_name();
 name const & get_heq_of_eq_name();
+name const & get_hfunext_name();
+name const & get_hfunext_full_name();
 name const & get_iff_name();
 name const & get_iff_elim_left_name();
 name const & get_iff_elim_right_name();

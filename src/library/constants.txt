@@ -64,6 +64,8 @@ heq.refl
 heq.symm
 heq.trans
 heq_of_eq
+hfunext
+hfunext_full
 iff
 iff.elim_left
 iff.elim_right

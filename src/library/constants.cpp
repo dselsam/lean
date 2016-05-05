@@ -69,6 +69,8 @@ name const * g_heq_refl = nullptr;
 name const * g_heq_symm = nullptr;
 name const * g_heq_trans = nullptr;
 name const * g_heq_of_eq = nullptr;
+name const * g_hfunext = nullptr;
+name const * g_hfunext_full = nullptr;
 name const * g_iff = nullptr;
 name const * g_iff_elim_left = nullptr;
 name const * g_iff_elim_right = nullptr;
@@ -342,6 +344,8 @@ void initialize_constants() {
     g_heq_symm = new name{"heq", "symm"};
     g_heq_trans = new name{"heq", "trans"};
     g_heq_of_eq = new name{"heq_of_eq"};
+    g_hfunext = new name{"hfunext"};
+    g_hfunext_full = new name{"hfunext_full"};
     g_iff = new name{"iff"};
     g_iff_elim_left = new name{"iff", "elim_left"};
     g_iff_elim_right = new name{"iff", "elim_right"};
@@ -616,6 +620,8 @@ void finalize_constants() {
     delete g_heq_symm;
     delete g_heq_trans;
     delete g_heq_of_eq;
+    delete g_hfunext;
+    delete g_hfunext_full;
     delete g_iff;
     delete g_iff_elim_left;
     delete g_iff_elim_right;
@@ -889,6 +895,8 @@ name const & get_heq_refl_name() { return *g_heq_refl; }
 name const & get_heq_symm_name() { return *g_heq_symm; }
 name const & get_heq_trans_name() { return *g_heq_trans; }
 name const & get_heq_of_eq_name() { return *g_heq_of_eq; }
+name const & get_hfunext_name() { return *g_hfunext; }
+name const & get_hfunext_full_name() { return *g_hfunext_full; }
 name const & get_iff_name() { return *g_iff; }
 name const & get_iff_elim_left_name() { return *g_iff_elim_left; }
 name const & get_iff_elim_right_name() { return *g_iff_elim_right; }
