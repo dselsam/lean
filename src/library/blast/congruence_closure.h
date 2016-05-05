@@ -128,6 +128,7 @@ class congruence_closure {
     typedef eqc_key_cmp parent_occ_cmp;
     typedef rb_tree<parent_occ, parent_occ_cmp>              parent_occ_set;
     typedef rb_map<child_key, parent_occ_set, child_key_cmp> parents;
+    typedef rb_map<unsigned, expr, unsigned_cmp>             selsam_local_congruences;
     typedef rb_tree<eq_congr_key, eq_congr_key_cmp>          eq_congruences;
     typedef rb_tree<congr_key, congr_key_cmp>                congruences;
     typedef rb_map<expr, expr, expr_quick_cmp>               subsingleton_reprs;
