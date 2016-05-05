@@ -50,6 +50,7 @@ Author: Leonardo de Moura
 #include "library/unification_hint.h"
 #include "library/defeq_simp_lemmas.h"
 #include "library/defeq_simplifier.h"
+#include "library/selsam_index.h"
 
 namespace lean {
 void initialize_library_module() {
@@ -99,9 +100,11 @@ void initialize_library_module() {
     initialize_unification_hint();
     initialize_defeq_simp_lemmas();
     initialize_defeq_simplifier();
+    initialize_selsam_index();
 }
 
 void finalize_library_module() {
+    finalize_selsam_index();
     finalize_defeq_simplifier();
     finalize_defeq_simp_lemmas();
     finalize_unification_hint();
