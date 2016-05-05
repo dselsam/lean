@@ -914,8 +914,10 @@ void congruence_closure::check_iff_true(congr_key const & k) {
 }
 
 void congruence_closure::add_eq_congruence_table(expr const & e) {
-    lean_assert(is_app(e));
     lean_assert(g_heq_based);
+
+    lean_assert(is_app(e));
+
     eq_congr_key k = mk_eq_congr_key(e);
     if (auto old_k = m_eq_congruences.find(k)) {
         /*
@@ -1036,21 +1038,23 @@ void congruence_closure::internalize_core(name R, expr const & e, bool toplevel,
         return;
     case expr_kind::Constant: case expr_kind::Local:
     case expr_kind::Meta:
-        if (auto idx = is_selsam_local(e)) {
-            return; // TODO(dhs): implement
-        }
         mk_entry_core(R, e, to_propagate);
+        if (is_selsam_local(e)) {
+            add_eq_congruence_table(e);
+        }
         return;
     case expr_kind::Lambda: {
         mk_entry_core(R, e, false);
-        internalize_core(R, binding_domain(e), false, to_propagate);
-        expr selsam_local = mk_selsam_local(binding_domain(e));
-        expr new_body = instantiate(lift_selsam_locals(binding_body(e)), selsam_local);
-        internalize_core(R, new_body, false, to_propagate);
-        bool eq_table = true;
-        add_occurrence(R, e, R, binding_domain(e), eq_table);
-        add_occurrence(R, e, R, new_body, eq_table);
-        add_eq_congruence_table(e);
+        if (g_heq_based && R == get_eq_name()) {
+            internalize_core(R, binding_domain(e), false, to_propagate);
+            expr selsam_local = mk_selsam_local(binding_domain(e));
+            expr new_body = instantiate(lift_selsam_locals(binding_body(e)), selsam_local);
+            internalize_core(R, new_body, false, to_propagate);
+            bool eq_table = true;
+            add_occurrence(R, e, R, binding_domain(e), eq_table);
+            add_occurrence(R, e, R, new_body, eq_table);
+            add_eq_congruence_table(e);
+        }
         return;
     }
     case expr_kind::Macro:
