@@ -591,6 +591,15 @@ void congruence_closure::add_occurrence(name const & Rp, expr const & parent, na
     m_parents.insert(k, ps);
 }
 
+void congruence_closure::add_lambda_occurrence(expr const & parent, expr const & child) {
+    child_key k(Rc, child);
+    parent_occ_set ps;
+    if (auto old_ps = m_parents.find(k))
+        ps = *old_ps;
+    ps.insert(parent_occ(Rp, parent, eq_table));
+    m_parents.insert(k, ps);
+}
+
 /* Auxiliary function for comparing (lhs1 ~ rhs1) and (lhs2 ~ rhs2),
    when ~ is symmetric.
    It returns 0 (equal) for (a ~ b) (b ~ a) */
@@ -1011,18 +1020,20 @@ void congruence_closure::internalize_core(name R, expr const & e, bool toplevel,
         return;
     case expr_kind::Constant: case expr_kind::Local:
     case expr_kind::Meta:
+        if (auto idx = is_selsam_local(e)) {
+            return; // TODO(dhs): implement
+        }
         mk_entry_core(R, e, to_propagate);
         return;
     case expr_kind::Lambda: {
-        internalize_core(R, binding_domain(e), false, to_propagate);
-        buffer<expr> lifted_slocals;
-        expr selsam_local = mk_selsam_local(binding_domain(e));
-        expr new_body = instantiate(lift_selsam_locals(binding_body(e), lifted_slocals), selsam_local);
-        for (expr const & slocal : lifted_slocals) {
-            internalize_core(R, slocal, false, to_propagate);
-        }
-        internalize_core(R, new_body, false, to_propagate);
         mk_entry_core(R, e, false);
+        internalize_core(R, binding_domain(e), false, to_propagate);
+        expr selsam_local = mk_selsam_local(binding_domain(e));
+        expr new_body = instantiate(lift_selsam_locals(binding_body(e)), selsam_local);
+        internalize_core(R, new_body, false, to_propagate);
+        add_lambda_occurrence(e, binding_domain(e));
+        add_lambda_occurrence(e, new_body);
+        add_lambda_congruence_table(e);
         return;
     }
     case expr_kind::Macro:

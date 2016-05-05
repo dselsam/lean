@@ -147,7 +147,9 @@ class congruence_closure {
     typedef rb_map<expr, expr, expr_quick_cmp>                  subsingleton_reprs;
     entries            m_entries;
     parents            m_parents;
+    lambda_parents     m_lambda_parents;
     eq_congruences     m_eq_congruences;
+    lambda_congruences m_lambda_congruences;
     congruences        m_congruences;
     /** The following mapping store a representative for each subsingleton type */
     subsingleton_reprs m_subsingleton_reprs;
@@ -182,7 +184,10 @@ class congruence_closure {
     void mk_entry(name const & R, expr const & e, bool to_propagate);
     void add_occurrence(name const & Rp, expr const & parent, name const & Rc, expr const & child, bool eq_table);
     void add_eq_congruence_table(expr const & e);
+    void add_lambda_occurrence(expr const & parent, expr const & child);
+    void add_lambda_congruence_table(expr const & e);
     void add_congruence_table(ext_congr_lemma const & lemma, expr const & e);
+
     void invert_trans(name const & R, expr const & e, bool new_flipped, optional<expr> new_target, optional<expr> new_proof);
     void invert_trans(name const & R, expr const & e);
     void remove_parents(name const & R, expr const & e);

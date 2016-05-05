@@ -11,7 +11,7 @@ namespace lean {
 optional<unsigned> is_selsam_local(expr const & e);
 expr mk_selsam_local(expr const & type);
 
-expr lift_selsam_locals(expr const & e, buffer<expr> & lifted_locals);
+expr lift_selsam_locals(expr const & e);
 
 void initialize_selsam_index();
 void finalize_selsam_index();
