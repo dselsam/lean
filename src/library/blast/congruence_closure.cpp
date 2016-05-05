@@ -591,15 +591,6 @@ void congruence_closure::add_occurrence(name const & Rp, expr const & parent, na
     m_parents.insert(k, ps);
 }
 
-void congruence_closure::add_lambda_occurrence(expr const & parent, expr const & child) {
-    child_key k(Rc, child);
-    parent_occ_set ps;
-    if (auto old_ps = m_parents.find(k))
-        ps = *old_ps;
-    ps.insert(parent_occ(Rp, parent, eq_table));
-    m_parents.insert(k, ps);
-}
-
 /* Auxiliary function for comparing (lhs1 ~ rhs1) and (lhs2 ~ rhs2),
    when ~ is symmetric.
    It returns 0 (equal) for (a ~ b) (b ~ a) */
@@ -627,7 +618,8 @@ int congruence_closure::compare_root(name const & R, expr e1, expr e2) const {
 
 /** \brief Return true iff the given function application are congruent */
 static bool is_eq_congruent(expr const & e1, expr const & e2) {
-    lean_assert(is_app(e1) && is_app(e2));
+    if (!is_app(e1) | !is_app(e2)) return false;
+
     /* Given e1 := f a,  e2 := g b */
     expr f = app_fn(e1);
     expr a = app_arg(e1);
@@ -660,18 +652,10 @@ static bool is_eq_congruent(expr const & e1, expr const & e2) {
     return false;
 }
 
-int congruence_closure::eq_congr_key_cmp::operator()(eq_congr_key const & k1, eq_congr_key const & k2) const {
-    lean_assert(g_heq_based);
-    if (k1.m_hash != k2.m_hash)
-        return unsigned_cmp()(k1.m_hash, k2.m_hash);
-    if (is_eq_congruent(k1.m_expr, k2.m_expr))
-        return 0;
-    return expr_quick_cmp()(k1.m_expr, k2.m_expr);
-}
-
 /** \brief Return true iff the given function application are congruent */
 static bool is_lambda_congruent(expr const & e1, expr const & e2) {
-    lean_assert(is_lambda(e1) && is_lambda(e2));
+    if (!is_lambda(e1) || !is_lambda(e2)) return false;
+
     expr dom1 = binding_domain(e1);
     expr dom2 = binding_domain(e2);
     expr body1 = binding_body(e1);
@@ -692,18 +676,29 @@ static bool is_lambda_congruent(expr const & e1, expr const & e2) {
     return true;
 }
 
-int congruence_closure::lambda_congr_key_cmp::operator()(lambda_congr_key const & k1, lambda_congr_key const & k2) const {
+static bool is_selsam_local_congruent(expr const & e1, expr const & e2) {
+    auto idx1 = is_selsam_local(e1);
+    auto idx2 = is_selsam_local(e2);
+    return idx1 && idx2 && idx1 == idx2;
+}
+
+int congruence_closure::eq_congr_key_cmp::operator()(eq_congr_key const & k1, eq_congr_key const & k2) const {
     lean_assert(g_heq_based);
     if (k1.m_hash != k2.m_hash)
         return unsigned_cmp()(k1.m_hash, k2.m_hash);
+    if (is_eq_congruent(k1.m_expr, k2.m_expr))
+        return 0;
     if (is_lambda_congruent(k1.m_expr, k2.m_expr))
+        return 0;
+    if (is_selsam_local_congruent(k1.m_expr, k2.m_expr))
         return 0;
     return expr_quick_cmp()(k1.m_expr, k2.m_expr);
 }
 
-/* \brief Create a equality congruence table key.
+
+/* \brief Create a eq congruence table key for an application.
    \remark This table and key are only used when heterogeneous equality support is enabled. */
-auto congruence_closure::mk_eq_congr_key(expr const & e) const -> eq_congr_key {
+auto congruence_closure::mk_app_congr_key(expr const & e) const -> eq_congr_key {
     lean_assert(is_app(e));
     eq_congr_key k;
     k.m_expr = e;
@@ -714,17 +709,38 @@ auto congruence_closure::mk_eq_congr_key(expr const & e) const -> eq_congr_key {
     return k;
 }
 
-/* \brief Create a lambda congruence table key.
+/* \brief Create a eq congruence table key for a lambda.
    \remark This table and key are only used when heterogeneous equality support is enabled. */
-auto congruence_closure::mk_lambda_congr_key(expr const & e) const -> lambda_congr_key {
+auto congruence_closure::mk_lambda_congr_key(expr const & e) const -> eq_congr_key {
     lean_assert(is_lambda(e));
-    lambda_congr_key k;
+    eq_congr_key k;
     k.m_expr = e;
     expr const & dom = binding_domain(e);
     expr const & body = binding_body(e);
     unsigned h = hash(get_root(get_eq_name(), dom).hash(), get_root(get_eq_name(), body).hash());
     k.m_hash = h;
     return k;
+}
+
+/* \brief Create a eq congruence table key for a selsam-local.
+   \remark This table and key are only used when heterogeneous equality support is enabled. */
+auto congruence_closure::mk_selsam_local_congr_key(expr const & e) const -> eq_congr_key {
+    auto idx = is_selsam_local(e);
+    lean_assert(idx);
+    eq_congr_key k;
+    k.m_expr = e;
+    unsigned h = *idx;
+    k.m_hash = h;
+    return k;
+}
+
+/* \brief Create a equality congruence table key.
+   \remark This table and key are only used when heterogeneous equality support is enabled. */
+auto congruence_closure::mk_eq_congr_key(expr const & e) const -> eq_congr_key {
+    if (is_app(e)) return mk_app_congr_key(e);
+    else if (is_lambda(e)) return mk_lambda_congr_key(e);
+    else if (is_selsam_local(e)) return mk_selsam_local_congr_key(e);
+    else lean_unreachable();
 }
 
 int congruence_closure::cmp_eq_iff_keys(congr_key const & k1, congr_key const & k2) const {
@@ -1031,9 +1047,10 @@ void congruence_closure::internalize_core(name R, expr const & e, bool toplevel,
         expr selsam_local = mk_selsam_local(binding_domain(e));
         expr new_body = instantiate(lift_selsam_locals(binding_body(e)), selsam_local);
         internalize_core(R, new_body, false, to_propagate);
-        add_lambda_occurrence(e, binding_domain(e));
-        add_lambda_occurrence(e, new_body);
-        add_lambda_congruence_table(e);
+        bool eq_table = true;
+        add_occurrence(R, e, R, binding_domain(e), eq_table);
+        add_occurrence(R, e, R, new_body, eq_table);
+        add_eq_congruence_table(e);
         return;
     }
     case expr_kind::Macro:

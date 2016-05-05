@@ -138,18 +138,12 @@ class congruence_closure {
     typedef eqc_key_cmp parent_occ_cmp;
     typedef rb_tree<parent_occ, parent_occ_cmp>                 parent_occ_set;
     typedef rb_map<child_key, parent_occ_set, child_key_cmp>    parents;
-    typedef rb_tree<expr, expr_quick_cmp>                       lambda_parent_occ_set;
-    typedef rb_map<expr, lambda_parent_occ_set, expr_quick_cmp> lambda_parents;
     typedef rb_tree<eq_congr_key, eq_congr_key_cmp>             eq_congruences;
-    typedef rb_map<unsigned, expr, unsigned_cmp>                selsam_local_congruences;
-    typedef rb_tree<lambda_congr_key, lambda_congr_key_cmp>     lambda_congruences;
     typedef rb_tree<congr_key, congr_key_cmp>                   congruences;
     typedef rb_map<expr, expr, expr_quick_cmp>                  subsingleton_reprs;
     entries            m_entries;
     parents            m_parents;
-    lambda_parents     m_lambda_parents;
     eq_congruences     m_eq_congruences;
-    lambda_congruences m_lambda_congruences;
     congruences        m_congruences;
     /** The following mapping store a representative for each subsingleton type */
     subsingleton_reprs m_subsingleton_reprs;
@@ -171,7 +165,9 @@ class congruence_closure {
     int compare_symm(name const & R, expr lhs1, expr rhs1, expr lhs2, expr rhs2) const;
     int compare_root(name const & R, expr e1, expr e2) const;
     eq_congr_key mk_eq_congr_key(expr const & e) const;
-    lambda_congr_key mk_lambda_congr_key(expr const & e) const;
+    eq_congr_key mk_app_congr_key(expr const & e) const;
+    eq_congr_key mk_lambda_congr_key(expr const & e) const;
+    eq_congr_key mk_selsam_local_congr_key(expr const & e) const;
     unsigned symm_hash(name const & R, expr const & lhs, expr const & rhs) const;
     congr_key mk_congr_key(ext_congr_lemma const & lemma, expr const & e) const;
     void check_iff_true(congr_key const & k);
