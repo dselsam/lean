@@ -8,8 +8,10 @@ Author: Leonardo de Moura
 #include <vector>
 #include "util/sexpr/option_declarations.h"
 #include "kernel/abstract.h"
+#include "kernel/instantiate.h"
 #include "library/trace.h"
 #include "library/constants.h"
+#include "library/selsam_index.h"
 #include "library/blast/simplifier/simp_lemmas.h"
 #include "library/blast/congruence_closure.h"
 #include "library/blast/util.h"
@@ -998,9 +1000,18 @@ void congruence_closure::internalize_core(name R, expr const & e, bool toplevel,
     case expr_kind::Meta:
         mk_entry_core(R, e, to_propagate);
         return;
-    case expr_kind::Lambda:
+    case expr_kind::Lambda: {
+        internalize_core(R, binding_domain(e), false, to_propagate);
+        buffer<expr> lifted_slocals;
+        expr selsam_local = mk_selsam_local(binding_domain(e));
+        expr new_body = instantiate(lift_selsam_locals(binding_body(e), lifted_slocals), selsam_local);
+        for (expr const & slocal : lifted_slocals) {
+            internalize_core(R, slocal, false, to_propagate);
+        }
+        internalize_core(R, new_body, false, to_propagate);
         mk_entry_core(R, e, false);
         return;
+    }
     case expr_kind::Macro:
         for (unsigned i = 0; i < macro_num_args(e); i++)
             internalize_core(R, macro_arg(e, i), false, false);
