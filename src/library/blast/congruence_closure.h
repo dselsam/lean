@@ -169,6 +169,7 @@ class congruence_closure {
     int compare_symm(name const & R, expr lhs1, expr rhs1, expr lhs2, expr rhs2) const;
     int compare_root(name const & R, expr e1, expr e2) const;
     eq_congr_key mk_eq_congr_key(expr const & e) const;
+    lambda_congr_key mk_lambda_congr_key(expr const & e) const;
     unsigned symm_hash(name const & R, expr const & lhs, expr const & rhs) const;
     congr_key mk_congr_key(ext_congr_lemma const & lemma, expr const & e) const;
     void check_iff_true(congr_key const & k);

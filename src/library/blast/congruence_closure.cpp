@@ -705,6 +705,19 @@ auto congruence_closure::mk_eq_congr_key(expr const & e) const -> eq_congr_key {
     return k;
 }
 
+/* \brief Create a lambda congruence table key.
+   \remark This table and key are only used when heterogeneous equality support is enabled. */
+auto congruence_closure::mk_lambda_congr_key(expr const & e) const -> lambda_congr_key {
+    lean_assert(is_lambda(e));
+    lambda_congr_key k;
+    k.m_expr = e;
+    expr const & dom = binding_domain(e);
+    expr const & body = binding_body(e);
+    unsigned h = hash(get_root(get_eq_name(), dom).hash(), get_root(get_eq_name(), body).hash());
+    k.m_hash = h;
+    return k;
+}
+
 int congruence_closure::cmp_eq_iff_keys(congr_key const & k1, congr_key const & k2) const {
     lean_assert(k1.m_eq  == k2.m_eq);
     lean_assert(k1.m_iff == k2.m_iff);
