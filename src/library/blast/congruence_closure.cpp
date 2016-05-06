@@ -7,6 +7,7 @@ Author: Leonardo de Moura
 #include <algorithm>
 #include <vector>
 #include "util/sexpr/option_declarations.h"
+#include "kernel/expr.h"
 #include "kernel/abstract.h"
 #include "kernel/instantiate.h"
 #include "library/trace.h"
@@ -18,6 +19,7 @@ Author: Leonardo de Moura
 #include "library/blast/forward/ematch.h"
 #include "library/blast/blast.h"
 #include "library/blast/trace.h"
+#include "library/blast/proof_expr.h"
 #include "library/blast/options.h"
 
 #ifndef LEAN_DEFAULT_BLAST_CC_HEQ
@@ -1611,7 +1613,7 @@ expr congruence_closure::mk_eq_app_congr_proof(expr const & lhs, expr const & rh
 
 static expr unfold_all_hyps_that_contain_selsam_locals(expr const & e) {
     // TODO(dhs): too crude
-    return curr_state().expand_all_hrefs(e);
+    return curr_state().expand_all_hrefs(e); //unfold_hypotheses_ge(curr_state(), e);
 }
 
 expr congruence_closure::mk_eq_lambda_congr_proof(expr const & lhs, expr const & rhs, bool heq_proofs) const {
@@ -1643,16 +1645,31 @@ expr congruence_closure::mk_eq_lambda_congr_proof(expr const & lhs, expr const &
     std::tie(selsam_local2, new_body2) = get_selsam_local(rhs);
 
     expr pf_bodies = *get_eqv_proof(get_heq_name(), new_body1, new_body2);
-
+    lean_trace(name({"cc", "lambda"}), tout() << "HFUNEXT with: ("
+               << selsam_local1 << " : " << infer_type(selsam_local1) << "), ("
+               << selsam_local2 << " : " << infer_type(selsam_local2) << ")\n";);
     lean_trace(name({"cc", "lambda"}), tout() << "Before unfolding: " << pf_bodies << "\n";);
     pf_bodies = unfold_all_hyps_that_contain_selsam_locals(pf_bodies);
 
     lean_trace(name({"cc", "lambda"}), tout() << "Before replacing: " << pf_bodies << "\n";);
-    std::set<expr> ls0 = all_locals_at_selsam_index0(pf_bodies);
+    expr_struct_set ls0 = all_locals_at_selsam_index0(pf_bodies);
+
+    for (expr const & l : ls0) {
+        lean_trace(name({"cc", "lambda"}),
+                   tout() << "pf_bodies contains: (" << l << " : " << infer_type(l) << " : " << mlocal_type(l) << ")\n1: ";
+                   tout() << (l == selsam_local1) << " " << (mlocal_name(l) == mlocal_name(selsam_local1)) << " ";
+                   tout() << (mlocal_type(l) == mlocal_type(selsam_local1)) << " " << (infer_type(l) == infer_type(selsam_local1)) << "\n2: ";
+                   tout() << (l == selsam_local2) << " " << (mlocal_name(l) == mlocal_name(selsam_local2)) << " ";
+                   tout() << (mlocal_type(l) == mlocal_type(selsam_local2)) << " " << (infer_type(l) == infer_type(selsam_local2)) << "\n";
+            );
+    }
+
     ls0.erase(selsam_local1);
     ls0.erase(selsam_local2);
     for (expr const & l : ls0) {
         lean_trace(name({"cc", "lambda"}), tout() << "Replacing: " << l << " : " << infer_type(l) << "\n";);
+        lean_assert(l != selsam_local1);
+        lean_assert(l != selsam_local2);
         // TODO(dhs): this does not work in general
         // we will need to find/create a term with the right type
         if (infer_type(l) == infer_type(selsam_local1)) {

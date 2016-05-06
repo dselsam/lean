@@ -5,7 +5,7 @@ Author: Daniel Selsam
 */
 #pragma once
 #include "kernel/expr.h"
-#include <set>
+#include "kernel/expr_sets.h"
 
 namespace lean {
 
@@ -17,7 +17,7 @@ bool has_selsam_local(expr const & e);
 expr lift_selsam_locals(expr const & e);
 expr lower_selsam_locals(expr const & e);
 
-std::set<expr> all_locals_at_selsam_index0(expr const & e);
+expr_struct_set all_locals_at_selsam_index0(expr const & e);
 
 void initialize_selsam_index();
 void finalize_selsam_index();
