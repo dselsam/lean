@@ -152,7 +152,7 @@ class congruence_closure {
     // TODO(dhs): could just be a map from the type to the name
     list<expr>       * m_hfunext_proofs;
     expr mk_hfunext_proof(expr const & lhs, expr const & rhs) const;
-    expr get_hfunext_proof(expr const & lhs, expr const & rhs) const;
+    optional<expr> get_hfunext_proof(expr const & lhs, expr const & rhs) const;
 
     bool is_lambda_congruent(expr const & e1, expr const & e2) const;
 

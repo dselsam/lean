@@ -1617,28 +1617,38 @@ static expr unfold_all_hyps_that_contain_selsam_locals(expr const & e) {
 }
 
 expr congruence_closure::mk_hfunext_proof(expr const & lhs, expr const & rhs) const {
+    lean_assert(closed(lhs));
+    lean_assert(closed(rhs));
+    if (auto e = get_hfunext_proof(lhs, rhs)) {
+        return *e;
+    }
     app_builder & b = get_app_builder();
+    // TODO(dhs): better counter
     expr l = mk_local(name(*g_hfunext_proof, mk_href_idx()), b.mk_heq(lhs, rhs));
+    lean_assert(closed(l));
     *m_hfunext_proofs = cons(l, *m_hfunext_proofs);
+    lean_trace(name({"cc", "lambda"}), tout() << "make funext proof: " << mlocal_name(l) << " : " << mlocal_type(l) << ")\n";);
     return l;
 }
 
-expr congruence_closure::get_hfunext_proof(expr const & lhs, expr const & rhs) const {
+optional<expr> congruence_closure::get_hfunext_proof(expr const & lhs, expr const & rhs) const {
     app_builder & b = get_app_builder();
     typedef typename list<expr>::cell c;
     c * it = m_hfunext_proofs->raw();
     while (it) {
         expr e = it->head();
         expr A, lhs0, B, rhs0;
+        // Better way: map from selsam_uniq_ids ==> local_id
         if (is_heq(mlocal_type(e), A, lhs0, B, rhs0) && selsam_local_eq_upto_index(lhs, lhs0) && selsam_local_eq_upto_index(rhs, rhs0)) {
             lean_trace(name({"cc", "lambda"}), tout() << "Found funext proof: " << e << "\n";);
-            *m_hfunext_proofs = remove(*m_hfunext_proofs, e);
-            e = update_mlocal(e, b.mk_heq(lhs, rhs));
-            return e;
+//            *m_hfunext_proofs = remove(*m_hfunext_proofs, e);
+            expr r = update_mlocal(e, b.mk_heq(lhs, rhs));
+            lean_assert(closed(r));
+            return optional<expr>(r);
         }
         it = it->tail().raw();
     }
-    lean_unreachable();
+    return optional<expr>();
 }
 
 
@@ -1714,8 +1724,10 @@ expr congruence_closure::mk_eq_lambda_congr_proof(expr const & lhs, expr const &
     lean_trace(name({"cc", "lambda"}), tout() << "Before abstracting: " << pf_bodies << "\n";);
 
     // TODO(dhs): mk_heq
-    expr hfunext_pf = get_hfunext_proof(selsam_local1, selsam_local2); // TODO(dhs): may be out of order
+    expr hfunext_pf = mk_hfunext_proof(selsam_local1, selsam_local2);
+    lean_assert(closed(pf_bodies));
     pf_bodies = Fun({selsam_local1, selsam_local2, hfunext_pf}, pf_bodies);
+    lean_assert(closed(pf_bodies));
     lean_trace(name({"cc", "lambda"}), tout() << "Abstracting: " << selsam_local1 << " |+| "
                << selsam_local2 << " |+| " << hfunext_pf << "\n";);
     lean_trace(name({"cc", "lambda"}), tout() << "After abstracting: " << pf_bodies << "\n";);
