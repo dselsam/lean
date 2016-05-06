@@ -33,7 +33,7 @@ class simple_strategy_fn : public strategy_fn {
 
     virtual action_result hypothesis_pre_activation(hypothesis_idx hidx) override {
         Try(assumption_contradiction_actions(hidx));
-        Try(simplify_hypothesis_action(hidx));
+//        Try(simplify_hypothesis_action(hidx));
         Try(unit_preprocess(hidx));
         Try(no_confusion_action(hidx));
         TrySolve(assert_cc_action(hidx));

@@ -15,6 +15,7 @@ Author: Leonardo de Moura
 #include "library/blast/simplifier/simp_lemmas.h"
 #include "library/blast/congruence_closure.h"
 #include "library/blast/util.h"
+#include "library/blast/forward/ematch.h"
 #include "library/blast/blast.h"
 #include "library/blast/trace.h"
 #include "library/blast/options.h"
@@ -31,6 +32,7 @@ namespace lean {
 namespace blast {
 static name * g_blast_cc_heq          = nullptr;
 static name * g_blast_cc_subsingleton = nullptr;
+static name * g_hfunext_proof         = nullptr;
 
 bool get_blast_cc_heq(options const & o) {
     return o.get_bool(*g_blast_cc_heq, LEAN_DEFAULT_BLAST_CC_HEQ);
@@ -658,7 +660,6 @@ static bool is_eq_congruent(expr const & e1, expr const & e2) {
 /** \brief Return true iff the given function application are congruent */
 bool congruence_closure::is_lambda_congruent(expr const & e1, expr const & e2) const {
     if (!is_lambda(e1) || !is_lambda(e2)) return false;
-    lean_trace(name({"cc", "lambda"}), tout() << "IsLambdaCongruent: " << e1 << " =!= " << e2 << "\n";);
 
     expr dom1 = binding_domain(e1);
     expr dom2 = binding_domain(e2);
@@ -680,7 +681,6 @@ bool congruence_closure::is_lambda_congruent(expr const & e1, expr const & e2) c
         return false;
     }
 
-    lean_trace(name({"cc", "lambda"}), tout() << "IsLambdaCongruent: TRUE!\n";);
     return true;
 }
 
@@ -689,9 +689,7 @@ static bool is_selsam_local_congruent(expr const & e1, expr const & e2) {
     auto idx2 = is_selsam_local(e2);
 
     if (!idx1 || !idx2) return false;
-    lean_trace(name({"cc", "lambda"}), tout() << "IsSelsamLocalCongruent: " << e1 << " =!= " << e2 << "\n";);
     if (*idx1 == *idx2) {
-        lean_trace(name({"cc", "lambda"}), tout() << "IsSelsamLocalCongruent: TRUE!\n";);
         return true;
     } else {
         return false;
@@ -761,7 +759,6 @@ auto congruence_closure::mk_eq_congr_key(expr const & e) const -> eq_congr_key {
     } else if (is_selsam_local(e)) {
         k = mk_selsam_local_congr_key(e);
     } else {
-        lean_trace(name({"cc", "lambda"}), tout() << "[ERROR] MkEqCongrKey: " << e << "\n";);
         lean_unreachable();
     }
     k.cc = this;
@@ -948,11 +945,7 @@ void congruence_closure::add_eq_congruence_table(expr const & e) {
           Found new equivalence: e ~ old_k->m_expr
           1. Update m_cg_root field for e
         */
-        if (is_lambda(e)) {
-            lean_trace(name({"cc", "lambda"}), tout() << "FoundCongruence[lambda]: " << e << " == " << old_k->m_expr << "\n";);
-        } else if (is_selsam_local(e)) {
-            lean_trace(name({"cc", "lambda"}), tout() << "FoundCongruence[selsam_local]: " << e << " == " << old_k->m_expr << "\n";);
-        }
+        lean_trace(name({"cc", "lambda"}), tout() << "FoundCongruence: " << e << " == " << old_k->m_expr << "\n";);
 
         eqc_key k(get_eq_name(), e);
         entry new_entry = *m_entries.find(k);
@@ -960,14 +953,11 @@ void congruence_closure::add_eq_congruence_table(expr const & e) {
         m_entries.insert(k, new_entry);
         /* 2. Put new equivalence in the TODO queue */
         /* TODO(Leo): check if the following line is a bottleneck */
-        bool heq_proof = !is_def_eq(infer_type(e), infer_type(old_k->m_expr));
+        // TODO(dhs): only heq if necessary
+        bool heq_proof = !is_def_eq(infer_type(e), infer_type(old_k->m_expr)) || is_lambda(e);
         push_todo(get_eq_name(), e, old_k->m_expr, *g_eq_congr_mark, heq_proof);
     } else {
-        if (is_lambda(e)) {
-            lean_trace(name({"cc", "lambda"}), tout() << "DidNotFoundCongruence[lambda]: " << e << "\n";);
-        } else if (is_selsam_local(e)) {
-            lean_trace(name({"cc", "lambda"}), tout() << "DidNotFoundCongruence[selsam_local]: " << e << "\n";);
-        }
+        lean_trace(name({"cc", "lambda"}), tout() << "DidNotFoundCongruence: " << e << "\n";);
 
         m_eq_congruences.insert(k);
     }
@@ -1064,6 +1054,7 @@ void congruence_closure::internalize_core(name R, expr const & e, bool toplevel,
     if (m_entries.find(eqc_key(R, e)))
         return; // e has already been internalized
     update_non_eq_relations(R);
+    lean_trace(name({"cc", "lambda"}), tout() << "Internalize: " << e << "\n";);
     switch (e.kind()) {
     case expr_kind::Var:
         lean_unreachable();
@@ -1076,17 +1067,17 @@ void congruence_closure::internalize_core(name R, expr const & e, bool toplevel,
     case expr_kind::Meta:
         mk_entry_core(R, e, to_propagate);
         if (is_selsam_local(e)) {
-            lean_trace(name({"cc", "lambda"}), tout() << "Internalize[selsam_local]: " << e << "\n";);
             add_eq_congruence_table(e);
         }
         return;
     case expr_kind::Lambda: {
         mk_entry_core(R, e, false);
         if (g_heq_based && R == get_eq_name()) {
-            lean_trace(name({"cc", "lambda"}), tout() << "Internalize[lambda]: " << e << "\n";);
             internalize_core(R, binding_domain(e), false, to_propagate);
             expr selsam_local = mk_selsam_local(binding_domain(e));
             expr new_body = instantiate(lift_selsam_locals(binding_body(e)), selsam_local);
+            collect_apps(binding_domain(e));
+            collect_apps(new_body);
             put_selsam_local(e, selsam_local, new_body);
             internalize_core(R, new_body, false, to_propagate);
             bool eq_table = true;
@@ -1635,10 +1626,12 @@ expr congruence_closure::mk_eq_lambda_congr_proof(expr const & lhs, expr const &
 
     expr pf_domains;
     if (is_def_eq(dom1, dom2)) {
-        pf_domains = b.mk_heq_refl(dom1);
+        pf_domains = b.mk_eq_refl(dom1);
     } else {
         pf_domains = *get_eqv_proof(get_eq_name(), dom1, dom2);
     }
+
+
 
     expr selsam_local1, new_body1;
     expr selsam_local2, new_body2;
@@ -1649,7 +1642,9 @@ expr congruence_closure::mk_eq_lambda_congr_proof(expr const & lhs, expr const &
     expr pf_bodies = *get_eqv_proof(get_heq_name(), new_body1, new_body2);
     // (H : ∀ (a a' : A), a == a' → f a == g a'),
     // TODO(dhs): need to abstract the locals and the local-proof
-    pf_bodies = Fun({selsam_local1, selsam_local2}, pf_bodies);
+    // TODO(dhs): better "don't care" expression
+    pf_bodies = Fun({selsam_local1, selsam_local2, mk_local(*g_hfunext_proof, b.mk_heq(selsam_local1, selsam_local2))}, pf_bodies);
+    pf_bodies = lower_selsam_locals(pf_bodies);
 
     // TODO(dhs): deal with the issue of extra locals that leak into the proof
     return b.mk_app(get_hfunext_full_name(), pf_domains, pf_bodies);
@@ -1660,7 +1655,7 @@ expr congruence_closure::mk_eq_selsam_local_congr_proof(expr const & lhs, expr c
     app_builder & b = get_app_builder();
     lean_assert(is_eqv(get_eq_name(), lhs, rhs));
     // TODO(dhs): local
-    return b.mk_app(name("foobarbazoo"), lhs, rhs);
+    return mk_local(*g_hfunext_proof, b.mk_heq(lhs, rhs));
 }
 
 expr congruence_closure::mk_eq_congr_proof(expr const & lhs, expr const & rhs, bool heq_proofs) const {
@@ -2204,6 +2199,7 @@ void initialize_congruence_closure() {
 
     g_blast_cc_heq           = new name{"blast", "cc", "heq"};
     g_blast_cc_subsingleton  = new name{"blast", "cc", "subsingleton"};
+    g_hfunext_proof          = new name(name::mk_internal_unique_name());
 
     register_bool_option(*g_blast_cc_heq, LEAN_DEFAULT_BLAST_CC_HEQ,
                          "(blast) enable support for heterogeneous equality "

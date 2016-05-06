@@ -31,7 +31,7 @@ class preprocess_strategy_fn : public strategy_fn {
 
     virtual action_result hypothesis_pre_activation(hypothesis_idx hidx) override {
         Try(assumption_contradiction_actions(hidx));
-        Try(simplify_hypothesis_action(hidx));
+//        Try(simplify_hypothesis_action(hidx));
         if (!m_simple)
             Try(unit_preprocess(hidx));
         Try(no_confusion_action(hidx));
@@ -55,7 +55,7 @@ class preprocess_strategy_fn : public strategy_fn {
             Try(intros_action());
             Try(assumption_action());
             Try(activate_hypothesis());
-            Try(simplify_target_action());
+            //          Try(simplify_target_action());
             m_done = true;
         }
         if (get_num_choice_points() > get_initial_num_choice_points())

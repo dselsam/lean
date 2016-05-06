@@ -124,7 +124,8 @@ class defeq_simplify_fn {
                 e = defeq_simplify_macro(e);
                 break;
             case expr_kind::Lambda:
-                e = try_eta(defeq_simplify_binding(e));
+//                e = try_eta(defeq_simplify_binding(e));
+                e = defeq_simplify_binding(e);
                 break;
             case expr_kind::Pi:
                 e = defeq_simplify_binding(e);
@@ -276,7 +277,8 @@ class defeq_simplify_fn {
     }
 
     expr whnf_eta(expr const & e) {
-        return try_eta(m_tmp_tctx->whnf(e));
+//        return try_eta(m_tmp_tctx->whnf(e));
+        return m_tmp_tctx->whnf(e);
     }
 
 public:

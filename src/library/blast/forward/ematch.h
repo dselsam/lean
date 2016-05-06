@@ -9,6 +9,9 @@ Author: Leonardo de Moura
 
 namespace lean {
 namespace blast {
+
+void collect_apps(expr const & e);
+
 action_result ematch_action();
 action_result ematch_simp_action();
 void initialize_ematch();

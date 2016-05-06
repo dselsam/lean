@@ -50,8 +50,17 @@ expr lift_local(expr const & e) {
     return mk_local(lifted_name, local_pp_name(e), mlocal_type(e), local_info(e), e.get_tag());
 }
 
+expr lower_local(expr const & e) {
+    auto old_idx = is_selsam_local(e);
+    lean_assert(old_idx);
+    lean_assert(!mlocal_name(e).is_atomic());
+    lean_assert(*old_idx > 0);
+    name lifted_name = name(mlocal_name(e).get_prefix(), *old_idx+-1);
+    return mk_local(lifted_name, local_pp_name(e), mlocal_type(e), local_info(e), e.get_tag());
+}
+
 // TODO(dhs): cache
-expr lift_selsam_locals(expr const & e) {
+expr map_selsam_locals(expr const & e, std::function<expr(expr const &)> const & f) {
     if (!has_local(e))
         return e;
 
@@ -64,7 +73,7 @@ expr lift_selsam_locals(expr const & e) {
         expr new_ty = lift_selsam_locals(mlocal_type(e));
         new_e = update_mlocal(e, new_ty);
         if (is_selsam_local(new_e)) {
-            new_e = lift_local(e);
+            new_e = f(e);
         }
         return new_e;
     }
@@ -94,11 +103,15 @@ expr lift_selsam_locals(expr const & e) {
     lean_unreachable();
 }
 
+expr lift_selsam_locals(expr const & e) { return map_selsam_locals(e, lift_local); }
+expr lower_selsam_locals(expr const & e) { return map_selsam_locals(e, lower_local); }
+
 void initialize_selsam_index() {
     g_selsam_index_prefix = new name(name::mk_internal_unique_name());
 }
 
-void finalize_selsam_index() {}
-
+void finalize_selsam_index() {
+    delete g_selsam_index_prefix;
+}
 
 }

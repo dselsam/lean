@@ -7,8 +7,10 @@ Author: Leonardo de Moura
 #include <algorithm>
 #include "util/interrupt.h"
 #include "util/sexpr/option_declarations.h"
+#include "kernel/instantiate.h"
 #include "library/constants.h"
 #include "library/idx_metavar.h"
+#include "library/selsam_index.h"
 #include "library/head_map.h"
 #include "library/blast/blast.h"
 #include "library/blast/trace.h"
@@ -132,12 +134,15 @@ public:
     rb_map<head_index, expr_set, head_index::cmp> const & get_apps() const {
         return m_apps;
     }
-};
+}
+;
 
 static unsigned g_inst_ext_id = 0;
 instances_branch_extension & get_inst_ext() {
     return static_cast<instances_branch_extension&>(curr_state().get_extension(g_inst_ext_id));
 }
+
+void collect_apps(expr const & e) { get_inst_ext().collect_apps(e); }
 
 /*
 When a hypothesis hidx is activated:
@@ -643,6 +648,7 @@ struct ematch_fn {
         expr const & f  = get_app_args(p0, p0_args);
         name const & R  = m_ctx->is_prop(p0) ? get_iff_name() : get_eq_name();
         unsigned gmt    = m_cc.get_gmt();
+        lean_trace_debug_ematch(tout() << "instantiate_lemma_using:" << f << "\n";);
         if (auto s = m_inst_ext.get_apps().find(head_index(f))) {
             s->for_each([&](expr const & t) {
                     if ((m_cc.is_congr_root(R, t) || m_cc.eq_class_heterogeneous(t)) && (!filter || m_cc.get_mt(R, t) == gmt)) {
@@ -689,6 +695,7 @@ struct ematch_fn {
     /* (Try to) instantiate lemmas in \c s. If \c filter is true, then use gmt optimization. */
     void instantiate_lemmas(hi_lemma_set const & s, bool filter) {
         s.for_each([&](hi_lemma const & l) {
+                lean_trace_debug_ematch(tout() << "ematch: " << l.m_expr << "\n";);
                 if (!m_inst_ext.max_instances_exceeded())
                     instantiate_lemma(l, filter);
             });
@@ -723,5 +730,5 @@ action_result ematch_simp_action() {
         return ematch_fn(false)();
     else
         return action_result::failed();
-}
 }}
+}
