@@ -1644,10 +1644,15 @@ expr congruence_closure::mk_eq_lambda_congr_proof(expr const & lhs, expr const &
 
     expr pf_bodies = *get_eqv_proof(get_heq_name(), new_body1, new_body2);
 
+    lean_trace(name({"cc", "lambda"}), tout() << "Before unfolding: " << pf_bodies << "\n";);
+    pf_bodies = unfold_all_hyps_that_contain_selsam_locals(pf_bodies);
+
+    lean_trace(name({"cc", "lambda"}), tout() << "Before replacing: " << pf_bodies << "\n";);
     std::set<expr> ls0 = all_locals_at_selsam_index0(pf_bodies);
     ls0.erase(selsam_local1);
     ls0.erase(selsam_local2);
     for (expr const & l : ls0) {
+        lean_trace(name({"cc", "lambda"}), tout() << "Replacing: " << l << "\n";);
         // TODO(dhs): this does not work in general
         // we will need to find/create a term with the right type
         lean_assert(infer_type(l) == infer_type(selsam_local1));
@@ -1657,15 +1662,15 @@ expr congruence_closure::mk_eq_lambda_congr_proof(expr const & lhs, expr const &
     // TODO(dhs): need to abstract the locals and the local-proof
     // TODO(dhs): better "don't care" expression
 
-    lean_trace(name({"cc", "lambda"}), tout() << "Before unfolding: " << pf_bodies << "\n";);
-    pf_bodies = unfold_all_hyps_that_contain_selsam_locals(pf_bodies);
     lean_trace(name({"cc", "lambda"}), tout() << "Before abstracting: " << pf_bodies << "\n";);
 
     // TODO(dhs): mk_heq
-    pf_bodies = Fun({selsam_local1, selsam_local2, mk_local(*g_hfunext_proof, b.mk_eq(selsam_local1, selsam_local2))}, pf_bodies);
-
+    pf_bodies = Fun({selsam_local1, selsam_local2, mk_local(*g_hfunext_proof, b.mk_heq(selsam_local1, selsam_local2))}, pf_bodies);
+    lean_trace(name({"cc", "lambda"}), tout() << "Abstracting: " << selsam_local1 << " |+| "
+               << selsam_local2 << " |+| " << *g_hfunext_proof << "\n";);
     lean_trace(name({"cc", "lambda"}), tout() << "After abstracting: " << pf_bodies << "\n";);
-//    pf_bodies = lower_selsam_locals(pf_bodies);
+    pf_bodies = lower_selsam_locals(pf_bodies);
+    lean_trace(name({"cc", "lambda"}), tout() << "After lower the selsam locals: " << pf_bodies << "\n";);
 
     // TODO(dhs): deal with the issue of extra locals that leak into the proof
     expr hfunext_pf = b.mk_app(get_hfunext_full_name(), pf_domains, pf_bodies);
@@ -1684,7 +1689,7 @@ expr congruence_closure::mk_eq_selsam_local_congr_proof(expr const & lhs, expr c
 //    if (heq_proofs) {
 //        return mk_local(*g_hfunext_proof, b.mk_heq(lhs, rhs));
 //    } else {
-        return mk_local(*g_hfunext_proof, b.mk_eq(lhs, rhs));
+        return mk_local(*g_hfunext_proof, b.mk_heq(lhs, rhs));
 //    }
 }
 
@@ -1908,7 +1913,7 @@ optional<expr> congruence_closure::get_eqv_proof(name const & R, expr const & e1
     auto n2 = m_entries.find(eqc_key(R_key, e2));
     if (!n2) return none_expr();
     if (n1->m_root != n2->m_root) return none_expr();
-    bool heq_proofs = R_key == get_eq_name() && (has_heq_proofs(n1->m_root) || (is_lambda(e1) && is_lambda(e2)));
+    bool heq_proofs = R_key == get_eq_name() && (has_heq_proofs(n1->m_root) || (has_selsam_local(e1) || has_selsam_local(e2)));
     // R_trans is the relation we use to build the transitivity proofs
     name R_trans = heq_proofs ? get_heq_name() : R_key;
     // 1. Retrieve "path" from e1 to root

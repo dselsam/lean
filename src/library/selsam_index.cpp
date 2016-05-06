@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Author: Daniel Selsam
 */
 #include "kernel/for_each_fn.h"
+#include "kernel/find_fn.h"
 #include "library/selsam_index.h"
 #include "util/optional.h"
 #include <set>
@@ -43,6 +44,16 @@ expr mk_selsam_local(expr const & type) {
     return mk_local(mk_selsam_local_name(0), type);
 }
 
+bool has_selsam_local(expr const & e) {
+    optional<expr> l = find(e, [&](expr const & t, unsigned) {
+            return is_selsam_local(t);
+        });
+    if (l)
+        return true;
+    else
+        return false;
+}
+
 expr lift_local(expr const & e) {
     auto old_idx = is_selsam_local(e);
     lean_assert(old_idx);
@@ -56,7 +67,7 @@ expr lower_local(expr const & e) {
     lean_assert(old_idx);
     lean_assert(!mlocal_name(e).is_atomic());
     lean_assert(*old_idx > 0);
-    name lifted_name = name(mlocal_name(e).get_prefix(), *old_idx+-1);
+    name lifted_name = name(mlocal_name(e).get_prefix(), *old_idx - 1);
     return mk_local(lifted_name, local_pp_name(e), mlocal_type(e), local_info(e), e.get_tag());
 }
 
