@@ -89,6 +89,7 @@ class congruence_closure {
        generic congruence table and rely on automatically generated congruence lemmas for
        weakly dependent functions. */
     struct eq_congr_key {
+        congruence_closure * cc;
         expr      m_expr;
         unsigned  m_hash;
     };
@@ -141,10 +142,27 @@ class congruence_closure {
     typedef rb_tree<eq_congr_key, eq_congr_key_cmp>             eq_congruences;
     typedef rb_tree<congr_key, congr_key_cmp>                   congruences;
     typedef rb_map<expr, expr, expr_quick_cmp>                  subsingleton_reprs;
+    typedef rb_map<expr, expr_pair, expr_quick_cmp>             selsam_locals;
     entries            m_entries;
     parents            m_parents;
     eq_congruences     m_eq_congruences;
     congruences        m_congruences;
+    selsam_locals      m_selsam_locals;
+
+    bool is_lambda_congruent(expr const & e1, expr const & e2);
+
+    // TODO(dhs): move to .cpp
+    expr_pair get_selsam_local(expr const & lam) const {
+        expr_pair const * slocal = m_selsam_locals.find(lam);
+        lean_assert(slocal);
+        return *slocal;
+    }
+
+    void put_selsam_local(expr const & lam, expr const & slocal, expr const & new_body) {
+        m_selsam_locals.insert(lam, mk_pair(slocal, new_body));
+    }
+
+
     /** The following mapping store a representative for each subsingleton type */
     subsingleton_reprs m_subsingleton_reprs;
     list<name>  m_non_eq_relations;

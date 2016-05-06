@@ -94,8 +94,8 @@ theorem hfunext {A : Type} {B : A → Type} {B' : A → Type} {f : Π x, B x} {g
 cast_to_heq (funext (λ a, eq_of_heq (heq.trans (cast_app (funext (λ x, type_eq_of_heq (H x))) f a) (H a))))
 
 theorem hfunext_full {A A' : Type} {B : A → Type} {B' : A → Type} {f : Π x, B x} {g : Π x, B' x}
-                     (HA : A = A') (H : ∀ a a', f a == g a') : f == g :=
-eq.rec_on HA (hfunext (λ a, H a a))
+                     (HA : A = A') (H : ∀ a a', a == a' → f a == g a') : f == g :=
+eq.rec_on HA (hfunext (λ x, H x x (heq.refl x)))
 
 section
   variables {A : Type} {B : A → Type} {C : Πa, B a → Type} {D : Πa b, C a b → Type}

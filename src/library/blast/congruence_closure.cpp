@@ -11,7 +11,6 @@ Author: Leonardo de Moura
 #include "kernel/instantiate.h"
 #include "library/trace.h"
 #include "library/constants.h"
-#include "library/sorry.h" // TODO(dhs): get rid of when done
 #include "library/selsam_index.h"
 #include "library/blast/simplifier/simp_lemmas.h"
 #include "library/blast/congruence_closure.h"
@@ -657,7 +656,7 @@ static bool is_eq_congruent(expr const & e1, expr const & e2) {
 }
 
 /** \brief Return true iff the given function application are congruent */
-static bool is_lambda_congruent(expr const & e1, expr const & e2) {
+bool congruence_closure::is_lambda_congruent(expr const & e1, expr const & e2) {
     if (!is_lambda(e1) || !is_lambda(e2)) return false;
     lean_trace(name({"cc", "lambda"}), tout() << "IsLambdaCongruent: " << e1 << " =!= " << e2 << "\n";);
 
@@ -673,10 +672,8 @@ static bool is_lambda_congruent(expr const & e1, expr const & e2) {
         return false;
     }
 
-    expr selsam_local1 = mk_selsam_local(binding_domain(e1));
-    expr selsam_local2 = mk_selsam_local(binding_domain(e2));
-    expr new_body1 = instantiate(lift_selsam_locals(binding_body(e1)), selsam_local1);
-    expr new_body2 = instantiate(lift_selsam_locals(binding_body(e2)), selsam_local2);
+    expr new_body1 = get_selsam_local(e1).second;
+    expr new_body2 = get_selsam_local(e2).second;
 
     if (g_cc->get_root(get_eq_name(), new_body1) != g_cc->get_root(get_eq_name(), new_body2)) {
         /* new_body1 and new_body2 are not equivalent */
@@ -707,7 +704,7 @@ int congruence_closure::eq_congr_key_cmp::operator()(eq_congr_key const & k1, eq
         return unsigned_cmp()(k1.m_hash, k2.m_hash);
     if (is_eq_congruent(k1.m_expr, k2.m_expr))
         return 0;
-    if (is_lambda_congruent(k1.m_expr, k2.m_expr))
+    if (k1.cc->is_lambda_congruent(k1.m_expr, k2.m_expr))
         return 0;
     if (is_selsam_local_congruent(k1.m_expr, k2.m_expr))
         return 0;
@@ -735,8 +732,7 @@ auto congruence_closure::mk_lambda_congr_key(expr const & e) const -> eq_congr_k
     eq_congr_key k;
     k.m_expr = e;
     expr const & dom = binding_domain(e);
-    expr selsam_local = mk_selsam_local(binding_domain(e));
-    expr new_body = instantiate(lift_selsam_locals(binding_body(e)), selsam_local);
+    expr new_body = get_selsam_local(e).second;
     unsigned h = hash(get_root(get_eq_name(), dom).hash(), get_root(get_eq_name(), new_body).hash());
     k.m_hash = h;
     return k;
@@ -1082,6 +1078,7 @@ void congruence_closure::internalize_core(name R, expr const & e, bool toplevel,
             internalize_core(R, binding_domain(e), false, to_propagate);
             expr selsam_local = mk_selsam_local(binding_domain(e));
             expr new_body = instantiate(lift_selsam_locals(binding_body(e)), selsam_local);
+            put_selsam_local(e, selsam_local, new_body);
             internalize_core(R, new_body, false, to_propagate);
             bool eq_table = true;
             add_occurrence(R, e, R, binding_domain(e), eq_table);
@@ -1615,8 +1612,38 @@ expr congruence_closure::mk_eq_app_congr_proof(expr const & lhs, expr const & rh
 expr congruence_closure::mk_eq_lambda_congr_proof(expr const & lhs, expr const & rhs, bool heq_proofs) const {
     lean_assert(is_lambda(lhs) && is_lambda(rhs));
     app_builder & b = get_app_builder();
-    // TODO(dhs): take 'er home
-    return mk_sorry();
+    lean_assert(is_eqv(get_eq_name(), binding_domain(lhs), binding_domain(rhs)));
+    /* Three cases:
+       1. funext: A -> B ||  A -> B
+       2. hfunext: Pi a : A, B a || Pi a : A, B' a
+       3. hfunext_full: Pi a : A, B a || Pi a' : A', B' a'
+
+       For now, we lump all of them and always use `hfunext_full`
+    */
+
+    expr dom1 = binding_domain(lhs);
+    expr dom2 = binding_domain(rhs);
+
+    expr pf_domains;
+    if (is_def_eq(dom1, dom2)) {
+        pf_domains = b.mk_heq_refl(dom1);
+    } else {
+        pf_domains = *get_eqv_proof(get_eq_name(), dom1, dom2);
+    }
+
+    expr selsam_local1, new_body1;
+    expr selsam_local2, new_body2;
+
+    std::tie(selsam_local1, new_body1) = get_selsam_local(lhs);
+    std::tie(selsam_local2, new_body2) = get_selsam_local(rhs);
+
+    expr pf_bodies = *get_eqv_proof(get_heq_name(), new_body1, new_body2);
+    // (H : ∀ (a a' : A), a == a' → f a == g a'),
+    // TODO(dhs): need to abstract the locals and the local-proof
+    pf_bodies = Fun({selsam_local1, selsam_local2}, pf_bodies);
+
+    // TODO(dhs): deal with the issue of extra locals that leak into the proof
+    return b.mk_app(get_hfunext_full_name(), pf_domains, pf_bodies);
 }
 
 expr congruence_closure::mk_eq_congr_proof(expr const & lhs, expr const & rhs, bool heq_proofs) const {

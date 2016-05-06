@@ -11,9 +11,16 @@ Author: Daniel Selsam
 namespace lean {
 
 static name * g_selsam_index_prefix = nullptr;
+LEAN_THREAD_VALUE(unsigned, g_next_selsam_index, 0);
+
+static unsigned next_selsam_index() {
+    unsigned r = g_next_selsam_index;
+    g_next_selsam_index++;
+    return r;
+}
 
 optional<unsigned> is_selsam_local(name const & n) {
-    if (!n.is_atomic() && n.get_prefix() == *g_selsam_index_prefix)
+    if (!n.is_atomic() && !n.get_prefix().is_atomic() && n.get_prefix().get_prefix() == *g_selsam_index_prefix)
         return optional<unsigned>(n.get_numeral());
     else
         return optional<unsigned>();
@@ -26,8 +33,9 @@ optional<unsigned> is_selsam_local(expr const & e) {
         return optional<unsigned>();
 }
 
+
 name mk_selsam_local_name(unsigned idx) {
-    return name(*g_selsam_index_prefix, idx);
+    return name(name(*g_selsam_index_prefix, next_selsam_index()), idx);
 }
 
 expr mk_selsam_local(expr const & type) {
@@ -37,7 +45,7 @@ expr mk_selsam_local(expr const & type) {
 expr lift_local(expr const & e) {
     auto old_idx = is_selsam_local(e);
     lean_assert(old_idx);
-    name lifted_name = mk_selsam_local_name(*old_idx+1);
+    name lifted_name = name(mlocal_name(e).get_prefix(), *old_idx+1);
     return mk_local(lifted_name, local_pp_name(e), mlocal_type(e), local_info(e), e.get_tag());
 }
 
