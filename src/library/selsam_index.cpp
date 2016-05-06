@@ -3,6 +3,7 @@ Copyright (c) 2016 Daniel Selsam. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Author: Daniel Selsam
 */
+#include "kernel/for_each_fn.h"
 #include "library/selsam_index.h"
 #include "util/optional.h"
 #include <set>
@@ -105,6 +106,19 @@ expr map_selsam_locals(expr const & e, std::function<expr(expr const &)> const &
 
 expr lift_selsam_locals(expr const & e) { return map_selsam_locals(e, lift_local); }
 expr lower_selsam_locals(expr const & e) { return map_selsam_locals(e, lower_local); }
+
+std::set<expr> all_locals_at_selsam_index0(expr const & e) {
+    std::set<expr> slocals;
+    for_each(e, [&](expr const & t, unsigned) {
+            if (auto idx = is_selsam_local(t)) {
+                if (*idx == 0) {
+                    slocals.insert(t);
+                }
+            }
+            return true;
+        });
+    return slocals;
+}
 
 void initialize_selsam_index() {
     g_selsam_index_prefix = new name(name::mk_internal_unique_name());

@@ -945,6 +945,27 @@ expr state::expand_hrefs(expr const & e, list<expr> const & hrefs) const {
     return expand_hrefs_fn(*this, hrefs)(e);
 }
 
+struct expand_all_hrefs_fn : public replace_visitor {
+    state const &      m_state;
+
+    expand_all_hrefs_fn(state const & s) :
+        m_state(s) {}
+
+    virtual expr visit_local(expr const & e) override {
+        if (is_href(e)) {
+            hypothesis const & h = m_state.get_hypothesis_decl(e);
+            if (h.get_value()) {
+                return visit(*h.get_value());
+            }
+        }
+        return replace_visitor::visit_local(e);
+    }
+};
+
+expr state::expand_all_hrefs(expr const & e) const {
+    return expand_all_hrefs_fn(*this)(e);
+}
+
 auto state::save_assignment() -> assignment_snapshot {
     return assignment_snapshot(m_uassignment, m_metavar_decls, m_eassignment);
 }

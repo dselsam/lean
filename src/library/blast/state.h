@@ -312,6 +312,7 @@ public:
     void to_hrefs(hypothesis_idx_buffer const & hidxs, buffer<expr> & r) const;
 
     expr expand_hrefs(expr const & e, list<expr> const & hrefs) const;
+    expr expand_all_hrefs(expr const & e) const;
 
     hypothesis_idx_set get_assumptions() const { return m_branch.m_assumption; }
 

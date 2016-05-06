@@ -1609,6 +1609,11 @@ expr congruence_closure::mk_eq_app_congr_proof(expr const & lhs, expr const & rh
     return b.mk_eq_rec(Fun(x, motive), r, lhs_fn_eq_rhs_fn);
 }
 
+static expr unfold_all_hyps_that_contain_selsam_locals(expr const & e) {
+    // TODO(dhs): too crude
+    return curr_state().expand_all_hrefs(e);
+}
+
 expr congruence_closure::mk_eq_lambda_congr_proof(expr const & lhs, expr const & rhs, bool heq_proofs) const {
     lean_assert(is_lambda(lhs) && is_lambda(rhs));
     app_builder & b = get_app_builder();
@@ -1631,8 +1636,6 @@ expr congruence_closure::mk_eq_lambda_congr_proof(expr const & lhs, expr const &
         pf_domains = *get_eqv_proof(get_eq_name(), dom1, dom2);
     }
 
-
-
     expr selsam_local1, new_body1;
     expr selsam_local2, new_body2;
 
@@ -1640,22 +1643,49 @@ expr congruence_closure::mk_eq_lambda_congr_proof(expr const & lhs, expr const &
     std::tie(selsam_local2, new_body2) = get_selsam_local(rhs);
 
     expr pf_bodies = *get_eqv_proof(get_heq_name(), new_body1, new_body2);
+
+    std::set<expr> ls0 = all_locals_at_selsam_index0(pf_bodies);
+    ls0.erase(selsam_local1);
+    ls0.erase(selsam_local2);
+    for (expr const & l : ls0) {
+        // TODO(dhs): this does not work in general
+        // we will need to find/create a term with the right type
+        lean_assert(infer_type(l) == infer_type(selsam_local1));
+        pf_bodies = mk_app(Fun(l, pf_bodies), selsam_local1);
+    }
     // (H : ∀ (a a' : A), a == a' → f a == g a'),
     // TODO(dhs): need to abstract the locals and the local-proof
     // TODO(dhs): better "don't care" expression
-    pf_bodies = Fun({selsam_local1, selsam_local2, mk_local(*g_hfunext_proof, b.mk_heq(selsam_local1, selsam_local2))}, pf_bodies);
-    pf_bodies = lower_selsam_locals(pf_bodies);
+
+    lean_trace(name({"cc", "lambda"}), tout() << "Before unfolding: " << pf_bodies << "\n";);
+    pf_bodies = unfold_all_hyps_that_contain_selsam_locals(pf_bodies);
+    lean_trace(name({"cc", "lambda"}), tout() << "Before abstracting: " << pf_bodies << "\n";);
+
+    // TODO(dhs): mk_heq
+    pf_bodies = Fun({selsam_local1, selsam_local2, mk_local(*g_hfunext_proof, b.mk_eq(selsam_local1, selsam_local2))}, pf_bodies);
+
+    lean_trace(name({"cc", "lambda"}), tout() << "After abstracting: " << pf_bodies << "\n";);
+//    pf_bodies = lower_selsam_locals(pf_bodies);
 
     // TODO(dhs): deal with the issue of extra locals that leak into the proof
-    return b.mk_app(get_hfunext_full_name(), pf_domains, pf_bodies);
+    expr hfunext_pf = b.mk_app(get_hfunext_full_name(), pf_domains, pf_bodies);
+
+
+
+    lean_trace(name({"cc", "lambda"}), tout() << "hfunext proof: " << hfunext_pf << "\n";);
+    return hfunext_pf;
 }
 
 expr congruence_closure::mk_eq_selsam_local_congr_proof(expr const & lhs, expr const & rhs, bool heq_proofs) const {
     lean_assert(is_selsam_local(lhs) && is_selsam_local(rhs));
     app_builder & b = get_app_builder();
     lean_assert(is_eqv(get_eq_name(), lhs, rhs));
-    // TODO(dhs): local
-    return mk_local(*g_hfunext_proof, b.mk_heq(lhs, rhs));
+    lean_trace(name({"cc", "lambda"}), tout() << "Making proof local with unique name: " << *g_hfunext_proof << "\n";);
+//    if (heq_proofs) {
+//        return mk_local(*g_hfunext_proof, b.mk_heq(lhs, rhs));
+//    } else {
+        return mk_local(*g_hfunext_proof, b.mk_eq(lhs, rhs));
+//    }
 }
 
 expr congruence_closure::mk_eq_congr_proof(expr const & lhs, expr const & rhs, bool heq_proofs) const {
@@ -1878,7 +1908,7 @@ optional<expr> congruence_closure::get_eqv_proof(name const & R, expr const & e1
     auto n2 = m_entries.find(eqc_key(R_key, e2));
     if (!n2) return none_expr();
     if (n1->m_root != n2->m_root) return none_expr();
-    bool heq_proofs = R_key == get_eq_name() && has_heq_proofs(n1->m_root);
+    bool heq_proofs = R_key == get_eq_name() && (has_heq_proofs(n1->m_root) || (is_lambda(e1) && is_lambda(e2)));
     // R_trans is the relation we use to build the transitivity proofs
     name R_trans = heq_proofs ? get_heq_name() : R_key;
     // 1. Retrieve "path" from e1 to root
@@ -2199,7 +2229,7 @@ void initialize_congruence_closure() {
 
     g_blast_cc_heq           = new name{"blast", "cc", "heq"};
     g_blast_cc_subsingleton  = new name{"blast", "cc", "subsingleton"};
-    g_hfunext_proof          = new name(name::mk_internal_unique_name());
+    g_hfunext_proof          = new name(name::mk_internal_unique_name(), "hfunext_pf");
 
     register_bool_option(*g_blast_cc_heq, LEAN_DEFAULT_BLAST_CC_HEQ,
                          "(blast) enable support for heterogeneous equality "
