@@ -196,6 +196,8 @@ class congruence_closure {
     void propagate_no_confusion_eq(expr const & e1, expr const & e2);
 
     expr mk_eq_congr_proof(expr const & lhs, expr const & rhs, bool heq_proofs) const;
+    expr mk_eq_app_congr_proof(expr const & lhs, expr const & rhs, bool heq_proofs) const;
+    expr mk_eq_lambda_congr_proof(expr const & lhs, expr const & rhs, bool heq_proofs) const;
     expr mk_congr_proof_core(name const & R, expr const & lhs, expr const & rhs, bool heq_proofs) const;
     expr mk_congr_proof(name const & R, expr const & lhs, expr const & rhs, bool heq_proofs) const;
     expr mk_proof(name const & R, expr const & lhs, expr const & rhs, expr const & H, bool heq_proofs) const;

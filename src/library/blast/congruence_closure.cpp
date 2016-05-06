@@ -11,6 +11,7 @@ Author: Leonardo de Moura
 #include "kernel/instantiate.h"
 #include "library/trace.h"
 #include "library/constants.h"
+#include "library/sorry.h" // TODO(dhs): get rid of when done
 #include "library/selsam_index.h"
 #include "library/blast/simplifier/simp_lemmas.h"
 #include "library/blast/congruence_closure.h"
@@ -132,6 +133,9 @@ static void clear_todo() {
 }
 
 static void push_todo(name const & R, expr const & lhs, expr const & rhs, expr const & H, bool heq_proof) {
+    if ((is_lambda(lhs) && is_lambda(rhs)) || (is_selsam_local(lhs) && is_selsam_local(rhs))) {
+        lean_trace(name({"cc", "lambda"}), tout() << "PushTodo: " << lhs << " == " << rhs << "\n";);
+    }
     get_todo().emplace_back(R, lhs, rhs, H, heq_proof);
 }
 
@@ -655,16 +659,11 @@ static bool is_eq_congruent(expr const & e1, expr const & e2) {
 /** \brief Return true iff the given function application are congruent */
 static bool is_lambda_congruent(expr const & e1, expr const & e2) {
     if (!is_lambda(e1) || !is_lambda(e2)) return false;
+    lean_trace(name({"cc", "lambda"}), tout() << "IsLambdaCongruent: " << e1 << " =!= " << e2 << "\n";);
 
     expr dom1 = binding_domain(e1);
     expr dom2 = binding_domain(e2);
-    expr body1 = binding_body(e1);
-    expr body2 = binding_body(e1);
 
-    if (g_cc->get_root(get_eq_name(), body1) != g_cc->get_root(get_eq_name(), body2)) {
-        /* body1 and body2 are not equivalent */
-        return false;
-    }
     if (g_cc->get_root(get_eq_name(), dom1) != g_cc->get_root(get_eq_name(), dom2)) {
         /* dom1 and dom2 are not equivalent */
         return false;
@@ -673,13 +672,33 @@ static bool is_lambda_congruent(expr const & e1, expr const & e2) {
         /* dom1 and dom2 are only heterogeneously equal */
         return false;
     }
+
+    expr selsam_local1 = mk_selsam_local(binding_domain(e1));
+    expr selsam_local2 = mk_selsam_local(binding_domain(e2));
+    expr new_body1 = instantiate(lift_selsam_locals(binding_body(e1)), selsam_local1);
+    expr new_body2 = instantiate(lift_selsam_locals(binding_body(e2)), selsam_local2);
+
+    if (g_cc->get_root(get_eq_name(), new_body1) != g_cc->get_root(get_eq_name(), new_body2)) {
+        /* new_body1 and new_body2 are not equivalent */
+        return false;
+    }
+
+    lean_trace(name({"cc", "lambda"}), tout() << "IsLambdaCongruent: TRUE!\n";);
     return true;
 }
 
 static bool is_selsam_local_congruent(expr const & e1, expr const & e2) {
     auto idx1 = is_selsam_local(e1);
     auto idx2 = is_selsam_local(e2);
-    return idx1 && idx2 && idx1 == idx2;
+
+    if (!idx1 || !idx2) return false;
+    lean_trace(name({"cc", "lambda"}), tout() << "IsSelsamLocalCongruent: " << e1 << " =!= " << e2 << "\n";);
+    if (*idx1 == *idx2) {
+        lean_trace(name({"cc", "lambda"}), tout() << "IsSelsamLocalCongruent: TRUE!\n";);
+        return true;
+    } else {
+        return false;
+    }
 }
 
 int congruence_closure::eq_congr_key_cmp::operator()(eq_congr_key const & k1, eq_congr_key const & k2) const {
@@ -716,8 +735,9 @@ auto congruence_closure::mk_lambda_congr_key(expr const & e) const -> eq_congr_k
     eq_congr_key k;
     k.m_expr = e;
     expr const & dom = binding_domain(e);
-    expr const & body = binding_body(e);
-    unsigned h = hash(get_root(get_eq_name(), dom).hash(), get_root(get_eq_name(), body).hash());
+    expr selsam_local = mk_selsam_local(binding_domain(e));
+    expr new_body = instantiate(lift_selsam_locals(binding_body(e)), selsam_local);
+    unsigned h = hash(get_root(get_eq_name(), dom).hash(), get_root(get_eq_name(), new_body).hash());
     k.m_hash = h;
     return k;
 }
@@ -915,8 +935,7 @@ void congruence_closure::check_iff_true(congr_key const & k) {
 
 void congruence_closure::add_eq_congruence_table(expr const & e) {
     lean_assert(g_heq_based);
-
-    lean_assert(is_app(e));
+    lean_assert(is_app(e) || is_lambda(e) || is_selsam_local(e));
 
     eq_congr_key k = mk_eq_congr_key(e);
     if (auto old_k = m_eq_congruences.find(k)) {
@@ -924,6 +943,12 @@ void congruence_closure::add_eq_congruence_table(expr const & e) {
           Found new equivalence: e ~ old_k->m_expr
           1. Update m_cg_root field for e
         */
+        if (is_lambda(e)) {
+            lean_trace(name({"cc", "lambda"}), tout() << "FoundCongruence[lambda]: " << e << " == " << old_k->m_expr << "\n";);
+        } else if (is_selsam_local(e)) {
+            lean_trace(name({"cc", "lambda"}), tout() << "FoundCongruence[selsam_local]: " << e << " == " << old_k->m_expr << "\n";);
+        }
+
         eqc_key k(get_eq_name(), e);
         entry new_entry = *m_entries.find(k);
         new_entry.m_cg_root = old_k->m_expr;
@@ -933,6 +958,12 @@ void congruence_closure::add_eq_congruence_table(expr const & e) {
         bool heq_proof = !is_def_eq(infer_type(e), infer_type(old_k->m_expr));
         push_todo(get_eq_name(), e, old_k->m_expr, *g_eq_congr_mark, heq_proof);
     } else {
+        if (is_lambda(e)) {
+            lean_trace(name({"cc", "lambda"}), tout() << "DidNotFoundCongruence[lambda]: " << e << "\n";);
+        } else if (is_selsam_local(e)) {
+            lean_trace(name({"cc", "lambda"}), tout() << "DidNotFoundCongruence[selsam_local]: " << e << "\n";);
+        }
+
         m_eq_congruences.insert(k);
     }
 }
@@ -1040,12 +1071,14 @@ void congruence_closure::internalize_core(name R, expr const & e, bool toplevel,
     case expr_kind::Meta:
         mk_entry_core(R, e, to_propagate);
         if (is_selsam_local(e)) {
+            lean_trace(name({"cc", "lambda"}), tout() << "Internalize[selsam_local]: " << e << "\n";);
             add_eq_congruence_table(e);
         }
         return;
     case expr_kind::Lambda: {
         mk_entry_core(R, e, false);
         if (g_heq_based && R == get_eq_name()) {
+            lean_trace(name({"cc", "lambda"}), tout() << "Internalize[lambda]: " << e << "\n";);
             internalize_core(R, binding_domain(e), false, to_propagate);
             expr selsam_local = mk_selsam_local(binding_domain(e));
             expr new_body = instantiate(lift_selsam_locals(binding_body(e)), selsam_local);
@@ -1398,6 +1431,7 @@ void congruence_closure::process_todo(optional<expr> const & added_prop) {
         name R; expr lhs, rhs, H; bool heq_proof;
         std::tie(R, lhs, rhs, H, heq_proof) = todo.back();
         todo.pop_back();
+        lean_trace(name({"cc", "lambda"}), tout() << "ProcessTODO: " << lhs << " == " << rhs << "\n";);
         add_eqv_step(R, lhs, rhs, H, added_prop, heq_proof);
     }
 }
@@ -1508,8 +1542,9 @@ bool congruence_closure::is_eqv(name const & R, expr const & e1, expr const & e2
     return n1->m_root == n2->m_root;
 }
 
-expr congruence_closure::mk_eq_congr_proof(expr const & lhs, expr const & rhs, bool heq_proofs) const {
+expr congruence_closure::mk_eq_app_congr_proof(expr const & lhs, expr const & rhs, bool heq_proofs) const {
     lean_assert(g_heq_based);
+    lean_assert(is_app(lhs) && is_app(rhs));
     app_builder & b = get_app_builder();
     buffer<expr> lhs_args, rhs_args;
     expr const * lhs_it = &lhs;
@@ -1575,6 +1610,19 @@ expr congruence_closure::mk_eq_congr_proof(expr const & lhs, expr const & rhs, b
     expr motive_rhs       = mk_app(x, rhs_args);
     expr motive           = heq_proofs ? b.mk_heq(lhs, motive_rhs) : b.mk_eq(lhs, motive_rhs);
     return b.mk_eq_rec(Fun(x, motive), r, lhs_fn_eq_rhs_fn);
+}
+
+expr congruence_closure::mk_eq_lambda_congr_proof(expr const & lhs, expr const & rhs, bool heq_proofs) const {
+    lean_assert(is_lambda(lhs) && is_lambda(rhs));
+    app_builder & b = get_app_builder();
+    // TODO(dhs): take 'er home
+    return mk_sorry();
+}
+
+expr congruence_closure::mk_eq_congr_proof(expr const & lhs, expr const & rhs, bool heq_proofs) const {
+    if (is_app(lhs) && is_app(rhs)) return mk_eq_app_congr_proof(lhs, rhs, heq_proofs);
+    if (is_lambda(lhs) && is_lambda(rhs)) return mk_eq_lambda_congr_proof(lhs, rhs, heq_proofs);
+    lean_unreachable();
 }
 
 expr congruence_closure::mk_congr_proof_core(name const & R, expr const & lhs, expr const & rhs, bool heq_proofs) const {
@@ -2101,6 +2149,7 @@ void initialize_congruence_closure() {
     register_trace_class({"cc", "state"});
     register_trace_class({"cc", "propagation"});
     register_trace_class({"cc", "merge"});
+    register_trace_class({"cc", "lambda"});
     g_ext_id = register_branch_extension(new cc_branch_extension());
     name prefix = name::mk_internal_unique_name();
     g_eq_congr_mark = new expr(mk_constant(name(prefix, "[eq-congruence]")));
