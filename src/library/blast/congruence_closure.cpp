@@ -656,7 +656,7 @@ static bool is_eq_congruent(expr const & e1, expr const & e2) {
 }
 
 /** \brief Return true iff the given function application are congruent */
-bool congruence_closure::is_lambda_congruent(expr const & e1, expr const & e2) {
+bool congruence_closure::is_lambda_congruent(expr const & e1, expr const & e2) const {
     if (!is_lambda(e1) || !is_lambda(e2)) return false;
     lean_trace(name({"cc", "lambda"}), tout() << "IsLambdaCongruent: " << e1 << " =!= " << e2 << "\n";);
 
@@ -753,10 +753,19 @@ auto congruence_closure::mk_selsam_local_congr_key(expr const & e) const -> eq_c
 /* \brief Create a equality congruence table key.
    \remark This table and key are only used when heterogeneous equality support is enabled. */
 auto congruence_closure::mk_eq_congr_key(expr const & e) const -> eq_congr_key {
-    if (is_app(e)) return mk_app_congr_key(e);
-    else if (is_lambda(e)) return mk_lambda_congr_key(e);
-    else if (is_selsam_local(e)) return mk_selsam_local_congr_key(e);
-    else lean_unreachable();
+    eq_congr_key k;
+    if (is_app(e)) {
+        k = mk_app_congr_key(e);
+    } else if (is_lambda(e)) {
+        k = mk_lambda_congr_key(e);
+    } else if (is_selsam_local(e)) {
+        k = mk_selsam_local_congr_key(e);
+    } else {
+        lean_trace(name({"cc", "lambda"}), tout() << "[ERROR] MkEqCongrKey: " << e << "\n";);
+        lean_unreachable();
+    }
+    k.cc = this;
+    return k;
 }
 
 int congruence_closure::cmp_eq_iff_keys(congr_key const & k1, congr_key const & k2) const {
@@ -1646,9 +1655,18 @@ expr congruence_closure::mk_eq_lambda_congr_proof(expr const & lhs, expr const &
     return b.mk_app(get_hfunext_full_name(), pf_domains, pf_bodies);
 }
 
+expr congruence_closure::mk_eq_selsam_local_congr_proof(expr const & lhs, expr const & rhs, bool heq_proofs) const {
+    lean_assert(is_selsam_local(lhs) && is_selsam_local(rhs));
+    app_builder & b = get_app_builder();
+    lean_assert(is_eqv(get_eq_name(), lhs, rhs));
+    // TODO(dhs): local
+    return b.mk_app(name("foobarbazoo"), lhs, rhs);
+}
+
 expr congruence_closure::mk_eq_congr_proof(expr const & lhs, expr const & rhs, bool heq_proofs) const {
     if (is_app(lhs) && is_app(rhs)) return mk_eq_app_congr_proof(lhs, rhs, heq_proofs);
     if (is_lambda(lhs) && is_lambda(rhs)) return mk_eq_lambda_congr_proof(lhs, rhs, heq_proofs);
+    if (is_selsam_local(lhs) && is_selsam_local(rhs)) return mk_eq_selsam_local_congr_proof(lhs, rhs, heq_proofs);
     lean_unreachable();
 }
 

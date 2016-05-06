@@ -45,6 +45,7 @@ expr mk_selsam_local(expr const & type) {
 expr lift_local(expr const & e) {
     auto old_idx = is_selsam_local(e);
     lean_assert(old_idx);
+    lean_assert(!mlocal_name(e).is_atomic());
     name lifted_name = name(mlocal_name(e).get_prefix(), *old_idx+1);
     return mk_local(lifted_name, local_pp_name(e), mlocal_type(e), local_info(e), e.get_tag());
 }

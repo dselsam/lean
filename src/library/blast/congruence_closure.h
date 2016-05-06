@@ -89,7 +89,7 @@ class congruence_closure {
        generic congruence table and rely on automatically generated congruence lemmas for
        weakly dependent functions. */
     struct eq_congr_key {
-        congruence_closure * cc;
+        congruence_closure const * cc;
         expr      m_expr;
         unsigned  m_hash;
     };
@@ -149,7 +149,7 @@ class congruence_closure {
     congruences        m_congruences;
     selsam_locals      m_selsam_locals;
 
-    bool is_lambda_congruent(expr const & e1, expr const & e2);
+    bool is_lambda_congruent(expr const & e1, expr const & e2) const;
 
     // TODO(dhs): move to .cpp
     expr_pair get_selsam_local(expr const & lam) const {
@@ -216,6 +216,7 @@ class congruence_closure {
     expr mk_eq_congr_proof(expr const & lhs, expr const & rhs, bool heq_proofs) const;
     expr mk_eq_app_congr_proof(expr const & lhs, expr const & rhs, bool heq_proofs) const;
     expr mk_eq_lambda_congr_proof(expr const & lhs, expr const & rhs, bool heq_proofs) const;
+    expr mk_eq_selsam_local_congr_proof(expr const & lhs, expr const & rhs, bool heq_proofs) const;
     expr mk_congr_proof_core(name const & R, expr const & lhs, expr const & rhs, bool heq_proofs) const;
     expr mk_congr_proof(name const & R, expr const & lhs, expr const & rhs, bool heq_proofs) const;
     expr mk_proof(name const & R, expr const & lhs, expr const & rhs, expr const & H, bool heq_proofs) const;
