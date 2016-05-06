@@ -1616,6 +1616,30 @@ static expr unfold_all_hyps_that_contain_selsam_locals(expr const & e) {
     return curr_state().expand_all_hrefs(e); //unfold_hypotheses_ge(curr_state(), e);
 }
 
+expr congruence_closure::mk_hfunext_proof(expr const & lhs, expr const & rhs) const {
+    app_builder & b = get_app_builder();
+    expr l = mk_local(name(*g_hfunext_proof, mk_href_idx()), b.mk_heq(lhs, rhs));
+    *m_hfunext_proofs = cons(l, *m_hfunext_proofs);
+    return l;
+}
+
+expr congruence_closure::get_hfunext_proof(expr const & lhs, expr const & rhs) const {
+    typedef typename list<expr>::cell c;
+    c * it = m_hfunext_proofs->raw();
+    while (it) {
+        expr e = it->head();
+        expr A, lhs0, B, rhs0;
+        if (is_heq(e, A, lhs0, B, rhs0) && lhs == lhs0 && rhs == rhs0) {
+            // TODO(dhs): uncomment! (annoying for const-reasons)
+            *m_hfunext_proofs = remove(*m_hfunext_proofs, e);
+            return e;
+        }
+        it = it->tail().raw();
+    }
+    lean_unreachable();
+}
+
+
 expr congruence_closure::mk_eq_lambda_congr_proof(expr const & lhs, expr const & rhs, bool heq_proofs) const {
     lean_assert(is_lambda(lhs) && is_lambda(rhs));
     app_builder & b = get_app_builder();
@@ -1688,7 +1712,8 @@ expr congruence_closure::mk_eq_lambda_congr_proof(expr const & lhs, expr const &
     lean_trace(name({"cc", "lambda"}), tout() << "Before abstracting: " << pf_bodies << "\n";);
 
     // TODO(dhs): mk_heq
-    pf_bodies = Fun({selsam_local1, selsam_local2, mk_local(*g_hfunext_proof, b.mk_heq(selsam_local1, selsam_local2))}, pf_bodies);
+    expr hfunext_pf = get_hfunext_proof(selsam_local1, selsam_local2); // TODO(dhs): may be out of order
+    pf_bodies = Fun({selsam_local1, selsam_local2, hfunext_pf}, pf_bodies);
     lean_trace(name({"cc", "lambda"}), tout() << "Abstracting: " << selsam_local1 << " |+| "
                << selsam_local2 << " |+| " << *g_hfunext_proof << "\n";);
     lean_trace(name({"cc", "lambda"}), tout() << "After abstracting: " << pf_bodies << "\n";);
@@ -1696,11 +1721,9 @@ expr congruence_closure::mk_eq_lambda_congr_proof(expr const & lhs, expr const &
     lean_trace(name({"cc", "lambda"}), tout() << "After lower the selsam locals: " << pf_bodies << "\n";);
 
     // TODO(dhs): deal with the issue of extra locals that leak into the proof
-    expr hfunext_pf = b.mk_app(get_hfunext_full_name(), pf_domains, pf_bodies);
+    expr final_pf = b.mk_app(get_hfunext_full_name(), pf_domains, pf_bodies);
 
-
-
-    lean_trace(name({"cc", "lambda"}), tout() << "hfunext proof: " << hfunext_pf << "\n";);
+    lean_trace(name({"cc", "lambda"}), tout() << "hfunext proof: " << final_pf << "\n";);
     return hfunext_pf;
 }
 
@@ -1708,12 +1731,7 @@ expr congruence_closure::mk_eq_selsam_local_congr_proof(expr const & lhs, expr c
     lean_assert(is_selsam_local(lhs) && is_selsam_local(rhs));
     app_builder & b = get_app_builder();
     lean_assert(is_eqv(get_eq_name(), lhs, rhs));
-    lean_trace(name({"cc", "lambda"}), tout() << "Making proof local with unique name: " << *g_hfunext_proof << "\n";);
-//    if (heq_proofs) {
-//        return mk_local(*g_hfunext_proof, b.mk_heq(lhs, rhs));
-//    } else {
-        return mk_local(*g_hfunext_proof, b.mk_heq(lhs, rhs));
-//    }
+    return mk_hfunext_proof(lhs, rhs);
 }
 
 expr congruence_closure::mk_eq_congr_proof(expr const & lhs, expr const & rhs, bool heq_proofs) const {
@@ -1723,7 +1741,7 @@ expr congruence_closure::mk_eq_congr_proof(expr const & lhs, expr const & rhs, b
     lean_unreachable();
 }
 
-expr congruence_closure::mk_congr_proof_core(name const & R, expr const & lhs, expr const & rhs, bool heq_proofs) const {
+expr congruence_closure::mk_congr_proof_core(name const & R, expr const & lhs, expr const & rhs, bool heq_proofs) const{
     app_builder & b = get_app_builder();
     buffer<expr> lhs_args, rhs_args;
     expr const & lhs_fn = get_app_args(lhs, lhs_args);

@@ -149,6 +149,11 @@ class congruence_closure {
     congruences        m_congruences;
     selsam_locals      m_selsam_locals;
 
+    // TODO(dhs): could just be a map from the type to the name
+    list<expr>       * m_hfunext_proofs;
+    expr mk_hfunext_proof(expr const & lhs, expr const & rhs) const;
+    expr get_hfunext_proof(expr const & lhs, expr const & rhs) const;
+
     bool is_lambda_congruent(expr const & e1, expr const & e2) const;
 
     // TODO(dhs): move to .cpp
@@ -225,6 +230,8 @@ class congruence_closure {
 
     void trace_eqc(name const & R, expr const & e) const;
 public:
+    congruence_closure(): m_hfunext_proofs(new list<expr>()) {}
+
     void initialize();
 
     /** \brief Register expression \c e in this data-structure.
