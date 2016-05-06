@@ -1652,11 +1652,17 @@ expr congruence_closure::mk_eq_lambda_congr_proof(expr const & lhs, expr const &
     ls0.erase(selsam_local1);
     ls0.erase(selsam_local2);
     for (expr const & l : ls0) {
-        lean_trace(name({"cc", "lambda"}), tout() << "Replacing: " << l << "\n";);
+        lean_trace(name({"cc", "lambda"}), tout() << "Replacing: " << l << " : " << infer_type(l) << "\n";);
         // TODO(dhs): this does not work in general
         // we will need to find/create a term with the right type
-        lean_assert(infer_type(l) == infer_type(selsam_local1));
-        pf_bodies = mk_app(Fun(l, pf_bodies), selsam_local1);
+        if (infer_type(l) == infer_type(selsam_local1)) {
+            pf_bodies = mk_app(Fun(l, pf_bodies), selsam_local1);
+        } else if (infer_type(l) == infer_type(selsam_local2)) {
+            pf_bodies = mk_app(Fun(l, pf_bodies), selsam_local2);
+        } else {
+            lean_trace(name({"cc", "lambda"}), tout() << "Type not among locals to be abstracted\n";);
+            lean_assert(false);
+        }
     }
     // (H : ∀ (a a' : A), a == a' → f a == g a'),
     // TODO(dhs): need to abstract the locals and the local-proof
