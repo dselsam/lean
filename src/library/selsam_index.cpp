@@ -38,12 +38,13 @@ optional<unsigned> is_selsam_local(expr const & e) {
 
 name mk_selsam_local_name(unsigned idx) {
     name n = name(name(*g_selsam_index_prefix, next_selsam_index()), idx);
-    lean_trace(name({"cc", "lambda"}), tout() << "New Selsam local: " << n << "\n";);
     return n;
 }
 
 expr mk_selsam_local(expr const & type) {
-    return mk_local(mk_selsam_local_name(0), type);
+    name n = mk_selsam_local_name(0);
+    lean_trace(name({"cc", "lambda"}), tout() << "New Selsam local: " << n << " : " << (is_local(type) ? mlocal_name(type) : name()) << " | " << type << "\n";);
+    return mk_local(n, type);
 }
 
 bool has_selsam_local(expr const & e) {

@@ -12,6 +12,7 @@ Author: Leonardo de Moura
 #include "kernel/for_each_fn.h"
 #include "kernel/replace_fn.h"
 #include "library/replace_visitor.h"
+#include "library/selsam_index.h"
 #include "library/blast/util.h"
 #include "library/blast/trace.h"
 #include "library/blast/blast.h"
@@ -954,7 +955,8 @@ struct expand_all_hrefs_fn : public replace_visitor {
     virtual expr visit_local(expr const & e) override {
         if (is_href(e)) {
             hypothesis const & h = m_state.get_hypothesis_decl(e);
-            if (h.get_value()) {
+            if (h.get_value() && has_selsam_local(*h.get_value())) {
+                lean_trace(name({"cc", "lambda"}), tout() << "Expanding: " << h.get_name() << " @ " << h.get_proof_depth() << " [curr: " << m_state.get_proof_depth() << "]\n";);
                 return visit(*h.get_value());
             }
         }

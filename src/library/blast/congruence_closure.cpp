@@ -1681,9 +1681,12 @@ expr congruence_closure::mk_eq_lambda_congr_proof(expr const & lhs, expr const &
     std::tie(selsam_local2, new_body2) = get_selsam_local(rhs);
 
     expr pf_bodies = *get_eqv_proof(get_heq_name(), new_body1, new_body2);
-    lean_trace(name({"cc", "lambda"}), tout() << "HFUNEXT with: ("
-               << selsam_local1 << " : " << infer_type(selsam_local1) << "), ("
-               << selsam_local2 << " : " << infer_type(selsam_local2) << ")\n";);
+    if (is_local(mlocal_type(selsam_local1)) && is_local(mlocal_type(selsam_local2))) {
+        lean_trace(name({"cc", "lambda"}), tout() << "HFUNEXT with: ["
+                   << mlocal_name(selsam_local1) << "(" << local_pp_name(selsam_local1) << ") : "
+                   << mlocal_name(mlocal_type(selsam_local1)) << "], ["
+                   << mlocal_name(mlocal_type(selsam_local2)) << "]\n";);
+    }
     lean_trace(name({"cc", "lambda"}), tout() << "Before unfolding: " << pf_bodies << "\n";);
     pf_bodies = unfold_all_hyps_that_contain_selsam_locals(pf_bodies);
 
@@ -1691,19 +1694,19 @@ expr congruence_closure::mk_eq_lambda_congr_proof(expr const & lhs, expr const &
     expr_struct_set ls0 = all_locals_at_selsam_index0(pf_bodies);
 
     for (expr const & l : ls0) {
-        lean_trace(name({"cc", "lambda"}),
-                   tout() << "pf_bodies contains: (" << l << " : " << infer_type(l) << " : " << mlocal_type(l) << ")\n1: ";
-                   tout() << (l == selsam_local1) << " " << (mlocal_name(l) == mlocal_name(selsam_local1)) << " ";
-                   tout() << (mlocal_type(l) == mlocal_type(selsam_local1)) << " " << (infer_type(l) == infer_type(selsam_local1)) << "\n2: ";
-                   tout() << (l == selsam_local2) << " " << (mlocal_name(l) == mlocal_name(selsam_local2)) << " ";
-                   tout() << (mlocal_type(l) == mlocal_type(selsam_local2)) << " " << (infer_type(l) == infer_type(selsam_local2)) << "\n";
-            );
+        if (is_local(mlocal_type(l))) {
+            lean_trace(name({"cc", "lambda"}),
+                       tout() << "pf_bodies contains: (" << mlocal_name(l) << " (" << local_pp_name(l) << ") : "
+                       << mlocal_name(mlocal_type(l)) << ")\n1: ";
+                       tout() << (mlocal_name(l) == mlocal_name(selsam_local1)) << " " << (mlocal_type(l) == mlocal_type(selsam_local1)) << "\n2: ";
+                       tout() << (mlocal_name(l) == mlocal_name(selsam_local2)) << " " << (mlocal_type(l) == mlocal_type(selsam_local2)) << "\n";
+                );
+        }
     }
-
     ls0.erase(selsam_local1);
     ls0.erase(selsam_local2);
     for (expr const & l : ls0) {
-        lean_trace(name({"cc", "lambda"}), tout() << "Replacing: " << l << " : " << infer_type(l) << "\n";);
+        lean_trace(name({"cc", "lambda"}), tout() << "Replacing: " << mlocal_name(l) << " (" << local_pp_name(l) << ") : " << infer_type(l) << "\n";);
         lean_assert(l != selsam_local1);
         lean_assert(l != selsam_local2);
         // TODO(dhs): this does not work in general

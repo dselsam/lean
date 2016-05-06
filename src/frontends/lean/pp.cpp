@@ -619,7 +619,7 @@ auto pretty_fn::pp_meta(expr const & e) -> result {
 }
 
 auto pretty_fn::pp_local(expr const & e) -> result {
-    return result(format(local_pp_name(e)));
+    return result(format(mlocal_name(e)));
 }
 
 bool pretty_fn::has_implicit_args(expr const & f) {
