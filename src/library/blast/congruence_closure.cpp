@@ -1624,14 +1624,16 @@ expr congruence_closure::mk_hfunext_proof(expr const & lhs, expr const & rhs) co
 }
 
 expr congruence_closure::get_hfunext_proof(expr const & lhs, expr const & rhs) const {
+    app_builder & b = get_app_builder();
     typedef typename list<expr>::cell c;
     c * it = m_hfunext_proofs->raw();
     while (it) {
         expr e = it->head();
         expr A, lhs0, B, rhs0;
-        if (is_heq(e, A, lhs0, B, rhs0) && lhs == lhs0 && rhs == rhs0) {
-            // TODO(dhs): uncomment! (annoying for const-reasons)
+        if (is_heq(mlocal_type(e), A, lhs0, B, rhs0) && selsam_local_eq_upto_index(lhs, lhs0) && selsam_local_eq_upto_index(rhs, rhs0)) {
+            lean_trace(name({"cc", "lambda"}), tout() << "Found funext proof: " << e << "\n";);
             *m_hfunext_proofs = remove(*m_hfunext_proofs, e);
+            e = update_mlocal(e, b.mk_heq(lhs, rhs));
             return e;
         }
         it = it->tail().raw();
@@ -1715,7 +1717,7 @@ expr congruence_closure::mk_eq_lambda_congr_proof(expr const & lhs, expr const &
     expr hfunext_pf = get_hfunext_proof(selsam_local1, selsam_local2); // TODO(dhs): may be out of order
     pf_bodies = Fun({selsam_local1, selsam_local2, hfunext_pf}, pf_bodies);
     lean_trace(name({"cc", "lambda"}), tout() << "Abstracting: " << selsam_local1 << " |+| "
-               << selsam_local2 << " |+| " << *g_hfunext_proof << "\n";);
+               << selsam_local2 << " |+| " << hfunext_pf << "\n";);
     lean_trace(name({"cc", "lambda"}), tout() << "After abstracting: " << pf_bodies << "\n";);
     pf_bodies = lower_selsam_locals(pf_bodies);
     lean_trace(name({"cc", "lambda"}), tout() << "After lower the selsam locals: " << pf_bodies << "\n";);
@@ -1724,7 +1726,7 @@ expr congruence_closure::mk_eq_lambda_congr_proof(expr const & lhs, expr const &
     expr final_pf = b.mk_app(get_hfunext_full_name(), pf_domains, pf_bodies);
 
     lean_trace(name({"cc", "lambda"}), tout() << "hfunext proof: " << final_pf << "\n";);
-    return hfunext_pf;
+    return final_pf;
 }
 
 expr congruence_closure::mk_eq_selsam_local_congr_proof(expr const & lhs, expr const & rhs, bool heq_proofs) const {

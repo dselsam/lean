@@ -142,6 +142,15 @@ expr_struct_set all_locals_at_selsam_index0(expr const & e) {
     return slocals;
 }
 
+unsigned get_selsam_local_unique_id(name const & n) {
+    return n.get_prefix().get_numeral();
+}
+
+bool selsam_local_eq_upto_index(expr const & e1, expr const & e2) {
+    lean_assert(is_selsam_local(e1) && is_selsam_local(e2));
+    return get_selsam_local_unique_id(mlocal_name(e1)) == get_selsam_local_unique_id(mlocal_name(e2));
+}
+
 void initialize_selsam_index() {
     g_selsam_index_prefix = new name(name::mk_internal_unique_name());
 }
