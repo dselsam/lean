@@ -1713,7 +1713,9 @@ expr congruence_closure::mk_eq_lambda_congr_proof(expr const & lhs, expr const &
             pf_bodies = mk_app(Fun(l, pf_bodies), selsam_local2);
         } else {
             lean_trace(name({"cc", "lambda"}), tout() << "Type not among locals to be abstracted\n";);
-            if (auto inst = mk_class_instance(infer_type(l))) {
+            app_builder & b = get_app_builder();
+            blast_tmp_type_context tmp_tctx;
+            if (auto inst = tmp_tctx->mk_class_instance(b.mk_app(get_inhabited_name(), infer_type(l)))) {
                 pf_bodies = mk_app(Fun(l, pf_bodies), *inst);
             } else {
                 lean_trace(name({"cc", "lambda"}), tout() << "Cannot synthesize [inhabited] for: " << infer_type(l) << "\n";);
@@ -1733,9 +1735,9 @@ expr congruence_closure::mk_eq_lambda_congr_proof(expr const & lhs, expr const &
     lean_assert(closed(pf_bodies));
     lean_trace(name({"cc", "lambda"}), tout() << "Abstracting: " << selsam_local1 << " |+| "
                << selsam_local2 << " |+| " << hfunext_pf << "\n";);
-    lean_trace(name({"cc", "lambda"}), tout() << "After abstracting: " << pf_bodies << "\n";);
+//    lean_trace(name({"cc", "lambda"}), tout() << "After abstracting: " << pf_bodies << "\n";);
     pf_bodies = lower_selsam_locals(pf_bodies);
-    lean_trace(name({"cc", "lambda"}), tout() << "After lower the selsam locals: " << pf_bodies << "\n";);
+//    lean_trace(name({"cc", "lambda"}), tout() << "After lower the selsam locals: " << pf_bodies << "\n";);
 
     // TODO(dhs): deal with the issue of extra locals that leak into the proof
     expr final_pf = b.mk_app(get_hfunext_full_name(), pf_domains, pf_bodies);
@@ -1958,6 +1960,14 @@ static expr mk_trans(name const & R, optional<expr> const & H1, expr const & H2)
 }
 
 optional<expr> congruence_closure::get_eqv_proof(name const & R, expr const & e1, expr const & e2) const {
+    if (R == get_eq_name() && is_selsam_local(e1) && is_selsam_local(e2)) {
+        lean_trace(name({"cc", "lambda"}), tout() << "get_eqv_proof: " << e1 << " == " << e2 << "\n";);
+        if (is_selsam_local(e1) == is_selsam_local(e2)) {
+            return some_expr(mk_hfunext_proof(e1, e2));
+        }
+        lean_trace(name({"cc", "lambda"}), tout() << "[SINDEX MISMATCH]: " << *is_selsam_local(e1) << " != " << *is_selsam_local(e2) << "\n";);
+    }
+
     app_builder & b = get_app_builder();
     name R_key = R; // We use R_key to access the equivalence class data
     if (g_heq_based && R == get_heq_name()) {
