@@ -1,31 +1,69 @@
 import logic
+import data.nat data.fin data.real data.fintype algebra.group
+open nat real fintype finset fin
 
 set_option blast.strategy "simple"
 set_option blast.ematch true
-set_option pp.purify_locals false
---set_option pp.all true
 
-universes l₁ l₂
-constants (B : Type.{l₂})
-          (φ₁ φ₂ : Π {C : Type}, C → B)
-          (op : B → B → B)
-          (op.comm : ∀ x y, op x y = op y x)
-attribute op.comm [forward]
---constants (A A' : Type.{l₁})
+set_option unifier.conservative true
+set_option elaborator.coercions false
 
-set_option trace.cc.lambda true
---definition lam1a (H : A = A') : (λ (a : A), op (φ₁ a) (φ₂ a)) == (λ (a' : A'), op (φ₁ a') (φ₂ a')) := by blast
-definition lam1b {A A' : Type.{l₁}} (H : A = A') : (λ (a : A), op (φ₁ a) (φ₂ a)) == (λ (a' : A'), op (φ₁ a') (φ₂ a')) := by blast
+theorem Suml_ext {A B : Type} [add_monoid B] (l : list A) (f g : A → B) : (∀ a, f a = g a) → Suml l f = Suml l g := sorry
 
+attribute union_comm [forward]
+attribute union_assoc [forward]
 
+-- TODO(dhs): not even true, but just an experiment
+definition fin_inhabited [instance] (n : nat) : inhabited (fin n) := sorry
 
+print fin_inhabited
+namespace fli
 
-/-
+constant (n : ℕ)
+definition var [reducible] := fin n
+definition val [reducible] := bool
 
-xs ys : finset var,
-φ₁ : factor xs,
-φ₂ : factor ys
-⊢ (λ (γ : assignment (xs ∪ ys)), φ₁ (restrict γ xs sorry) * φ₂ (restrict γ ys sorry)) == λ
-  (γ : assignment (ys ∪ xs)),
-    φ₂ (restrict γ ys sorry) * φ₁ (restrict γ xs sorry)
--/
+namespace assignment
+
+definition assignment (xs : finset var) := Π (x : var), x ∈ xs → val
+
+definition restrict {xs : finset var} (γ : assignment xs) (ys : finset var) (Hss : ys ⊆ xs) : assignment ys :=
+  λ (y : var) (Hy : y ∈ ys), γ y (mem_of_subset_of_mem Hss Hy)
+
+lemma restrict_more [forward] (xs xs₁ xs₂ : finset var) (γ : assignment xs) (H12 : xs₁ ⊆ xs₂) (H2 : xs₂ ⊆ xs) :
+ restrict (restrict γ xs₂ H2) xs₁ H12 = restrict γ xs₁ (subset.trans H12 H2) :=
+by unfold restrict; blast
+
+definition extend {xs : finset var} (γ : assignment xs) {x : var} (Hx : x ∉ xs) (v : val) : assignment (insert x xs) :=
+  λ (z : var) (Hz : z ∈ insert x xs),
+    if H : z = x then v else γ z (mem_of_mem_insert_of_ne Hz H)
+end assignment
+
+open assignment
+
+definition factor (xs : finset var) := assignment xs → ℝ
+
+namespace factor
+
+definition mul [reducible] {xs ys : finset var}
+  (φ₁ : factor xs)
+  (φ₂ : factor ys) :
+    factor (xs ∪ ys) :=
+     (λ (γ : assignment (xs ∪ ys)),
+        φ₁ (restrict γ xs sorry) * φ₂ (restrict γ ys sorry))
+
+infix `⬝`    := mul
+
+set_option trace.blast.ematch true
+--set_option trace.cc.lambda true
+attribute mul.comm [forward]
+
+--set_option trace.class_instances true
+lemma mul_comm {xs ys : finset var} (φ₁ : factor xs) (φ₂ : factor ys) :
+      (λ (γ : assignment (xs ∪ ys)), φ₁ (restrict γ xs sorry) * φ₂ (restrict γ ys sorry))
+==
+      (λ (γ : assignment (ys ∪ xs)), φ₂ (restrict γ ys sorry) * φ₁ (restrict γ xs sorry))
+:= by blast
+
+end factor
+end fli

@@ -1960,13 +1960,14 @@ static expr mk_trans(name const & R, optional<expr> const & H1, expr const & H2)
 }
 
 optional<expr> congruence_closure::get_eqv_proof(name const & R, expr const & e1, expr const & e2) const {
-    if (R == get_eq_name() && is_selsam_local(e1) && is_selsam_local(e2)) {
+    if ((R == get_eq_name() || R == get_heq_name()) && is_selsam_local(e1) && is_selsam_local(e2)) {
         lean_trace(name({"cc", "lambda"}), tout() << "get_eqv_proof: " << e1 << " == " << e2 << "\n";);
         if (is_selsam_local(e1) == is_selsam_local(e2)) {
             return some_expr(mk_hfunext_proof(e1, e2));
         }
         lean_trace(name({"cc", "lambda"}), tout() << "[SINDEX MISMATCH]: " << *is_selsam_local(e1) << " != " << *is_selsam_local(e2) << "\n";);
     }
+//    lean_trace(name({"cc", "lambda"}), tout() << "TRANS_get_eqv_proof: " << e1 << " == " << e2 << "\n";);
 
     app_builder & b = get_app_builder();
     name R_key = R; // We use R_key to access the equivalence class data
