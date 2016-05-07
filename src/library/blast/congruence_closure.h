@@ -278,6 +278,7 @@ public:
     /** \brief Return true iff 'e1' and 'e2' are in the same equivalence class for relation \c R. */
     bool is_eqv(name const & R, expr const & e1, expr const & e2) const;
     optional<expr> get_eqv_proof(name const & R, expr const & e1, expr const & e2) const;
+    optional<expr> get_eqv_proof_top_level(name const & R, expr const & e1, expr const & e2) const;
 
     /** \brief Return true iff `e1 ~ e2` is in the equivalence class of false for iff. */
     bool is_uneqv(name const & R, expr const & e1, expr const & e2) const;

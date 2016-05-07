@@ -30,5 +30,3 @@ attribute f.assoc [forward]
 
 definition lam3.assoc : (λ x y z, f (f x z) y) == (λ x y z, f (f y z) x) := by blast
 definition lam4.assoc : (λ x y z w, f (f x y) (f w z)) == (λ x y z w, f z (f (f w y) x)) := by blast
-
-print lam4.assoc

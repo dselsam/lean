@@ -140,6 +140,17 @@ expr_struct_set all_locals_at_selsam_index0(expr const & e) {
     return slocals;
 }
 
+expr_struct_set all_selsam_locals(expr const & e) {
+    expr_struct_set slocals;
+    for_each(e, [&](expr const & t, unsigned) {
+            if (is_selsam_local(t)) {
+                    slocals.insert(t);
+            }
+            return true;
+        });
+    return slocals;
+}
+
 unsigned get_selsam_local_unique_id(name const & n) {
     return n.get_prefix().get_numeral();
 }

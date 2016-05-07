@@ -1716,7 +1716,7 @@ expr congruence_closure::mk_eq_lambda_congr_proof(expr const & lhs, expr const &
             app_builder & b = get_app_builder();
             blast_tmp_type_context tmp_tctx;
             if (auto inst = tmp_tctx->mk_class_instance(b.mk_app(get_inhabited_name(), infer_type(l)))) {
-                pf_bodies = mk_app(Fun(l, pf_bodies), *inst);
+                pf_bodies = mk_app(Fun(l, pf_bodies), b.mk_app(get_inhabited_value_name(), *inst));
             } else {
                 lean_trace(name({"cc", "lambda"}), tout() << "Cannot synthesize [inhabited] for: " << infer_type(l) << "\n";);
                 lean_assert(false);
@@ -1959,11 +1959,36 @@ static expr mk_trans(name const & R, optional<expr> const & H1, expr const & H2)
     return !H1 ? H2 : get_app_builder().mk_trans(R, *H1, H2);
 }
 
+optional<expr> congruence_closure::get_eqv_proof_top_level(name const & R, expr const & e1, expr const & e2) const {
+    optional<expr> opf = get_eqv_proof(R, e1, e2);
+    if (!opf) return optional<expr>();
+    expr pf = unfold_all_hyps_that_contain_selsam_locals(*opf);
+    expr_struct_set slocals = all_selsam_locals(pf);
+
+    for (expr const & slocal : slocals) {
+        lean_trace(name({"cc", "lambda"}), tout() << "Need to abstract selsam local: " << slocal << " : " << infer_type(slocal) << "\n";);
+        app_builder & b = get_app_builder();
+        blast_tmp_type_context tmp_tctx;
+        if (auto inst = tmp_tctx->mk_class_instance(b.mk_app(get_inhabited_name(), infer_type(slocal)))) {
+            // TODO(dhs): project!
+            pf = mk_app(Fun(slocal, pf), b.mk_app(get_inhabited_value_name(), *inst));
+            lean_trace(name({"cc", "lambda"}), tout() << "Abstracted: " << *inst << " : " << infer_type(*inst) << "\n";);
+        } else {
+            lean_trace(name({"cc", "lambda"}), tout() << "Can't abstract selsam local: " << slocal << " : " << infer_type(slocal) << "\n";);
+            return optional<expr>();
+        }
+    }
+    return optional<expr>(pf);
+}
+
 optional<expr> congruence_closure::get_eqv_proof(name const & R, expr const & e1, expr const & e2) const {
-    if ((R == get_eq_name() || R == get_heq_name()) && is_selsam_local(e1) && is_selsam_local(e2)) {
+    if ((R == get_eq_name() || R == get_heq_name()) && is_selsam_local(e1) && (is_selsam_local(e1) == is_selsam_local(e2))) {
         lean_trace(name({"cc", "lambda"}), tout() << "get_eqv_proof: " << e1 << " == " << e2 << "\n";);
-        if (is_selsam_local(e1) == is_selsam_local(e2)) {
+        if (R == get_heq_name()) {
             return some_expr(mk_hfunext_proof(e1, e2));
+        } else {
+            app_builder & b = get_app_builder();
+            return some_expr(b.mk_eq_of_heq(mk_hfunext_proof(e1, e2)));
         }
         lean_trace(name({"cc", "lambda"}), tout() << "[SINDEX MISMATCH]: " << *is_selsam_local(e1) << " != " << *is_selsam_local(e2) << "\n";);
     }
@@ -2093,7 +2118,7 @@ optional<expr> congruence_closure::get_inconsistency_proof() const {
     lean_assert(!m_froze_partitions);
     try {
         app_builder & b = get_app_builder();
-        if (auto p = get_eqv_proof(get_iff_name(), mk_true(), mk_false())) {
+        if (auto p = get_eqv_proof_top_level(get_iff_name(), mk_true(), mk_false())) {
             return some_expr(b.mk_false_of_true_iff_false(*p));
         } else {
             return none_expr();

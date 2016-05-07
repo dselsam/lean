@@ -19,7 +19,7 @@ action_result target_cc_action() {
     expr const & target = curr_state().get_target();
     name R; expr lhs, rhs;
     if (is_relation_app(target, R, lhs, rhs) && cc.is_eqv(R, lhs, rhs)) {
-        expr proof = *cc.get_eqv_proof(R, lhs, rhs);
+        expr proof = *cc.get_eqv_proof_top_level(R, lhs, rhs);
         trace_action("equivalence by congruence closure");
         return action_result(proof);
     } else if (is_prop(target) && !is_false(target) && cc.proved(target)) {

@@ -54,7 +54,7 @@ definition mul [reducible] {xs ys : finset var}
 
 infix `⬝`    := mul
 
-set_option trace.blast.ematch true
+--set_option trace.blast.ematch true
 --set_option trace.cc.lambda true
 attribute mul.comm [forward]
 
@@ -64,6 +64,8 @@ lemma mul_comm {xs ys : finset var} (φ₁ : factor xs) (φ₂ : factor ys) :
 ==
       (λ (γ : assignment (ys ∪ xs)), φ₂ (restrict γ ys sorry) * φ₁ (restrict γ xs sorry))
 := by blast
+
+lemma mul_comm2 {xs ys : finset var} (φ₁ : factor xs) (φ₂ : factor ys) : φ₁ ⬝ φ₂ == φ₂ ⬝ φ₁ := by blast
 
 end factor
 end fli

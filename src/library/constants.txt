@@ -67,6 +67,7 @@ heq_of_eq
 hfunext
 hfunext_full
 inhabited
+inhabited.value
 iff
 iff.elim_left
 iff.elim_right
