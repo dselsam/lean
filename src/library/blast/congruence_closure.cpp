@@ -1679,14 +1679,13 @@ expr congruence_closure::mk_eq_lambda_congr_proof(expr const & lhs, expr const &
 
     std::tie(selsam_local1, new_body1) = get_selsam_local(lhs);
     std::tie(selsam_local2, new_body2) = get_selsam_local(rhs);
-
+    expr hfunext_pf = mk_hfunext_proof(selsam_local1, selsam_local2);
     expr pf_bodies = *get_eqv_proof(get_heq_name(), new_body1, new_body2);
-    if (is_local(mlocal_type(selsam_local1)) && is_local(mlocal_type(selsam_local2))) {
-        lean_trace(name({"cc", "lambda"}), tout() << "HFUNEXT with: ["
-                   << mlocal_name(selsam_local1) << "(" << local_pp_name(selsam_local1) << ") : "
-                   << mlocal_name(mlocal_type(selsam_local1)) << "], ["
-                   << mlocal_name(mlocal_type(selsam_local2)) << "]\n";);
-    }
+    lean_trace(name({"cc", "lambda"}), tout() << "HFUNEXT with: ("
+               << mlocal_name(selsam_local1) << " : " << mlocal_type(selsam_local1) << ") ("
+               << mlocal_name(selsam_local2) << " : " << mlocal_type(selsam_local2) << ")\n"
+               << "pf: " << hfunext_pf << " : " << infer_type(hfunext_pf) << "\n";);
+
     lean_trace(name({"cc", "lambda"}), tout() << "Before unfolding: " << pf_bodies << "\n";);
     pf_bodies = unfold_all_hyps_that_contain_selsam_locals(pf_bodies);
 
@@ -1694,14 +1693,11 @@ expr congruence_closure::mk_eq_lambda_congr_proof(expr const & lhs, expr const &
     expr_struct_set ls0 = all_locals_at_selsam_index0(pf_bodies);
 
     for (expr const & l : ls0) {
-        if (is_local(mlocal_type(l))) {
-            lean_trace(name({"cc", "lambda"}),
-                       tout() << "pf_bodies contains: (" << mlocal_name(l) << " (" << local_pp_name(l) << ") : "
-                       << mlocal_name(mlocal_type(l)) << ")\n1: ";
-                       tout() << (mlocal_name(l) == mlocal_name(selsam_local1)) << " " << (mlocal_type(l) == mlocal_type(selsam_local1)) << "\n2: ";
-                       tout() << (mlocal_name(l) == mlocal_name(selsam_local2)) << " " << (mlocal_type(l) == mlocal_type(selsam_local2)) << "\n";
-                );
-        }
+        lean_trace(name({"cc", "lambda"}),
+                   tout() << "pf_bodies contains: (" << mlocal_name(l) << " : " << mlocal_type(l) << ")\n1: "
+                   << (mlocal_name(l) == mlocal_name(selsam_local1)) << " " << (mlocal_type(l) == mlocal_type(selsam_local1)) << "\n2: "
+                   << (mlocal_name(l) == mlocal_name(selsam_local2)) << " " << (mlocal_type(l) == mlocal_type(selsam_local2)) << "\n";
+            );
     }
     ls0.erase(selsam_local1);
     ls0.erase(selsam_local2);
@@ -1717,7 +1713,12 @@ expr congruence_closure::mk_eq_lambda_congr_proof(expr const & lhs, expr const &
             pf_bodies = mk_app(Fun(l, pf_bodies), selsam_local2);
         } else {
             lean_trace(name({"cc", "lambda"}), tout() << "Type not among locals to be abstracted\n";);
-            lean_assert(false);
+            if (auto inst = mk_class_instance(infer_type(l))) {
+                pf_bodies = mk_app(Fun(l, pf_bodies), *inst);
+            } else {
+                lean_trace(name({"cc", "lambda"}), tout() << "Cannot synthesize [inhabited] for: " << infer_type(l) << "\n";);
+                lean_assert(false);
+            }
         }
     }
     // (H : ∀ (a a' : A), a == a' → f a == g a'),
@@ -1727,7 +1728,6 @@ expr congruence_closure::mk_eq_lambda_congr_proof(expr const & lhs, expr const &
     lean_trace(name({"cc", "lambda"}), tout() << "Before abstracting: " << pf_bodies << "\n";);
 
     // TODO(dhs): mk_heq
-    expr hfunext_pf = mk_hfunext_proof(selsam_local1, selsam_local2);
     lean_assert(closed(pf_bodies));
     pf_bodies = Fun({selsam_local1, selsam_local2, hfunext_pf}, pf_bodies);
     lean_assert(closed(pf_bodies));

@@ -17,7 +17,7 @@ set_option trace.cc.lambda true
 --definition lam1a (H : A = A') : (λ (a : A), op (φ₁ a) (φ₂ a)) == (λ (a' : A'), op (φ₁ a') (φ₂ a')) := by blast
 definition lam1b {A A' : Type.{l₁}} (H : A = A') : (λ (a : A), op (φ₁ a) (φ₂ a)) == (λ (a' : A'), op (φ₁ a') (φ₂ a')) := by blast
 
---definition lam2 (H : A = A') : (λ (a : A), op (φ₁ a) (φ₂ a)) == (λ (a' : A'), op (φ₂ a') (φ₁ a')) := by blast
+
 
 
 /-

@@ -88,7 +88,6 @@ expr map_selsam_locals(expr const & e, bool lift) {
         expr new_e = update_mlocal(e, new_ty);
         if (is_selsam_local(new_e)) {
             expr new_new_e = (lift ? lift_local(new_e) : lower_local(new_e));
-            lean_trace(name({"cc", "lambda"}), tout() << (lift ? "lifting: " : "lowering: ") << new_e << " ==> " << new_new_e << "\n";);
             new_e = new_new_e;
         }
         return new_e;
@@ -121,12 +120,10 @@ expr map_selsam_locals(expr const & e, bool lift) {
 
 expr lift_selsam_locals(expr const & e) {
     expr r = map_selsam_locals(e, true);
-    lean_trace(name({"cc", "lambda"}), tout() << "LIFT:\n " << e << "\n==>\n" << r << "\n";);
     return r;
 }
 expr lower_selsam_locals(expr const & e) {
     expr r = map_selsam_locals(e, false);
-    lean_trace(name({"cc", "lambda"}), tout() << "LOWER:\n " << e << "\n==>\n" << r << "\n";);
     return r;
 }
 
