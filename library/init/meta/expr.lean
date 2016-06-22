@@ -137,6 +137,8 @@ meta_definition binding_body : expr → expr
 | (lam _ _ d b) := b
 | e             := e
 
+meta_definition prop : expr := sort level.zero
+
 end expr
 
 /- Given (f a : expr), the following coercion allow us to write (f a) instead of (expr.app f a) -/

@@ -4,8 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Leonardo de Moura
 -/
 prelude
-import init.trace init.function
-import init.meta.base_tactic init.meta.environment init.meta.qexpr
+import init.trace init.meta.base_tactic init.meta.environment init.meta.qexpr
 
 meta_constant tactic_state : Type₁
 
@@ -25,23 +24,8 @@ has_to_format.mk tactic_state.to_format
 
 meta_definition tactic [reducible] (A : Type) := base_tactic tactic_state A
 
-meta_definition tactic.format_expr (e : expr) : tactic format :=
-do s ← tactic.read, return (tactic_state.format_expr s e)
-
-structure has_to_tactic_format [class] (A : Type) :=
-(to_tactic_format : A → tactic format)
-
-meta_definition has_to_format_to_has_to_tactic_format [instance] (A : Type) [has_to_format A] : has_to_tactic_format A :=
-has_to_tactic_format.mk (return ∘ to_fmt)
-
-meta_definition expr_has_to_tactic_format [instance] : has_to_tactic_format expr :=
-has_to_tactic_format.mk tactic.format_expr
-
 namespace tactic
 open tactic_state
-
-meta_definition pp {A : Type} [has_to_tactic_format A] : A → tactic format :=
-has_to_tactic_format.to_tactic_format
 
 meta_definition get_env : tactic environment :=
 do s ← read,
@@ -63,13 +47,23 @@ meta_definition get_decl (n : name) : tactic declaration :=
 do s ← read,
    returnex (environment.get (env s) n)
 
-meta_definition trace {A : Type} [has_to_tactic_format A] (a : A) : tactic unit :=
-do fmt ← pp a,
-   return (_root_.trace_fmt fmt (λ u, ()))
+meta_definition trace (s : string) : tactic unit :=
+return (_root_.trace s (λ u, ()))
+
+meta_definition trace_fmt {A : Type} [has_to_format A] (a : A) : tactic unit :=
+return (_root_.trace_fmt (to_fmt a) (λ u, ()))
+
+/- Trace expression with respect to the main goal -/
+meta_definition trace_expr (e : expr) : tactic unit :=
+do s ← read,
+   trace_fmt (format_expr s e)
 
 meta_definition trace_state : tactic unit :=
 do s ← read,
-   trace (to_fmt s)
+   trace_fmt (to_fmt s)
+
+meta_definition format_expr (e : expr) : tactic format :=
+do s ← read, return (tactic_state.format_expr s e)
 
 inductive transparency :=
 | all | semireducible | reducible | none
@@ -94,6 +88,7 @@ meta_constant unify_core    : expr → expr → transparency → tactic unit
 /- Infer the type of the given expression.
    Remark: transparency does not affect type inference -/
 meta_constant infer_type    : expr → tactic expr
+
 meta_constant get_local     : name → tactic expr
 /- Return the hypothesis in the main goal. Fail if tactic_state does not have any goal left. -/
 meta_constant local_context : tactic (list expr)
@@ -132,7 +127,14 @@ meta_constant is_class      : expr → tactic bool
 meta_constant mk_instance   : expr → tactic expr
 /- Simplify the given expression using [defeq] lemmas.
    The resulting expression is definitionally equal to the input. -/
-meta_constant defeq_simp    : expr → tactic expr
+meta_constant defeq_simplify    : expr → tactic expr
+/- Simplify the given expression using [simp] and [congr] lemmas.
+   The result is the simplified expression along with a proof that the new
+   expression is equivalent to the old one.
+   Fails if no simplifications can be performed.
+-/
+meta_constant simplify      : expr -> tactic (prod expr expr)
+
 /- Change the target of the main goal.
    The input expression must be definitionally equal to the current target. -/
 meta_constant change        : expr → tactic unit
@@ -211,7 +213,7 @@ meta_definition get_local_type (n : name) : tactic expr :=
 get_local n >>= infer_type
 
 meta_definition trace_result : tactic unit :=
-format_result >>= trace
+format_result >>= trace_fmt
 
 open bool
 /- (find_same_type t es) tries to find in es an expression with type definitionally equal to t -/
@@ -229,7 +231,29 @@ do { ctx ← local_context,
 <|> fail "assumption tactic failed"
 
 meta_definition dsimp : tactic unit :=
-target >>= defeq_simp >>= change
+target >>= defeq_simplify >>= change
+
+set_option unifier.conservative true
+meta_definition simp : tactic unit :=
+do gs ← get_goals,
+   match gs with
+   | (g :: rest)      := do
+                          tgt ← target,
+                          r ← simplify tgt,
+                          new_tgt ← return (prod.pr1 r),
+                          pf ← return (prod.pr2 r),
+                          pf_type ← infer_type pf,
+                          new_g ← mk_meta_var new_tgt,
+                          ns ← return (match expr.is_eq pf_type with
+                                        | (option.some _) := "eq"
+                                        | option.none := "iff"
+                                        end),
+                          g_pf ← mk_app (ns <.> "mpr") [pf, new_g],
+                          g_pf_type ← infer_type g_pf,
+                          unify g g_pf,
+                          set_goals (new_g :: rest)
+   | _              := fail "simp called but no goals"
+   end
 
 /- Return the number of goals that need to be solved -/
 meta_definition num_goals     : tactic nat :=
@@ -261,12 +285,12 @@ do gs ← get_goals,
    end
 
 private meta_definition all_goals_core : tactic unit → list expr → list expr → tactic unit
-| tac []        ac := set_goals ac
-| tac (g :: gs) ac :=
+| tac []        acc := set_goals acc
+| tac (g :: gs) acc :=
   do set_goals [g],
      tac,
      new_gs ← get_goals,
-     all_goals_core tac gs (ac ++ new_gs)
+     all_goals_core tac gs (acc ++ new_gs)
 
 /- Apply the given tactic to all goals. -/
 meta_definition all_goals (tac : tactic unit) : tactic unit :=
@@ -344,5 +368,7 @@ private meta_definition get_arity_aux : expr → tactic nat
 /- Compute the arity of the given function -/
 meta_definition get_arity (fn : expr) : tactic nat :=
 infer_type fn >>= whnf >>= get_arity_aux
+
+meta_definition triv : tactic unit := mk_const "trivial" >>= exact
 
 end tactic
