@@ -9,7 +9,6 @@ Author: Leonardo de Moura
 #include "library/io_state.h"
 #include "library/tmp_type_context.h"
 #include "library/head_map.h"
-#include "library/blast/gexpr.h"
 
 namespace lean {
 environment add_simp_lemma(environment const & env, io_state const & ios, name const & c, unsigned prio, name const & ns, bool persistent);

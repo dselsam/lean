@@ -14,9 +14,8 @@ Author: Leonardo de Moura
 #include "library/trace.h"
 #include "library/scoped_ext.h"
 #include "library/attribute_manager.h"
-#include "library/blast/blast.h"
-#include "library/blast/simplifier/ceqv.h"
-#include "library/blast/simplifier/simp_lemmas.h"
+#include "library/tactic/simplifier/ceqv.h"
+#include "library/tactic/simplifier/simp_lemmas.h"
 
 namespace lean {
 static name * g_class_name = nullptr;

@@ -10,7 +10,7 @@ Author: Leonardo de Moura
 #include "library/constants.h"
 #include "library/util.h"
 #include "library/relation_manager.h"
-#include "library/blast/simplifier/ceqv.h"
+#include "library/tactic/simplifier/ceqv.h"
 
 namespace lean {
 bool is_ceqv(tmp_type_context & tctx, expr e);
