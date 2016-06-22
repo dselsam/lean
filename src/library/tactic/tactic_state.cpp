@@ -383,10 +383,6 @@ vm_obj tactic_defeq_simp(vm_obj const & e, vm_obj const & s0) {
     }
 }
 
-static bool use_iff(expr const & target) {
-    return is_standard(env()) && is_prop(target);
-}
-
 vm_obj tactic_simp(vm_obj const & e, vm_obj const & s0) {
     tactic_state const & s   = to_tactic_state(s0);
     try {
