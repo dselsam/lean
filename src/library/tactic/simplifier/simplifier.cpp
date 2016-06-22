@@ -24,7 +24,6 @@ Author: Daniel Selsam
 #include "library/class_instance_resolution.h"
 #include "library/relation_manager.h"
 #include "library/app_builder.h"
-#include "library/trace.h"
 #include "library/tactic/simplifier/simplifier.h"
 #include "library/tactic/simplifier/simp_lemmas.h"
 #include "library/tactic/simplifier/ceqv.h"
@@ -44,44 +43,11 @@ Author: Daniel Selsam
 #ifndef LEAN_DEFAULT_SIMPLIFY_CONTEXTUAL
 #define LEAN_DEFAULT_SIMPLIFY_CONTEXTUAL true
 #endif
-#ifndef LEAN_DEFAULT_SIMPLIFY_EXPAND_MACROS
-#define LEAN_DEFAULT_SIMPLIFY_EXPAND_MACROS false
-#endif
-#ifndef LEAN_DEFAULT_SIMPLIFY_FUSE
-#define LEAN_DEFAULT_SIMPLIFY_FUSE false
-#endif
 #ifndef LEAN_DEFAULT_SIMPLIFY_NUMERALS
 #define LEAN_DEFAULT_SIMPLIFY_NUMERALS false
 #endif
 
 namespace lean {
-
-struct result {
-    /* Invariant [m_pf : m_orig <rel> m_new] */
-    expr m_new;
-
-    /* If proof is not provided, it is assumed to be reflexivity */
-    optional<expr> m_proof;
-public:
-    result() {}
-    result(expr const & e): m_new(e) {}
-    result(expr const & e, expr const & proof): m_new(e), m_proof(proof) {}
-    result(expr const & e, optional<expr> const & proof): m_new(e), m_proof(proof) {}
-
-    bool has_proof() const { return static_cast<bool>(m_proof); }
-
-    expr get_new() const { return m_new; }
-    expr get_proof() const { lean_assert(m_proof); return *m_proof; }
-
-    /* The following assumes that [e] and [m_new] are definitionally equal */
-    void update(expr const & e) { m_new = e; }
-};
-
-/* Keys */
-
-static unsigned g_ac_key;
-static unsigned g_som_key;
-static unsigned g_numeral_key;
 
 /* Options */
 
@@ -90,8 +56,6 @@ static name * g_simplify_top_down      = nullptr;
 static name * g_simplify_exhaustive    = nullptr;
 static name * g_simplify_memoize       = nullptr;
 static name * g_simplify_contextual    = nullptr;
-static name * g_simplify_expand_macros = nullptr;
-static name * g_simplify_fuse          = nullptr;
 static name * g_simplify_numerals      = nullptr;
 
 unsigned get_simplify_max_steps() {
@@ -112,14 +76,6 @@ bool get_simplify_memoize() {
 
 bool get_simplify_contextual() {
     return ios().get_options().get_bool(*g_simplify_contextual, LEAN_DEFAULT_SIMPLIFY_CONTEXTUAL);
-}
-
-bool get_simplify_expand_macros() {
-    return ios().get_options().get_bool(*g_simplify_expand_macros, LEAN_DEFAULT_SIMPLIFY_EXPAND_MACROS);
-}
-
-bool get_simplify_fuse() {
-    return ios().get_options().get_bool(*g_simplify_fuse, LEAN_DEFAULT_SIMPLIFY_FUSE);
 }
 
 bool get_simplify_numerals() {
@@ -159,8 +115,6 @@ class simplifier {
     bool                                         m_exhaustive{get_simplify_exhaustive()};
     bool                                         m_memoize{get_simplify_memoize()};
     bool                                         m_contextual{get_simplify_contextual()};
-    bool                                         m_expand_macros{get_simplify_expand_macros()};
-    bool                                         m_fuse{get_simplify_fuse()};
     bool                                         m_numerals{get_simplify_numerals()};
 
     /* Cache */
@@ -183,14 +137,14 @@ class simplifier {
         }
     };
 
-    typedef std::unordered_map<key, result, key_hash_fn, key_eq_fn> simplify_cache;
+    typedef std::unordered_map<key, simp_result, key_hash_fn, key_eq_fn> simplify_cache;
     simplify_cache m_cache;
-    optional<result> cache_lookup(expr const & e);
-    void cache_save(expr const & e, result const & r);
+    optional<simp_result> cache_lookup(expr const & e);
+    void cache_save(expr const & e, simp_result const & r);
 
     /* Mapping from subsingleton type to representative */
     expr_map<expr> m_subsingleton_elem_map;
-    optional<result> normalize_subsingleton_args(expr const & e);
+    optional<simp_result> normalize_subsingleton_args(expr const & e);
 
     /* Basic helpers */
     bool using_eq() { return m_rel == get_eq_name(); }
@@ -221,46 +175,46 @@ class simplifier {
     bool instantiate_emetas(blast_tmp_type_context & tmp_tctx, unsigned num_emeta,
                             list<expr> const & emetas, list<bool> const & instances);
 
-    /* Results */
-    result lift_from_eq(expr const & e_old, result const & r_eq);
-    result join(result const & r1, result const & r2);
-    result funext(result const & r, expr const & l);
-    result finalize(result const & r);
+    /* Simp_Results */
+    simp_result lift_from_eq(expr const & e_old, simp_result const & r_eq);
+    simp_result join(simp_result const & r1, simp_result const & r2);
+    simp_result funext(simp_result const & r, expr const & l);
+    simp_result finalize(simp_result const & r);
 
     /* Simplification */
-    result simplify(expr const & e, simp_lemmas const & srss);
-    result simplify(expr const & e, bool is_root);
-    result simplify_lambda(expr const & e);
-    result simplify_pi(expr const & e);
-    result simplify_app(expr const & e);
-    result simplify_fun(expr const & e);
-    optional<result> simplify_numeral(expr const & e);
+    simp_result simplify(expr const & e, simp_lemmas const & srss);
+    simp_result simplify(expr const & e, bool is_root);
+    simp_result simplify_lambda(expr const & e);
+    simp_result simplify_pi(expr const & e);
+    simp_result simplify_app(expr const & e);
+    simp_result simplify_fun(expr const & e);
+    optional<simp_result> simplify_numeral(expr const & e);
 
     /* Proving */
     optional<expr> prove(expr const & thm);
     optional<expr> prove(expr const & thm, simp_lemmas const & srss);
 
     /* Rewriting */
-    result rewrite(expr const & e);
-    result rewrite(expr const & e, simp_lemmas const & srss);
-    result rewrite(expr const & e, simp_lemma const & sr);
+    simp_result rewrite(expr const & e);
+    simp_result rewrite(expr const & e, simp_lemmas const & srss);
+    simp_result rewrite(expr const & e, simp_lemma const & sr);
 
     /* Congruence */
-    result congr_fun_arg(result const & r_f, result const & r_arg);
-    result congr(result const & r_f, result const & r_arg);
-    result congr_fun(result const & r_f, expr const & arg);
-    result congr_arg(expr const & f, result const & r_arg);
-    result congr_funs(result const & r_f, buffer<expr> const & args);
+    simp_result congr_fun_arg(simp_result const & r_f, simp_result const & r_arg);
+    simp_result congr(simp_result const & r_f, simp_result const & r_arg);
+    simp_result congr_fun(simp_result const & r_f, expr const & arg);
+    simp_result congr_arg(expr const & f, simp_result const & r_arg);
+    simp_result congr_funs(simp_result const & r_f, buffer<expr> const & args);
 
-    result try_congrs(expr const & e);
-    result try_congr(expr const & e, user_congr_lemma const & cr);
+    simp_result try_congrs(expr const & e);
+    simp_result try_congr(expr const & e, user_congr_lemma const & cr);
 
     template<typename F>
-    optional<result> synth_congr(expr const & e, F && simp);
+    optional<simp_result> synth_congr(expr const & e, F && simp);
 
     /* Fusion */
-    result maybe_fuse(expr const & e, bool is_root);
-    result fuse(expr const & e);
+    simp_result maybe_fuse(expr const & e, bool is_root);
+    simp_result fuse(expr const & e);
     expr_pair split_summand(expr const & e, expr const & f_mul, expr const & one);
 
     /* Apply whnf and eta-reduction
@@ -271,29 +225,29 @@ class simplifier {
 
 public:
     simplifier(name const & rel, expr_predicate const & simp_pred): m_rel(rel), m_simp_pred(simp_pred) { }
-    result operator()(expr const & e, simp_lemmas const & srss)  { return simplify(e, srss); }
+    simp_result operator()(expr const & e, simp_lemmas const & srss)  { return simplify(e, srss); }
 };
 
 /* Cache */
 
-optional<result> simplifier::cache_lookup(expr const & e) {
+optional<simp_result> simplifier::cache_lookup(expr const & e) {
     /* cache_lookup is based on congr_lemma, and assumes \c e is an application */
-    if (!is_app(e)) return optional<result>();
+    if (!is_app(e)) return optional<simp_result>();
     auto it = m_cache.find(key(m_rel, e));
-    if (it == m_cache.end()) return optional<result>();
+    if (it == m_cache.end()) return optional<simp_result>();
     /* The cache ignores subsingletons, so we may need to
        synthesize a congruence lemma. */
     expr e_old = it->first.m_e;
-    result r_old = it->second;
+    simp_result r_old = it->second;
     lean_assert(abstract_is_equal(e, e_old));
-    if (e == e_old) return optional<result>(r_old);
+    if (e == e_old) return optional<simp_result>(r_old);
     lean_assert(is_app(e_old));
     buffer<expr> new_args, old_args;
     DEBUG_CODE(expr const & f_new =) get_app_args(e, new_args);
     DEBUG_CODE(expr const & f_old =) get_app_args(e_old, old_args);
     lean_assert(f_new == f_old);
     auto congr_lemma = mk_specialized_congr_lemma(e);
-    if (!congr_lemma) return optional<result>();
+    if (!congr_lemma) return optional<simp_result>();
     expr proof = congr_lemma->get_proof();
     expr type = congr_lemma->get_type();
 
@@ -329,17 +283,17 @@ optional<result> simplifier::cache_lookup(expr const & e) {
         });
 
     lean_assert(is_eq(type));
-    result r_congr = result(e_old, proof);
-    return optional<result>(join(r_congr, r_old));
+    simp_result r_congr = simp_result(e_old, proof);
+    return optional<simp_result>(join(r_congr, r_old));
 }
 
-void simplifier::cache_save(expr const & e, result const & r) {
+void simplifier::cache_save(expr const & e, simp_result const & r) {
     m_cache.insert(mk_pair(key(m_rel, e), r));
 }
 
-/* Results */
+/* Simp_Results */
 
-result simplifier::lift_from_eq(expr const & e_old, result const & r_eq) {
+simp_result simplifier::lift_from_eq(expr const & e_old, simp_result const & r_eq) {
     if (!r_eq.has_proof()) return r_eq;
     lean_assert(r_eq.has_proof());
     /* r_eq.get_proof() : e_old = r_eq.get_new() */
@@ -351,36 +305,36 @@ result simplifier::lift_from_eq(expr const & e_old, result const & r_eq) {
     /* Rxx = x <m_rel> x */
     expr Rxx = get_app_builder().mk_refl(m_rel, e_old);
     expr pf = get_app_builder().mk_eq_rec(motive, Rxx, r_eq.get_proof());
-    return result(r_eq.get_new(), pf);
+    return simp_result(r_eq.get_new(), pf);
 }
 
-result simplifier::join(result const & r1, result const & r2) {
-    /* Assumes that both results are with respect to the same relation */
+simp_result simplifier::join(simp_result const & r1, simp_result const & r2) {
+    /* Assumes that both simp_results are with respect to the same relation */
     if (!r1.has_proof()) {
         return r2;
     } else if (!r2.has_proof()) {
         lean_assert(r1.has_proof());
-        return result(r2.get_new(), r1.get_proof());
+        return simp_result(r2.get_new(), r1.get_proof());
     } else {
         /* If they both have proofs, we need to glue them together with transitivity. */
         lean_assert(r1.has_proof() && r2.has_proof());
         expr trans = get_app_builder().mk_trans(m_rel, r1.get_proof(), r2.get_proof());
-        return result(r2.get_new(), trans);
+        return simp_result(r2.get_new(), trans);
     }
 }
 
-result simplifier::funext(result const & r, expr const & l) {
+simp_result simplifier::funext(simp_result const & r, expr const & l) {
     // theorem funext {f₁ f₂ : Πx : A, B x} : (∀x, f₁ x = f₂ x) → f₁ = f₂ :=
     expr e  = Fun(l, r.get_new());
-    if (!r.has_proof()) return result(e);
+    if (!r.has_proof()) return simp_result(e);
     expr pf = get_app_builder().mk_app(get_funext_name(), Fun(l, r.get_proof()));
-    return result(e, pf);
+    return simp_result(e, pf);
 }
 
-result simplifier::finalize(result const & r) {
+simp_result simplifier::finalize(simp_result const & r) {
     if (r.has_proof()) return r;
     expr pf = get_app_builder().mk_refl(m_rel, r.get_new());
-    return result(r.get_new(), pf);
+    return simp_result(r.get_new(), pf);
 }
 
 /* Whnf + Eta */
@@ -390,14 +344,14 @@ expr simplifier::whnf_eta(expr const & e) {
 
 /* Simplification */
 
-result simplifier::simplify(expr const & e, simp_lemmas const & srss) {
+simp_result simplifier::simplify(expr const & e, simp_lemmas const & srss) {
     flet<simp_lemmas> set_srss(m_srss, srss);
     freset<simplify_cache> reset1(m_cache);
     freset<expr_map<expr>> reset2(m_subsingleton_elem_map);
     return simplify(e, true);
 }
 
-result simplifier::simplify(expr const & e, bool is_root) {
+simp_result simplifier::simplify(expr const & e, bool is_root) {
     check_system("simplifier");
     m_num_steps++;
     lean_trace_inc_depth("simplifier");
@@ -410,7 +364,7 @@ result simplifier::simplify(expr const & e, bool is_root) {
         if (auto it = cache_lookup(e)) return *it;
     }
 
-    if (!m_simp_pred(e)) return result(e);
+    if (!m_simp_pred(e)) return simp_result(e);
 
     if (m_numerals && using_eq()) {
         if (auto r = simplify_numeral(e)) {
@@ -418,7 +372,7 @@ result simplifier::simplify(expr const & e, bool is_root) {
         }
     }
 
-    result r(e);
+    simp_result r(e);
 
     if (m_top_down) r = join(r, rewrite(whnf_eta(r.get_new())));
 
@@ -455,7 +409,7 @@ result simplifier::simplify(expr const & e, bool is_root) {
     if (!m_top_down) r = join(r, rewrite(whnf_eta(r.get_new())));
 
     if (r.get_new() == e && !using_eq()) {
-        result r_eq;
+        simp_result r_eq;
         {
             flet<name> use_eq(m_rel, get_eq_name());
             r_eq = simplify(r.get_new(), is_root);
@@ -472,7 +426,7 @@ result simplifier::simplify(expr const & e, bool is_root) {
     return r;
 }
 
-result simplifier::simplify_lambda(expr const & e) {
+simp_result simplifier::simplify_lambda(expr const & e) {
     lean_assert(is_lambda(e));
     expr t = e;
 
@@ -484,7 +438,7 @@ result simplifier::simplify_lambda(expr const & e) {
         t = instantiate(binding_body(t), l);
     }
 
-    result r        = simplify(t, false);
+    simp_result r        = simplify(t, false);
     expr new_t      = r.get_new();
     /* check if subsingleton, and normalize */
     expr new_t_type = m_tmp_tctx->infer(new_t);
@@ -493,7 +447,7 @@ result simplifier::simplify_lambda(expr const & e) {
         if (it != m_subsingleton_elem_map.end()) {
             if (it->second != new_t) {
                 expr proof = get_app_builder().mk_app(get_subsingleton_elim_name(), new_t, it->second);
-                r = join(r, result(it->second, proof));
+                r = join(r, simp_result(it->second, proof));
             }
         } else {
             m_subsingleton_elem_map.insert(mk_pair(new_t_type, new_t));
@@ -504,7 +458,7 @@ result simplifier::simplify_lambda(expr const & e) {
     return r;
 }
 
-result simplifier::simplify_pi(expr const & e) {
+simp_result simplifier::simplify_pi(expr const & e) {
     lean_assert(is_pi(e));
     return try_congrs(e);
 }
@@ -523,12 +477,12 @@ expr simplifier::unfold_reducible_instances(expr const & e) {
     return mk_app(f, args);
 }
 
-result simplifier::simplify_app(expr const & _e) {
+simp_result simplifier::simplify_app(expr const & _e) {
     lean_assert(is_app(_e));
     expr e = unfold_reducible_instances(_e);
 
     /* (1) Try user-defined congruences */
-    result r_user = try_congrs(e);
+    simp_result r_user = try_congrs(e);
     if (r_user.has_proof()) {
         if (using_eq()) return join(r_user, simplify_fun(r_user.get_new()));
         else return r_user;
@@ -536,7 +490,7 @@ result simplifier::simplify_app(expr const & _e) {
 
     /* (2) Synthesize congruence lemma */
     if (using_eq()) {
-        optional<result> r_args = synth_congr(e, [&](expr const & e) {
+        optional<simp_result> r_args = synth_congr(e, [&](expr const & e) {
                 return simplify(e, false);
             });
         if (r_args) return join(*r_args, simplify_fun(r_args->get_new()));
@@ -550,35 +504,35 @@ result simplifier::simplify_app(expr const & _e) {
         // TODO(dhs): it is not clear if this recursive call should be considered
         // a root or not, though does not matter since if + were being applied,
         // we would have synthesized a congruence rule in step (2).
-        result r_f = simplify(f, false);
+        simp_result r_f = simplify(f, false);
 
         if (is_dependent_fn(f)) {
             if (r_f.has_proof()) return congr_fun(r_f, arg);
             else return mk_app(r_f.get_new(), arg);
         } else {
-            result r_arg = simplify(arg, false);
+            simp_result r_arg = simplify(arg, false);
             return congr_fun_arg(r_f, r_arg);
         }
     }
-    return result(e);
+    return simp_result(e);
 }
 
-result simplifier::simplify_fun(expr const & e) {
+simp_result simplifier::simplify_fun(expr const & e) {
     lean_assert(is_app(e));
     buffer<expr> args;
     expr const & f = get_app_args(e, args);
-    result r_f = simplify(f, true);
+    simp_result r_f = simplify(f, true);
     return congr_funs(r_f, args);
 }
 
-optional<result> simplifier::simplify_numeral(expr const & e) {
-    if (is_num(e)) { return optional<result>(result(e)); }
+optional<simp_result> simplifier::simplify_numeral(expr const & e) {
+    if (is_num(e)) { return optional<simp_result>(simp_result(e)); }
 
     try {
         expr_pair r = mk_norm_num(*m_tmp_tctx, e);
-        return optional<result>(result(r.first, r.second));
+        return optional<simp_result>(simp_result(r.first, r.second));
     } catch (exception e) {
-        return optional<result>();
+        return optional<simp_result>();
     }
 }
 
@@ -586,7 +540,7 @@ optional<result> simplifier::simplify_numeral(expr const & e) {
 
 optional<expr> simplifier::prove(expr const & thm) {
     flet<name> set_name(m_rel, get_iff_name());
-    result r_cond = simplify(thm, true);
+    simp_result r_cond = simplify(thm, true);
     if (is_constant(r_cond.get_new()) && const_name(r_cond.get_new()) == get_true_name()) {
         expr pf = get_app_builder().mk_app(get_iff_elim_right_name(),
                                        finalize(r_cond).get_proof(),
@@ -598,7 +552,7 @@ optional<expr> simplifier::prove(expr const & thm) {
 
 optional<expr> simplifier::prove(expr const & thm, simp_lemmas const & srss) {
     flet<name> set_name(m_rel, get_iff_name());
-    result r_cond = simplify(thm, srss);
+    simp_result r_cond = simplify(thm, srss);
     if (is_constant(r_cond.get_new()) && const_name(r_cond.get_new()) == get_true_name()) {
         expr pf = get_app_builder().mk_app(get_iff_elim_right_name(),
                                        finalize(r_cond).get_proof(),
@@ -610,19 +564,19 @@ optional<expr> simplifier::prove(expr const & thm, simp_lemmas const & srss) {
 
 /* Rewriting */
 
-result simplifier::rewrite(expr const & e) {
-    result r(e);
+simp_result simplifier::rewrite(expr const & e) {
+    simp_result r(e);
     while (true) {
-        result r_ctx = rewrite(r.get_new(), m_ctx_srss);
-        result r_new = rewrite(r_ctx.get_new(), m_srss);
+        simp_result r_ctx = rewrite(r.get_new(), m_ctx_srss);
+        simp_result r_new = rewrite(r_ctx.get_new(), m_srss);
         if (!r_ctx.has_proof() && !r_new.has_proof()) break;
         r = join(join(r, r_ctx), r_new);
     }
     return r;
 }
 
-result simplifier::rewrite(expr const & e, simp_lemmas const & srss) {
-    result r(e);
+simp_result simplifier::rewrite(expr const & e, simp_lemmas const & srss) {
+    simp_result r(e);
 
     simp_lemmas_for const * sr = srss.find(m_rel);
     if (!sr) return r;
@@ -631,17 +585,17 @@ result simplifier::rewrite(expr const & e, simp_lemmas const & srss) {
     if (!srs) return r;
 
     for_each(*srs, [&](simp_lemma const & sr) {
-            result r_new = rewrite(r.get_new(), sr);
+            simp_result r_new = rewrite(r.get_new(), sr);
             if (!r_new.has_proof()) return;
             r = join(r, r_new);
         });
     return r;
 }
 
-result simplifier::rewrite(expr const & e, simp_lemma const & sr) {
+simp_result simplifier::rewrite(expr const & e, simp_lemma const & sr) {
     blast_tmp_type_context tmp_tctx(sr.get_num_umeta(), sr.get_num_emeta());
 
-    if (!tmp_tctx->is_def_eq(e, sr.get_lhs())) return result(e);
+    if (!tmp_tctx->is_def_eq(e, sr.get_lhs())) return simp_result(e);
 
     lean_trace(name({"simplifier", "rewrite"}),
                expr new_lhs = tmp_tctx->instantiate_uvars_mvars(sr.get_lhs());
@@ -649,10 +603,10 @@ result simplifier::rewrite(expr const & e, simp_lemma const & sr) {
                tout() << "(" << sr.get_id() << ") "
                << "[" << new_lhs << " --> " << new_rhs << "]\n";);
 
-    if (!instantiate_emetas(tmp_tctx, sr.get_num_emeta(), sr.get_emetas(), sr.get_instances())) return result(e);
+    if (!instantiate_emetas(tmp_tctx, sr.get_num_emeta(), sr.get_emetas(), sr.get_instances())) return simp_result(e);
 
     for (unsigned i = 0; i < sr.get_num_umeta(); i++) {
-        if (!tmp_tctx->is_uvar_assigned(i)) return result(e);
+        if (!tmp_tctx->is_uvar_assigned(i)) return simp_result(e);
     }
 
     expr new_lhs = tmp_tctx->instantiate_uvars_mvars(sr.get_lhs());
@@ -660,69 +614,69 @@ result simplifier::rewrite(expr const & e, simp_lemma const & sr) {
 
     if (sr.is_perm()) {
         if (!is_light_lt(new_rhs, new_lhs))
-            return result(e);
+            return simp_result(e);
     }
 
     expr pf = tmp_tctx->instantiate_uvars_mvars(sr.get_proof());
-    return result(new_rhs, pf);
+    return simp_result(new_rhs, pf);
 }
 
 /* Congruence */
 
-result simplifier::congr_fun_arg(result const & r_f, result const & r_arg) {
-    if (!r_f.has_proof() && !r_arg.has_proof()) return result(mk_app(r_f.get_new(), r_arg.get_new()));
+simp_result simplifier::congr_fun_arg(simp_result const & r_f, simp_result const & r_arg) {
+    if (!r_f.has_proof() && !r_arg.has_proof()) return simp_result(mk_app(r_f.get_new(), r_arg.get_new()));
     else if (!r_f.has_proof()) return congr_arg(r_f.get_new(), r_arg);
     else if (!r_arg.has_proof()) return congr_fun(r_f, r_arg.get_new());
     else return congr(r_f, r_arg);
 }
 
-result simplifier::congr(result const & r_f, result const & r_arg) {
+simp_result simplifier::congr(simp_result const & r_f, simp_result const & r_arg) {
     lean_assert(r_f.has_proof() && r_arg.has_proof());
     // theorem congr {A B : Type} {f₁ f₂ : A → B} {a₁ a₂ : A} (H₁ : f₁ = f₂) (H₂ : a₁ = a₂) : f₁ a₁ = f₂ a₂
     expr e  = mk_app(r_f.get_new(), r_arg.get_new());
     expr pf = get_app_builder().mk_congr(r_f.get_proof(), r_arg.get_proof());
-    return result(e, pf);
+    return simp_result(e, pf);
 }
 
-result simplifier::congr_fun(result const & r_f, expr const & arg) {
+simp_result simplifier::congr_fun(simp_result const & r_f, expr const & arg) {
     lean_assert(r_f.has_proof());
     // theorem congr_fun {A : Type} {B : A → Type} {f g : Π x, B x} (H : f = g) (a : A) : f a = g a
     expr e  = mk_app(r_f.get_new(), arg);
     expr pf = get_app_builder().mk_congr_fun(r_f.get_proof(), arg);
-    return result(e, pf);
+    return simp_result(e, pf);
 }
 
-result simplifier::congr_arg(expr const & f, result const & r_arg) {
+simp_result simplifier::congr_arg(expr const & f, simp_result const & r_arg) {
     lean_assert(r_arg.has_proof());
     // theorem congr_arg {A B : Type} {a₁ a₂ : A} (f : A → B) : a₁ = a₂ → f a₁ = f a₂
     expr e  = mk_app(f, r_arg.get_new());
     expr pf = get_app_builder().mk_congr_arg(f, r_arg.get_proof());
-    return result(e, pf);
+    return simp_result(e, pf);
 }
 
 /* Note: handles reflexivity */
-result simplifier::congr_funs(result const & r_f, buffer<expr> const & args) {
+simp_result simplifier::congr_funs(simp_result const & r_f, buffer<expr> const & args) {
     // congr_fun : ∀ {A : Type} {B : A → Type} {f g : Π (x : A), B x}, f = g → (∀ (a : A), f a = g a)
     expr e = r_f.get_new();
     for (unsigned i = 0; i < args.size(); ++i) {
         e  = mk_app(e, args[i]);
     }
-    if (!r_f.has_proof()) return result(e);
+    if (!r_f.has_proof()) return simp_result(e);
     expr pf = r_f.get_proof();
     for (unsigned i = 0; i < args.size(); ++i) {
         pf = get_app_builder().mk_app(get_congr_fun_name(), pf, args[i]);
     }
-    return result(e, pf);
+    return simp_result(e, pf);
 }
 
-result simplifier::try_congrs(expr const & e) {
+simp_result simplifier::try_congrs(expr const & e) {
     simp_lemmas_for const * sr = get_simp_lemmas().find(m_rel);
-    if (!sr) return result(e);
+    if (!sr) return simp_result(e);
 
     list<user_congr_lemma> const * crs = sr->find_congr(e);
-    if (!crs) return result(e);
+    if (!crs) return simp_result(e);
 
-    result r(e);
+    simp_result r(e);
     for_each(*crs, [&](user_congr_lemma const & cr) {
             if (r.has_proof()) return;
             r = try_congr(e, cr);
@@ -730,10 +684,10 @@ result simplifier::try_congrs(expr const & e) {
     return r;
 }
 
-result simplifier::try_congr(expr const & e, user_congr_lemma const & cr) {
+simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cr) {
     blast_tmp_type_context tmp_tctx(cr.get_num_umeta(), cr.get_num_emeta());
 
-    if (!tmp_tctx->is_def_eq(e, cr.get_lhs())) return result(e);
+    if (!tmp_tctx->is_def_eq(e, cr.get_lhs())) return simp_result(e);
 
     lean_trace(name({"simplifier", "congruence"}),
                expr new_lhs = tmp_tctx->instantiate_uvars_mvars(cr.get_lhs());
@@ -769,7 +723,7 @@ result simplifier::try_congr(expr const & e, user_congr_lemma const & cr) {
                 h_lhs = tmp_tctx->instantiate_uvars_mvars(h_lhs);
                 lean_assert(!has_metavar(h_lhs));
 
-                result r_congr_hyp = simplify(h_lhs, m_srss);
+                simp_result r_congr_hyp = simplify(h_lhs, m_srss);
                 if (r_congr_hyp.has_proof()) simplified = true;
                 r_congr_hyp = finalize(r_congr_hyp);
                 expr hyp = finalize(r_congr_hyp).get_proof();
@@ -778,17 +732,17 @@ result simplifier::try_congr(expr const & e, user_congr_lemma const & cr) {
             }
         });
 
-    if (failed || !simplified) return result(e);
+    if (failed || !simplified) return simp_result(e);
 
-    if (!instantiate_emetas(tmp_tctx, cr.get_num_emeta(), cr.get_emetas(), cr.get_instances())) return result(e);
+    if (!instantiate_emetas(tmp_tctx, cr.get_num_emeta(), cr.get_emetas(), cr.get_instances())) return simp_result(e);
 
     for (unsigned i = 0; i < cr.get_num_umeta(); i++) {
-        if (!tmp_tctx->is_uvar_assigned(i)) return result(e);
+        if (!tmp_tctx->is_uvar_assigned(i)) return simp_result(e);
     }
 
     expr e_s = tmp_tctx->instantiate_uvars_mvars(cr.get_rhs());
     expr pf = tmp_tctx->instantiate_uvars_mvars(cr.get_proof());
-    return result(e_s, pf);
+    return simp_result(e_s, pf);
 }
 
 bool simplifier::instantiate_emetas(blast_tmp_type_context & tmp_tctx, unsigned num_emeta, list<expr> const & emetas,
@@ -840,11 +794,11 @@ bool simplifier::instantiate_emetas(blast_tmp_type_context & tmp_tctx, unsigned 
 
 /* Given a function application \c e, replace arguments that are subsingletons with a
    representative */
-optional<result> simplifier::normalize_subsingleton_args(expr const & e) {
+optional<simp_result> simplifier::normalize_subsingleton_args(expr const & e) {
     buffer<expr> args;
     get_app_args(e, args);
     auto congr_lemma = mk_specialized_congr_lemma(e);
-    if (!congr_lemma) return optional<result>();
+    if (!congr_lemma) return optional<simp_result>();
     expr proof = congr_lemma->get_proof();
     expr type = congr_lemma->get_type();
     unsigned i = 0;
@@ -887,23 +841,23 @@ optional<result> simplifier::normalize_subsingleton_args(expr const & e) {
             }
             i++;
         });
-    if (!normalized) return optional<result>();
+    if (!normalized) return optional<simp_result>();
     lean_assert(is_eq(type));
     buffer<expr> type_args;
     get_app_args(type, type_args);
     expr e_new = type_args[2];
-    return optional<result>(result(e_new, proof));
+    return optional<simp_result>(simp_result(e_new, proof));
 }
 
 template<typename F>
-optional<result> simplifier::synth_congr(expr const & e, F && simp) {
-    static_assert(std::is_same<typename std::result_of<F(expr const & e)>::type, result>::value,
-                  "synth_congr: simp must take expressions to results");
+optional<simp_result> simplifier::synth_congr(expr const & e, F && simp) {
+    static_assert(std::is_same<typename std::simp_result_of<F(expr const & e)>::type, simp_result>::value,
+                  "synth_congr: simp must take expressions to simp_results");
     lean_assert(is_app(e));
     buffer<expr> args;
     expr f = get_app_args(e, args);
     auto congr_lemma = mk_specialized_congr_lemma_for_simp(e);
-    if (!congr_lemma) return optional<result>();
+    if (!congr_lemma) return optional<simp_result>();
     expr proof = congr_lemma->get_proof();
     expr type = congr_lemma->get_type();
     unsigned i = 0;
@@ -923,7 +877,7 @@ optional<result> simplifier::synth_congr(expr const & e, F && simp) {
                 proof = mk_app(proof, args[i]);
                 type = instantiate(binding_body(type), args[i]);
                 {
-                    result r_arg = simp(args[i]);
+                    simp_result r_arg = simp(args[i]);
                     if (r_arg.has_proof()) has_proof = true;
                     r_arg = finalize(r_arg);
                     proof = mk_app(proof, r_arg.get_new(), r_arg.get_proof());
@@ -943,15 +897,15 @@ optional<result> simplifier::synth_congr(expr const & e, F && simp) {
     buffer<expr> type_args;
     get_app_args(type, type_args);
     expr e_new = remove_unnecessary_casts(type_args[2]);
-    result r;
-    if (has_proof) r = result(e_new, proof);
-    else r = result(e_new);
+    simp_result r;
+    if (has_proof) r = simp_result(e_new, proof);
+    else r = simp_result(e_new);
 
     if (has_cast) {
         if (auto r_norm = normalize_subsingleton_args(e_new))
             r = join(r, *r_norm);
     }
-    return optional<result>(r);
+    return optional<simp_result>(r);
 }
 
 expr simplifier::remove_unnecessary_casts(expr const & e) {
@@ -983,189 +937,6 @@ expr simplifier::remove_unnecessary_casts(expr const & e) {
     return mk_app(f, args);
 }
 
-/* Fusion */
-
-result simplifier::maybe_fuse(expr const & e, bool is_root) {
-    if (!is_app(e)) return result(e);
-    if (is_root && is_add_app(e)) return fuse(e);
-    if (!is_root && is_add_app(e)) return result(e);
-    lean_assert(!is_add_app(e));
-    /* At this point we know we are an application of something other than + */
-    optional<result> r = synth_congr(e, [&](expr const & arg) {
-            if (is_add_app(arg)) return fuse(arg);
-            else return result(arg);
-        });
-    if (r) return *r;
-    else return result(e);
-}
-
-result simplifier::fuse(expr const & e) {
-    lean_assert(is_add_app(e));
-//    ios().get_diagnostic_channel() << "FUSE: " << e << "\n\n";
-    flet<bool> no_recursive_fusion(m_fuse, false);
-
-    /* Note: we assume all negations are on the outside of the summands */
-
-    /* Example
-       1. Input (e): n1 * x1 * n2 * x2 + x3 + - (x1 * x2 * n3) + (- x3) + x4
-       2. Split summands: (n1 * n2) * (x1 * x2) + 1 * x3 + (- n3) * (x1 * x2) + (- 1) * x3 + 1 * x4
-       3. Group by variable (e_grp): ((n1 * n2) * (x1 * x2) + (- n3) * (x1 * x2)) + (1 * x3 + (-1) * x3) + x4
-       4. Introduce locals (e_grp_ls): ((n1 * n2) * l1 + (- n3) * l1) + (1 * l2 + (-1) * l2) + l3
-       5. Fuse (e_fused_ls): (n1 * n2 + (- n3)) * l1 + (1 + (- 1)) * l2 + 1 * l3
-       6. Simplify coefficients (e_simp_ls): (n1 * n2 + (- n3)) * l1 + l3
-       7. Instantiate locals (e_simp): (n1 * n2 + (- n3)) * (x1 * x2) + x4
-
-       Proofs
-       1. Prove (1) == (3) using simplify with [ac]
-       2. Prove (4) == (5) using simplify with [som]
-       3. Prove (5) == (6) using simplify with [numeral]
-       4. Prove (4) == (6) by transitivity of proofs (2) and (3)
-       5. Prove (3) == (7) by instantiating proof (4)
-       6. Prove (1) == (7) by transitivity of proofs (1) and (5)
-    */
-
-    /* Construct useful expressions */
-    buffer<expr> args;
-    get_app_args(e, args);
-    expr T = args[0];
-    expr f_add, f_mul, zero, one;
-    try {
-        f_add = get_app_builder().mk_partial_add(T);
-        f_mul = get_app_builder().mk_partial_mul(T);
-        zero = get_app_builder().mk_zero(T);
-        one = get_app_builder().mk_one(T);
-        expr left_distrib = get_app_builder().mk_partial_left_distrib(T);
-    } catch (app_builder_exception & ex) {
-        lean_trace(name({"simplifier", "failure"}),
-                   tout() << "cannot synthesize necessary instances\n";);
-        return result(e);
-    }
-
-    /* (1 ==> 2) Split each summand into (a) numerals and (b) variables */
-    buffer<expr> numerals;
-    buffer<expr> variables;
-    expr s = e;
-    while (is_add_app(s)) {
-        buffer<expr> args;
-        expr f = get_app_args(s, args);
-        auto n_v = split_summand(args[2], f_mul, one);
-        numerals.push_back(n_v.first);
-        variables.push_back(n_v.second);
-        s = args[3];
-    }
-    auto n_v = split_summand(s, f_mul, one);
-    numerals.push_back(n_v.first);
-    variables.push_back(n_v.second);
-    lean_assert(numerals.size() == variables.size());
-
-    /* (2 ==> 3, 4, 5) Group the summands by variable */
-    expr_bi_struct_map<list<expr> > variable_to_numerals;
-    for (unsigned i = 0; i < numerals.size(); i++) {
-        auto it = variable_to_numerals.find(variables[i]);
-        if (it != variable_to_numerals.end()) it->second = cons(numerals[i], it->second);
-        else variable_to_numerals.insert({variables[i], list<expr>(numerals[i])});
-    }
-
-    expr e_grp = zero;
-    expr e_grp_ls = zero;
-    expr e_fused_ls = zero;
-
-    buffer<expr> locals;
-    variables.clear();
-    for (auto v_ns : variable_to_numerals) {
-        expr local;
-        if (!is_one(v_ns.first)) {
-            local = m_tmp_tctx->mk_tmp_local(T);
-            locals.push_back(local);
-            variables.push_back(v_ns.first);
-        } else {
-            local = v_ns.first;
-        }
-
-        expr term = zero;
-        expr term_ls = zero;
-        expr term_fused_ls = zero;
-        for_each(v_ns.second, [&](expr const & n) {
-                term = mk_app(f_add, mk_app(f_mul, v_ns.first, n), term);
-                term_ls = mk_app(f_add, mk_app(f_mul, local, n), term_ls);
-                term_fused_ls = mk_app(f_add, n, term_fused_ls);
-            });
-        e_grp = mk_app(f_add, term, e_grp);
-        e_grp_ls = mk_app(f_add, term_ls, e_grp_ls);
-        e_fused_ls = mk_app(f_add, mk_app(f_mul, term_fused_ls, local), e_fused_ls);
-    }
-
-    /* Prove (1) == (3) using simplify with [ac] */
-    flet<bool> no_simplify_numerals(m_numerals, false);
-    auto pf_1_3 = prove(get_app_builder().mk_eq(e, e_grp),
-                        get_simp_lemmas(g_ac_key));
-
-    if (!pf_1_3) {
-        diagnostic(env(), ios(), get_type_context()) << e << "\n\n =?=\n\n" << e_grp << "\n";
-        throw blast_exception("Failed to prove (1) == (3) during fusion", e);
-    }
-
-    /* Prove (4) == (5) using simplify with [som] */
-    auto pf_4_5 = prove(get_app_builder().mk_eq(e_grp_ls, e_fused_ls),
-                        get_simp_lemmas(g_som_key));
-
-    if (!pf_4_5) {
-        diagnostic(env(), ios(), get_type_context()) << e_grp_ls << "\n\n =?=\n\n" << e_fused_ls << "\n";
-        throw blast_exception("Failed to prove (4) == (5) during fusion", e);
-    }
-
-    /* Prove (5) == (6) using simplify with [numeral] */
-    flet<bool> simplify_numerals(m_numerals, true);
-    result r_simp_ls = simplify(e_fused_ls, get_simp_lemmas(g_numeral_key));
-
-    /* Prove (4) == (6) by transitivity of proofs (2) and (3) */
-    expr pf_4_6;
-    if (!r_simp_ls.has_proof()) pf_4_6 = *pf_4_5;
-    else pf_4_6 = get_app_builder().mk_eq_trans(*pf_4_5, r_simp_ls.get_proof());
-
-    /* Prove (3) == (7) by instantiating proof (4) */
-    expr pf_3_7 = mk_app(Fun(locals, pf_4_6), variables);
-
-    /* Prove (1) == (7) by transitivity of proofs (1) and (5) */
-    expr pf_1_7 = get_app_builder().mk_eq_trans(*pf_1_3, pf_3_7);
-
-    return result(mk_app(Fun(locals, r_simp_ls.get_new()), variables), pf_1_7);
-}
-
-expr_pair simplifier::split_summand(expr const & e, expr const & f_mul, expr const & one) {
-    /* [e] is a possibly negated, possibly null product, where some of the multiplicands are numerals
-       and the rest are treated as variables. This method does the following conversion:
-       - (x1 * n1 * x2 * n3) ==> (-1 * n1 * n3) * (x1 * x2) */
-    expr s = e;
-    expr numeral = one;
-    expr variable = one;
-    if (is_neg_app(s)) {
-        buffer<expr> args;
-        get_app_args(s, args);
-        numeral = get_app_builder().mk_app(get_neg_name(), one);
-        s = args[2];
-    }
-    while (is_mul_app(s)) {
-        buffer<expr> args;
-        get_app_args(s, args);
-        expr const & multiplicand = args[2];
-        if (is_num(multiplicand)) {
-            numeral = mk_app(f_mul, multiplicand, numeral);
-        } else {
-            if (variable == one) variable = multiplicand;
-            else variable = mk_app(f_mul, multiplicand, variable);
-        }
-        s = args[3];
-    }
-    if (is_num(s)) {
-        numeral = mk_app(f_mul, s, numeral);
-    } else {
-        if (variable == one) variable = s;
-        else variable = mk_app(f_mul, s, variable);
-    }
-    return mk_pair(numeral, variable);
-}
-
 /* Setup and teardown */
 
 void initialize_simplifier() {
@@ -1174,19 +945,11 @@ void initialize_simplifier() {
     register_trace_class(name({"simplifier", "congruence"}));
     register_trace_class(name({"simplifier", "failure"}));
 
-    g_ac_key      = register_simp_lemmas({name{"simplifier", "prove"}, name{"simplifier", "unit"},
-                                          name{"simplifier", "neg"}, name{"simplifier", "ac"}});
-    g_som_key     = register_simp_lemmas({name{"simplifier", "prove"}, name{"simplifier", "unit"},
-                                          name{"simplifier", "neg"}, name{"simplifier", "ac"}, name{"simplifier", "distrib"}});
-    g_numeral_key = register_simp_lemmas({name{"simplifier", "unit"}, name{"simplifier", "neg"}, name{"simplifier", "ac"}});
-
     g_simplify_max_steps     = new name{"simplify", "max_steps"};
     g_simplify_top_down      = new name{"simplify", "top_down"};
     g_simplify_exhaustive    = new name{"simplify", "exhaustive"};
     g_simplify_memoize       = new name{"simplify", "memoize"};
     g_simplify_contextual    = new name{"simplify", "contextual"};
-    g_simplify_expand_macros = new name{"simplify", "expand_macros"};
-    g_simplify_fuse          = new name{"simplify", "fuse"};
     g_simplify_numerals      = new name{"simplify", "numerals"};
 
     register_unsigned_option(*g_simplify_max_steps, LEAN_DEFAULT_SIMPLIFY_MAX_STEPS,
@@ -1199,18 +962,12 @@ void initialize_simplifier() {
                          "(simplify) memoize simplifications");
     register_bool_option(*g_simplify_contextual, LEAN_DEFAULT_SIMPLIFY_CONTEXTUAL,
                          "(simplify) use contextual simplification");
-    register_bool_option(*g_simplify_expand_macros, LEAN_DEFAULT_SIMPLIFY_EXPAND_MACROS,
-                         "(simplify) expand macros");
-    register_bool_option(*g_simplify_fuse, LEAN_DEFAULT_SIMPLIFY_FUSE,
-                         "(simplify) fuse addition in distrib structures");
     register_bool_option(*g_simplify_numerals, LEAN_DEFAULT_SIMPLIFY_NUMERALS,
                          "(simplify) simplify (+, *, -, /) over numerals");
 }
 
 void finalize_simplifier() {
     delete g_simplify_numerals;
-    delete g_simplify_fuse;
-    delete g_simplify_expand_macros;
     delete g_simplify_contextual;
     delete g_simplify_memoize;
     delete g_simplify_exhaustive;
@@ -1218,15 +975,9 @@ void finalize_simplifier() {
     delete g_simplify_max_steps;
 }
 
-/* Entry points */
-static bool simplify_all_pred(expr const &) { return true; }
-
-result simplify(name const & rel, expr const & e, simp_lemmas const & srss) {
-    return simplifier(rel, simplify_all_pred)(e, srss);
+/* Entry point */
+simp_result simplify(type_context & ctx, name const & rel, simp_lemmas const & simp_lemmas, expr const & e) {
+    return simplifier(ctx, rel)(e, simp_lemmas);
 }
 
-result simplify(name const & rel, expr const & e, simp_lemmas const & srss, expr_predicate const & simp_pred) {
-    return simplifier(rel, simp_pred)(e, srss);
 }
-
-}}

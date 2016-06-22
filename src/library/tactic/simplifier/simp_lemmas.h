@@ -11,6 +11,7 @@ Author: Leonardo de Moura
 #include "library/head_map.h"
 
 namespace lean {
+
 environment add_simp_lemma(environment const & env, io_state const & ios, name const & c, unsigned prio, name const & ns, bool persistent);
 environment add_congr_lemma(environment const & env, io_state const & ios, name const & c, unsigned prio, name const & ns, bool persistent);
 unsigned get_simp_lemma_priority(environment const & env, name const & n);
@@ -24,7 +25,6 @@ void finalize_simp_lemmas();
 /** Generate a unique id for a set of namespaces containing [simp] and [congr] lemmas */
 unsigned register_simp_lemmas(std::initializer_list<name> const & nss);
 
-namespace blast {
 class simp_lemmas;
 class simp_lemma_core {
 protected:
@@ -167,5 +167,4 @@ simp_lemmas get_simp_lemmas(name const & ns);
     This is more efficient than get_simp_lemmas(std::initializer_list<name> const & nss), because
     results are cached. */
 simp_lemmas get_simp_lemmas(unsigned key);
-}
 }

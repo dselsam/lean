@@ -110,7 +110,6 @@ unsigned register_simp_lemmas(std::initializer_list<name> const & nss) {
     return r;
 }
 
-namespace blast {
 LEAN_THREAD_VALUE(bool, g_throw_ex, false);
 
 static void report_failure(sstream const & strm) {
@@ -711,5 +710,4 @@ void finalize_simp_lemmas() {
     delete g_key;
     delete g_class_name;
     delete g_simp_lemma_ns;
-}
 }
