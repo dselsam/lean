@@ -239,7 +239,7 @@ simp_result simplifier::lift_from_eq(expr const & e_old, simp_result const & r_e
     lean_assert(r_eq.has_proof());
     /* r_eq.get_proof() : e_old = r_eq.get_new() */
     /* goal : e_old <m_rel> r_eq.get_new() */
-    expr l = m_tmp_tctx->mk_tmp_local(m_tmp_tctx->infer(e_old));
+    expr l = m_tctx->mk_tmp_local(m_tctx->infer(e_old));
     expr motive_local = get_app_builder().mk_app(m_rel, e_old, l);
     /* motive = fun y, e_old <m_rel> y */
     expr motive = Fun(l, motive_local);
@@ -330,7 +330,7 @@ simp_result simplifier::simplify(expr const & e, bool is_root) {
         lean_unreachable();
     case expr_kind::Macro:
         if (m_expand_macros) {
-            if (auto m = m_tmp_tctx->expand_macro(e)) r = join(r, simplify(whnf_eta(*m), is_root));
+            if (auto m = m_tctx->expand_macro(e)) r = join(r, simplify(whnf_eta(*m), is_root));
         }
         break;
     case expr_kind::Lambda:
@@ -374,7 +374,7 @@ simp_result simplifier::simplify_lambda(expr const & e) {
     buffer<expr> ls;
     while (is_lambda(t)) {
         expr d = instantiate_rev(binding_domain(t), ls.size(), ls.data());
-        expr l = m_tmp_tctx->mk_tmp_local(binding_name(t), d, binding_info(t));
+        expr l = m_tctx->mk_tmp_local(binding_name(t), d, binding_info(t));
         ls.push_back(l);
         t = instantiate(binding_body(t), l);
     }
@@ -382,8 +382,8 @@ simp_result simplifier::simplify_lambda(expr const & e) {
     simp_result r        = simplify(t, false);
     expr new_t      = r.get_new();
     /* check if subsingleton, and normalize */
-    expr new_t_type = m_tmp_tctx->infer(new_t);
-    if (m_tmp_tctx->mk_subsingleton_instance(new_t_type)) {
+    expr new_t_type = m_tctx->infer(new_t);
+    if (m_tctx->mk_subsingleton_instance(new_t_type)) {
         auto it = m_subsingleton_elem_map.find(new_t_type);
         if (it != m_subsingleton_elem_map.end()) {
             if (it->second != new_t) {
@@ -470,7 +470,7 @@ optional<simp_result> simplifier::simplify_numeral(expr const & e) {
     if (is_num(e)) { return optional<simp_result>(simp_result(e)); }
 
     try {
-        expr_pair r = mk_norm_num(*m_tmp_tctx, e);
+        expr_pair r = mk_norm_num(*m_tctx, e);
         return optional<simp_result>(simp_result(r.first, r.second));
     } catch (exception e) {
         return optional<simp_result>();
@@ -533,35 +533,42 @@ simp_result simplifier::rewrite(expr const & e, simp_lemmas const & srss) {
     return r;
 }
 
+template<typename T>
+static buffer<optional<T>> mk_optional_buffer(unsigned len) {
+    buffer<optional<T>> buf;
+    buf.resize(len, none<T>());
+    return buf;
+}
+
 simp_result simplifier::rewrite(expr const & e, simp_lemma const & sl) {
-    buffer<optional<level>> & tmp_uassignment;
-    buffer<optional<expr>> & tmp_eassignment;
-// scope(m_ctx, sl.get_num_umeta(), sl.get_num_emeta());
-    type_context::tmp_mode_scope_with_buffers(m_ctx, tmp_uassignment, tmp_eassignment);
-
-    if (!tmp_tctx->is_def_eq(e, sr.get_lhs())) return simp_result(e);
-
-    lean_trace(name({"simplifier", "rewrite"}),
-               expr new_lhs = tmp_tctx->instantiate_uvars_mvars(sr.get_lhs());
-               expr new_rhs = tmp_tctx->instantiate_uvars_mvars(sr.get_rhs());
-               tout() << "(" << sr.get_id() << ") "
-               << "[" << new_lhs << " --> " << new_rhs << "]\n";);
-
-    if (!instantiate_emetas(tmp_tctx, sr.get_num_emeta(), sr.get_emetas(), sr.get_instances())) return simp_result(e);
-
-    for (unsigned i = 0; i < sr.get_num_umeta(); i++) {
-        if (!tmp_tctx->is_uvar_assigned(i)) return simp_result(e);
+    buffer<optional<level>> & tmp_uassignment = mk_optional_buffer(sl.get_numumeta());
+    buffer<optional<expr>> & tmp_uassignment = mk_optional_buffer(sl.get_numemeta());
+    {
+        type_context::tmp_mode_scope_with_buffers(m_tctx, tmp_uassignment, tmp_eassignment);
+        if (!m_tctx->is_def_eq(e, sl.get_lhs())) return simp_result(e);
     }
 
-    expr new_lhs = tmp_tctx->instantiate_uvars_mvars(sr.get_lhs());
-    expr new_rhs = tmp_tctx->instantiate_uvars_mvars(sr.get_rhs());
+    lean_trace(name({"simplifier", "rewrite"}),
+               expr new_lhs = m_tctx->instantiate_uvars_mvars(sl.get_lhs());
+               expr new_rhs = m_tctx->instantiate_uvars_mvars(sl.get_rhs());
+               tout() << "(" << sl.get_id() << ") "
+               << "[" << new_lhs << " --> " << new_rhs << "]\n";);
 
-    if (sr.is_perm()) {
+    if (!instantiate_emetas(m_tctx, sl.get_num_emeta(), sl.get_emetas(), sl.get_instances())) return simp_result(e);
+
+    for (unsigned i = 0; i < sl.get_num_umeta(); i++) {
+        if (!m_tctx->is_uvar_assigned(i)) return simp_result(e);
+    }
+
+    expr new_lhs = m_tctx->instantiate_uvars_mvars(sl.get_lhs());
+    expr new_rhs = m_tctx->instantiate_uvars_mvars(sl.get_rhs());
+
+    if (sl.is_perm()) {
         if (!is_light_lt(new_rhs, new_lhs))
             return simp_result(e);
     }
 
-    expr pf = tmp_tctx->instantiate_uvars_mvars(sr.get_proof());
+    expr pf = m_tctx->instantiate_uvars_mvars(sl.get_proof());
     return simp_result(new_rhs, pf);
 }
 
@@ -629,13 +636,13 @@ simp_result simplifier::try_congrs(expr const & e) {
 }
 
 simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cr) {
-    blast_tmp_type_context tmp_tctx(cr.get_num_umeta(), cr.get_num_emeta());
+    blast_tmp_type_context m_tctx(cr.get_num_umeta(), cr.get_num_emeta());
 
-    if (!tmp_tctx->is_def_eq(e, cr.get_lhs())) return simp_result(e);
+    if (!m_tctx->is_def_eq(e, cr.get_lhs())) return simp_result(e);
 
     lean_trace(name({"simplifier", "congruence"}),
-               expr new_lhs = tmp_tctx->instantiate_uvars_mvars(cr.get_lhs());
-               expr new_rhs = tmp_tctx->instantiate_uvars_mvars(cr.get_rhs());
+               expr new_lhs = m_tctx->instantiate_uvars_mvars(cr.get_lhs());
+               expr new_rhs = m_tctx->instantiate_uvars_mvars(cr.get_rhs());
                diagnostic(env(), ios(), get_type_context())
                << "(" << cr.get_id() << ") "
                << "[" << new_lhs << " =?= " << new_rhs << "]\n";);
@@ -647,11 +654,11 @@ simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cr) {
     for_each(congr_hyps, [&](expr const & m) {
             if (failed) return;
             buffer<expr> ls;
-            expr m_type = tmp_tctx->instantiate_uvars_mvars(tmp_tctx->infer(m));
+            expr m_type = m_tctx->instantiate_uvars_mvars(m_tctx->infer(m));
 
             while (is_pi(m_type)) {
                 expr d = instantiate_rev(binding_domain(m_type), ls.size(), ls.data());
-                expr l = tmp_tctx->mk_tmp_local(d, binding_info(m_type));
+                expr l = m_tctx->mk_tmp_local(d, binding_info(m_type));
                 lean_assert(!has_metavar(l));
                 ls.push_back(l);
                 m_type = instantiate(binding_body(m_type), l);
@@ -664,7 +671,7 @@ simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cr) {
 
                 flet<simp_lemmas> set_ctx_srss(m_ctx_srss, m_contextual ? add_to_srss(m_ctx_srss, ls) : m_ctx_srss);
 
-                h_lhs = tmp_tctx->instantiate_uvars_mvars(h_lhs);
+                h_lhs = m_tctx->instantiate_uvars_mvars(h_lhs);
                 lean_assert(!has_metavar(h_lhs));
 
                 simp_result r_congr_hyp = simplify(h_lhs, m_srss);
@@ -672,38 +679,38 @@ simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cr) {
                 r_congr_hyp = finalize(r_congr_hyp);
                 expr hyp = finalize(r_congr_hyp).get_proof();
 
-                if (!tmp_tctx->is_def_eq(m, Fun(ls, hyp))) failed = true;
+                if (!m_tctx->is_def_eq(m, Fun(ls, hyp))) failed = true;
             }
         });
 
     if (failed || !simplified) return simp_result(e);
 
-    if (!instantiate_emetas(tmp_tctx, cr.get_num_emeta(), cr.get_emetas(), cr.get_instances())) return simp_result(e);
+    if (!instantiate_emetas(m_tctx, cr.get_num_emeta(), cr.get_emetas(), cr.get_instances())) return simp_result(e);
 
     for (unsigned i = 0; i < cr.get_num_umeta(); i++) {
-        if (!tmp_tctx->is_uvar_assigned(i)) return simp_result(e);
+        if (!m_tctx->is_uvar_assigned(i)) return simp_result(e);
     }
 
-    expr e_s = tmp_tctx->instantiate_uvars_mvars(cr.get_rhs());
-    expr pf = tmp_tctx->instantiate_uvars_mvars(cr.get_proof());
+    expr e_s = m_tctx->instantiate_uvars_mvars(cr.get_rhs());
+    expr pf = m_tctx->instantiate_uvars_mvars(cr.get_proof());
     return simp_result(e_s, pf);
 }
 
-bool simplifier::instantiate_emetas(blast_tmp_type_context & tmp_tctx, unsigned num_emeta, list<expr> const & emetas,
+bool simplifier::instantiate_emetas(blast_tmp_type_context & m_tctx, unsigned num_emeta, list<expr> const & emetas,
                                     list<bool> const & instances) {
     bool failed = false;
     unsigned i = num_emeta;
     for_each2(emetas, instances, [&](expr const & m, bool const & is_instance) {
             i--;
             if (failed) return;
-            expr m_type = tmp_tctx->instantiate_uvars_mvars(tmp_tctx->infer(m));
+            expr m_type = m_tctx->instantiate_uvars_mvars(m_tctx->infer(m));
             lean_assert(!has_metavar(m_type));
 
-            if (tmp_tctx->is_mvar_assigned(i)) return;
+            if (m_tctx->is_mvar_assigned(i)) return;
 
             if (is_instance) {
-                if (auto v = tmp_tctx->mk_class_instance(m_type)) {
-                    if (!tmp_tctx->assign(m, *v)) {
+                if (auto v = m_tctx->mk_class_instance(m_type)) {
+                    if (!m_tctx->assign(m, *v)) {
                         lean_trace(name({"simplifier", "failure"}),
                                    tout() << "unable to assign instance for: " << m_type << "\n";);
                         failed = true;
@@ -717,11 +724,11 @@ bool simplifier::instantiate_emetas(blast_tmp_type_context & tmp_tctx, unsigned 
                 }
             }
 
-            if (tmp_tctx->is_mvar_assigned(i)) return;
+            if (m_tctx->is_mvar_assigned(i)) return;
 
-            if (tmp_tctx->is_prop(m_type)) {
+            if (m_tctx->is_prop(m_type)) {
                 if (auto pf = prove(m_type)) {
-                    lean_verify(tmp_tctx->is_def_eq(m, *pf));
+                    lean_verify(m_tctx->is_def_eq(m, *pf));
                     return;
                 }
             }
