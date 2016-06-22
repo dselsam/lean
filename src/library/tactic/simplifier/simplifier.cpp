@@ -24,12 +24,10 @@ Author: Daniel Selsam
 #include "library/class_instance_resolution.h"
 #include "library/relation_manager.h"
 #include "library/app_builder.h"
-#include "library/blast/blast.h"
-#include "library/blast/trace.h"
-#include "library/blast/blast_exception.h"
-#include "library/blast/simplifier/simplifier.h"
-#include "library/blast/simplifier/simp_lemmas.h"
-#include "library/blast/simplifier/ceqv.h"
+#include "library/trace.h"
+#include "library/tactic/simplifier/simplifier.h"
+#include "library/tactic/simplifier/simp_lemmas.h"
+#include "library/tactic/simplifier/ceqv.h"
 
 #ifndef LEAN_DEFAULT_SIMPLIFY_MAX_STEPS
 #define LEAN_DEFAULT_SIMPLIFY_MAX_STEPS 1000
@@ -57,9 +55,27 @@ Author: Daniel Selsam
 #endif
 
 namespace lean {
-namespace blast {
 
-using simp::result;
+struct result {
+    /* Invariant [m_pf : m_orig <rel> m_new] */
+    expr m_new;
+
+    /* If proof is not provided, it is assumed to be reflexivity */
+    optional<expr> m_proof;
+public:
+    result() {}
+    result(expr const & e): m_new(e) {}
+    result(expr const & e, expr const & proof): m_new(e), m_proof(proof) {}
+    result(expr const & e, optional<expr> const & proof): m_new(e), m_proof(proof) {}
+
+    bool has_proof() const { return static_cast<bool>(m_proof); }
+
+    expr get_new() const { return m_new; }
+    expr get_proof() const { lean_assert(m_proof); return *m_proof; }
+
+    /* The following assumes that [e] and [m_new] are definitionally equal */
+    void update(expr const & e) { m_new = e; }
+};
 
 /* Keys */
 
