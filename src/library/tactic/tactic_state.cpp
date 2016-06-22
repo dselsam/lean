@@ -20,6 +20,7 @@ Author: Leonardo de Moura
 #include "library/vm/vm_list.h"
 #include "library/tactic/defeq_simplifier/defeq_simplifier.h"
 #include "library/tactic/tactic_state.h"
+#include "library/tactic/simplifier/simplifier.h"
 
 namespace lean {
 void tactic_state_cell::dealloc() {
@@ -377,6 +378,29 @@ vm_obj tactic_defeq_simp(vm_obj const & e, vm_obj const & s0) {
         defeq_simp_lemmas lemmas   = get_defeq_simp_lemmas(s.env());
         expr new_e                 = defeq_simplify(ctx, lemmas, to_expr(e));
         return mk_tactic_success(to_obj(new_e), s);
+    } catch (exception & e) {
+        return mk_tactic_exception(e, s);
+    }
+}
+
+static bool use_iff(expr const & target) {
+    return is_standard(env()) && is_prop(target);
+}
+
+vm_obj tactic_simp(vm_obj const & e, vm_obj const & s0) {
+    tactic_state const & s   = to_tactic_state(s0);
+    try {
+        metavar_context mctx_tmp   = s.mctx();
+        type_context ctx           = mk_type_context_for(s, mctx_tmp);
+        simp_lemmas lemmas         = get_simp_lemmas(s.env());
+        expr target                = *(s.get_main_goal());
+        name rel                   = (is_standard(s.env()) && is_prop(target)) ? get_iff_name() : get_eq_name();
+        simp_result result         = simplify(ctx, rel, lemmas, to_expr(e));
+        if (result.has_proof()) {
+            return mk_tactic_success(to_obj(mk_pair(result.get_new(), result.get_proof())), s);
+        } else {
+            return mk_tactic_exception("simp tactic failed to simplify", s);
+        }
     } catch (exception & e) {
         return mk_tactic_exception(e, s);
     }
