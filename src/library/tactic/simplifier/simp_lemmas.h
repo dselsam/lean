@@ -159,14 +159,7 @@ simp_lemmas add(type_context & tctx, simp_lemmas const & s, name const & id, exp
 simp_lemmas join(simp_lemmas const & s1, simp_lemmas const & s2);
 
 /** \brief Get (active) simplification lemmas. */
-simp_lemmas get_simp_lemmas();
+simp_lemmas get_simp_lemmas(environment const & env);
 /** \brief Get simplification lemmas in the given namespace. */
-simp_lemmas get_simp_lemmas(name const & ns);
-/** \brief Get simplification lemmas in the given namespaces. */
-// simp_lemmas get_simp_lemmas(std::initializer_list<name> const & nss);
-/** \brief Get simplification lemmas in the namespaces registered at key.
-    The key is created using procedure #register_simp_lemmas at initialization time.
-    This is more efficient than get_simp_lemmas(std::initializer_list<name> const & nss), because
-    results are cached. */
-simp_lemmas get_simp_lemmas(unsigned key);
+simp_lemmas get_simp_lemmas(environment const & env, name const & ns);
 }

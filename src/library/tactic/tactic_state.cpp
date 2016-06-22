@@ -9,6 +9,7 @@ Author: Leonardo de Moura
 #include "library/type_context.h"
 #include "library/pp_options.h"
 #include "library/trace.h"
+#include "library/util.h"
 #include "library/vm/vm_environment.h"
 #include "library/vm/vm_exceptional.h"
 #include "library/vm/vm_format.h"
@@ -387,13 +388,13 @@ vm_obj tactic_simp(vm_obj const & e, vm_obj const & s0) {
     tactic_state const & s   = to_tactic_state(s0);
     try {
         metavar_context mctx_tmp   = s.mctx();
-        type_context ctx           = mk_type_context_for(s, mctx_tmp);
+        type_context tctx           = mk_type_context_for(s, mctx_tmp);
         simp_lemmas lemmas         = get_simp_lemmas(s.env());
         expr target                = *(s.get_main_goal());
-        name rel                   = (is_standard(s.env()) && is_prop(target)) ? get_iff_name() : get_eq_name();
-        simp_result result         = simplify(ctx, rel, lemmas, to_expr(e));
+        name rel                   = (is_standard(s.env()) && tctx.is_prop(target)) ? get_iff_name() : get_eq_name();
+        simp_result result         = simplify(tctx, rel, lemmas, to_expr(e));
         if (result.has_proof()) {
-            return mk_tactic_success(to_obj(mk_pair(result.get_new(), result.get_proof())), s);
+            return mk_tactic_success(mk_vm_pair(to_obj(result.get_new()), to_obj(result.get_proof())), s);
         } else {
             return mk_tactic_exception("simp tactic failed to simplify", s);
         }

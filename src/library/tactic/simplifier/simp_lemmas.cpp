@@ -14,6 +14,7 @@ Author: Leonardo de Moura
 #include "library/trace.h"
 #include "library/scoped_ext.h"
 #include "library/attribute_manager.h"
+#include "library/type_context.h"
 #include "library/tactic/simplifier/ceqv.h"
 #include "library/tactic/simplifier/simp_lemmas.h"
 
@@ -140,6 +141,8 @@ simp_lemmas add_core(type_context & tctx, simp_lemmas const & s,
     environment const & env = tctx.env();
     simp_lemmas new_s = s;
     for (expr_pair const & p : ceqvs) {
+        // TODO(dhs): is this the right spot?
+        type_context::tmp_mode_scope scope(tctx);
         expr rule  = tctx.whnf(p.first);
         expr proof = tctx.whnf(p.second);
         bool is_perm = is_permutation_ceqv(env, rule);
@@ -581,26 +584,10 @@ format simp_lemmas::pp(formatter const & fmt) const {
     return pp(fmt, format(), true, true);
 }
 
-struct simp_lemmas_cache {
-    simp_lemmas                        m_main_cache;
-    std::vector<optional<simp_lemmas>> m_key_cache;
-};
-
-LEAN_THREAD_PTR(simp_lemmas_cache, g_simp_lemmas_cache);
-
-scope_simp::scope_simp() {
-    m_old_cache         = g_simp_lemmas_cache;
-    g_simp_lemmas_cache = nullptr;
-}
-
-scope_simp::~scope_simp() {
-    delete g_simp_lemmas_cache;
-    g_simp_lemmas_cache = m_old_cache;
-}
-
 simp_lemmas get_simp_lemmas_core() {
     simp_lemmas r;
     buffer<name> simp_lemmas, congr_lemmas;
+    metavar_context mctx; local_context lctx;
     blast_tmp_type_context ctx; // TODO(dhs): this does not exist
     auto const & s = simp_ext::get_state(env());
     s.m_simp_lemmas.to_buffer(simp_lemmas);
@@ -620,22 +607,11 @@ simp_lemmas get_simp_lemmas_core() {
     return r;
 }
 
-static simp_lemmas_cache & get_cache() {
-    if (!g_simp_lemmas_cache) {
-        g_simp_lemmas_cache = new simp_lemmas_cache();
-        g_simp_lemmas_cache->m_main_cache = get_simp_lemmas_core();
-    }
-    return *g_simp_lemmas_cache;
-}
-
-simp_lemmas get_simp_lemmas() {
-    return get_cache().m_main_cache;
-}
-
 template<typename NSS>
-simp_lemmas get_simp_lemmas_core(NSS const & nss) {
+simp_lemmas get_simp_lemmas_core(environment const & env, NSS const & nss) {
     simp_lemmas r;
-    blast_tmp_type_context ctx; // TODO(dhs): this does not exist
+    metavar_context mctx; local_context lctx;
+    type_context tctx(env, get_dummy_ios().get_options(), mctx, lctx);
     for (name const & ns : nss) {
         list<simp_entry> const * entries = simp_ext::get_entries(env(), ns);
         if (entries) {
@@ -644,7 +620,7 @@ simp_lemmas get_simp_lemmas_core(NSS const & nss) {
                 std::tie(is_simp, prio, n) = e;
                 if (is_simp) {
                     ctx->clear();
-                    r = add_core(*ctx, r, n, prio);
+                    r = add_core(tctx, r, n, prio);
                 }
             }
         }
@@ -652,19 +628,18 @@ simp_lemmas get_simp_lemmas_core(NSS const & nss) {
     return r;
 }
 
-simp_lemmas get_simp_lemmas(std::initializer_list<name> const & nss) {
-    return get_simp_lemmas_core(nss);
+simp_lemmas get_simp_lemmas(environment const & env, std::initializer_list<name> const & nss) {
+    return get_simp_lemmas_core(env, nss);
 }
 
-simp_lemmas get_simp_lemmas(name const & ns) {
-    return get_simp_lemmas({ns});
+simp_lemmas get_simp_lemmas(environment const & env, name const & ns) {
+    return get_simp_lemmas(env, {ns});
 }
 
 
 void initialize_simp_lemmas() {
     g_class_name    = new name("simp");
     g_key           = new std::string("SIMP");
-    g_simp_lemma_ns = new std::vector<std::vector<name>>();
     simp_ext::initialize();
 
     register_prio_attribute("simp", "simplification lemma",
@@ -686,13 +661,10 @@ void initialize_simp_lemmas() {
                                 else
                                     return LEAN_DEFAULT_PRIORITY;
                             });
-
-    g_simp_lemmas_cache = nullptr;
 }
 
 void finalize_simp_lemmas() {
     simp_ext::finalize();
     delete g_key;
     delete g_class_name;
-    delete g_simp_lemma_ns;
 }
