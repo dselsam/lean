@@ -7,7 +7,7 @@ Author: Leonardo de Moura
 #pragma once
 #include "kernel/environment.h"
 #include "library/io_state.h"
-#include "library/tmp_type_context.h"
+#include "library/type_context.h"
 #include "library/head_map.h"
 
 namespace lean {
@@ -65,7 +65,7 @@ class simp_lemma : public simp_lemma_core {
                list<bool> const & instances, expr const & lhs, expr const & rhs, expr const & proof,
                bool is_perm, unsigned priority);
 
-    friend simp_lemmas add_core(tmp_type_context & tctx, simp_lemmas const & s, name const & id,
+    friend simp_lemmas add_core(type_context & tctx, simp_lemmas const & s, name const & id,
                                 levels const & univ_metas, expr const & e, expr const & h, unsigned priority);
 public:
     friend bool operator==(simp_lemma const & r1, simp_lemma const & r2);
@@ -82,7 +82,7 @@ class user_congr_lemma : public simp_lemma_core {
     user_congr_lemma(name const & id, levels const & umetas, list<expr> const & emetas,
                      list<bool> const & instances, expr const & lhs, expr const & rhs, expr const & proof,
                      list<expr> const & congr_hyps, unsigned priority);
-    friend simp_lemmas add_congr_core(tmp_type_context & tctx, simp_lemmas const & s, name const & n, unsigned priority);
+    friend simp_lemmas add_congr_core(type_context & tctx, simp_lemmas const & s, name const & n, unsigned priority);
 public:
     friend bool operator==(user_congr_lemma const & r1, user_congr_lemma const & r2);
     list<expr> const & get_congr_hyps() const { return m_congr_hyps; }
@@ -153,7 +153,7 @@ public:
     ~scope_simp();
 };
 
-simp_lemmas add(tmp_type_context & tctx, simp_lemmas const & s, name const & id, expr const & e, expr const & h, unsigned priority);
+simp_lemmas add(type_context & tctx, simp_lemmas const & s, name const & id, expr const & e, expr const & h, unsigned priority);
 simp_lemmas join(simp_lemmas const & s1, simp_lemmas const & s2);
 
 /** \brief Get (active) simplification lemmas. */
