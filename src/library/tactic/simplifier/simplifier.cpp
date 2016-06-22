@@ -86,6 +86,7 @@ bool get_simplify_numerals() {
 
 class simplifier {
     type_context              m_tctx;
+    app_builder               m_ab;
     name                      m_rel;
 
     simp_lemmas               m_simp_lemmas;
@@ -161,7 +162,7 @@ class simplifier {
     /* Simp_Results */
     simp_result lift_from_eq(expr const & e_old, simp_result const & r_eq);
     simp_result join(simp_result const & r1, simp_result const & r2);
-    simp_result funext(simp_result const & r, expr const & l);
+    simp_result mk_nested_funext_proof(expr const & pi_pf);
     simp_result finalize(simp_result const & r);
 
     /* Simplification */
@@ -202,7 +203,7 @@ class simplifier {
     expr whnf_eta(expr const & e);
 
 public:
-    simplifier(type_context & tctx, name const & rel): m_tctx(tctx), m_rel(rel) { }
+    simplifier(type_context & tctx, name const & rel): m_tctx(tctx), m_ab(mk_app_builder_for(tctx)), m_rel(rel) { }
     simp_result operator()(expr const & e, simp_lemmas const & srss)  { return simplify(e, srss); }
 };
 
@@ -227,12 +228,12 @@ simp_result simplifier::lift_from_eq(expr const & e_old, simp_result const & r_e
     /* goal : e_old <m_rel> r_eq.get_new() */
     type_context::tmp_locals local_factory(tctx);
     expr local = local_factory.push_local(name(), m_tctx.infer(e_old));
-    expr motive_local = get_app_builder().mk_app(m_rel, e_old, local);
+    expr motive_local = m_ab.mk_app(m_rel, e_old, local);
     /* motive = fun y, e_old <m_rel> y */
     expr motive = local_factory.mk_lambda(motive_local);
     /* Rxx = x <m_rel> x */
-    expr Rxx = get_app_builder().mk_refl(m_rel, e_old);
-    expr pf = get_app_builder().mk_eq_rec(motive, Rxx, r_eq.get_proof());
+    expr Rxx = m_ab.mk_refl(m_rel, e_old);
+    expr pf = m_ab.mk_eq_rec(motive, Rxx, r_eq.get_proof());
     return simp_result(r_eq.get_new(), pf);
 }
 
@@ -246,16 +247,15 @@ simp_result simplifier::join(simp_result const & r1, simp_result const & r2) {
     } else {
         /* If they both have proofs, we need to glue them together with transitivity. */
         lean_assert(r1.has_proof() && r2.has_proof());
-        expr trans = get_app_builder().mk_trans(m_rel, r1.get_proof(), r2.get_proof());
+        expr trans = m_ab.mk_trans(m_rel, r1.get_proof(), r2.get_proof());
         return simp_result(r2.get_new(), trans);
     }
 }
 
 simp_result simplifier::funext(simp_result const & r, expr const & l) {
-    // theorem funext {f₁ f₂ : Πx : A, B x} : (∀x, f₁ x = f₂ x) → f₁ = f₂ :=
     expr e  = Fun(l, r.get_new());
     if (!r.has_proof()) return simp_result(e);
-    expr pf = get_app_builder().mk_app(get_funext_name(), Fun(l, r.get_proof()));
+    expr pf = m_ab.mk_app(get_funext_name(), Fun(l, r.get_proof()));
     return simp_result(e, pf);
 }
 
@@ -352,31 +352,19 @@ simp_result simplifier::simplify_lambda(expr const & e) {
 
     type_context::tmp_locals local_factory(m_tctx);
 
-    /* Get the inner lambda body */
-    while (is_lambda(t)) {
-        expr l = local_factory.push_local_from_binding(t);
-        t = instantiate(binding_body(t), l);
-    }
+    expr l = local_factory.push_local_from_binding(t);
+    t = instantiate(binding_body(t), l);
 
-    /* Try to simplify body */
     simp_result r = simplify(t);
-    expr new_t      = r.get_new();
-    /* check if subsingleton, and normalize */
-    expr new_t_type = m_tctx->infer(new_t);
-    if (m_tctx->mk_subsingleton_instance(new_t_type)) {
-        auto it = m_subsingleton_elem_map.find(new_t_type);
-        if (it != m_subsingleton_elem_map.end()) {
-            if (it->second != new_t) {
-                expr proof = get_app_builder().mk_app(get_subsingleton_elim_name(), new_t, it->second);
-                r = join(r, simp_result(it->second, proof));
-            }
-        } else {
-            m_subsingleton_elem_map.insert(mk_pair(new_t_type, new_t));
-        }
-    }
+    expr new_t = local_factory.mk_lambda(r.get_new());
 
-    for (int i = ls.size() - 1; i >= 0; --i) r = funext(r, ls[i]);
-    return r;
+    if (r.has_proof()) {
+        expr lam_pf = local_factory.mk_lambda(r.get_proof());
+        expr funext_pf = m_ab.mk_app(get_funext_name(), lam_pf);
+        return simp_result(new_t, funext_pf);
+    } else {
+        return simp_result(new_t);
+    }
 }
 
 simp_result simplifier::simplify_pi(expr const & e) {
@@ -463,7 +451,7 @@ optional<expr> simplifier::prove(expr const & thm) {
     flet<name> set_name(m_rel, get_iff_name());
     simp_result r_cond = simplify(thm);
     if (is_constant(r_cond.get_new()) && const_name(r_cond.get_new()) == get_true_name()) {
-        expr pf = get_app_builder().mk_app(get_iff_elim_right_name(),
+        expr pf = m_ab.mk_app(get_iff_elim_right_name(),
                                        finalize(r_cond).get_proof(),
                                        mk_constant(get_true_intro_name()));
         return some_expr(pf);
@@ -475,7 +463,7 @@ optional<expr> simplifier::prove(expr const & thm, simp_lemmas const & srss) {
     flet<name> set_name(m_rel, get_iff_name());
     simp_result r_cond = simplify(thm, srss);
     if (is_constant(r_cond.get_new()) && const_name(r_cond.get_new()) == get_true_name()) {
-        expr pf = get_app_builder().mk_app(get_iff_elim_right_name(),
+        expr pf = m_ab.mk_app(get_iff_elim_right_name(),
                                        finalize(r_cond).get_proof(),
                                        mk_constant(get_true_intro_name()));
         return some_expr(pf);
@@ -565,7 +553,7 @@ simp_result simplifier::congr(simp_result const & r_f, simp_result const & r_arg
     lean_assert(r_f.has_proof() && r_arg.has_proof());
     // theorem congr {A B : Type} {f₁ f₂ : A → B} {a₁ a₂ : A} (H₁ : f₁ = f₂) (H₂ : a₁ = a₂) : f₁ a₁ = f₂ a₂
     expr e  = mk_app(r_f.get_new(), r_arg.get_new());
-    expr pf = get_app_builder().mk_congr(r_f.get_proof(), r_arg.get_proof());
+    expr pf = m_ab.mk_congr(r_f.get_proof(), r_arg.get_proof());
     return simp_result(e, pf);
 }
 
@@ -573,7 +561,7 @@ simp_result simplifier::congr_fun(simp_result const & r_f, expr const & arg) {
     lean_assert(r_f.has_proof());
     // theorem congr_fun {A : Type} {B : A → Type} {f g : Π x, B x} (H : f = g) (a : A) : f a = g a
     expr e  = mk_app(r_f.get_new(), arg);
-    expr pf = get_app_builder().mk_congr_fun(r_f.get_proof(), arg);
+    expr pf = m_ab.mk_congr_fun(r_f.get_proof(), arg);
     return simp_result(e, pf);
 }
 
@@ -581,7 +569,7 @@ simp_result simplifier::congr_arg(expr const & f, simp_result const & r_arg) {
     lean_assert(r_arg.has_proof());
     // theorem congr_arg {A B : Type} {a₁ a₂ : A} (f : A → B) : a₁ = a₂ → f a₁ = f a₂
     expr e  = mk_app(f, r_arg.get_new());
-    expr pf = get_app_builder().mk_congr_arg(f, r_arg.get_proof());
+    expr pf = m_ab.mk_congr_arg(f, r_arg.get_proof());
     return simp_result(e, pf);
 }
 
@@ -595,7 +583,7 @@ simp_result simplifier::congr_funs(simp_result const & r_f, buffer<expr> const &
     if (!r_f.has_proof()) return simp_result(e);
     expr pf = r_f.get_proof();
     for (unsigned i = 0; i < args.size(); ++i) {
-        pf = get_app_builder().mk_app(get_congr_fun_name(), pf, args[i]);
+        pf = m_ab.mk_app(get_congr_fun_name(), pf, args[i]);
     }
     return simp_result(e, pf);
 }
@@ -748,7 +736,7 @@ optional<simp_result> simplifier::normalize_subsingleton_args(expr const & e) {
             case congr_arg_kind::Eq:
                 proof = mk_app(proof, args[i]);
                 type = instantiate(binding_body(type), args[i]);
-                rfl = get_app_builder().mk_eq_refl(args[i]);
+                rfl = m_ab.mk_eq_refl(args[i]);
                 proof = mk_app(proof, args[i], rfl);
                 type = instantiate(binding_body(type), args[i]);
                 type = instantiate(binding_body(type), rfl);
