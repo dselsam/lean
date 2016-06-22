@@ -128,15 +128,11 @@ class simplifier {
     optional<simp_result> cache_lookup(expr const & e);
     void cache_save(expr const & e, simp_result const & r);
 
-    /* Mapping from subsingleton type to representative */
-//    expr_map<expr> m_subsingleton_elem_map;
-//    optional<simp_result> normalize_subsingleton_args(expr const & e);
-
     /* Basic helpers */
     bool using_eq() { return m_rel == get_eq_name(); }
 
     bool is_dependent_fn(expr const & f) {
-        expr f_type = m_tctx->whnf(m_tctx->infer(f));
+        expr f_type = m_tctx.whnf(m_tctx.infer(f));
         lean_assert(is_pi(f_type));
         return has_free_vars(binding_body(f_type));
     }
@@ -146,7 +142,7 @@ class simplifier {
         for (unsigned i = 0; i < ls.size(); i++) {
             expr & l = ls[i];
             try {
-                // TODO(Leo,Daniel): should we allow the user to set the priority of local lemmas
+                // TODO(Leo,Daniel): should we allow the user to set the priority of local lemmas?
                 srss = add(m_tctx, srss, mlocal_name(l), m_tctx.infer(l), l, LEAN_DEFAULT_PRIORITY);
             } catch (exception e) {
             }
@@ -154,15 +150,11 @@ class simplifier {
         return srss;
     }
 
-//    expr unfold_reducible_instances(expr const & e);
-//    expr remove_unnecessary_casts(expr const & e);
-
     bool instantiate_emetas(unsigned num_emeta, list<expr> const & emetas, list<bool> const & instances);
 
     /* Simp_Results */
     simp_result lift_from_eq(expr const & e_old, simp_result const & r_eq);
     simp_result join(simp_result const & r1, simp_result const & r2);
-    simp_result mk_nested_funext_proof(expr const & pi_pf);
     simp_result finalize(simp_result const & r);
 
     /* Simplification */
@@ -226,7 +218,7 @@ simp_result simplifier::lift_from_eq(expr const & e_old, simp_result const & r_e
     lean_assert(r_eq.has_proof());
     /* r_eq.get_proof() : e_old = r_eq.get_new() */
     /* goal : e_old <m_rel> r_eq.get_new() */
-    type_context::tmp_locals local_factory(tctx);
+    type_context::tmp_locals local_factory(m_tctx);
     expr local = local_factory.push_local(name(), m_tctx.infer(e_old));
     expr motive_local = m_ab.mk_app(m_rel, e_old, local);
     /* motive = fun y, e_old <m_rel> y */
@@ -250,13 +242,6 @@ simp_result simplifier::join(simp_result const & r1, simp_result const & r2) {
         expr trans = m_ab.mk_trans(m_rel, r1.get_proof(), r2.get_proof());
         return simp_result(r2.get_new(), trans);
     }
-}
-
-simp_result simplifier::funext(simp_result const & r, expr const & l) {
-    expr e  = Fun(l, r.get_new());
-    if (!r.has_proof()) return simp_result(e);
-    expr pf = m_ab.mk_app(get_funext_name(), Fun(l, r.get_proof()));
-    return simp_result(e, pf);
 }
 
 /* Whnf + Eta */
@@ -310,9 +295,6 @@ simp_result simplifier::simplify(expr const & e) {
     case expr_kind::Var:
         lean_unreachable();
     case expr_kind::Macro:
-        if (m_expand_macros) {
-            if (auto m = m_tctx->expand_macro(e)) r = join(r, simplify(whnf_eta(*m)));
-        }
         break;
     case expr_kind::Lambda:
         if (using_eq()) r = join(r, simplify_lambda(r.get_new()));
@@ -372,47 +354,25 @@ simp_result simplifier::simplify_pi(expr const & e) {
     return try_congrs(e);
 }
 
-expr simplifier::unfold_reducible_instances(expr const & e) {
-    buffer<expr> args;
-    expr f = get_app_args(e, args);
-    fun_info f_info = get_specialized_fun_info(e);
-    int i = -1;
-    for_each(f_info.get_params_info(), [&](param_info const & p_info) {
-            i++;
-            if (p_info.is_inst_implicit() && !p_info.is_subsingleton()) {
-                args[i] = blast::normalize(args[i]);
-            }
-        });
-    return mk_app(f, args);
-}
-
 simp_result simplifier::simplify_app(expr const & _e) {
     lean_assert(is_app(_e));
-    expr e = unfold_reducible_instances(_e);
+    // TODO(dhs): normalize instances and subsingletons
+    expr e = _e;
 
-    /* (1) Try user-defined congruences */
+    // (1) Try user-defined congruences
     simp_result r_user = try_congrs(e);
     if (r_user.has_proof()) {
         if (using_eq()) return join(r_user, simplify_fun(r_user.get_new()));
         else return r_user;
     }
 
-    /* (2) Synthesize congruence lemma */
-    if (using_eq()) {
-        optional<simp_result> r_args = synth_congr(e, [&](expr const & e) {
-                return simplify(e);
-            });
-        if (r_args) return join(*r_args, simplify_fun(r_args->get_new()));
-    }
+    // TODO(dhs): (2) Synthesize congruence lemma
 
-    /* (3) Fall back on generic binary congruence */
+    // (3) Fall back on generic binary congruence
     if (using_eq()) {
         expr const & f = app_fn(e);
         expr const & arg = app_arg(e);
 
-        // TODO(dhs): it is not clear if this recursive call should be considered
-        // a root or not, though does not matter since if + were being applied,
-        // we would have synthesized a congruence rule in step (2).
         simp_result r_f = simplify(f);
 
         if (is_dependent_fn(f)) {
@@ -436,7 +396,6 @@ simp_result simplifier::simplify_fun(expr const & e) {
 
 optional<simp_result> simplifier::simplify_numeral(expr const & e) {
     if (is_num(e)) { return optional<simp_result>(simp_result(e)); }
-
     try {
         expr_pair r = mk_norm_num(*m_tctx, e);
         return optional<simp_result>(simp_result(r.first, r.second));
@@ -513,30 +472,30 @@ simp_result simplifier::rewrite(expr const & e, simp_lemma const & sl) {
     buffer<optional<expr>> & tmp_uassignment = mk_optional_buffer(sl.get_numemeta());
     {
         type_context::tmp_mode_scope_with_buffers(m_tctx, tmp_uassignment, tmp_eassignment);
-        if (!m_tctx->is_def_eq(e, sl.get_lhs())) return simp_result(e);
+        if (!m_tctx.is_def_eq(e, sl.get_lhs())) return simp_result(e);
     }
 
     lean_trace(name({"simplifier", "rewrite"}),
-               expr new_lhs = m_tctx->instantiate_uvars_mvars(sl.get_lhs());
-               expr new_rhs = m_tctx->instantiate_uvars_mvars(sl.get_rhs());
+               expr new_lhs = m_tctx.instantiate_uvars_mvars(sl.get_lhs());
+               expr new_rhs = m_tctx.instantiate_uvars_mvars(sl.get_rhs());
                tout() << "(" << sl.get_id() << ") "
                << "[" << new_lhs << " --> " << new_rhs << "]\n";);
 
     if (!instantiate_emetas(m_tctx, sl.get_num_emeta(), sl.get_emetas(), sl.get_instances())) return simp_result(e);
 
     for (unsigned i = 0; i < sl.get_num_umeta(); i++) {
-        if (!m_tctx->is_uvar_assigned(i)) return simp_result(e);
+        if (!m_tctx.is_uvar_assigned(i)) return simp_result(e);
     }
 
-    expr new_lhs = m_tctx->instantiate_uvars_mvars(sl.get_lhs());
-    expr new_rhs = m_tctx->instantiate_uvars_mvars(sl.get_rhs());
+    expr new_lhs = m_tctx.instantiate_uvars_mvars(sl.get_lhs());
+    expr new_rhs = m_tctx.instantiate_uvars_mvars(sl.get_rhs());
 
     if (sl.is_perm()) {
         if (!is_light_lt(new_rhs, new_lhs))
             return simp_result(e);
     }
 
-    expr pf = m_tctx->instantiate_uvars_mvars(sl.get_proof());
+    expr pf = m_tctx.instantiate_uvars_mvars(sl.get_proof());
     return simp_result(new_rhs, pf);
 }
 
@@ -606,11 +565,11 @@ simp_result simplifier::try_congrs(expr const & e) {
 simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cr) {
     blast_tmp_type_context m_tctx(cr.get_num_umeta(), cr.get_num_emeta());
 
-    if (!m_tctx->is_def_eq(e, cr.get_lhs())) return simp_result(e);
+    if (!m_tctx.is_def_eq(e, cr.get_lhs())) return simp_result(e);
 
     lean_trace(name({"simplifier", "congruence"}),
-               expr new_lhs = m_tctx->instantiate_uvars_mvars(cr.get_lhs());
-               expr new_rhs = m_tctx->instantiate_uvars_mvars(cr.get_rhs());
+               expr new_lhs = m_tctx.instantiate_uvars_mvars(cr.get_lhs());
+               expr new_rhs = m_tctx.instantiate_uvars_mvars(cr.get_rhs());
                diagnostic(env(), ios(), get_type_context())
                << "(" << cr.get_id() << ") "
                << "[" << new_lhs << " =?= " << new_rhs << "]\n";);
@@ -621,14 +580,12 @@ simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cr) {
     list<expr> const & congr_hyps = cr.get_congr_hyps();
     for_each(congr_hyps, [&](expr const & m) {
             if (failed) return;
-            buffer<expr> ls;
-            expr m_type = m_tctx->instantiate_uvars_mvars(m_tctx->infer(m));
+            type_context::tmp_locals local_factory(m_tctx);
+            expr m_type = m_tctx.instantiate_uvars_mvars(m_tctx.infer(m));
 
             while (is_pi(m_type)) {
-                expr d = instantiate_rev(binding_domain(m_type), ls.size(), ls.data());
-                expr l = m_tctx->mk_tmp_local(d, binding_info(m_type));
+                expr l = local_factory.push_local_from_binding(m_type);
                 lean_assert(!has_metavar(l));
-                ls.push_back(l);
                 m_type = instantiate(binding_body(m_type), l);
             }
 
@@ -639,7 +596,7 @@ simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cr) {
 
                 flet<simp_lemmas> set_ctx_srss(m_ctx_srss, m_contextual ? add_to_srss(m_ctx_srss, ls) : m_ctx_srss);
 
-                h_lhs = m_tctx->instantiate_uvars_mvars(h_lhs);
+                h_lhs = m_tctx.instantiate_uvars_mvars(h_lhs);
                 lean_assert(!has_metavar(h_lhs));
 
                 simp_result r_congr_hyp = simplify(h_lhs, m_srss);
@@ -647,7 +604,7 @@ simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cr) {
                 r_congr_hyp = finalize(r_congr_hyp);
                 expr hyp = finalize(r_congr_hyp).get_proof();
 
-                if (!m_tctx->is_def_eq(m, Fun(ls, hyp))) failed = true;
+                if (!m_tctx.is_def_eq(m, local_factory.mk_lambda(hyp))) failed = true;
             }
         });
 
@@ -656,11 +613,11 @@ simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cr) {
     if (!instantiate_emetas(m_tctx, cr.get_num_emeta(), cr.get_emetas(), cr.get_instances())) return simp_result(e);
 
     for (unsigned i = 0; i < cr.get_num_umeta(); i++) {
-        if (!m_tctx->is_uvar_assigned(i)) return simp_result(e);
+        if (!m_tctx.is_uvar_assigned(i)) return simp_result(e);
     }
 
-    expr e_s = m_tctx->instantiate_uvars_mvars(cr.get_rhs());
-    expr pf = m_tctx->instantiate_uvars_mvars(cr.get_proof());
+    expr e_s = m_tctx.instantiate_uvars_mvars(cr.get_rhs());
+    expr pf = m_tctx.instantiate_uvars_mvars(cr.get_proof());
     return simp_result(e_s, pf);
 }
 
@@ -671,14 +628,14 @@ bool simplifier::instantiate_emetas(blast_tmp_type_context & m_tctx, unsigned nu
     for_each2(emetas, instances, [&](expr const & m, bool const & is_instance) {
             i--;
             if (failed) return;
-            expr m_type = m_tctx->instantiate_uvars_mvars(m_tctx->infer(m));
+            expr m_type = m_tctx.instantiate_uvars_mvars(m_tctx.infer(m));
             lean_assert(!has_metavar(m_type));
 
-            if (m_tctx->is_mvar_assigned(i)) return;
+            if (m_tctx.is_mvar_assigned(i)) return;
 
             if (is_instance) {
-                if (auto v = m_tctx->mk_class_instance(m_type)) {
-                    if (!m_tctx->assign(m, *v)) {
+                if (auto v = m_tctx.mk_class_instance(m_type)) {
+                    if (!m_tctx.assign(m, *v)) {
                         lean_trace(name({"simplifier", "failure"}),
                                    tout() << "unable to assign instance for: " << m_type << "\n";);
                         failed = true;
@@ -692,11 +649,11 @@ bool simplifier::instantiate_emetas(blast_tmp_type_context & m_tctx, unsigned nu
                 }
             }
 
-            if (m_tctx->is_mvar_assigned(i)) return;
+            if (m_tctx.is_mvar_assigned(i)) return;
 
-            if (m_tctx->is_prop(m_type)) {
+            if (m_tctx.is_prop(m_type)) {
                 if (auto pf = prove(m_type)) {
-                    lean_verify(m_tctx->is_def_eq(m, *pf));
+                    lean_verify(m_tctx.is_def_eq(m, *pf));
                     return;
                 }
             }
@@ -709,63 +666,6 @@ bool simplifier::instantiate_emetas(blast_tmp_type_context & m_tctx, unsigned nu
         });
 
     return !failed;
-}
-
-/* Given a function application \c e, replace arguments that are subsingletons with a
-   representative */
-optional<simp_result> simplifier::normalize_subsingleton_args(expr const & e) {
-    buffer<expr> args;
-    get_app_args(e, args);
-    auto congr_lemma = mk_specialized_congr_lemma(e);
-    if (!congr_lemma) return optional<simp_result>();
-    expr proof = congr_lemma->get_proof();
-    expr type = congr_lemma->get_type();
-    unsigned i = 0;
-    bool normalized = false;
-    for_each(congr_lemma->get_arg_kinds(), [&](congr_arg_kind const & ckind) {
-            expr rfl;
-            switch (ckind) {
-            case congr_arg_kind::HEq:
-                lean_unreachable();
-            case congr_arg_kind::Fixed:
-                proof = mk_app(proof, args[i]);
-                type = instantiate(binding_body(type), args[i]);
-                break;
-            case congr_arg_kind::FixedNoParam:
-                break;
-            case congr_arg_kind::Eq:
-                proof = mk_app(proof, args[i]);
-                type = instantiate(binding_body(type), args[i]);
-                rfl = m_ab.mk_eq_refl(args[i]);
-                proof = mk_app(proof, args[i], rfl);
-                type = instantiate(binding_body(type), args[i]);
-                type = instantiate(binding_body(type), rfl);
-                break;
-            case congr_arg_kind::Cast:
-                proof = mk_app(proof, args[i]);
-                type  = instantiate(binding_body(type), args[i]);
-                expr const & arg_type = binding_domain(type);
-                expr new_arg;
-                auto it = m_subsingleton_elem_map.find(arg_type);
-                if (it != m_subsingleton_elem_map.end()) {
-                    normalized = (it->second != args[i]);
-                    new_arg    = it->second;
-                } else {
-                    new_arg = args[i];
-                    m_subsingleton_elem_map.insert(mk_pair(arg_type, args[i]));
-                }
-                proof = mk_app(proof, new_arg);
-                type = instantiate(binding_body(type), new_arg);
-                break;
-            }
-            i++;
-        });
-    if (!normalized) return optional<simp_result>();
-    lean_assert(is_eq(type));
-    buffer<expr> type_args;
-    get_app_args(type, type_args);
-    expr e_new = type_args[2];
-    return optional<simp_result>(simp_result(e_new, proof));
 }
 
 template<typename F>
