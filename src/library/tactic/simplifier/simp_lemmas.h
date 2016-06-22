@@ -15,10 +15,12 @@ namespace lean {
 environment add_simp_lemma(environment const & env, io_state const & ios, name const & c, unsigned prio, name const & ns, bool persistent);
 environment add_congr_lemma(environment const & env, io_state const & ios, name const & c, unsigned prio, name const & ns, bool persistent);
 unsigned get_simp_lemma_priority(environment const & env, name const & n);
-bool is_simp_lemma(environment const & env, name const & n);
-bool is_congr_lemma(environment const & env, name const & n);
-void get_simp_lemmas(environment const & env, buffer<name> & r);
-void get_congr_lemmas(environment const & env, buffer<name> & r);
+
+bool is_simp_lemma_name(environment const & env, name const & n);
+bool is_congr_lemma_name(environment const & env, name const & n);
+void get_simp_lemma_names(environment const & env, buffer<name> & r);
+void get_congr_lemma_names(environment const & env, buffer<name> & r);
+
 void initialize_simp_lemmas();
 void finalize_simp_lemmas();
 

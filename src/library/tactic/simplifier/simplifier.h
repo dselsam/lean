@@ -37,4 +37,3 @@ void initialize_simplifier();
 void finalize_simplifier();
 
 }
-}
