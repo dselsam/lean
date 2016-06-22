@@ -82,20 +82,6 @@ bool get_simplify_numerals() {
     return ios().get_options().get_bool(*g_simplify_numerals, LEAN_DEFAULT_SIMPLIFY_NUMERALS);
 }
 
-/* Miscellaneous helpers */
-
-static bool is_add_app(expr const & e) {
-    return is_const_app(e, get_add_name(), 4);
-}
-
-static bool is_mul_app(expr const & e) {
-    return is_const_app(e, get_mul_name(), 4);
-}
-
-static bool is_neg_app(expr const & e) {
-    return is_const_app(e, get_neg_name(), 3);
-}
-
 /* Main simplifier class */
 
 class simplifier {
@@ -142,8 +128,8 @@ class simplifier {
     void cache_save(expr const & e, simp_result const & r);
 
     /* Mapping from subsingleton type to representative */
-    expr_map<expr> m_subsingleton_elem_map;
-    optional<simp_result> normalize_subsingleton_args(expr const & e);
+//    expr_map<expr> m_subsingleton_elem_map;
+//    optional<simp_result> normalize_subsingleton_args(expr const & e);
 
     /* Basic helpers */
     bool using_eq() { return m_rel == get_eq_name(); }
@@ -167,8 +153,8 @@ class simplifier {
         return srss;
     }
 
-    expr unfold_reducible_instances(expr const & e);
-    expr remove_unnecessary_casts(expr const & e);
+//    expr unfold_reducible_instances(expr const & e);
+//    expr remove_unnecessary_casts(expr const & e);
 
     bool instantiate_emetas(unsigned num_emeta, list<expr> const & emetas, list<bool> const & instances);
 
@@ -180,7 +166,7 @@ class simplifier {
 
     /* Simplification */
     simp_result simplify(expr const & e, simp_lemmas const & srss);
-    simp_result simplify(expr const & e, bool is_root);
+    simp_result simplify(expr const & e);
     simp_result simplify_lambda(expr const & e);
     simp_result simplify_pi(expr const & e);
     simp_result simplify_app(expr const & e);
@@ -216,7 +202,7 @@ class simplifier {
     expr whnf_eta(expr const & e);
 
 public:
-    simplifier(name const & rel, expr_predicate const & simp_pred): m_rel(rel), m_simp_pred(simp_pred) { }
+    simplifier(type_context & tctx, name const & rel): m_tctx(tctx), m_rel(rel) { }
     simp_result operator()(expr const & e, simp_lemmas const & srss)  { return simplify(e, srss); }
 };
 
@@ -239,10 +225,11 @@ simp_result simplifier::lift_from_eq(expr const & e_old, simp_result const & r_e
     lean_assert(r_eq.has_proof());
     /* r_eq.get_proof() : e_old = r_eq.get_new() */
     /* goal : e_old <m_rel> r_eq.get_new() */
-    expr l = m_tctx->mk_tmp_local(m_tctx->infer(e_old));
-    expr motive_local = get_app_builder().mk_app(m_rel, e_old, l);
+    type_context::tmp_locals local_factory(tctx);
+    expr local = local_factory.push_local(name(), m_tctx.infer(e_old));
+    expr motive_local = get_app_builder().mk_app(m_rel, e_old, local);
     /* motive = fun y, e_old <m_rel> y */
-    expr motive = Fun(l, motive_local);
+    expr motive = local_factory.mk_lambda(motive_local);
     /* Rxx = x <m_rel> x */
     expr Rxx = get_app_builder().mk_refl(m_rel, e_old);
     expr pf = get_app_builder().mk_eq_rec(motive, Rxx, r_eq.get_proof());
@@ -272,12 +259,6 @@ simp_result simplifier::funext(simp_result const & r, expr const & l) {
     return simp_result(e, pf);
 }
 
-simp_result simplifier::finalize(simp_result const & r) {
-    if (r.has_proof()) return r;
-    expr pf = get_app_builder().mk_refl(m_rel, r.get_new());
-    return simp_result(r.get_new(), pf);
-}
-
 /* Whnf + Eta */
 expr simplifier::whnf_eta(expr const & e) {
     return try_eta(whnf(e));
@@ -289,10 +270,10 @@ simp_result simplifier::simplify(expr const & e, simp_lemmas const & srss) {
     flet<simp_lemmas> set_srss(m_srss, srss);
     freset<simplify_cache> reset1(m_cache);
     freset<expr_map<expr>> reset2(m_subsingleton_elem_map);
-    return simplify(e, true);
+    return simplify(e);
 }
 
-simp_result simplifier::simplify(expr const & e, bool is_root) {
+simp_result simplifier::simplify(expr const & e) {
     check_system("simplifier");
     m_num_steps++;
     lean_trace_inc_depth("simplifier");
@@ -330,7 +311,7 @@ simp_result simplifier::simplify(expr const & e, bool is_root) {
         lean_unreachable();
     case expr_kind::Macro:
         if (m_expand_macros) {
-            if (auto m = m_tctx->expand_macro(e)) r = join(r, simplify(whnf_eta(*m), is_root));
+            if (auto m = m_tctx->expand_macro(e)) r = join(r, simplify(whnf_eta(*m)));
         }
         break;
     case expr_kind::Lambda:
@@ -353,16 +334,14 @@ simp_result simplifier::simplify(expr const & e, bool is_root) {
         simp_result r_eq;
         {
             flet<name> use_eq(m_rel, get_eq_name());
-            r_eq = simplify(r.get_new(), is_root);
+            r_eq = simplify(r.get_new());
         }
         r = join(r, lift_from_eq(r.get_new(), r_eq));
     }
 
-    if (m_exhaustive && r.has_proof()) r = join(r, simplify(r.get_new(), is_root));
+    if (m_exhaustive && r.has_proof()) r = join(r, simplify(r.get_new()));
 
     if (m_memoize) cache_save(e, r);
-
-    if (m_fuse && using_eq()) r = join(r, maybe_fuse(r.get_new(), is_root));
 
     return r;
 }
@@ -371,15 +350,16 @@ simp_result simplifier::simplify_lambda(expr const & e) {
     lean_assert(is_lambda(e));
     expr t = e;
 
-    buffer<expr> ls;
+    type_context::tmp_locals local_factory(m_tctx);
+
+    /* Get the inner lambda body */
     while (is_lambda(t)) {
-        expr d = instantiate_rev(binding_domain(t), ls.size(), ls.data());
-        expr l = m_tctx->mk_tmp_local(binding_name(t), d, binding_info(t));
-        ls.push_back(l);
+        expr l = local_factory.push_local_from_binding(t);
         t = instantiate(binding_body(t), l);
     }
 
-    simp_result r        = simplify(t, false);
+    /* Try to simplify body */
+    simp_result r = simplify(t);
     expr new_t      = r.get_new();
     /* check if subsingleton, and normalize */
     expr new_t_type = m_tctx->infer(new_t);
@@ -432,7 +412,7 @@ simp_result simplifier::simplify_app(expr const & _e) {
     /* (2) Synthesize congruence lemma */
     if (using_eq()) {
         optional<simp_result> r_args = synth_congr(e, [&](expr const & e) {
-                return simplify(e, false);
+                return simplify(e);
             });
         if (r_args) return join(*r_args, simplify_fun(r_args->get_new()));
     }
@@ -445,13 +425,13 @@ simp_result simplifier::simplify_app(expr const & _e) {
         // TODO(dhs): it is not clear if this recursive call should be considered
         // a root or not, though does not matter since if + were being applied,
         // we would have synthesized a congruence rule in step (2).
-        simp_result r_f = simplify(f, false);
+        simp_result r_f = simplify(f);
 
         if (is_dependent_fn(f)) {
             if (r_f.has_proof()) return congr_fun(r_f, arg);
             else return mk_app(r_f.get_new(), arg);
         } else {
-            simp_result r_arg = simplify(arg, false);
+            simp_result r_arg = simplify(arg);
             return congr_fun_arg(r_f, r_arg);
         }
     }
@@ -462,7 +442,7 @@ simp_result simplifier::simplify_fun(expr const & e) {
     lean_assert(is_app(e));
     buffer<expr> args;
     expr const & f = get_app_args(e, args);
-    simp_result r_f = simplify(f, true);
+    simp_result r_f = simplify(f);
     return congr_funs(r_f, args);
 }
 
@@ -481,7 +461,7 @@ optional<simp_result> simplifier::simplify_numeral(expr const & e) {
 
 optional<expr> simplifier::prove(expr const & thm) {
     flet<name> set_name(m_rel, get_iff_name());
-    simp_result r_cond = simplify(thm, true);
+    simp_result r_cond = simplify(thm);
     if (is_constant(r_cond.get_new()) && const_name(r_cond.get_new()) == get_true_name()) {
         expr pf = get_app_builder().mk_app(get_iff_elim_right_name(),
                                        finalize(r_cond).get_proof(),
