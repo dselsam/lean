@@ -99,23 +99,22 @@ static bool is_neg_app(expr const & e) {
 /* Main simplifier class */
 
 class simplifier {
-    blast_tmp_type_context                       m_tmp_tctx;
-    name                                         m_rel;
-    expr_predicate                               m_simp_pred;
+    type_context              m_tctx;
+    name                      m_rel;
 
-    simp_lemmas                                  m_srss;
-    simp_lemmas                                  m_ctx_srss;
+    simp_lemmas               m_simp_lemmas;
+    simp_lemmas               m_ctx_simp_lemmas;
 
     /* Logging */
-    unsigned                                     m_num_steps{0};
+    unsigned                  m_num_steps{0};
 
     /* Options */
-    unsigned                                     m_max_steps{get_simplify_max_steps()};
-    bool                                         m_top_down{get_simplify_top_down()};
-    bool                                         m_exhaustive{get_simplify_exhaustive()};
-    bool                                         m_memoize{get_simplify_memoize()};
-    bool                                         m_contextual{get_simplify_contextual()};
-    bool                                         m_numerals{get_simplify_numerals()};
+    unsigned                  m_max_steps{get_simplify_max_steps()};
+    bool                      m_top_down{get_simplify_top_down()};
+    bool                      m_exhaustive{get_simplify_exhaustive()};
+    bool                      m_memoize{get_simplify_memoize()};
+    bool                      m_contextual{get_simplify_contextual()};
+    bool                      m_numerals{get_simplify_numerals()};
 
     /* Cache */
     struct key {
@@ -124,7 +123,7 @@ class simplifier {
         unsigned          m_hash;
 
         key(name const & rel, expr const & e):
-            m_rel(rel), m_e(e), m_hash(hash(rel.hash(), abstract_hash(e))) { }
+            m_rel(rel), m_e(e), m_hash(hash(rel.hash(), e.hash())) { }
     };
 
     struct key_hash_fn {
@@ -133,7 +132,7 @@ class simplifier {
 
     struct key_eq_fn {
         bool operator()(key const & k1, key const & k2) const {
-            return k1.m_rel == k2.m_rel && abstract_is_equal(k1.m_e, k2.m_e);
+            return k1.m_rel == k2.m_rel && k1.m_e == k2.m_e;
         }
     };
 
@@ -150,7 +149,7 @@ class simplifier {
     bool using_eq() { return m_rel == get_eq_name(); }
 
     bool is_dependent_fn(expr const & f) {
-        expr f_type = m_tmp_tctx->whnf(m_tmp_tctx->infer(f));
+        expr f_type = m_tctx->whnf(m_tctx->infer(f));
         lean_assert(is_pi(f_type));
         return has_free_vars(binding_body(f_type));
     }
@@ -159,10 +158,9 @@ class simplifier {
         simp_lemmas srss = _srss;
         for (unsigned i = 0; i < ls.size(); i++) {
             expr & l = ls[i];
-            blast_tmp_type_context tctx;
             try {
                 // TODO(Leo,Daniel): should we allow the user to set the priority of local lemmas
-                srss = add(*tctx, srss, mlocal_name(l), tctx->infer(l), l, LEAN_DEFAULT_PRIORITY);
+                srss = add(m_tctx, srss, mlocal_name(l), m_tctx.infer(l), l, LEAN_DEFAULT_PRIORITY);
             } catch (exception e) {
             }
         }
@@ -172,8 +170,7 @@ class simplifier {
     expr unfold_reducible_instances(expr const & e);
     expr remove_unnecessary_casts(expr const & e);
 
-    bool instantiate_emetas(blast_tmp_type_context & tmp_tctx, unsigned num_emeta,
-                            list<expr> const & emetas, list<bool> const & instances);
+    bool instantiate_emetas(unsigned num_emeta, list<expr> const & emetas, list<bool> const & instances);
 
     /* Simp_Results */
     simp_result lift_from_eq(expr const & e_old, simp_result const & r_eq);
@@ -212,11 +209,6 @@ class simplifier {
     template<typename F>
     optional<simp_result> synth_congr(expr const & e, F && simp);
 
-    /* Fusion */
-    simp_result maybe_fuse(expr const & e, bool is_root);
-    simp_result fuse(expr const & e);
-    expr_pair split_summand(expr const & e, expr const & f_mul, expr const & one);
-
     /* Apply whnf and eta-reduction
        \remark We want (Sum n (fun x, f x)) and (Sum n f) to be the same.
        \remark We may want to switch to eta-expansion later (see paper: "The Virtues of Eta-expansion").
@@ -231,60 +223,9 @@ public:
 /* Cache */
 
 optional<simp_result> simplifier::cache_lookup(expr const & e) {
-    /* cache_lookup is based on congr_lemma, and assumes \c e is an application */
-    if (!is_app(e)) return optional<simp_result>();
     auto it = m_cache.find(key(m_rel, e));
     if (it == m_cache.end()) return optional<simp_result>();
-    /* The cache ignores subsingletons, so we may need to
-       synthesize a congruence lemma. */
-    expr e_old = it->first.m_e;
-    simp_result r_old = it->second;
-    lean_assert(abstract_is_equal(e, e_old));
-    if (e == e_old) return optional<simp_result>(r_old);
-    lean_assert(is_app(e_old));
-    buffer<expr> new_args, old_args;
-    DEBUG_CODE(expr const & f_new =) get_app_args(e, new_args);
-    DEBUG_CODE(expr const & f_old =) get_app_args(e_old, old_args);
-    lean_assert(f_new == f_old);
-    auto congr_lemma = mk_specialized_congr_lemma(e);
-    if (!congr_lemma) return optional<simp_result>();
-    expr proof = congr_lemma->get_proof();
-    expr type = congr_lemma->get_type();
-
-    unsigned i = 0;
-    for_each(congr_lemma->get_arg_kinds(), [&](congr_arg_kind const & ckind) {
-            lean_assert(ckind == congr_arg_kind::Cast || new_args[i] == old_args[i], static_cast<unsigned>(ckind), new_args[i], old_args[i]);
-            expr rfl;
-            switch (ckind) {
-            case congr_arg_kind::HEq:
-                lean_unreachable();
-            case congr_arg_kind::Fixed:
-                proof = mk_app(proof, new_args[i]);
-                type = instantiate(binding_body(type), new_args[i]);
-                break;
-            case congr_arg_kind::FixedNoParam:
-                break;
-            case congr_arg_kind::Eq:
-                proof = mk_app(proof, new_args[i]);
-                type = instantiate(binding_body(type), new_args[i]);
-                rfl = get_app_builder().mk_eq_refl(old_args[i]);
-                proof = mk_app(proof, old_args[i], rfl);
-                type = instantiate(binding_body(type), old_args[i]);
-                type = instantiate(binding_body(type), rfl);
-                break;
-            case congr_arg_kind::Cast:
-                proof = mk_app(proof, new_args[i]);
-                type = instantiate(binding_body(type), new_args[i]);
-                proof = mk_app(proof, old_args[i]);
-                type = instantiate(binding_body(type), old_args[i]);
-                break;
-            }
-            i++;
-        });
-
-    lean_assert(is_eq(type));
-    simp_result r_congr = simp_result(e_old, proof);
-    return optional<simp_result>(join(r_congr, r_old));
+    return optional<simp_result>(it->second);
 }
 
 void simplifier::cache_save(expr const & e, simp_result const & r) {
@@ -592,8 +533,11 @@ simp_result simplifier::rewrite(expr const & e, simp_lemmas const & srss) {
     return r;
 }
 
-simp_result simplifier::rewrite(expr const & e, simp_lemma const & sr) {
-    blast_tmp_type_context tmp_tctx(sr.get_num_umeta(), sr.get_num_emeta());
+simp_result simplifier::rewrite(expr const & e, simp_lemma const & sl) {
+    buffer<optional<level>> & tmp_uassignment;
+    buffer<optional<expr>> & tmp_eassignment;
+// scope(m_ctx, sl.get_num_umeta(), sl.get_num_emeta());
+    type_context::tmp_mode_scope_with_buffers(m_ctx, tmp_uassignment, tmp_eassignment);
 
     if (!tmp_tctx->is_def_eq(e, sr.get_lhs())) return simp_result(e);
 

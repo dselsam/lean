@@ -121,7 +121,7 @@ static void report_failure(sstream const & strm) {
     }
 }
 
-simp_lemmas add_core(tmp_type_context & tctx, simp_lemmas const & s,
+simp_lemmas add_core(type_context & tctx, simp_lemmas const & s,
                      name const & id, levels const & univ_metas, expr const & e, expr const & h,
                      unsigned priority) {
     list<expr_pair> ceqvs   = to_ceqvs(tctx, e, h);
@@ -152,7 +152,7 @@ simp_lemmas add_core(tmp_type_context & tctx, simp_lemmas const & s,
     return new_s;
 }
 
-simp_lemmas add(tmp_type_context & tctx, simp_lemmas const & s, name const & id, expr const & e, expr const & h, unsigned priority) {
+simp_lemmas add(type_context & tctx, simp_lemmas const & s, name const & id, expr const & e, expr const & h, unsigned priority) {
     return add_core(tctx, s, id, list<level>(), e, h, priority);
 }
 
@@ -164,7 +164,7 @@ simp_lemmas join(simp_lemmas const & s1, simp_lemmas const & s2) {
     return new_s1;
 }
 
-static simp_lemmas add_core(tmp_type_context & tctx, simp_lemmas const & s, name const & cname, unsigned priority) {
+static simp_lemmas add_core(type_context & tctx, simp_lemmas const & s, name const & cname, unsigned priority) {
     declaration const & d = tctx.env().get(cname);
     buffer<level> us;
     unsigned num_univs = d.get_num_univ_params();
@@ -220,7 +220,7 @@ static bool is_valid_congr_hyp_rhs(expr const & rhs, name_set & found_mvars) {
     return true;
 }
 
-simp_lemmas add_congr_core(tmp_type_context & tctx, simp_lemmas const & s, name const & n, unsigned prio) {
+simp_lemmas add_congr_core(type_context & tctx, simp_lemmas const & s, name const & n, unsigned prio) {
     declaration const & d = tctx.env().get(n);
     buffer<level> us;
     unsigned num_univs = d.get_num_univ_params();
@@ -290,8 +290,9 @@ simp_lemmas add_congr_core(tmp_type_context & tctx, simp_lemmas const & s, name 
         if (explicits[i] && !found_mvars.contains(mlocal_name(mvar))) {
             buffer<expr> locals;
             expr type = mlocal_type(mvar);
+            type_context::tmp_locals local_factory(tctx);
             while (is_pi(type)) {
-                expr local = tctx.mk_tmp_local(binding_domain(type));
+                expr local = local_factory.push_local_from_binding(type);
                 locals.push_back(local);
                 type = instantiate(binding_body(type), local);
             }
