@@ -8,6 +8,7 @@ Author: Leonardo de Moura
 #include <string>
 #include "util/priority_queue.h"
 #include "util/sstream.h"
+#include "util/flet.h"
 #include "kernel/error_msgs.h"
 #include "kernel/find_fn.h"
 #include "kernel/instantiate.h"
@@ -175,7 +176,7 @@ static simp_lemmas add_core(type_context & tctx, simp_lemmas const & s, name con
     buffer<level> us;
     unsigned num_univs = d.get_num_univ_params();
     for (unsigned i = 0; i < num_univs; i++) {
-        us.push_back(tctx.mk_uvar());
+        us.push_back(tctx.mk_tmp_univ_mvar());
     }
     levels ls = to_list(us);
     expr e    = tctx.whnf(instantiate_type_univ_params(d, ls));
@@ -231,7 +232,7 @@ simp_lemmas add_congr_core(type_context & tctx, simp_lemmas const & s, name cons
     buffer<level> us;
     unsigned num_univs = d.get_num_univ_params();
     for (unsigned i = 0; i < num_univs; i++) {
-        us.push_back(tctx.mk_uvar());
+        us.push_back(tctx.mk_tmp_univ_mvar());
     }
     levels ls = to_list(us);
     expr rule    = tctx.whnf(instantiate_type_univ_params(d, ls));
@@ -590,11 +591,11 @@ format simp_lemmas::pp(formatter const & fmt) const {
     return pp(fmt, format(), true, true);
 }
 
-simp_lemmas get_simp_lemmas_core() {
+simp_lemmas get_simp_lemmas(environment const & env) {
     simp_lemmas r;
     buffer<name> simp_lemmas, congr_lemmas;
-    metavar_context mctx; local_context lctx;
-    blast_old_tmp_type_context ctx; // TODO(dhs): this does not exist
+    aux_type_contexnt aux_ctx(env);
+    type_context ctx = aux_ctx.get();
     auto const & s = simp_ext::get_state(env());
     s.m_simp_lemmas.to_buffer(simp_lemmas);
     s.m_congr_lemmas.to_buffer(congr_lemmas);
