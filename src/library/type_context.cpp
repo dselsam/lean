@@ -2503,23 +2503,28 @@ tmp_type_context::tmp_type_context(type_context & tctx, unsigned num_umeta, unsi
 }
 
 bool tmp_type_context::is_def_eq(expr const & e1, expr const & e2) {
-    tmp_mode_scope_with_buffers(m_tctx, m_tmp_uassignment, m_tmp_eassignment);
+    type_context::tmp_mode_scope_with_buffers(m_tctx, m_tmp_uassignment, m_tmp_eassignment);
     return m_tctx.is_def_eq(e1, e2);
+}
+
+expr tmp_type_context::infer(expr const & e) {
+    type_context::tmp_mode_scope_with_buffers(m_tctx, m_tmp_uassignment, m_tmp_eassignment);
+    return m_tctx.infer(e);
 }
 
 bool tmp_type_context::is_uvar_assigned(unsigned i) {
     lean_assert(i < m_tmp_uassignment.size());
-    return m_tmp_uassignment[i];
+    return static_cast<bool>(m_tmp_uassignment[i]);
 }
 
 bool tmp_type_context::is_mvar_assigned(unsigned i) {
     lean_assert(i < m_tmp_eassignment.size());
-    return m_tmp_eassignment[i];
+    return static_cast<bool>(m_tmp_eassignment[i]);
 }
 
 expr tmp_type_context::instantiate_mvars(expr const & e) {
-    tmp_mode_scope_with_buffers(m_tctx, m_tmp_uassignment, m_tmp_eassignment);
-    return m_tctx.instantiate_mvars(e1, e2);
+    type_context::tmp_mode_scope_with_buffers(m_tctx, m_tmp_uassignment, m_tmp_eassignment);
+    return m_tctx.instantiate_mvars(e);
 }
 
 void initialize_type_context() {

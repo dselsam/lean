@@ -485,10 +485,11 @@ class tmp_type_context {
 
 public:
     tmp_type_context(type_context & tctx, unsigned num_umeta, unsigned num_emeta);
+    expr infer(expr const & e);
     bool is_def_eq(expr const & e1, expr const & e2);
     bool is_uvar_assigned(unsigned i);
     bool is_mvar_assigned(unsigned i);
-    expr instantiate_uvars_mvars(expr const & e);
+    expr instantiate_mvars(expr const & e);
 };
 
 void initialize_type_context();

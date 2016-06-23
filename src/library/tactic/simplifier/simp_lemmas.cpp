@@ -72,28 +72,22 @@ typedef scoped_ext<simp_config> simp_ext;
 /* Validation */
 
 LEAN_THREAD_VALUE(bool, g_throw_ex, false);
-
-void validate_simp(type_context & tctx, name const & n) {
-    simp_lemmas s;
-    flet<bool> set_ex(g_throw_ex, true);
-    add_core(tctx, s, n, LEAN_DEFAULT_PRIORITY);
-}
-
-void validate_congr(type_context & tctx, name const & n) {
-    simp_lemmas s;
-    flet<bool> set_ex(g_throw_ex, true);
-    add_congr_core(tctx, s, n, LEAN_DEFAULT_PRIORITY);
-}
+void validate_simp(type_context & tctx, name const & n);
+void validate_congr(type_context & tctx, name const & n);
 
 /* Registering simp/congr lemmas */
 
 environment add_simp_lemma(environment const & env, io_state const & ios, name const & c, unsigned prio, name const & ns, bool persistent) {
-    validate_simp(env, ios, c);
+    metavar_context mctx; local_context lctx;
+    type_context tctx(env, ios.get_options(), mctx, lctx);
+    validate_simp(tctx, c);
     return simp_ext::add_entry(env, ios, simp_entry(true, prio, c), ns, persistent);
 }
 
 environment add_congr_lemma(environment const & env, io_state const & ios, name const & c, unsigned prio, name const & ns, bool persistent) {
-    validate_congr(env, ios, c);
+    metavar_context mctx; local_context lctx;
+    type_context tctx(env, ios.get_options(), mctx, lctx);
+    validate_congr(tctx, c);
     return simp_ext::add_entry(env, ios, simp_entry(false, prio, c), ns, persistent);
 }
 
@@ -339,6 +333,18 @@ simp_lemmas add_congr_core(type_context & tctx, simp_lemmas const & s, name cons
     new_s.insert(const_name(rel), user_congr_lemma(n, ls, reverse_to_list(emetas),
                                                    reverse_to_list(instances), lhs, rhs, proof, to_list(congr_hyps), prio));
     return new_s;
+}
+
+void validate_simp(type_context & tctx, name const & n) {
+    simp_lemmas s;
+    flet<bool> set_ex(g_throw_ex, true);
+    add_core(tctx, s, n, LEAN_DEFAULT_PRIORITY);
+}
+
+void validate_congr(type_context & tctx, name const & n) {
+    simp_lemmas s;
+    flet<bool> set_ex(g_throw_ex, true);
+    add_congr_core(tctx, s, n, LEAN_DEFAULT_PRIORITY);
 }
 
 simp_lemma_core::simp_lemma_core(name const & id, levels const & umetas, list<expr> const & emetas,
@@ -635,7 +641,6 @@ simp_lemmas get_simp_lemmas(environment const & env, std::initializer_list<name>
 simp_lemmas get_simp_lemmas(environment const & env, name const & ns) {
     return get_simp_lemmas(env, {ns});
 }
-
 
 void initialize_simp_lemmas() {
     g_class_name    = new name("simp");
