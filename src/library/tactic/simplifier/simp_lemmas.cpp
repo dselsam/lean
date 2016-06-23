@@ -588,7 +588,7 @@ simp_lemmas get_simp_lemmas_core() {
     simp_lemmas r;
     buffer<name> simp_lemmas, congr_lemmas;
     metavar_context mctx; local_context lctx;
-    blast_tmp_type_context ctx; // TODO(dhs): this does not exist
+    blast_old_tmp_type_context ctx; // TODO(dhs): this does not exist
     auto const & s = simp_ext::get_state(env());
     s.m_simp_lemmas.to_buffer(simp_lemmas);
     s.m_congr_lemmas.to_buffer(congr_lemmas);
