@@ -79,15 +79,15 @@ void validate_congr(type_context & tctx, name const & n);
 /* Registering simp/congr lemmas */
 
 environment add_simp_lemma(environment const & env, io_state const & ios, name const & c, unsigned prio, name const & ns, bool persistent) {
-    metavar_context mctx; local_context lctx;
-    type_context tctx(env, ios.get_options(), mctx, lctx);
+    aux_type_context aux_ctx(env);
+    type_context & tctx = aux_ctx.get();
     validate_simp(tctx, c);
     return simp_ext::add_entry(env, ios, simp_entry(true, prio, c), ns, persistent);
 }
 
 environment add_congr_lemma(environment const & env, io_state const & ios, name const & c, unsigned prio, name const & ns, bool persistent) {
-    metavar_context mctx; local_context lctx;
-    type_context tctx(env, ios.get_options(), mctx, lctx);
+    aux_type_context aux_ctx(env);
+    type_context & tctx = aux_ctx.get();
     validate_congr(tctx, c);
     return simp_ext::add_entry(env, ios, simp_entry(false, prio, c), ns, persistent);
 }
@@ -598,9 +598,9 @@ format simp_lemmas::pp(formatter const & fmt) const {
 simp_lemmas get_simp_lemmas(environment const & env) {
     simp_lemmas r;
     buffer<name> simp_lemmas, congr_lemmas;
-    metavar_context mctx; local_context lctx;
-    type_context tctx(env, ios.get_options(), mctx, lctx);
-    auto const & s = simp_ext::get_state(env());
+    aux_type_context aux_ctx(env);
+    type_context & tctx = aux_ctx.get();
+    auto const & s = simp_ext::get_state(env);
     s.m_simp_lemmas.to_buffer(simp_lemmas);
     s.m_congr_lemmas.to_buffer(congr_lemmas);
     unsigned i = simp_lemmas.size();
@@ -621,8 +621,8 @@ simp_lemmas get_simp_lemmas(environment const & env) {
 template<typename NSS>
 simp_lemmas get_simp_lemmas_core(environment const & env, NSS const & nss) {
     simp_lemmas r;
-    metavar_context mctx; local_context lctx;
-    type_context tctx(env, get_dummy_ios().get_options(), mctx, lctx);
+    aux_type_context aux_ctx(env);
+    type_context & tctx = aux_ctx.get();
     for (name const & ns : nss) {
         list<simp_entry> const * entries = simp_ext::get_entries(env(), ns);
         if (entries) {

@@ -2495,19 +2495,29 @@ tmp_type_context::tmp_type_context(type_context & tctx, unsigned num_umeta, unsi
 }
 
 bool tmp_type_context::is_def_eq(expr const & e1, expr const & e2) {
-    type_context::tmp_mode_scope_with_buffers(m_tctx, m_tmp_uassignment, m_tmp_eassignment);
+    type_context::tmp_mode_scope_with_buffers tmp_scope(m_tctx, m_tmp_uassignment, m_tmp_eassignment);
     return m_tctx.is_def_eq(e1, e2);
 }
 
 expr tmp_type_context::infer(expr const & e) {
-    type_context::tmp_mode_scope_with_buffers(m_tctx, m_tmp_uassignment, m_tmp_eassignment);
+    type_context::tmp_mode_scope_with_buffers tmp_scope(m_tctx, m_tmp_uassignment, m_tmp_eassignment);
     return m_tctx.infer(e);
 }
 
 expr tmp_type_context::whnf(expr const & e) {
     // TODO(dhs): do I need to set the buffers for whnf?
-    type_context::tmp_mode_scope_with_buffers(m_tctx, m_tmp_uassignment, m_tmp_eassignment);
+    type_context::tmp_mode_scope_with_buffers tmp_scope(m_tctx, m_tmp_uassignment, m_tmp_eassignment);
     return m_tctx.whnf(e);
+}
+
+level tmp_type_context::mk_tmp_univ_mvar() {
+    type_context::tmp_mode_scope_with_buffers tmp_scope(m_tctx, m_tmp_uassignment, m_tmp_eassignment);
+    return m_tctx.mk_tmp_univ_mvar();
+}
+
+expr tmp_type_context::mk_tmp_mvar(expr const & type) {
+    type_context::tmp_mode_scope_with_buffers tmp_scope(m_tctx, m_tmp_uassignment, m_tmp_eassignment);
+    return m_tctx.mk_tmp_mvar(type);
 }
 
 bool tmp_type_context::is_uassigned(unsigned i) {
@@ -2525,7 +2535,7 @@ void tmp_type_context::clear_eassignment() {
 }
 
 expr tmp_type_context::instantiate_mvars(expr const & e) {
-    type_context::tmp_mode_scope_with_buffers(m_tctx, m_tmp_uassignment, m_tmp_eassignment);
+    type_context::tmp_mode_scope_with_buffers tmp_scope(m_tctx, m_tmp_uassignment, m_tmp_eassignment);
     return m_tctx.instantiate_mvars(e);
 }
 
