@@ -410,6 +410,12 @@ optional<simp_result> simplifier::simplify_numeral(expr const & e) {
 
 /* Proving */
 
+simp_result simplifier::finalize(simp_result const & r) {
+    if (r.has_proof()) return r;
+    expr pf = mk_refl(m_tctx, m_rel, r.get_new());
+    return simp_result(r.get_new(), pf);
+}
+
 optional<expr> simplifier::prove(expr const & thm) {
     flet<name> set_name(m_rel, get_iff_name());
     simp_result r_cond = simplify(thm);
