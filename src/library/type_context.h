@@ -474,7 +474,6 @@ public:
 
     type_context & get() { return m_ctx; }
     operator type_context&() { return m_ctx; }
-    operator type_context() { return m_ctx; }
     type_context * operator->() { return &m_ctx; }
 };
 
