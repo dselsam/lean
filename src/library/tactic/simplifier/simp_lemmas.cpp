@@ -125,28 +125,29 @@ static void report_failure(sstream const & strm) {
     }
 }
 
-simp_lemmas add_core(type_context & tctx, simp_lemmas const & s,
+simp_lemmas add_core(tmp_type_context & tmp_tctx, simp_lemmas const & s,
                      name const & id, levels const & univ_metas, expr const & e, expr const & h,
                      unsigned priority) {
-    list<expr_pair> ceqvs   = to_ceqvs(tctx, e, h);
+    list<expr_pair> ceqvs   = to_ceqvs(tmp_tctx, e, h);
     if (is_nil(ceqvs)) {
         report_failure(sstream() << "invalid [simp] lemma '" << id << "'");
     }
-    environment const & env = tctx.env();
+    environment const & env = tmp_tctx.env();
     simp_lemmas new_s = s;
     for (expr_pair const & p : ceqvs) {
-        // TODO(dhs): is this the right spot?
-        type_context::tmp_mode_scope scope(tctx);
-        expr rule  = tctx.whnf(p.first);
-        expr proof = tctx.whnf(p.second);
+        /* We only clear the eassignment since we want to reuse the temporary universe metavariables associated
+           with the declaration. */
+        tmp_tctx.clear_essignment();
+        expr rule  = tmp_tctx.whnf(p.first);
+        expr proof = tmp_tctx.whnf(p.second);
         bool is_perm = is_permutation_ceqv(env, rule);
         buffer<expr> emetas;
         buffer<bool> instances;
         while (is_pi(rule)) {
-            expr mvar = tctx.mk_tmp_mvar(binding_domain(rule));
+            expr mvar = tmp_tctx.mk_tmp_mvar(binding_domain(rule));
             emetas.push_back(mvar);
             instances.push_back(binding_info(rule).is_inst_implicit());
-            rule = tctx.whnf(instantiate(binding_body(rule), mvar));
+            rule = tmp_tctx.whnf(instantiate(binding_body(rule), mvar));
             proof = mk_app(proof, mvar);
         }
         expr rel, lhs, rhs;
@@ -159,7 +160,8 @@ simp_lemmas add_core(type_context & tctx, simp_lemmas const & s,
 }
 
 simp_lemmas add(type_context & tctx, simp_lemmas const & s, name const & id, expr const & e, expr const & h, unsigned priority) {
-    return add_core(tctx, s, id, list<level>(), e, h, priority);
+    tmp_type_context tmp_tctx(tctx);
+    return add_core(tmp_tctx, s, id, list<level>(), e, h, priority);
 }
 
 simp_lemmas join(simp_lemmas const & s1, simp_lemmas const & s2) {
@@ -170,17 +172,17 @@ simp_lemmas join(simp_lemmas const & s1, simp_lemmas const & s2) {
     return new_s1;
 }
 
-static simp_lemmas add_core(type_context & tctx, simp_lemmas const & s, name const & cname, unsigned priority) {
-    declaration const & d = tctx.env().get(cname);
+static simp_lemmas add_core(tmp_type_context & tmp_tctx, simp_lemmas const & s, name const & cname, unsigned priority) {
+    declaration const & d = tmp_tctx.env().get(cname);
     buffer<level> us;
     unsigned num_univs = d.get_num_univ_params();
     for (unsigned i = 0; i < num_univs; i++) {
-        us.push_back(tctx.mk_uvar());
+        us.push_back(tmp_tctx.mk_univ_mvar());
     }
     levels ls = to_list(us);
-    expr e    = tctx.whnf(instantiate_type_univ_params(d, ls));
+    expr e    = tmp_tctx.whnf(instantiate_type_univ_params(d, ls));
     expr h    = mk_constant(cname, ls);
-    return add_core(tctx, s, cname, ls, e, h, priority);
+    return add_core(tmp_tctx, s, cname, ls, e, h, priority);
 }
 
 // Return true iff lhs is of the form (B (x : ?m1), ?m2) or (B (x : ?m1), ?m2 x),
@@ -226,30 +228,30 @@ static bool is_valid_congr_hyp_rhs(expr const & rhs, name_set & found_mvars) {
     return true;
 }
 
-simp_lemmas add_congr_core(type_context & tctx, simp_lemmas const & s, name const & n, unsigned prio) {
-    declaration const & d = tctx.env().get(n);
+simp_lemmas add_congr_core(tmp_type_context & tmp_tctx, simp_lemmas const & s, name const & n, unsigned prio) {
+    declaration const & d = tmp_tctx.env().get(n);
     buffer<level> us;
     unsigned num_univs = d.get_num_univ_params();
     for (unsigned i = 0; i < num_univs; i++) {
-        us.push_back(tctx.mk_uvar());
+        us.push_back(tmp_tctx.mk_univ_mvar());
     }
     levels ls = to_list(us);
-    expr rule    = tctx.whnf(instantiate_type_univ_params(d, ls));
+    expr rule    = tmp_tctx.whnf(instantiate_type_univ_params(d, ls));
     expr proof   = mk_constant(n, ls);
 
     buffer<expr> emetas;
     buffer<bool> instances, explicits;
 
     while (is_pi(rule)) {
-        expr mvar = tctx.mk_tmp_mvar(binding_domain(rule));
+        expr mvar = tmp_tctx.mk_tmp_mvar(binding_domain(rule));
         emetas.push_back(mvar);
         explicits.push_back(is_explicit(binding_info(rule)));
         instances.push_back(binding_info(rule).is_inst_implicit());
-        rule = tctx.whnf(instantiate(binding_body(rule), mvar));
+        rule = tmp_tctx.whnf(instantiate(binding_body(rule), mvar));
         proof = mk_app(proof, mvar);
     }
     expr rel, lhs, rhs;
-    if (!is_simp_relation(tctx.env(), rule, rel, lhs, rhs) || !is_constant(rel)) {
+    if (!is_simp_relation(tmp_tctx.env(), rule, rel, lhs, rhs) || !is_constant(rel)) {
         report_failure(sstream() << "invalid [congr] lemma, '" << n
                        << "' resulting type is not of the form t ~ s, where '~' is a transitive and reflexive relation");
     }
@@ -296,14 +298,14 @@ simp_lemmas add_congr_core(type_context & tctx, simp_lemmas const & s, name cons
         if (explicits[i] && !found_mvars.contains(mlocal_name(mvar))) {
             buffer<expr> locals;
             expr type = mlocal_type(mvar);
-            type_context::tmp_locals local_factory(tctx);
+            type_context::tmp_locals local_factory(tmp_tctx.tctx());
             while (is_pi(type)) {
                 expr local = local_factory.push_local_from_binding(type);
                 locals.push_back(local);
                 type = instantiate(binding_body(type), local);
             }
             expr h_rel, h_lhs, h_rhs;
-            if (!is_simp_relation(tctx.env(), type, h_rel, h_lhs, h_rhs) || !is_constant(h_rel))
+            if (!is_simp_relation(tmp_tctx.env(), type, h_rel, h_lhs, h_rhs) || !is_constant(h_rel))
                 continue;
             unsigned j = 0;
             for (expr const & local : locals) {
@@ -338,13 +340,15 @@ simp_lemmas add_congr_core(type_context & tctx, simp_lemmas const & s, name cons
 void validate_simp(type_context & tctx, name const & n) {
     simp_lemmas s;
     flet<bool> set_ex(g_throw_ex, true);
-    add_core(tctx, s, n, LEAN_DEFAULT_PRIORITY);
+    tmp_type_context tmp_tctx(tctx);
+    add_core(tmp_tctx, s, n, LEAN_DEFAULT_PRIORITY);
 }
 
 void validate_congr(type_context & tctx, name const & n) {
     simp_lemmas s;
     flet<bool> set_ex(g_throw_ex, true);
-    add_congr_core(tctx, s, n, LEAN_DEFAULT_PRIORITY);
+    tmp_type_context tmp_tctx(tctx);
+    add_congr_core(tmp_tctx, s, n, LEAN_DEFAULT_PRIORITY);
 }
 
 simp_lemma_core::simp_lemma_core(name const & id, levels const & umetas, list<expr> const & emetas,
@@ -594,21 +598,21 @@ simp_lemmas get_simp_lemmas_core() {
     simp_lemmas r;
     buffer<name> simp_lemmas, congr_lemmas;
     metavar_context mctx; local_context lctx;
-    blast_old_tmp_type_context ctx; // TODO(dhs): this does not exist
+    type_context tctx(env, ios.get_options(), mctx, lctx);
     auto const & s = simp_ext::get_state(env());
     s.m_simp_lemmas.to_buffer(simp_lemmas);
     s.m_congr_lemmas.to_buffer(congr_lemmas);
     unsigned i = simp_lemmas.size();
     while (i > 0) {
         --i;
-        ctx->clear();
-        r = add_core(*ctx, r, simp_lemmas[i], *s.m_simp_lemmas.get_prio(simp_lemmas[i]));
+        tmp_type_context tmp_tctx(tctx);
+        r = add_core(tctx, r, simp_lemmas[i], *s.m_simp_lemmas.get_prio(simp_lemmas[i]));
     }
     i = congr_lemmas.size();
     while (i > 0) {
         --i;
-        ctx->clear();
-        r = add_congr_core(*ctx, r, congr_lemmas[i], *s.m_congr_lemmas.get_prio(congr_lemmas[i]));
+        tmp_type_context tmp_tctx(tctx);
+        r = add_congr_core(tctx, r, congr_lemmas[i], *s.m_congr_lemmas.get_prio(congr_lemmas[i]));
     }
     return r;
 }
@@ -625,8 +629,8 @@ simp_lemmas get_simp_lemmas_core(environment const & env, NSS const & nss) {
                 bool is_simp; unsigned prio; name n;
                 std::tie(is_simp, prio, n) = e;
                 if (is_simp) {
-                    ctx->clear();
-                    r = add_core(tctx, r, n, prio);
+                    tmp_type_context tmp_tctx(tctx);
+                    r = add_core(tmp_tctx, r, n, prio);
                 }
             }
         }

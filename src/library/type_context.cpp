@@ -2512,14 +2512,24 @@ expr tmp_type_context::infer(expr const & e) {
     return m_tctx.infer(e);
 }
 
-bool tmp_type_context::is_uvar_assigned(unsigned i) {
+expr tmp_type_context::whnf(expr const & e) {
+    // TODO(dhs): do I need to set the buffers for whnf?
+    type_context::tmp_mode_scope_with_buffers(m_tctx, m_tmp_uassignment, m_tmp_eassignment);
+    return m_tctx.whnf(e);
+}
+
+bool tmp_type_context::is_uassigned(unsigned i) {
     lean_assert(i < m_tmp_uassignment.size());
     return static_cast<bool>(m_tmp_uassignment[i]);
 }
 
-bool tmp_type_context::is_mvar_assigned(unsigned i) {
+bool tmp_type_context::is_eassigned(unsigned i) {
     lean_assert(i < m_tmp_eassignment.size());
     return static_cast<bool>(m_tmp_eassignment[i]);
+}
+
+void tmp_type_context::clear_eassignment() {
+    m_tmp_eassignment.clear();
 }
 
 expr tmp_type_context::instantiate_mvars(expr const & e) {

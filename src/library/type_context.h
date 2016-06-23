@@ -485,10 +485,13 @@ class tmp_type_context {
 
 public:
     tmp_type_context(type_context & tctx, unsigned num_umeta, unsigned num_emeta);
+    type_context & tctx() const { return m_tctx; }
     expr infer(expr const & e);
+    expr whnf(expr const & e);
     bool is_def_eq(expr const & e1, expr const & e2);
-    bool is_uvar_assigned(unsigned i);
-    bool is_mvar_assigned(unsigned i);
+    bool is_uassigned(unsigned i);
+    bool is_eassigned(unsigned i);
+    void clear_eassignment();
     expr instantiate_mvars(expr const & e);
 };
 
