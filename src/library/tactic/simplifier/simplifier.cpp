@@ -139,10 +139,10 @@ class simplifier {
         return has_free_vars(binding_body(f_type));
     }
 
-    simp_lemmas add_to_slss(simp_lemmas const & _slss, buffer<expr> & ls) {
+    simp_lemmas add_to_slss(simp_lemmas const & _slss, buffer<expr> const & ls) {
         simp_lemmas slss = _slss;
         for (unsigned i = 0; i < ls.size(); i++) {
-            expr & l = ls[i];
+            expr const & l = ls[i];
             try {
                 // TODO(Leo,Daniel): should we allow the user to set the priority of local lemmas?
                 slss = add(m_tctx, slss, mlocal_name(l), m_tctx.infer(l), l, LEAN_DEFAULT_PRIORITY);
@@ -457,7 +457,7 @@ static buffer<optional<T>> mk_optional_buffer(unsigned len) {
 }
 
 simp_result simplifier::rewrite(expr const & e, simp_lemma const & sl) {
-    tmp_type_context tmp_tctx(sl.get_num_umeta(), sl.get_num_emeta());
+    tmp_type_context tmp_tctx(m_tctx, sl.get_num_umeta(), sl.get_num_emeta());
     if (!tmp_tctx.is_def_eq(e, sl.get_lhs())) return simp_result(e);
 
     lean_trace(name({"simplifier", "rewrite"}),
@@ -534,28 +534,28 @@ simp_result simplifier::congr_funs(simp_result const & r_f, buffer<expr> const &
 }
 
 simp_result simplifier::try_congrs(expr const & e) {
-    simp_lemmas_for const * sr = get_simp_lemmas().find(m_rel);
-    if (!sr) return simp_result(e);
+    simp_lemmas_for const * sls = m_slss.find(m_rel);
+    if (!sls) return simp_result(e);
 
-    list<user_congr_lemma> const * crs = sr->find_congr(e);
-    if (!crs) return simp_result(e);
+    list<user_congr_lemma> const * cls = sls->find_congr(e);
+    if (!cls) return simp_result(e);
 
     simp_result r(e);
-    for_each(*crs, [&](user_congr_lemma const & cr) {
+    for_each(*cls, [&](user_congr_lemma const & cl) {
             if (r.has_proof()) return;
-            r = try_congr(e, cr);
+            r = try_congr(e, cl);
         });
     return r;
 }
 
 simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cl) {
-    tmp_type_context m_tctx(cl.get_num_umeta(), cl.get_num_emeta());
+    tmp_type_context tmp_tctx(m_tctx, cl.get_num_umeta(), cl.get_num_emeta());
     if (!tmp_tctx.is_def_eq(e, cl.get_lhs())) return simp_result(e);
 
     lean_trace(name({"simplifier", "congruence"}),
                expr new_lhs = tmp_tctx.instantiate_mvars(cl.get_lhs());
                expr new_rhs = tmp_tctx.instantiate_mvars(cl.get_rhs());
-               diagnostic(env(), ios(), get_type_context())
+               diagnostic(m_tctx.env(), get_dummy_ios(), m_tctx)
                << "(" << cl.get_id() << ") "
                << "[" << new_lhs << " =?= " << new_rhs << "]\n";);
 
@@ -565,7 +565,7 @@ simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cl) {
     list<expr> const & congr_hyps = cl.get_congr_hyps();
     for_each(congr_hyps, [&](expr const & m) {
             if (failed) return;
-            type_context::tmp_locals local_factory(tmp_tctx);
+            type_context::tmp_locals local_factory(m_tctx);
             expr m_type = tmp_tctx.instantiate_mvars(tmp_tctx.infer(m));
 
             while (is_pi(m_type)) {
@@ -575,11 +575,11 @@ simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cl) {
             }
 
             expr h_rel, h_lhs, h_rhs;
-            lean_verify(is_simp_relation(env(), m_type, h_rel, h_lhs, h_rhs) && is_constant(h_rel));
+            lean_verify(is_simp_relation(m_tctx.env(), m_type, h_rel, h_lhs, h_rhs) && is_constant(h_rel));
             {
                 flet<name> set_name(m_rel, const_name(h_rel));
 
-                flet<simp_lemmas> set_ctx_slss(m_ctx_slss, m_contextual ? add_to_slss(m_ctx_slss, ls) : m_ctx_slss);
+                flet<simp_lemmas> set_ctx_slss(m_ctx_slss, m_contextual ? add_to_slss(m_ctx_slss, local_factory.as_buffer()) : m_ctx_slss);
 
                 h_lhs = tmp_tctx.instantiate_mvars(h_lhs);
                 lean_assert(!has_metavar(h_lhs));
@@ -609,14 +609,14 @@ simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cl) {
 
 bool simplifier::instantiate_emetas(tmp_type_context & tmp_tctx, unsigned num_emeta, list<expr> const & emetas, list<bool> const & instances) {
     bool failed = false;
-    unsigned i = eassignment.size();
+    unsigned i = num_emeta;
     for_each2(emetas, instances, [&](expr const & m, bool const & is_instance) {
             i--;
             if (failed) return;
             expr m_type = tmp_tctx.instantiate_mvars(m_tctx.infer(m));
             lean_assert(!has_metavar(m_type));
 
-            if (eassignment[i]) return;
+            if (tmp_tctx.is_mvar_assigned(i)) return;
 
             if (is_instance) {
                 if (auto v = m_tctx.mk_class_instance(m_type)) {
@@ -655,7 +655,7 @@ bool simplifier::instantiate_emetas(tmp_type_context & tmp_tctx, unsigned num_em
 
 template<typename F>
 optional<simp_result> simplifier::synth_congr(expr const & e, F && simp) {
-    static_assert(std::is_same<typename std::simp_result_of<F(expr const & e)>::type, simp_result>::value,
+    static_assert(std::is_same<typename std::result_of<F(expr const & e)>::type, simp_result>::value,
                   "synth_congr: simp must take expressions to simp_results");
     lean_assert(is_app(e));
     buffer<expr> args;
