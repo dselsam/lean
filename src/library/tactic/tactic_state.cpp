@@ -374,6 +374,7 @@ vm_obj tactic_to_expr(vm_obj const & qe, vm_obj const & s) {
 vm_obj tactic_defeq_simp(vm_obj const & e, vm_obj const & s0) {
     tactic_state const & s   = to_tactic_state(s0);
     try {
+        // TODO(dhs): use type_context_scope for this
         metavar_context mctx_tmp   = s.mctx();
         type_context ctx           = mk_type_context_for(s, mctx_tmp);
         defeq_simp_lemmas lemmas   = get_defeq_simp_lemmas(s.env());
@@ -387,6 +388,7 @@ vm_obj tactic_defeq_simp(vm_obj const & e, vm_obj const & s0) {
 vm_obj tactic_simp(vm_obj const & e, vm_obj const & s0) {
     tactic_state const & s   = to_tactic_state(s0);
     try {
+        // TODO(dhs): use type_context_scope for this
         metavar_context mctx_tmp   = s.mctx();
         type_context tctx           = mk_type_context_for(s, mctx_tmp);
         simp_lemmas lemmas         = get_simp_lemmas(s.env());
