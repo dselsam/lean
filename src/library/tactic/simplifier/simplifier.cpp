@@ -27,6 +27,7 @@ Author: Daniel Selsam
 #include "library/tactic/simplifier/simplifier.h"
 #include "library/tactic/simplifier/simp_lemmas.h"
 #include "library/tactic/simplifier/ceqv.h"
+#include "library/tactic/app_builder_tactics.h"
 
 #ifndef LEAN_DEFAULT_SIMPLIFY_MAX_STEPS
 #define LEAN_DEFAULT_SIMPLIFY_MAX_STEPS 1000
@@ -58,28 +59,28 @@ static name * g_simplify_memoize       = nullptr;
 static name * g_simplify_contextual    = nullptr;
 static name * g_simplify_numerals      = nullptr;
 
-unsigned get_simplify_max_steps() {
-    return ios().get_options().get_unsigned(*g_simplify_max_steps, LEAN_DEFAULT_SIMPLIFY_MAX_STEPS);
+unsigned get_simplify_max_steps(options const & o) {
+    return o.get_unsigned(*g_simplify_max_steps, LEAN_DEFAULT_SIMPLIFY_MAX_STEPS);
 }
 
-bool get_simplify_top_down() {
-    return ios().get_options().get_bool(*g_simplify_top_down, LEAN_DEFAULT_SIMPLIFY_TOP_DOWN);
+bool get_simplify_top_down(options const & o) {
+    return o.get_bool(*g_simplify_top_down, LEAN_DEFAULT_SIMPLIFY_TOP_DOWN);
 }
 
-bool get_simplify_exhaustive() {
-    return ios().get_options().get_bool(*g_simplify_exhaustive, LEAN_DEFAULT_SIMPLIFY_EXHAUSTIVE);
+bool get_simplify_exhaustive(options const & o) {
+    return o.get_bool(*g_simplify_exhaustive, LEAN_DEFAULT_SIMPLIFY_EXHAUSTIVE);
 }
 
-bool get_simplify_memoize() {
-    return ios().get_options().get_bool(*g_simplify_memoize, LEAN_DEFAULT_SIMPLIFY_MEMOIZE);
+bool get_simplify_memoize(options const & o) {
+    return o.get_bool(*g_simplify_memoize, LEAN_DEFAULT_SIMPLIFY_MEMOIZE);
 }
 
-bool get_simplify_contextual() {
-    return ios().get_options().get_bool(*g_simplify_contextual, LEAN_DEFAULT_SIMPLIFY_CONTEXTUAL);
+bool get_simplify_contextual(options const & o) {
+    return o.get_bool(*g_simplify_contextual, LEAN_DEFAULT_SIMPLIFY_CONTEXTUAL);
 }
 
-bool get_simplify_numerals() {
-    return ios().get_options().get_bool(*g_simplify_numerals, LEAN_DEFAULT_SIMPLIFY_NUMERALS);
+bool get_simplify_numerals(options const & o) {
+    return o.get_bool(*g_simplify_numerals, LEAN_DEFAULT_SIMPLIFY_NUMERALS);
 }
 
 /* Main simplifier class */
@@ -89,19 +90,19 @@ class simplifier {
     app_builder               m_ab;
     name                      m_rel;
 
-    simp_lemmas               m_simp_lemmas;
-    simp_lemmas               m_ctx_simp_lemmas;
+    simp_lemmas               m_slss;
+    simp_lemmas               m_ctx_slss;
 
     /* Logging */
     unsigned                  m_num_steps{0};
 
     /* Options */
-    unsigned                  m_max_steps{get_simplify_max_steps()};
-    bool                      m_top_down{get_simplify_top_down()};
-    bool                      m_exhaustive{get_simplify_exhaustive()};
-    bool                      m_memoize{get_simplify_memoize()};
-    bool                      m_contextual{get_simplify_contextual()};
-    bool                      m_numerals{get_simplify_numerals()};
+    unsigned                  m_max_steps;
+    bool                      m_top_down;
+    bool                      m_exhaustive;
+    bool                      m_memoize;
+    bool                      m_contextual;
+    bool                      m_numerals;
 
     /* Cache */
     struct key {
@@ -137,17 +138,17 @@ class simplifier {
         return has_free_vars(binding_body(f_type));
     }
 
-    simp_lemmas add_to_srss(simp_lemmas const & _srss, buffer<expr> & ls) {
-        simp_lemmas srss = _srss;
+    simp_lemmas add_to_slss(simp_lemmas const & _slss, buffer<expr> & ls) {
+        simp_lemmas slss = _slss;
         for (unsigned i = 0; i < ls.size(); i++) {
             expr & l = ls[i];
             try {
                 // TODO(Leo,Daniel): should we allow the user to set the priority of local lemmas?
-                srss = add(m_tctx, srss, mlocal_name(l), m_tctx.infer(l), l, LEAN_DEFAULT_PRIORITY);
+                slss = add(m_tctx, slss, mlocal_name(l), m_tctx.infer(l), l, LEAN_DEFAULT_PRIORITY);
             } catch (exception e) {
             }
         }
-        return srss;
+        return slss;
     }
 
     bool instantiate_emetas(unsigned num_emeta, list<expr> const & emetas, list<bool> const & instances);
@@ -158,7 +159,7 @@ class simplifier {
     simp_result finalize(simp_result const & r);
 
     /* Simplification */
-    simp_result simplify(expr const & e, simp_lemmas const & srss);
+    simp_result simplify(expr const & e, simp_lemmas const & slss);
     simp_result simplify(expr const & e);
     simp_result simplify_lambda(expr const & e);
     simp_result simplify_pi(expr const & e);
@@ -168,11 +169,11 @@ class simplifier {
 
     /* Proving */
     optional<expr> prove(expr const & thm);
-    optional<expr> prove(expr const & thm, simp_lemmas const & srss);
+    optional<expr> prove(expr const & thm, simp_lemmas const & slss);
 
     /* Rewriting */
     simp_result rewrite(expr const & e);
-    simp_result rewrite(expr const & e, simp_lemmas const & srss);
+    simp_result rewrite(expr const & e, simp_lemmas const & slss);
     simp_result rewrite(expr const & e, simp_lemma const & sr);
 
     /* Congruence */
@@ -195,8 +196,17 @@ class simplifier {
     expr whnf_eta(expr const & e);
 
 public:
-    simplifier(type_context & tctx, name const & rel): m_tctx(tctx), m_ab(mk_app_builder_for(tctx)), m_rel(rel) { }
-    simp_result operator()(expr const & e, simp_lemmas const & srss)  { return simplify(e, srss); }
+    simplifier(type_context & tctx, name const & rel):
+        m_tctx(tctx), m_ab(mk_app_builder_for(tctx)), m_rel(rel),
+        /* Options */
+        m_max_steps(get_simplify_max_steps(tctx.get_options())),
+        m_top_down(get_simplify_top_down(tctx.get_options())),
+        m_exhaustive(get_simplify_exhaustive(tctx.get_options())),
+        m_memoize(get_simplify_memoize(tctx.get_options())),
+        m_contextual(get_simplify_contextual(tctx.get_options())),
+        m_numerals(get_simplify_numerals(tctx.get_options()))
+        { }
+    simp_result operator()(expr const & e, simp_lemmas const & slss)  { return simplify(e, slss); }
 };
 
 /* Cache */
@@ -246,15 +256,14 @@ simp_result simplifier::join(simp_result const & r1, simp_result const & r2) {
 
 /* Whnf + Eta */
 expr simplifier::whnf_eta(expr const & e) {
-    return try_eta(whnf(e));
+    return try_eta(m_tctx.whnf(e));
 }
 
 /* Simplification */
 
-simp_result simplifier::simplify(expr const & e, simp_lemmas const & srss) {
-    flet<simp_lemmas> set_srss(m_srss, srss);
+simp_result simplifier::simplify(expr const & e, simp_lemmas const & slss) {
+    flet<simp_lemmas> set_slss(m_slss, slss);
     freset<simplify_cache> reset1(m_cache);
-    freset<expr_map<expr>> reset2(m_subsingleton_elem_map);
     return simplify(e);
 }
 
@@ -418,9 +427,9 @@ optional<expr> simplifier::prove(expr const & thm) {
     return none_expr();
 }
 
-optional<expr> simplifier::prove(expr const & thm, simp_lemmas const & srss) {
+optional<expr> simplifier::prove(expr const & thm, simp_lemmas const & slss) {
     flet<name> set_name(m_rel, get_iff_name());
-    simp_result r_cond = simplify(thm, srss);
+    simp_result r_cond = simplify(thm, slss);
     if (is_constant(r_cond.get_new()) && const_name(r_cond.get_new()) == get_true_name()) {
         expr pf = m_ab.mk_app(get_iff_elim_right_name(),
                                        finalize(r_cond).get_proof(),
@@ -435,18 +444,18 @@ optional<expr> simplifier::prove(expr const & thm, simp_lemmas const & srss) {
 simp_result simplifier::rewrite(expr const & e) {
     simp_result r(e);
     while (true) {
-        simp_result r_ctx = rewrite(r.get_new(), m_ctx_srss);
-        simp_result r_new = rewrite(r_ctx.get_new(), m_srss);
+        simp_result r_ctx = rewrite(r.get_new(), m_ctx_slss);
+        simp_result r_new = rewrite(r_ctx.get_new(), m_slss);
         if (!r_ctx.has_proof() && !r_new.has_proof()) break;
         r = join(join(r, r_ctx), r_new);
     }
     return r;
 }
 
-simp_result simplifier::rewrite(expr const & e, simp_lemmas const & srss) {
+simp_result simplifier::rewrite(expr const & e, simp_lemmas const & slss) {
     simp_result r(e);
 
-    simp_lemmas_for const * sr = srss.find(m_rel);
+    simp_lemmas_for const * sr = slss.find(m_rel);
     if (!sr) return r;
 
     list<simp_lemma> const * srs = sr->find_simp(e);
@@ -594,12 +603,12 @@ simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cr) {
             {
                 flet<name> set_name(m_rel, const_name(h_rel));
 
-                flet<simp_lemmas> set_ctx_srss(m_ctx_srss, m_contextual ? add_to_srss(m_ctx_srss, ls) : m_ctx_srss);
+                flet<simp_lemmas> set_ctx_slss(m_ctx_slss, m_contextual ? add_to_slss(m_ctx_slss, ls) : m_ctx_slss);
 
                 h_lhs = m_tctx.instantiate_uvars_mvars(h_lhs);
                 lean_assert(!has_metavar(h_lhs));
 
-                simp_result r_congr_hyp = simplify(h_lhs, m_srss);
+                simp_result r_congr_hyp = simplify(h_lhs, m_slss);
                 if (r_congr_hyp.has_proof()) simplified = true;
                 r_congr_hyp = finalize(r_congr_hyp);
                 expr hyp = finalize(r_congr_hyp).get_proof();
