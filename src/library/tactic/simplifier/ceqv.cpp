@@ -13,7 +13,7 @@ Author: Leonardo de Moura
 #include "library/tactic/simplifier/ceqv.h"
 
 namespace lean {
-bool is_ceqv(tmp_type_context & tctx, expr e);
+bool is_ceqv(old_tmp_type_context & tctx, expr e);
 
 bool is_simp_relation(environment const & env, name const & n) {
     return is_trans_relation(env, n) && is_refl_relation(env, n);
@@ -22,7 +22,7 @@ bool is_simp_relation(environment const & env, name const & n) {
 /** \brief Auxiliary functional object for creating "conditional equations" */
 class to_ceqvs_fn {
     environment const &   m_env;
-    tmp_type_context &    m_tctx;
+    old_tmp_type_context &    m_tctx;
 
     static list<expr_pair> mk_singleton(expr const & e, expr const & H) {
         return list<expr_pair>(mk_pair(e, H));
@@ -109,7 +109,7 @@ class to_ceqvs_fn {
         }
     }
 public:
-    to_ceqvs_fn(tmp_type_context & tctx):m_env(tctx.env()), m_tctx(tctx) {}
+    to_ceqvs_fn(old_tmp_type_context & tctx):m_env(tctx.env()), m_tctx(tctx) {}
 
     list<expr_pair> operator()(expr const & e, expr const & H) {
         bool restricted = false;
@@ -118,7 +118,7 @@ public:
     }
 };
 
-list<expr_pair> to_ceqvs(tmp_type_context & tctx, expr const & e, expr const & H) {
+list<expr_pair> to_ceqvs(old_tmp_type_context & tctx, expr const & e, expr const & H) {
     return to_ceqvs_fn(tctx)(e, H);
 }
 
@@ -140,7 +140,7 @@ bool is_simp_relation(environment const & env, expr const & e, expr & lhs, expr 
     return is_simp_relation(env, e, rel, lhs, rhs);
 }
 
-bool is_ceqv(tmp_type_context & tctx, expr e) {
+bool is_ceqv(old_tmp_type_context & tctx, expr e) {
     if (has_expr_metavar(e))
         return false;
     name_set to_find;
