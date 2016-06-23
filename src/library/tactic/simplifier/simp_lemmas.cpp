@@ -8,6 +8,7 @@ Author: Leonardo de Moura
 #include <string>
 #include "util/priority_queue.h"
 #include "util/sstream.h"
+#include "util/flet.h"
 #include "kernel/error_msgs.h"
 #include "kernel/find_fn.h"
 #include "kernel/instantiate.h"
@@ -78,15 +79,15 @@ void validate_congr(type_context & tctx, name const & n);
 /* Registering simp/congr lemmas */
 
 environment add_simp_lemma(environment const & env, io_state const & ios, name const & c, unsigned prio, name const & ns, bool persistent) {
-    metavar_context mctx; local_context lctx;
-    type_context tctx(env, ios.get_options(), mctx, lctx);
+    aux_type_context aux_ctx(env);
+    type_context tctx = aux_ctx.get();
     validate_simp(tctx, c);
     return simp_ext::add_entry(env, ios, simp_entry(true, prio, c), ns, persistent);
 }
 
 environment add_congr_lemma(environment const & env, io_state const & ios, name const & c, unsigned prio, name const & ns, bool persistent) {
-    metavar_context mctx; local_context lctx;
-    type_context tctx(env, ios.get_options(), mctx, lctx);
+    aux_type_context aux_ctx(env);
+    type_context tctx = aux_ctx.get();
     validate_congr(tctx, c);
     return simp_ext::add_entry(env, ios, simp_entry(false, prio, c), ns, persistent);
 }
@@ -100,11 +101,11 @@ unsigned get_simp_lemma_priority(environment const & env, name const & n) {
         return LEAN_DEFAULT_PRIORITY;
 }
 
-bool is_simp_lemma_name(environment const & env, name const & c) {
+bool is_simp_lemma(environment const & env, name const & c) {
     return simp_ext::get_state(env).m_simp_lemmas.contains(c);
 }
 
-bool is_congr_lemma_name(environment const & env, name const & c) {
+bool is_congr_lemma(environment const & env, name const & c) {
     return simp_ext::get_state(env).m_congr_lemmas.contains(c);
 }
 
@@ -128,16 +129,16 @@ static void report_failure(sstream const & strm) {
 simp_lemmas add_core(tmp_type_context & tmp_tctx, simp_lemmas const & s,
                      name const & id, levels const & univ_metas, expr const & e, expr const & h,
                      unsigned priority) {
-    list<expr_pair> ceqvs   = to_ceqvs(tmp_tctx, e, h);
+    list<expr_pair> ceqvs   = to_ceqvs(tmp_tctx.tctx(), e, h);
     if (is_nil(ceqvs)) {
         report_failure(sstream() << "invalid [simp] lemma '" << id << "'");
     }
-    environment const & env = tmp_tctx.env();
+    environment const & env = tmp_tctx.tctx().env();
     simp_lemmas new_s = s;
     for (expr_pair const & p : ceqvs) {
         /* We only clear the eassignment since we want to reuse the temporary universe metavariables associated
            with the declaration. */
-        tmp_tctx.clear_essignment();
+        tmp_tctx.clear_eassignment();
         expr rule  = tmp_tctx.whnf(p.first);
         expr proof = tmp_tctx.whnf(p.second);
         bool is_perm = is_permutation_ceqv(env, rule);
@@ -173,11 +174,11 @@ simp_lemmas join(simp_lemmas const & s1, simp_lemmas const & s2) {
 }
 
 static simp_lemmas add_core(tmp_type_context & tmp_tctx, simp_lemmas const & s, name const & cname, unsigned priority) {
-    declaration const & d = tmp_tctx.env().get(cname);
+    declaration const & d = tmp_tctx.tctx().env().get(cname);
     buffer<level> us;
     unsigned num_univs = d.get_num_univ_params();
     for (unsigned i = 0; i < num_univs; i++) {
-        us.push_back(tmp_tctx.mk_univ_mvar());
+        us.push_back(tmp_tctx.mk_tmp_univ_mvar());
     }
     levels ls = to_list(us);
     expr e    = tmp_tctx.whnf(instantiate_type_univ_params(d, ls));
@@ -229,11 +230,11 @@ static bool is_valid_congr_hyp_rhs(expr const & rhs, name_set & found_mvars) {
 }
 
 simp_lemmas add_congr_core(tmp_type_context & tmp_tctx, simp_lemmas const & s, name const & n, unsigned prio) {
-    declaration const & d = tmp_tctx.env().get(n);
+    declaration const & d = tmp_tctx.tctx().env().get(n);
     buffer<level> us;
     unsigned num_univs = d.get_num_univ_params();
     for (unsigned i = 0; i < num_univs; i++) {
-        us.push_back(tmp_tctx.mk_univ_mvar());
+        us.push_back(tmp_tctx.mk_tmp_univ_mvar());
     }
     levels ls = to_list(us);
     expr rule    = tmp_tctx.whnf(instantiate_type_univ_params(d, ls));
@@ -251,7 +252,7 @@ simp_lemmas add_congr_core(tmp_type_context & tmp_tctx, simp_lemmas const & s, n
         proof = mk_app(proof, mvar);
     }
     expr rel, lhs, rhs;
-    if (!is_simp_relation(tmp_tctx.env(), rule, rel, lhs, rhs) || !is_constant(rel)) {
+    if (!is_simp_relation(tmp_tctx.tctx().env(), rule, rel, lhs, rhs) || !is_constant(rel)) {
         report_failure(sstream() << "invalid [congr] lemma, '" << n
                        << "' resulting type is not of the form t ~ s, where '~' is a transitive and reflexive relation");
     }
@@ -305,7 +306,7 @@ simp_lemmas add_congr_core(tmp_type_context & tmp_tctx, simp_lemmas const & s, n
                 type = instantiate(binding_body(type), local);
             }
             expr h_rel, h_lhs, h_rhs;
-            if (!is_simp_relation(tmp_tctx.env(), type, h_rel, h_lhs, h_rhs) || !is_constant(h_rel))
+            if (!is_simp_relation(tmp_tctx.tctx().env(), type, h_rel, h_lhs, h_rhs) || !is_constant(h_rel))
                 continue;
             unsigned j = 0;
             for (expr const & local : locals) {
@@ -594,25 +595,25 @@ format simp_lemmas::pp(formatter const & fmt) const {
     return pp(fmt, format(), true, true);
 }
 
-simp_lemmas get_simp_lemmas_core() {
+simp_lemmas get_simp_lemmas(environment const & env) {
     simp_lemmas r;
     buffer<name> simp_lemmas, congr_lemmas;
-    metavar_context mctx; local_context lctx;
-    type_context tctx(env, ios.get_options(), mctx, lctx);
-    auto const & s = simp_ext::get_state(env());
+    aux_type_context aux_ctx(env);
+    type_context tctx = aux_ctx.get();
+    auto const & s = simp_ext::get_state(env);
     s.m_simp_lemmas.to_buffer(simp_lemmas);
     s.m_congr_lemmas.to_buffer(congr_lemmas);
     unsigned i = simp_lemmas.size();
     while (i > 0) {
         --i;
         tmp_type_context tmp_tctx(tctx);
-        r = add_core(tctx, r, simp_lemmas[i], *s.m_simp_lemmas.get_prio(simp_lemmas[i]));
+        r = add_core(tmp_tctx, r, simp_lemmas[i], *s.m_simp_lemmas.get_prio(simp_lemmas[i]));
     }
     i = congr_lemmas.size();
     while (i > 0) {
         --i;
         tmp_type_context tmp_tctx(tctx);
-        r = add_congr_core(tctx, r, congr_lemmas[i], *s.m_congr_lemmas.get_prio(congr_lemmas[i]));
+        r = add_congr_core(tmp_tctx, r, congr_lemmas[i], *s.m_congr_lemmas.get_prio(congr_lemmas[i]));
     }
     return r;
 }
@@ -620,10 +621,10 @@ simp_lemmas get_simp_lemmas_core() {
 template<typename NSS>
 simp_lemmas get_simp_lemmas_core(environment const & env, NSS const & nss) {
     simp_lemmas r;
-    metavar_context mctx; local_context lctx;
-    type_context tctx(env, get_dummy_ios().get_options(), mctx, lctx);
+    aux_type_context aux_ctx(env);
+    type_context tctx = aux_ctx.get();
     for (name const & ns : nss) {
-        list<simp_entry> const * entries = simp_ext::get_entries(env(), ns);
+        list<simp_entry> const * entries = simp_ext::get_entries(env, ns);
         if (entries) {
             for (auto const & e : *entries) {
                 bool is_simp; unsigned prio; name n;
@@ -676,4 +677,5 @@ void finalize_simp_lemmas() {
     simp_ext::finalize();
     delete g_key;
     delete g_class_name;
+}
 }

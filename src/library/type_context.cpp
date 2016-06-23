@@ -2518,6 +2518,16 @@ expr tmp_type_context::whnf(expr const & e) {
     return m_tctx.whnf(e);
 }
 
+level tmp_type_context::mk_tmp_univ_mvar() {
+    type_context::tmp_mode_scope_with_buffers(m_tctx, m_tmp_uassignment, m_tmp_eassignment);
+    return m_tctx.mk_tmp_univ_mvar();
+}
+
+expr tmp_type_context::mk_tmp_mvar(expr const & type) {
+    type_context::tmp_mode_scope_with_buffers(m_tctx, m_tmp_uassignment, m_tmp_eassignment);
+    return m_tctx.mk_tmp_mvar(type);
+}
+
 bool tmp_type_context::is_uassigned(unsigned i) {
     lean_assert(i < m_tmp_uassignment.size());
     return static_cast<bool>(m_tmp_uassignment[i]);

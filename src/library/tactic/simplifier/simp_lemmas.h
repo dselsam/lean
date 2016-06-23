@@ -16,8 +16,8 @@ environment add_simp_lemma(environment const & env, io_state const & ios, name c
 environment add_congr_lemma(environment const & env, io_state const & ios, name const & c, unsigned prio, name const & ns, bool persistent);
 unsigned get_simp_lemma_priority(environment const & env, name const & n);
 
-bool is_simp_lemma_name(environment const & env, name const & n);
-bool is_congr_lemma_name(environment const & env, name const & n);
+bool is_simp_lemma(environment const & env, name const & n);
+bool is_congr_lemma(environment const & env, name const & n);
 void get_simp_lemma_names(environment const & env, buffer<name> & r);
 void get_congr_lemma_names(environment const & env, buffer<name> & r);
 
@@ -67,7 +67,7 @@ class simp_lemma : public simp_lemma_core {
                list<bool> const & instances, expr const & lhs, expr const & rhs, expr const & proof,
                bool is_perm, unsigned priority);
 
-    friend simp_lemmas add_core(type_context & tctx, simp_lemmas const & s, name const & id,
+    friend simp_lemmas add_core(tmp_type_context & tmp_tctx, simp_lemmas const & s, name const & id,
                                 levels const & univ_metas, expr const & e, expr const & h, unsigned priority);
 public:
     friend bool operator==(simp_lemma const & r1, simp_lemma const & r2);
@@ -84,7 +84,7 @@ class user_congr_lemma : public simp_lemma_core {
     user_congr_lemma(name const & id, levels const & umetas, list<expr> const & emetas,
                      list<bool> const & instances, expr const & lhs, expr const & rhs, expr const & proof,
                      list<expr> const & congr_hyps, unsigned priority);
-    friend simp_lemmas add_congr_core(type_context & tctx, simp_lemmas const & s, name const & n, unsigned priority);
+    friend simp_lemmas add_congr_core(tmp_type_context & tctx, simp_lemmas const & s, name const & n, unsigned priority);
 public:
     friend bool operator==(user_congr_lemma const & r1, user_congr_lemma const & r2);
     list<expr> const & get_congr_hyps() const { return m_congr_hyps; }

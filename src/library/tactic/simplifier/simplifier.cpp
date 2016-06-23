@@ -25,6 +25,8 @@ Author: Daniel Selsam
 #include "library/class_instance_resolution.h"
 #include "library/relation_manager.h"
 #include "library/app_builder.h"
+#include "library/congr_lemma.h"
+#include "library/fun_info.h"
 #include "library/tactic/simplifier/simplifier.h"
 #include "library/tactic/simplifier/simp_lemmas.h"
 #include "library/tactic/simplifier/ceqv.h"
@@ -88,7 +90,6 @@ bool get_simplify_numerals(options const & o) {
 
 class simplifier {
     type_context              m_tctx;
-    app_builder               m_ab;
     name                      m_rel;
 
     simp_lemmas               m_slss;
@@ -188,6 +189,8 @@ class simplifier {
     template<typename F>
     optional<simp_result> synth_congr(expr const & e, F && simp);
 
+    expr remove_unnecessary_casts(expr const & e);
+
     /* Apply whnf and eta-reduction
        \remark We want (Sum n (fun x, f x)) and (Sum n f) to be the same.
        \remark We may want to switch to eta-expansion later (see paper: "The Virtues of Eta-expansion").
@@ -196,7 +199,7 @@ class simplifier {
 
 public:
     simplifier(type_context & tctx, name const & rel, simp_lemmas const & slss):
-        m_tctx(tctx), m_ab(mk_app_builder_for(tctx)), m_rel(rel), m_slss(slss),
+        m_tctx(tctx), m_rel(rel), m_slss(slss),
         /* Options */
         m_max_steps(get_simplify_max_steps(tctx.get_options())),
         m_top_down(get_simplify_top_down(tctx.get_options())),
@@ -230,12 +233,12 @@ simp_result simplifier::lift_from_eq(expr const & e_old, simp_result const & r_e
     /* goal : e_old <m_rel> r_eq.get_new() */
     type_context::tmp_locals local_factory(m_tctx);
     expr local = local_factory.push_local(name(), m_tctx.infer(e_old));
-    expr motive_local = m_ab.mk_app(m_rel, e_old, local);
+    expr motive_local = mk_app(m_tctx, m_rel, e_old, local);
     /* motive = fun y, e_old <m_rel> y */
     expr motive = local_factory.mk_lambda(motive_local);
     /* Rxx = x <m_rel> x */
-    expr Rxx = m_ab.mk_refl(m_rel, e_old);
-    expr pf = m_ab.mk_eq_rec(motive, Rxx, r_eq.get_proof());
+    expr Rxx = mk_refl(m_tctx, m_rel, e_old);
+    expr pf = mk_eq_rec(m_tctx, motive, Rxx, r_eq.get_proof());
     return simp_result(r_eq.get_new(), pf);
 }
 
@@ -249,7 +252,7 @@ simp_result simplifier::join(simp_result const & r1, simp_result const & r2) {
     } else {
         /* If they both have proofs, we need to glue them together with transitivity. */
         lean_assert(r1.has_proof() && r2.has_proof());
-        expr trans = m_ab.mk_trans(m_rel, r1.get_proof(), r2.get_proof());
+        expr trans = mk_trans(m_tctx, m_rel, r1.get_proof(), r2.get_proof());
         return simp_result(r2.get_new(), trans);
     }
 }
@@ -343,7 +346,7 @@ simp_result simplifier::simplify_lambda(expr const & e) {
 
     if (r.has_proof()) {
         expr lam_pf = local_factory.mk_lambda(r.get_proof());
-        expr funext_pf = m_ab.mk_app(get_funext_name(), lam_pf);
+        expr funext_pf = mk_app(m_tctx, get_funext_name(), lam_pf);
         return simp_result(new_t, funext_pf);
     } else {
         return simp_result(new_t);
@@ -411,9 +414,9 @@ optional<expr> simplifier::prove(expr const & thm) {
     flet<name> set_name(m_rel, get_iff_name());
     simp_result r_cond = simplify(thm);
     if (is_constant(r_cond.get_new()) && const_name(r_cond.get_new()) == get_true_name()) {
-        expr pf = m_ab.mk_app(get_iff_elim_right_name(),
-                                       finalize(r_cond).get_proof(),
-                                       mk_constant(get_true_intro_name()));
+        expr pf = mk_app(m_tctx, get_iff_elim_right_name(),
+                              finalize(r_cond).get_proof(),
+                              mk_constant(get_true_intro_name()));
         return some_expr(pf);
     }
     return none_expr();
@@ -498,7 +501,7 @@ simp_result simplifier::congr(simp_result const & r_f, simp_result const & r_arg
     lean_assert(r_f.has_proof() && r_arg.has_proof());
     // theorem congr {A B : Type} {f₁ f₂ : A → B} {a₁ a₂ : A} (H₁ : f₁ = f₂) (H₂ : a₁ = a₂) : f₁ a₁ = f₂ a₂
     expr e  = mk_app(r_f.get_new(), r_arg.get_new());
-    expr pf = m_ab.mk_congr(r_f.get_proof(), r_arg.get_proof());
+    expr pf = mk_congr(m_tctx, r_f.get_proof(), r_arg.get_proof());
     return simp_result(e, pf);
 }
 
@@ -506,7 +509,7 @@ simp_result simplifier::congr_fun(simp_result const & r_f, expr const & arg) {
     lean_assert(r_f.has_proof());
     // theorem congr_fun {A : Type} {B : A → Type} {f g : Π x, B x} (H : f = g) (a : A) : f a = g a
     expr e  = mk_app(r_f.get_new(), arg);
-    expr pf = m_ab.mk_congr_fun(r_f.get_proof(), arg);
+    expr pf = mk_congr_fun(m_tctx, r_f.get_proof(), arg);
     return simp_result(e, pf);
 }
 
@@ -514,7 +517,7 @@ simp_result simplifier::congr_arg(expr const & f, simp_result const & r_arg) {
     lean_assert(r_arg.has_proof());
     // theorem congr_arg {A B : Type} {a₁ a₂ : A} (f : A → B) : a₁ = a₂ → f a₁ = f a₂
     expr e  = mk_app(f, r_arg.get_new());
-    expr pf = m_ab.mk_congr_arg(f, r_arg.get_proof());
+    expr pf = mk_congr_arg(m_tctx, f, r_arg.get_proof());
     return simp_result(e, pf);
 }
 
@@ -528,7 +531,7 @@ simp_result simplifier::congr_funs(simp_result const & r_f, buffer<expr> const &
     if (!r_f.has_proof()) return simp_result(e);
     expr pf = r_f.get_proof();
     for (unsigned i = 0; i < args.size(); ++i) {
-        pf = m_ab.mk_app(get_congr_fun_name(), pf, args[i]);
+        pf = mk_app(m_tctx, get_congr_fun_name(), pf, args[i]);
     }
     return simp_result(e, pf);
 }
@@ -660,7 +663,7 @@ optional<simp_result> simplifier::synth_congr(expr const & e, F && simp) {
     lean_assert(is_app(e));
     buffer<expr> args;
     expr f = get_app_args(e, args);
-    auto congr_lemma = mk_specialized_congr_lemma_for_simp(e);
+    auto congr_lemma = mk_specialized_congr_simp(m_tctx, e);
     if (!congr_lemma) return optional<simp_result>();
     expr proof = congr_lemma->get_proof();
     expr type = congr_lemma->get_type();
@@ -705,17 +708,19 @@ optional<simp_result> simplifier::synth_congr(expr const & e, F && simp) {
     if (has_proof) r = simp_result(e_new, proof);
     else r = simp_result(e_new);
 
+    /* TODO(dhs): re-integrate
     if (has_cast) {
         if (auto r_norm = normalize_subsingleton_args(e_new))
             r = join(r, *r_norm);
     }
+    */
     return optional<simp_result>(r);
 }
 
 expr simplifier::remove_unnecessary_casts(expr const & e) {
     buffer<expr> args;
     expr f = get_app_args(e, args);
-    fun_info f_info = get_specialized_fun_info(e);
+    fun_info f_info = get_specialized_fun_info(m_tctx, e);
     int i = -1;
     for_each(f_info.get_params_info(), [&](param_info const & p_info) {
             i++;
@@ -781,7 +786,7 @@ void finalize_simplifier() {
 
 /* Entry point */
 simp_result simplify(type_context & ctx, name const & rel, simp_lemmas const & simp_lemmas, expr const & e) {
-    return simplifier(ctx, rel)(e, simp_lemmas);
+    return simplifier(ctx, rel, simp_lemmas)(e);
 }
 
 }
