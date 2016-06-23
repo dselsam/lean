@@ -478,6 +478,19 @@ public:
     type_context * operator->() { return &m_ctx; }
 };
 
+class tmp_type_context {
+    type_context & m_tctx;
+    buffer<optional<level>> m_tmp_uassignment;
+    buffer<optional<expr>> m_tmp_eassignment;
+
+public:
+    tmp_type_context(type_context & tctx, unsigned num_umeta, unsigned num_emeta);
+    bool is_def_eq(expr const & e1, expr const & e2);
+    bool is_uvar_assigned(unsigned i);
+    bool is_mvar_assigned(unsigned i);
+    expr instantiate_uvars_mvars(expr const & e);
+};
+
 void initialize_type_context();
 void finalize_type_context();
 }
