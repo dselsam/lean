@@ -159,7 +159,6 @@ class simplifier {
     simp_result finalize(simp_result const & r);
 
     /* Simplification */
-    simp_result simplify(expr const & e, simp_lemmas const & slss);
     simp_result simplify(expr const & e);
     simp_result simplify_lambda(expr const & e);
     simp_result simplify_pi(expr const & e);
@@ -169,7 +168,6 @@ class simplifier {
 
     /* Proving */
     optional<expr> prove(expr const & thm);
-    optional<expr> prove(expr const & thm, simp_lemmas const & slss);
 
     /* Rewriting */
     simp_result rewrite(expr const & e);
@@ -196,8 +194,8 @@ class simplifier {
     expr whnf_eta(expr const & e);
 
 public:
-    simplifier(type_context & tctx, name const & rel):
-        m_tctx(tctx), m_ab(mk_app_builder_for(tctx)), m_rel(rel),
+    simplifier(type_context & tctx, name const & rel, simp_lemmas const & slss):
+        m_tctx(tctx), m_ab(mk_app_builder_for(tctx)), m_rel(rel), m_slss(slss),
         /* Options */
         m_max_steps(get_simplify_max_steps(tctx.get_options())),
         m_top_down(get_simplify_top_down(tctx.get_options())),
@@ -206,7 +204,8 @@ public:
         m_contextual(get_simplify_contextual(tctx.get_options())),
         m_numerals(get_simplify_numerals(tctx.get_options()))
         { }
-    simp_result operator()(expr const & e, simp_lemmas const & slss)  { return simplify(e, slss); }
+
+    simp_result operator()(expr const & e)  { return simplify(e); }
 };
 
 /* Cache */
@@ -260,12 +259,6 @@ expr simplifier::whnf_eta(expr const & e) {
 }
 
 /* Simplification */
-
-simp_result simplifier::simplify(expr const & e, simp_lemmas const & slss) {
-    flet<simp_lemmas> set_slss(m_slss, slss);
-    freset<simplify_cache> reset1(m_cache);
-    return simplify(e);
-}
 
 simp_result simplifier::simplify(expr const & e) {
     check_system("simplifier");
@@ -418,18 +411,6 @@ optional<simp_result> simplifier::simplify_numeral(expr const & e) {
 optional<expr> simplifier::prove(expr const & thm) {
     flet<name> set_name(m_rel, get_iff_name());
     simp_result r_cond = simplify(thm);
-    if (is_constant(r_cond.get_new()) && const_name(r_cond.get_new()) == get_true_name()) {
-        expr pf = m_ab.mk_app(get_iff_elim_right_name(),
-                                       finalize(r_cond).get_proof(),
-                                       mk_constant(get_true_intro_name()));
-        return some_expr(pf);
-    }
-    return none_expr();
-}
-
-optional<expr> simplifier::prove(expr const & thm, simp_lemmas const & slss) {
-    flet<name> set_name(m_rel, get_iff_name());
-    simp_result r_cond = simplify(thm, slss);
     if (is_constant(r_cond.get_new()) && const_name(r_cond.get_new()) == get_true_name()) {
         expr pf = m_ab.mk_app(get_iff_elim_right_name(),
                                        finalize(r_cond).get_proof(),
@@ -608,7 +589,8 @@ simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cr) {
                 h_lhs = m_tctx.instantiate_uvars_mvars(h_lhs);
                 lean_assert(!has_metavar(h_lhs));
 
-                simp_result r_congr_hyp = simplify(h_lhs, m_slss);
+                // TODO(dhs): freset cache?
+                simp_result r_congr_hyp = simplify(h_lhs);
                 if (r_congr_hyp.has_proof()) simplified = true;
                 r_congr_hyp = finalize(r_congr_hyp);
                 expr hyp = finalize(r_congr_hyp).get_proof();
