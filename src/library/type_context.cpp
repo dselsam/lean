@@ -2489,6 +2489,31 @@ optional<expr> type_context::mk_subsingleton_instance(expr const & type) {
     return r;
 }
 
+tmp_type_context::tmp_type_context(type_context & tctx, unsigned num_umeta, unsigned num_emeta): m_tctx(tctx) {
+    m_tmp_uassignment.resize(num_umeta, none_level());
+    m_tmp_eassignment.resize(num_emeta, none_expr());
+}
+
+bool tmp_type_context::is_def_eq(expr const & e1, expr const & e2) {
+    tmp_mode_scope_with_buffers(m_tctx, m_tmp_uassignment, m_tmp_eassignment);
+    return m_tctx.is_def_eq(e1, e2);
+}
+
+bool tmp_type_context::is_uvar_assigned(unsigned i) {
+    lean_assert(i < m_tmp_uassignment.size());
+    return m_tmp_uassignment[i];
+}
+
+bool tmp_type_context::is_mvar_assigned(unsigned i) {
+    lean_assert(i < m_tmp_eassignment.size());
+    return m_tmp_eassignment[i];
+}
+
+expr tmp_type_context::instantiate_mvars(expr const & e) {
+    tmp_mode_scope_with_buffers(m_tctx, m_tmp_uassignment, m_tmp_eassignment);
+    return m_tctx.instantiate_mvars(e1, e2);
+}
+
 void initialize_type_context() {
     register_trace_class("class_instances");
     register_trace_class(name({"type_context", "unification_hint"}));
