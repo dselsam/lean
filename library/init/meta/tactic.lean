@@ -132,7 +132,12 @@ meta_constant is_class      : expr → tactic bool
 meta_constant mk_instance   : expr → tactic expr
 /- Simplify the given expression using [defeq] lemmas.
    The resulting expression is definitionally equal to the input. -/
-meta_constant defeq_simp    : expr → tactic expr
+meta_constant defeq_simplify    : expr → tactic expr
+/- Simplify the given expression using [simp] and [congr] lemmas.
+   The result is the simplified expression along with a proof that the new
+   expression is equivalent to the old one.
+   Fails if no simplifications can be performed. -/
+meta_constant simplify    : expr → tactic (prod expr expr)
 /- Change the target of the main goal.
    The input expression must be definitionally equal to the current target. -/
 meta_constant change        : expr → tactic unit
@@ -229,7 +234,20 @@ do { ctx ← local_context,
 <|> fail "assumption tactic failed"
 
 meta_definition dsimp : tactic unit :=
-target >>= defeq_simp >>= change
+target >>= defeq_simplify >>= change
+
+meta_definition simp : tactic unit :=
+do gs ← get_goals,
+   match gs with
+   | g :: rest      := do tgt ← infer_type g,
+                          r ← simplify tgt,
+                          trace r,
+                          new_g ← mk_meta_var (prod.pr1 r),
+                          g_pf ← mk_app "cast" [(prod.pr2 r), new_g],
+                          unify g g_pf,
+                          set_goals (new_g :: rest)
+   | _              := fail "simp called but no goals"
+   end
 
 /- Return the number of goals that need to be solved -/
 meta_definition num_goals     : tactic nat :=
