@@ -472,7 +472,7 @@ simp_result simplifier::rewrite(expr const & e, simp_lemma const & sl) {
     if (!instantiate_emetas(tmp_tctx, sl.get_num_emeta(), sl.get_emetas(), sl.get_instances())) return simp_result(e);
 
     for (unsigned i = 0; i < sl.get_num_umeta(); i++) {
-        if (!tmp_tctx.is_uvar_assigned(i)) return simp_result(e);
+        if (!tmp_tctx.is_uassigned(i)) return simp_result(e);
     }
 
     expr new_lhs = tmp_tctx.instantiate_mvars(sl.get_lhs());
@@ -602,7 +602,7 @@ simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cl) {
     if (!instantiate_emetas(tmp_tctx, cl.get_num_emeta(), cl.get_emetas(), cl.get_instances())) return simp_result(e);
 
     for (unsigned i = 0; i < cl.get_num_umeta(); i++) {
-        if (!tmp_tctx.is_uvar_assigned(i)) return simp_result(e);
+        if (!tmp_tctx.is_uassigned(i)) return simp_result(e);
     }
 
     expr e_s = tmp_tctx.instantiate_mvars(cl.get_rhs());
@@ -619,7 +619,7 @@ bool simplifier::instantiate_emetas(tmp_type_context & tmp_tctx, unsigned num_em
             expr m_type = tmp_tctx.instantiate_mvars(m_tctx.infer(m));
             lean_assert(!has_metavar(m_type));
 
-            if (tmp_tctx.is_mvar_assigned(i)) return;
+            if (tmp_tctx.is_eassigned(i)) return;
 
             if (is_instance) {
                 if (auto v = m_tctx.mk_class_instance(m_type)) {
@@ -637,7 +637,7 @@ bool simplifier::instantiate_emetas(tmp_type_context & tmp_tctx, unsigned num_em
                 }
             }
 
-            if (tmp_tctx.is_mvar_assigned(i)) return;
+            if (tmp_tctx.is_eassigned(i)) return;
 
             if (m_tctx.is_prop(m_type)) {
                 if (auto pf = prove(m_type)) {
