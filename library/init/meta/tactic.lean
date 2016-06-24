@@ -237,21 +237,18 @@ meta_definition simp : tactic unit :=
 do gs ← get_goals,
    match gs with
    | (g :: rest)      := do
-                          tgt ← infer_type g,
+                          tgt ← target,
                           r ← simplify tgt,
                           new_tgt ← return (prod.pr1 r),
                           pf ← return (prod.pr2 r),
                           pf_type ← infer_type pf,
-                          trace_expr new_tgt,
-                          trace_expr pf,
-                          trace_expr pf_type,
                           new_g ← mk_meta_var new_tgt,
-
                           ns ← return (match expr.is_eq pf_type with
                                         | (option.some _) := "eq"
                                         | option.none := "iff"
                                         end),
                           g_pf ← mk_app (ns <.> "mpr") [pf, new_g],
+                          g_pf_type ← infer_type g_pf,
                           unify g g_pf,
                           set_goals (new_g :: rest)
    | _              := fail "simp called but no goals"
