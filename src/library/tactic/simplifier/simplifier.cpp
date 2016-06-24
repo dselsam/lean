@@ -454,7 +454,10 @@ simp_result simplifier::rewrite(expr const & e, simp_lemmas const & slss) {
     if (!sr) return r;
 
     list<simp_lemma> const * srs = sr->find_simp(e);
-    if (!srs) return r;
+    if (!srs) {
+        lean_trace(name({"simplifier", "try_rewrite"}), tout() << "no simp lemmas for: " << e << "\n";);
+        return r;
+    }
 
     for_each(*srs, [&](simp_lemma const & sr) {
             simp_result r_new = rewrite(r.get_new(), sr);
@@ -464,15 +467,10 @@ simp_result simplifier::rewrite(expr const & e, simp_lemmas const & slss) {
     return r;
 }
 
-template<typename T>
-static buffer<optional<T>> mk_optional_buffer(unsigned len) {
-    buffer<optional<T>> buf;
-    buf.resize(len, optional<T>());
-    return buf;
-}
-
 simp_result simplifier::rewrite(expr const & e, simp_lemma const & sl) {
     tmp_type_context tmp_tctx(m_tctx, sl.get_num_umeta(), sl.get_num_emeta());
+    lean_trace(name({"simplifier", "try_rewrite"}), tout() << e << " =?= " << sl.get_lhs() << "\n";);
+
     if (!tmp_tctx.is_def_eq(e, sl.get_lhs())) return simp_result(e);
 
     lean_trace(name({"simplifier", "rewrite"}),
@@ -492,8 +490,11 @@ simp_result simplifier::rewrite(expr const & e, simp_lemma const & sl) {
 
     if (sl.is_perm()) {
         // TODO(dhs): restore light-lt
-        if (!(new_rhs < new_lhs))
+        if (!is_lt(new_rhs, new_lhs, false)) {
+            lean_trace(name({"simplifier", "perm"}),
+                       tout() << "perm rejected: " << new_rhs << " !< " << new_lhs << "\n";);
             return simp_result(e);
+        }
     }
 
     expr pf = tmp_tctx.instantiate_mvars(sl.get_proof());
@@ -765,6 +766,8 @@ void initialize_simplifier() {
     register_trace_class(name({"simplifier", "rewrite"}));
     register_trace_class(name({"simplifier", "congruence"}));
     register_trace_class(name({"simplifier", "failure"}));
+    register_trace_class(name({"simplifier", "perm"}));
+    register_trace_class(name({"simplifier", "try_rewrite"}));
 
     g_simplify_max_steps     = new name{"simplify", "max_steps"};
     g_simplify_top_down      = new name{"simplify", "top_down"};
