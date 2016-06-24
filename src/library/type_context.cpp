@@ -1357,7 +1357,7 @@ bool type_context::process_assignment(expr const & m, expr const & v) {
                            For every metavariable `?M'@C'` occurring in `t`, `C'` is a subset of `C`
                         */
                         optional<metavar_decl> const & e_decl = m_mctx.get_metavar_decl(e);
-                        if (!e_decl || e_decl->get_context().is_subset_of(mvar_decl->get_context())) {
+                        if (!e_decl || !e_decl->get_context().is_subset_of(mvar_decl->get_context())) {
                             ok = false;
                             return false;
                         }
