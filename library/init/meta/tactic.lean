@@ -236,14 +236,26 @@ do { ctx ← local_context,
 meta_definition dsimp : tactic unit :=
 target >>= defeq_simplify >>= change
 
+set_option unifier.conservative true
 meta_definition simp : tactic unit :=
 do gs ← get_goals,
    match gs with
-   | g :: rest      := do tgt ← infer_type g,
+   | (g :: rest)      := do
+                          tgt ← infer_type g,
                           r ← simplify tgt,
-                          trace r,
-                          new_g ← mk_meta_var (prod.pr1 r),
-                          g_pf ← mk_app "cast" [(prod.pr2 r), new_g],
+                          new_tgt ← return (prod.pr1 r),
+                          pf ← return (prod.pr2 r),
+                          pf_type ← infer_type pf,
+                          trace_expr new_tgt,
+                          trace_expr pf,
+                          trace_expr pf_type,
+                          new_g ← mk_meta_var new_tgt,
+
+                          ns ← return (match expr.is_eq pf_type with
+                                        | (option.some _) := "eq"
+                                        | option.none := "iff"
+                                        end),
+                          g_pf ← mk_app (ns <.> "mpr") [pf, new_g],
                           unify g g_pf,
                           set_goals (new_g :: rest)
    | _              := fail "simp called but no goals"

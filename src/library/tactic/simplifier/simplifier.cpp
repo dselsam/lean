@@ -252,6 +252,12 @@ simp_result simplifier::join(simp_result const & r1, simp_result const & r2) {
     } else {
         /* If they both have proofs, we need to glue them together with transitivity. */
         lean_assert(r1.has_proof() && r2.has_proof());
+        lean_trace(name({"simplifier"}),
+                   expr pf1_type = m_tctx.infer(r1.get_proof());
+                   expr pf2_type = m_tctx.infer(r2.get_proof());
+                   tout() << "JOIN(" << r1.get_proof() << " : " << pf1_type
+                   << ", " << r2.get_proof() << " : " << pf2_type << ")\n";);
+
         expr trans = mk_trans(m_tctx, m_rel, r1.get_proof(), r2.get_proof());
         return simp_result(r2.get_new(), trans);
     }
@@ -490,7 +496,7 @@ simp_result simplifier::rewrite(expr const & e, simp_lemma const & sl) {
             return simp_result(e);
     }
 
-    expr pf = m_tctx.instantiate_mvars(sl.get_proof());
+    expr pf = tmp_tctx.instantiate_mvars(sl.get_proof());
     return simp_result(new_rhs, pf);
 }
 
