@@ -514,7 +514,7 @@ void initialize_tactic_state() {
     DECLARE_VM_BUILTIN(name({"tactic", "get_local"}),           tactic_get_local);
     DECLARE_VM_BUILTIN(name({"tactic", "local_context"}),       tactic_local_context);
     DECLARE_VM_BUILTIN(name({"tactic", "to_expr"}),             tactic_to_expr);
-    DECLARE_VM_BUILTIN(name({"tactic", "defeq_simplify"}),      tactic_defeq_simp);
+    DECLARE_VM_BUILTIN(name({"tactic", "defeq_simp"}),      tactic_defeq_simp);
     DECLARE_VM_BUILTIN(name({"tactic", "simplify"}),            tactic_simp);
     DECLARE_VM_BUILTIN(name({"tactic", "rotate_left"}),         tactic_rotate_left);
     DECLARE_VM_BUILTIN(name({"tactic", "get_goals"}),           tactic_get_goals);

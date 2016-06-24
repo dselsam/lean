@@ -133,7 +133,7 @@ meta_constant is_class      : expr → tactic bool
 meta_constant mk_instance   : expr → tactic expr
 /- Simplify the given expression using [defeq] lemmas.
    The resulting expression is definitionally equal to the input. -/
-meta_constant defeq_simplify    : expr → tactic expr
+meta_constant defeq_simp    : expr → tactic expr
 /- Simplify the given expression using [simp] and [congr] lemmas.
    The result is the simplified expression along with a proof that the new
    expression is equivalent to the old one.
@@ -235,7 +235,7 @@ do { ctx ← local_context,
 <|> fail "assumption tactic failed"
 
 meta_definition dsimp : tactic unit :=
-target >>= defeq_simplify >>= change
+target >>= defeq_simp >>= change
 
 set_option unifier.conservative true
 meta_definition simp : tactic unit :=
