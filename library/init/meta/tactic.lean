@@ -88,6 +88,7 @@ meta_constant unify_core    : expr → expr → transparency → tactic unit
 /- Infer the type of the given expression.
    Remark: transparency does not affect type inference -/
 meta_constant infer_type    : expr → tactic expr
+
 meta_constant get_local     : name → tactic expr
 /- Return the hypothesis in the main goal. Fail if tactic_state does not have any goal left. -/
 meta_constant local_context : tactic (list expr)
@@ -360,5 +361,7 @@ private meta_definition get_arity_aux : expr → tactic nat
 /- Compute the arity of the given function -/
 meta_definition get_arity (fn : expr) : tactic nat :=
 infer_type fn >>= whnf >>= get_arity_aux
+
+meta_definition triv : tactic unit := mk_const "trivial" >>= exact
 
 end tactic
