@@ -365,6 +365,41 @@ vm_obj tactic_to_expr(vm_obj const & qe, vm_obj const & s) {
     return mk_tactic_success(qe, to_tactic_state(s));
 }
 
+vm_obj tactic_defeq_simp(vm_obj const & e, vm_obj const & s0) {
+    tactic_state const & s   = to_tactic_state(s0);
+    try {
+        // TODO(dhs): use type_context_scope for this
+        metavar_context mctx_tmp   = s.mctx();
+        type_context ctx           = mk_type_context_for(s, mctx_tmp);
+        defeq_simp_lemmas lemmas   = get_defeq_simp_lemmas(s.env());
+        expr new_e                 = defeq_simplify(ctx, lemmas, to_expr(e));
+        return mk_tactic_success(to_obj(new_e), s);
+    } catch (exception & e) {
+        return mk_tactic_exception(e, s);
+    }
+}
+
+vm_obj tactic_simp(vm_obj const & e, vm_obj const & s0) {
+    tactic_state const & s   = to_tactic_state(s0);
+    try {
+        // TODO(dhs): use type_context_scope for this
+        metavar_context mctx_tmp   = s.mctx();
+        type_context tctx          = mk_type_context_for(s, mctx_tmp, transparency_mode::Reducible);
+        simp_lemmas lemmas         = get_simp_lemmas(s.env());
+        metavar_decl g             = *s.get_main_goal_decl();
+        expr target                = g.get_type();
+        name rel                   = (is_standard(s.env()) && tctx.is_prop(target)) ? get_iff_name() : get_eq_name();
+        simp_result result         = simplify(tctx, rel, lemmas, to_expr(e));
+        if (result.has_proof()) {
+            return mk_tactic_success(mk_vm_pair(to_obj(result.get_new()), to_obj(result.get_proof())), s);
+        } else {
+            return mk_tactic_exception("simp tactic failed to simplify", s);
+        }
+    } catch (exception & e) {
+        return mk_tactic_exception(e, s);
+    }
+}
+
 vm_obj rotate_left(unsigned n, tactic_state const & s) {
     buffer<expr> gs;
     to_buffer(s.goals(), gs);
