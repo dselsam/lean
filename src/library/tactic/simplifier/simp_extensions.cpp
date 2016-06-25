@@ -106,6 +106,16 @@ format pp_simp_extensions(environment const & env) {
     return fmt;
 }
 
+void get_simp_extensions_for(environment const & env, name const & head, buffer<unsigned> & ext_ids) {
+    simp_ext_state s = simp_ext_ext::get_state(env);
+    if (auto q = s.find(head)) {
+        buffer<simp_ext_record> records;
+        q->for_each([&](simp_ext_record const & r) {
+                ext_ids.push_back(r.m_ext_id);
+            });
+    }
+}
+
 /*
 unsigned get_simp_extension_priority(environment const & env, name const & head, name const & simp_ext_name) {
     if (auto q = simp_ext_ext::get_state(env).find(head)) {

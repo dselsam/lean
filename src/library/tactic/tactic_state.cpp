@@ -391,11 +391,11 @@ vm_obj tactic_simp(vm_obj const & e, vm_obj const & s0) {
     try {
         // TODO(dhs): use type_context_scope for this
         metavar_context mctx_tmp   = s.mctx();
-        type_context tctx           = mk_type_context_for(s, mctx_tmp, transparency_mode::Reducible);
+        type_context tctx          = mk_type_context_for(s, mctx_tmp, transparency_mode::Reducible);
         simp_lemmas lemmas         = get_simp_lemmas(s.env());
-        expr target                = *(s.get_main_goal());
-//        name rel                   = (is_standard(s.env()) && tctx.is_prop(target)) ? get_iff_name() : get_eq_name();
-        name rel                   = get_iff_name();
+        metavar_decl g             = *s.get_main_goal_decl();
+        expr target                = g.get_type();
+        name rel                   = (is_standard(s.env()) && tctx.is_prop(target)) ? get_iff_name() : get_eq_name();
         simp_result result         = simplify(tctx, rel, lemmas, to_expr(e));
         if (result.has_proof()) {
             return mk_tactic_success(mk_vm_pair(to_obj(result.get_new()), to_obj(result.get_proof())), s);
