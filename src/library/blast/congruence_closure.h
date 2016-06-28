@@ -130,6 +130,7 @@ class congruence_closure {
     typedef rb_map<child_key, parent_occ_set, child_key_cmp> parents;
     typedef rb_tree<eq_congr_key, eq_congr_key_cmp>          eq_congruences;
     typedef rb_tree<congr_key, congr_key_cmp>                congruences;
+    // Q(dhs): because this cache is _branch_-specific, we only ever get compatible locals, right?
     typedef rb_map<expr, expr, expr_quick_cmp>               subsingleton_reprs;
     entries            m_entries;
     parents            m_parents;
