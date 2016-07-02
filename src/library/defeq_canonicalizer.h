@@ -29,5 +29,17 @@ namespace lean {
    \remark Suppose we invoke defeq_canonize for every type class instance in a big term T,
    and updated is true in the end. Then, if we reset updated to false and restart the process,
    then eventually updated will be false after a finite number of restarts. */
-expr defeq_canonize(type_context & ctx, expr const & e, bool & updated);
+expr defeq_canonicalize(type_context & ctx, expr const & e, bool & updated);
+
+/* \brief Apply defeq_canonicalize exhaustively to all instance arguments inside of \c e.
+
+   \remark This procedure also canonicalizes all prop arguments if \c canonicalize_proofs is \c true.
+
+   \remark The result is definitionally equal to \c e.
+ */
+expr defeq_canonicalize_exhaustively(type_context & ctx, expr const & e, bool memoize, bool canonicalize_proofs);
+
+void initialize_defeq_exhaustive_canonicalizer();
+void finalize_defeq_exhaustive_canonicalizer();
+
 }
