@@ -40,12 +40,12 @@ namespace lean {
 
 /* Options */
 
-static name * g_simplify_max_simp_rounds     = nullptr;
-static name * g_simplify_max_rewrite_rounds  = nullptr;
-static name * g_simplify_top_down            = nullptr;
-static name * g_simplify_exhaustive          = nullptr;
-static name * g_simplify_memoize             = nullptr;
-static name * g_simplify_canonicalize_proofs     = nullptr;
+static name * g_simplify_max_simp_rounds      = nullptr;
+static name * g_simplify_max_rewrite_rounds   = nullptr;
+static name * g_simplify_top_down             = nullptr;
+static name * g_simplify_exhaustive           = nullptr;
+static name * g_simplify_memoize              = nullptr;
+static name * g_simplify_canonicalize_proofs  = nullptr;
 
 static unsigned get_simplify_max_simp_rounds(options const & o) {
     return o.get_unsigned(*g_simplify_max_simp_rounds, LEAN_DEFAULT_DEFEQ_SIMPLIFY_MAX_SIMP_ROUNDS);
@@ -80,7 +80,7 @@ class defeq_simplify_fn {
     unsigned                 m_num_simp_rounds{0};
     unsigned                 m_num_rewrite_rounds{0};
 
-    bool                     m_need_restart;
+    bool                     m_need_restart{false};
 
     /* Options */
     unsigned                 m_max_simp_rounds;
