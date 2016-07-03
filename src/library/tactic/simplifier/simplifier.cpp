@@ -235,11 +235,14 @@ public:
 
     simp_result operator()(expr const & e)  {
         scope_trace_env scope(env(), m_tctx);
-        m_need_restart = false;
-        simp_result r = simplify(e);
-        if (m_need_restart)
-            r.update(defeq_canonicalize_exhaustively(m_tctx, r.get_new(), m_memoize, m_canonicalize_proofs));
-        return r;
+        simp_result r(e);
+        while (true) {
+            m_need_restart = false;
+            r = join(r, simplify(r.get_new()));
+            if (!m_need_restart)
+                return r;
+            m_cache.clear();
+        }
     }
 };
 
@@ -411,7 +414,7 @@ expr simplifier::canonicalize_args(expr const & e) {
             lean_assert(i < args.size());
             expr new_a;
             if (pinfo.is_inst_implicit() || (m_canonicalize_proofs && pinfo.is_prop())) {
-                new_a = defeq_canonicalize(m_tctx, args[i], m_need_restart);
+                new_a = ::lean::defeq_canonicalize(m_tctx, args[i], m_need_restart);
                 lean_trace(name({"simplifier", "canonicalize"}),
                            tout() << "\n" << args[i] << "\n===>\n" << new_a << "\n";);
                 if (new_a != args[i]) {

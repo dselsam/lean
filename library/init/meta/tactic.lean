@@ -280,6 +280,8 @@ do gs ← get_goals,
    match gs with
    | (g :: rest) := do
      (new_tgt, pf) ← target >>= simplify,
+     trace "new target:",
+     trace new_tgt,
      pf_type ← infer_type pf,
      new_g ← mk_meta_var new_tgt,
      ns ← return $ match expr.is_eq pf_type with
