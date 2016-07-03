@@ -113,20 +113,18 @@ struct defeq_canonicalize_fn {
             insert_C(e, e);
             return e;
         } else if (optional<expr> new_e = find_defeq(*h, e)) {
-            if (locals_subset(e, *new_e)) {
-                if (get_weight(e) < get_weight(*new_e)) {
-                    replace_C(*new_e, e);
-                    replace_M(*h, *new_e, e);
-                    return e;
-                } else {
-                    insert_C(e, *new_e);
-                    return *new_e;
-                }
-            } else {
-                insert_C(e, e);
-                insert_M(*h, e);
+            if (get_weight(e) < get_weight(*new_e) && locals_subset(e, *new_e)) {
+                replace_C(*new_e, e);
+                replace_M(*h, *new_e, e);
                 return e;
+            } else {
+                insert_C(e, *new_e);
+                return *new_e;
             }
+        } else {
+            insert_C(e, e);
+            insert_M(*h, e);
+            return e;
         }
     }
 
