@@ -31,4 +31,7 @@ namespace lean {
    then eventually updated will be false after a finite number of restarts. */
 expr defeq_canonicalize(type_context & ctx, expr const & e, bool & updated);
 
+void initialize_defeq_canonicalizer();
+void finalize_defeq_canonicalizer();
+
 }

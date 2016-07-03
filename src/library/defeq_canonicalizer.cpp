@@ -5,12 +5,32 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Author: Leonardo de Moura
 */
 #include "util/list_fn.h"
+#include "util/sexpr/option_declarations.h"
 #include "kernel/instantiate.h"
 #include "library/locals.h"
 #include "library/type_context.h"
 #include "library/cache_helper.h"
 
+#ifndef LEAN_DEFAULT_DEFEQ_CANONICALIZE_SHRINK_ADD_WEIGHT
+#define LEAN_DEFAULT_DEFEQ_CANONICALIZE_SHRINK_ADD_WEIGHT 2
+#endif
+#ifndef LEAN_DEFAULT_DEFEQ_CANONICALIZE_SHRINK_MUL_WEIGHT
+#define LEAN_DEFAULT_DEFEQ_CANONICALIZE_SHRINK_MUL_WEIGHT 0.8
+#endif
+
 namespace lean {
+
+static name * g_shrink_add_weight     = nullptr;
+static name * g_shrink_mul_weight     = nullptr;
+
+static unsigned get_shrink_add_weight(options const & o) {
+    return o.get_unsigned(*g_shrink_add_weight, LEAN_DEFAULT_DEFEQ_CANONICALIZE_SHRINK_ADD_WEIGHT);
+}
+
+static unsigned get_shrink_mul_weight(options const & o) {
+    return o.get_unsigned(*g_shrink_mul_weight, LEAN_DEFAULT_DEFEQ_CANONICALIZE_SHRINK_MUL_WEIGHT);
+}
+
 struct defeq_canonicalize_cache {
     environment           m_env;
     /* Canonical mapping I -> J (i.e., J is the canonical expression for I).
@@ -39,11 +59,18 @@ struct defeq_canonicalize_fn {
     type_context::transparency_scope m_scope;
     bool &                           m_updated;
 
+    unsigned m_add_weight;
+    double m_mul_weight;
+
     defeq_canonicalize_fn(type_context & ctx, bool & updated):
         m_ctx(ctx),
         m_cache(get_defeq_canonicalize_cache_for(ctx)),
         m_scope(m_ctx, transparency_mode::All),
-        m_updated(updated) {}
+        m_updated(updated),
+
+        m_add_weight(get_shrink_add_weight(ctx.get_options())),
+        m_mul_weight(get_shrink_mul_weight(ctx.get_options()))
+        {}
 
     optional<name> get_head_symbol(expr type) {
         type    = m_ctx.whnf(type);
@@ -113,7 +140,7 @@ struct defeq_canonicalize_fn {
             insert_C(e, e);
             return e;
         } else if (optional<expr> new_e = find_defeq(*h, e)) {
-            if (get_weight(e) < get_weight(*new_e) && locals_subset(e, *new_e)) {
+            if (get_weight(e) + m_add_weight < m_mul_weight * get_weight(*new_e) && locals_subset(e, *new_e)) {
                 replace_C(*new_e, e);
                 replace_M(*h, *new_e, e);
                 insert_C(e, e);
@@ -137,4 +164,21 @@ expr defeq_canonicalize(type_context & ctx, expr const & e, bool & updated) {
         return e; // do nothing if e contains metavariables
     return defeq_canonicalize_fn(ctx, updated)(e);
 }
+
+void initialize_defeq_canonicalizer() {
+
+    g_shrink_add_weight     = new name{"defeq_canonicalize", "shrink_add_weight"};
+    g_shrink_mul_weight     = new name{"defeq_canonicalize", "shrink_mul_weight"};
+
+    register_unsigned_option(*g_shrink_add_weight, LEAN_DEFAULT_DEFEQ_CANONICALIZE_SHRINK_ADD_WEIGHT,
+                             "(defeq_canonicalize) only backwards replace if get_weight(e) + shrink_add_weight < shrink_mul_weight * get_weight(found_e)");
+    register_double_option(*g_shrink_mul_weight, LEAN_DEFAULT_DEFEQ_CANONICALIZE_SHRINK_MUL_WEIGHT,
+                           "(defeq_canonicalize) only backwards replace if get_weight(e) + shrink_add_weight < shrink_mul_weight * get_weight(found_e)");
+}
+
+void finalize_defeq_canonicalizer() {
+    delete g_shrink_mul_weight;
+    delete g_shrink_add_weight;
+}
+
 }
