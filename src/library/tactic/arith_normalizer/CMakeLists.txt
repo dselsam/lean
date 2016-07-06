@@ -1,0 +1,1 @@
+add_library(arith_normalizer OBJECT init_module.cpp shared_arith_normalizer.cpp fast_arith_normalizer.cpp slow_arith_normalizer.cpp)

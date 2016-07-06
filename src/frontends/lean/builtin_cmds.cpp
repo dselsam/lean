@@ -33,6 +33,8 @@ Author: Leonardo de Moura
 #include "library/tactic/defeq_simplifier/defeq_simp_lemmas.h"
 #include "library/tactic/defeq_simplifier/defeq_simplifier.h"
 #include "library/tactic/simplifier/simp_extensions.h"
+#include "library/tactic/arith_normalizer/fast_arith_normalizer.h"
+#include "library/tactic/arith_normalizer/slow_arith_normalizer.h"
 #include "library/vm/vm.h"
 #include "library/vm/vm_string.h"
 #include "library/compiler/vm_compiler.h"
@@ -526,6 +528,18 @@ static environment normalizer_cmd(parser & p) {
     return p.env();
 }
 
+static environment arith_normalize_cmd(parser & p) {
+    environment const & env = p.env();
+    expr e; level_param_names ls;
+    std::tie(e, ls) = parse_local_expr(p);
+    metavar_context mctx;
+    aux_type_context tctx(p.env(), p.get_options(), mctx, p.get_local_context());
+    expr res = fast_arith_normalize(tctx, e);
+    auto out = regular(p.env(), p.ios(), tctx);
+    out << ">> " << e << " ==> " << res << "\n";
+    return p.env();
+}
+
 /*
    Temporary procedure that converts metavariables in \c e to metavar_context metavariables.
    After we convert the frontend to type_context, we will not need to use this procedure.
@@ -709,6 +723,7 @@ void init_cmd_table(cmd_table & r) {
     add_cmd(r, cmd_info("#unify",            "(for debugging purposes)", unify_cmd));
     add_cmd(r, cmd_info("#compile",          "(for debugging purposes)", compile_cmd));
     add_cmd(r, cmd_info("#elab",             "(for debugging purposes)", elab_cmd));
+    add_cmd(r, cmd_info("#arith_normalize",  "(for debugging purposes)", arith_normalize_cmd));
 
     register_decl_cmds(r);
     register_inductive_cmd(r);
