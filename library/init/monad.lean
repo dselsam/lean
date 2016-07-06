@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Luke Nelson and Jared Roesch
 -/
 prelude
-import init.functor init.string init.trace
+import init.functor init.string init.trace init.fail
 
 structure monad [class] (m : Type → Type) extends functor m : Type :=
 (ret  : Π {a:Type}, a → m a)
@@ -24,3 +24,6 @@ do a, b
 infixr ` <*> `:2 := fapp
 infixl ` >>= `:2 := monad.bind
 infixl ` >> `:2  := monad.and_then
+
+inline definition guard {m : Type.{1} → Type} [monad m] [has_fail (m unit)] (P : Prop) [decidable P] : m unit :=
+if P then return unit.star else fail
