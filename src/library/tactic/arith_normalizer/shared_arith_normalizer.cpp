@@ -7,7 +7,24 @@ Author: Daniel Selsam
 
 namespace lean {
 
-void initialize_shared_arith_normalizer() {}
-void finalize_shared_arith_normalizer() {}
+// Options shared by fast and slow arith-normalizers
+
+name * g_arith_normalize_som = nullptr;
+
+bool get_arith_normalize_som(options const & o) {
+    return o.get_bool(*g_arith_normalize_som, LEAN_DEFAULT_ARITH_NORMALIZE_SOM);
+}
+
+
+// Setup and teardown
+
+void initialize_shared_arith_normalizer() {
+    g_arith_normalize_som = new name{"arith_normalize", "som"};
+}
+
+void finalize_shared_arith_normalizer() {
+    delete g_arith_normalize_som;
+}
+
 
 }

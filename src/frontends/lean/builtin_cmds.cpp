@@ -528,7 +528,7 @@ static environment normalizer_cmd(parser & p) {
     return p.env();
 }
 
-static environment arith_normalize_cmd(parser & p) {
+static environment fast_arith_normalize_cmd(parser & p) {
     environment const & env = p.env();
     expr e; level_param_names ls;
     std::tie(e, ls) = parse_local_expr(p);
@@ -537,6 +537,19 @@ static environment arith_normalize_cmd(parser & p) {
     expr res = fast_arith_normalize(tctx, e);
     auto out = regular(p.env(), p.ios(), tctx);
     out << ">> " << e << " ==> " << res << "\n";
+    return p.env();
+}
+
+static environment slow_arith_normalize_cmd(parser & p) {
+    environment const & env = p.env();
+    expr e; level_param_names ls;
+    std::tie(e, ls) = parse_local_expr(p);
+    metavar_context mctx;
+    aux_type_context tctx(p.env(), p.get_options(), mctx, p.get_local_context());
+    simp_result r = slow_arith_normalize(tctx, e);
+    auto out = regular(p.env(), p.ios(), tctx);
+    out << ">> " << e << " ==> " << r.get_new() << "\n";
+    // TODO(dhs): confirm that proof is correct
     return p.env();
 }
 
@@ -723,7 +736,8 @@ void init_cmd_table(cmd_table & r) {
     add_cmd(r, cmd_info("#unify",            "(for debugging purposes)", unify_cmd));
     add_cmd(r, cmd_info("#compile",          "(for debugging purposes)", compile_cmd));
     add_cmd(r, cmd_info("#elab",             "(for debugging purposes)", elab_cmd));
-    add_cmd(r, cmd_info("#arith_normalize",  "(for debugging purposes)", arith_normalize_cmd));
+    add_cmd(r, cmd_info("#fast_arith_normalize", "(for debugging purposes)", fast_arith_normalize_cmd));
+    add_cmd(r, cmd_info("#slow_arith_normalize", "(for debugging purposes)", slow_arith_normalize_cmd));
 
     register_decl_cmds(r);
     register_inductive_cmd(r);
