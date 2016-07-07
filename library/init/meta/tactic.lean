@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Leonardo de Moura
 -/
 prelude
-import init.trace init.function init.option
+import init.trace init.function init.option init.modular
 import init.meta.base_tactic init.meta.environment init.meta.qexpr
 
 meta_constant tactic_state : Type₁

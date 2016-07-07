@@ -105,7 +105,7 @@ mod_def a 0 ⬝ if_neg (not_and_of_not_left (0 ≤ a) (lt.irrefl 0))
 theorem mod_eq_of_lt {a b : ℕ} (h : a < b) : a % b = a :=
 mod_def a b ⬝ if_neg (not_and_of_not_right (0 < b) (not_le_of_gt h))
 
-theorem zero_mod [simp] (b : ℕ) : 0 % b = 0 :=
+theorem zero_mod [simp] (b : ℕ) : (0:ℕ) % b = 0 :=
 mod_def 0 b ⬝ if_neg (λ h, and.rec_on h (λ l r, absurd (lt_of_lt_of_le l r) (lt.irrefl 0)))
 
 theorem mod_eq_sub_mod {a b : ℕ} (h₁ : b > 0) (h₂ : a ≥ b) : a % b = (a - b) % b :=
