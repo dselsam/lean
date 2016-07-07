@@ -3,6 +3,7 @@ Copyright (c) 2016 Microsoft Corporation. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Author: Daniel Selsam
 -/
+import .group
 
 structure has_modular_arith [class] (A : Type) [has_mod A] (n : ℕ) :=
 (eq_modulo : ∀ (a : A), a = (a % n))
@@ -18,3 +19,13 @@ definition bv_has_mod [instance] (n : ℕ) : has_mod (bv n) := has_mod.mk bmod
 
 definition bv_has_modular_arith [instance] (n : ℕ) : has_modular_arith (bv n) (nat_pow 2 n) :=
   has_modular_arith.mk (b_eq_modulo n)
+
+definition bv_has_one [instance] (n : ℕ) : has_one (bv n) := sorry
+definition bv_add_comm_group [instance] (n : ℕ) : add_comm_group (bv n) := sorry
+
+set_option simplify.numerals true
+
+example (n : ℕ) : (0 : bv n) + 12 = 12 := by tactic.simp >> tactic.triv
+example (n : ℕ) : (11 : bv n) + 12 = 23 := by tactic.simp >> tactic.triv
+
+-- TODO(dhs): some examples with modular arithmetic
