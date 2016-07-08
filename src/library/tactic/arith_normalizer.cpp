@@ -61,6 +61,96 @@ static bool get_arith_normalizer_orient_polys(options const & o) {
     return o.get_bool(*g_arith_normalizer_orient_polys, LEAN_DEFAULT_ARITH_NORMALIZER_ORIENT_POLYS);
 }
 
+struct arith_normalizer_options {
+    bool m_distribute_mul, m_fuse_mul, m_normalize_div, m_orient_polys;
+    arith_normalizer_options(options const & o):
+        m_distribute_mul(get_arith_normalizer_distribute_mul(o)),
+        m_fuse_mul(get_arith_normalizer_fuse_mul(o)),
+        m_normalize_div(get_arith_normalizer_normalize_div(o)),
+        m_orient_polys(get_arith_normalizer_orient_polys(o))
+        {}
+
+    bool distribute_mul() const { return m_distribute_mul; }
+    bool fuse_mul() const { return m_fuse_mul; }
+    bool normalize_div() const { return m_normalize_div; }
+    bool orient_polys() const { return m_orient_polys; }
+};
+
+// Fast arith_normalizer
+
+static enum class head_type {
+    EQ, LE, LT, GT, GE,
+    ADD, MUL,
+    SUB, DIV,
+    INT_OF_NAT, RAT_OF_INT, REAL_OF_RAT,
+    OTHER
+        };
+
+static enum class norm_status { DONE, FAILED };
+
+static inline head_type get_head_type(expr const & op) {
+    if (!is_constant(op)) return head_type::OTHER;
+
+    else if (const_name(op) == get_eq_name()) return head_type::EQ;
+
+    else if (const_name(op) == get_le_name()) return head_type::LE;
+    else if (const_name(op) == get_ge_name()) return head_type::GE;
+
+    else if (const_name(op) == get_lt_name()) return head_type::LT;
+    else if (const_name(op) == get_gt_name()) return head_type::GT;
+
+    else if (const_name(op) == get_add_name()) return head_type::ADD;
+    else if (const_name(op) == get_mul_name()) return head_type::MUL;
+
+    else if (const_name(op) == get_sub_name()) return head_type::SUB;
+    else if (const_name(op) == get_div_name()) return head_type::DIV;
+
+    else if (const_name(op) == get_int_of_nat_name()) return head_type::INT_OF_NAT;
+    else if (const_name(op) == get_rat_of_int_name()) return head_type::RAT_OF_INT;
+    else if (const_name(op) == get_real_of_rat_name()) return head_type::REAL_OF_RAT;
+
+    else return head_type::OTHER;
+}
+
+class fast_arith_normalize_fn {
+    type_context            m_tctx;
+    arith_normalize_options m_options;
+
+    optional<expr> fast_normalize_numeral(expr const & e) {
+        // TODO(dhs): PERF
+        // try/catch too slow
+        // also need a norm-num that does not bother producing proofs
+        // also need a quick is_numeral check
+        try {
+            pair<expr, expr> result = mk_norm_num(m_tctx, e);
+            return some_expr(result.first);
+        } catch (exception & e) {
+            return none_expr();
+        }
+    }
+
+    norm_status normalize_app_core(expr const & op, buffer<expr> const & args, expr & result) {
+
+
+
+    }
+
+
+
+    expr normalize_app(expr const & e) {
+        lean_assert(is_app(e));
+        if (auto numeral = fast_normalize_numeral(e)) { return *numeral; }
+
+        expr result = e;
+        buffer<expr> args;
+        expr op = get_app_args(e, args);
+
+        // note: if normalize_app_core fails, it will not overwrite result
+        normalize_app_core(op, args, result);
+        return result;
+    }
+};
+
 
 // Macro for trusting the fast normalizer
 static name * g_arith_normalizer_macro_name    = nullptr;

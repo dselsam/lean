@@ -91,6 +91,7 @@ name const * g_implies = nullptr;
 name const * g_implies_of_if_neg = nullptr;
 name const * g_implies_of_if_pos = nullptr;
 name const * g_implies_resolve = nullptr;
+name const * g_int_of_nat = nullptr;
 name const * g_IO = nullptr;
 name const * g_is_trunc_is_prop = nullptr;
 name const * g_is_trunc_is_prop_elim = nullptr;
@@ -214,6 +215,8 @@ name const * g_quot_mk = nullptr;
 name const * g_quot_lift = nullptr;
 name const * g_rat_divide = nullptr;
 name const * g_rat_of_num = nullptr;
+name const * g_rat_of_int = nullptr;
+name const * g_real_of_rat = nullptr;
 name const * g_rfl = nullptr;
 name const * g_right_distrib = nullptr;
 name const * g_ring = nullptr;
@@ -338,6 +341,7 @@ void initialize_constants() {
     g_implies_of_if_neg = new name{"implies_of_if_neg"};
     g_implies_of_if_pos = new name{"implies_of_if_pos"};
     g_implies_resolve = new name{"implies", "resolve"};
+    g_int_of_nat = new name{"int", "of_nat"};
     g_IO = new name{"IO"};
     g_is_trunc_is_prop = new name{"is_trunc", "is_prop"};
     g_is_trunc_is_prop_elim = new name{"is_trunc", "is_prop", "elim"};
@@ -461,6 +465,8 @@ void initialize_constants() {
     g_quot_lift = new name{"quot", "lift"};
     g_rat_divide = new name{"rat", "divide"};
     g_rat_of_num = new name{"rat", "of_num"};
+    g_rat_of_int = new name{"rat", "of_int"};
+    g_real_of_rat = new name{"real", "of_rat"};
     g_rfl = new name{"rfl"};
     g_right_distrib = new name{"right_distrib"};
     g_ring = new name{"ring"};
@@ -586,6 +592,7 @@ void finalize_constants() {
     delete g_implies_of_if_neg;
     delete g_implies_of_if_pos;
     delete g_implies_resolve;
+    delete g_int_of_nat;
     delete g_IO;
     delete g_is_trunc_is_prop;
     delete g_is_trunc_is_prop_elim;
@@ -709,6 +716,8 @@ void finalize_constants() {
     delete g_quot_lift;
     delete g_rat_divide;
     delete g_rat_of_num;
+    delete g_rat_of_int;
+    delete g_real_of_rat;
     delete g_rfl;
     delete g_right_distrib;
     delete g_ring;
@@ -833,6 +842,7 @@ name const & get_implies_name() { return *g_implies; }
 name const & get_implies_of_if_neg_name() { return *g_implies_of_if_neg; }
 name const & get_implies_of_if_pos_name() { return *g_implies_of_if_pos; }
 name const & get_implies_resolve_name() { return *g_implies_resolve; }
+name const & get_int_of_nat_name() { return *g_int_of_nat; }
 name const & get_IO_name() { return *g_IO; }
 name const & get_is_trunc_is_prop_name() { return *g_is_trunc_is_prop; }
 name const & get_is_trunc_is_prop_elim_name() { return *g_is_trunc_is_prop_elim; }
@@ -956,6 +966,8 @@ name const & get_quot_mk_name() { return *g_quot_mk; }
 name const & get_quot_lift_name() { return *g_quot_lift; }
 name const & get_rat_divide_name() { return *g_rat_divide; }
 name const & get_rat_of_num_name() { return *g_rat_of_num; }
+name const & get_rat_of_int_name() { return *g_rat_of_int; }
+name const & get_real_of_rat_name() { return *g_real_of_rat; }
 name const & get_rfl_name() { return *g_rfl; }
 name const & get_right_distrib_name() { return *g_right_distrib; }
 name const & get_ring_name() { return *g_ring; }
