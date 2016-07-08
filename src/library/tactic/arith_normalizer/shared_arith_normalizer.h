@@ -9,7 +9,7 @@ Author: Daniel Selsam
 namespace lean {
 
 #ifndef LEAN_DEFAULT_ARITH_NORMALIZE_SOM
-#define LEAN_DEFAULT_ARITH_NORMALIZE_SOM 1000
+#define LEAN_DEFAULT_ARITH_NORMALIZE_SOM true
 #endif
 
 bool get_arith_normalize_som(options const & o);

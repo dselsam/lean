@@ -76,6 +76,7 @@ attribute [instance] A_inst
 -- basic AC over multiplication
 example : y * x = x * y := by fast_arith
 example : w * y * x * z = x * y * z * w := by fast_arith
+example : z * w * y * w * x * z = x * y * z * z * w * w:= by fast_arith
 
 set_option arith_normalizer.som true
 

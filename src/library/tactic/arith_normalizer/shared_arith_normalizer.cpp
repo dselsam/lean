@@ -3,6 +3,7 @@ Copyright (c) 2016 Daniel Selsam. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Author: Daniel Selsam
 */
+#include "util/sexpr/option_declarations.h"
 #include "library/tactic/arith_normalizer/shared_arith_normalizer.h"
 
 namespace lean {
@@ -20,6 +21,10 @@ bool get_arith_normalize_som(options const & o) {
 
 void initialize_shared_arith_normalizer() {
     g_arith_normalize_som = new name{"arith_normalize", "som"};
+
+    register_bool_option(*g_arith_normalize_som, LEAN_DEFAULT_ARITH_NORMALIZE_SOM,
+                         "(arith_normalize) put into sum-of-monomials form, i.e. distribute * over +");
+
 }
 
 void finalize_shared_arith_normalizer() {
