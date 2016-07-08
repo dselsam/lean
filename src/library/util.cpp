@@ -810,6 +810,21 @@ expr mk_not(abstract_type_context & ctx, expr const & e) {
     }
 }
 
+bool is_app_binary(expr const & e, name const & n, unsigned num_implicits, expr & arg1, expr & arg2) {
+    if (!is_app_of(e, n, num_implicits + 2))
+        return false;
+
+    arg1 = app_arg(app_fn(e));
+    arg2 = app_arg(e);
+    return true;
+}
+
+bool is_add(expr const & e, expr & arg1, expr & arg2) { return is_app_binary(e, get_add_name(), 2, arg1, arg2); }
+bool is_mul(expr const & e, expr & arg1, expr & arg2) { return is_app_binary(e, get_mul_name(), 2, arg1, arg2); }
+bool is_div(expr const & e, expr & arg1, expr & arg2) { return is_app_binary(e, get_div_name(), 2, arg1, arg2); }
+bool is_sub(expr const & e, expr & arg1, expr & arg2) { return is_app_binary(e, get_sub_name(), 2, arg1, arg2); }
+
+
 expr mk_absurd(abstract_type_context & ctx, expr const & t, expr const & e, expr const & not_e) {
     level t_lvl  = get_level(ctx, t);
     expr  e_type = ctx.infer(e);

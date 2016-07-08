@@ -61,6 +61,8 @@ name const * g_field = nullptr;
 name const * g_fin = nullptr;
 name const * g_fin_mk = nullptr;
 name const * g_funext = nullptr;
+name const * g_ge = nullptr;
+name const * g_gt = nullptr;
 name const * g_has_add = nullptr;
 name const * g_has_div = nullptr;
 name const * g_has_mul = nullptr;
@@ -98,6 +100,7 @@ name const * g_is_trunc_is_prop_elim = nullptr;
 name const * g_is_trunc_is_set = nullptr;
 name const * g_ite = nullptr;
 name const * g_left_distrib = nullptr;
+name const * g_le = nullptr;
 name const * g_le_refl = nullptr;
 name const * g_lift = nullptr;
 name const * g_lift_down = nullptr;
@@ -107,6 +110,7 @@ name const * g_linear_ordered_semiring = nullptr;
 name const * g_list = nullptr;
 name const * g_list_nil = nullptr;
 name const * g_list_cons = nullptr;
+name const * g_lt = nullptr;
 name const * g_monad = nullptr;
 name const * g_monad_map = nullptr;
 name const * g_monad_bind = nullptr;
@@ -311,6 +315,8 @@ void initialize_constants() {
     g_fin = new name{"fin"};
     g_fin_mk = new name{"fin", "mk"};
     g_funext = new name{"funext"};
+    g_ge = new name{"ge"};
+    g_gt = new name{"gt"};
     g_has_add = new name{"has_add"};
     g_has_div = new name{"has_div"};
     g_has_mul = new name{"has_mul"};
@@ -348,6 +354,7 @@ void initialize_constants() {
     g_is_trunc_is_set = new name{"is_trunc", "is_set"};
     g_ite = new name{"ite"};
     g_left_distrib = new name{"left_distrib"};
+    g_le = new name{"le"};
     g_le_refl = new name{"le", "refl"};
     g_lift = new name{"lift"};
     g_lift_down = new name{"lift", "down"};
@@ -357,6 +364,7 @@ void initialize_constants() {
     g_list = new name{"list"};
     g_list_nil = new name{"list", "nil"};
     g_list_cons = new name{"list", "cons"};
+    g_lt = new name{"lt"};
     g_monad = new name{"monad"};
     g_monad_map = new name{"monad", "map"};
     g_monad_bind = new name{"monad", "bind"};
@@ -562,6 +570,8 @@ void finalize_constants() {
     delete g_fin;
     delete g_fin_mk;
     delete g_funext;
+    delete g_ge;
+    delete g_gt;
     delete g_has_add;
     delete g_has_div;
     delete g_has_mul;
@@ -599,6 +609,7 @@ void finalize_constants() {
     delete g_is_trunc_is_set;
     delete g_ite;
     delete g_left_distrib;
+    delete g_le;
     delete g_le_refl;
     delete g_lift;
     delete g_lift_down;
@@ -608,6 +619,7 @@ void finalize_constants() {
     delete g_list;
     delete g_list_nil;
     delete g_list_cons;
+    delete g_lt;
     delete g_monad;
     delete g_monad_map;
     delete g_monad_bind;
@@ -812,6 +824,8 @@ name const & get_field_name() { return *g_field; }
 name const & get_fin_name() { return *g_fin; }
 name const & get_fin_mk_name() { return *g_fin_mk; }
 name const & get_funext_name() { return *g_funext; }
+name const & get_ge_name() { return *g_ge; }
+name const & get_gt_name() { return *g_gt; }
 name const & get_has_add_name() { return *g_has_add; }
 name const & get_has_div_name() { return *g_has_div; }
 name const & get_has_mul_name() { return *g_has_mul; }
@@ -849,6 +863,7 @@ name const & get_is_trunc_is_prop_elim_name() { return *g_is_trunc_is_prop_elim;
 name const & get_is_trunc_is_set_name() { return *g_is_trunc_is_set; }
 name const & get_ite_name() { return *g_ite; }
 name const & get_left_distrib_name() { return *g_left_distrib; }
+name const & get_le_name() { return *g_le; }
 name const & get_le_refl_name() { return *g_le_refl; }
 name const & get_lift_name() { return *g_lift; }
 name const & get_lift_down_name() { return *g_lift_down; }
@@ -858,6 +873,7 @@ name const & get_linear_ordered_semiring_name() { return *g_linear_ordered_semir
 name const & get_list_name() { return *g_list; }
 name const & get_list_nil_name() { return *g_list_nil; }
 name const & get_list_cons_name() { return *g_list_cons; }
+name const & get_lt_name() { return *g_lt; }
 name const & get_monad_name() { return *g_monad; }
 name const & get_monad_map_name() { return *g_monad_map; }
 name const & get_monad_bind_name() { return *g_monad_bind; }

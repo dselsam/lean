@@ -61,9 +61,9 @@ static bool get_arith_normalizer_orient_polys(options const & o) {
     return o.get_bool(*g_arith_normalizer_orient_polys, LEAN_DEFAULT_ARITH_NORMALIZER_ORIENT_POLYS);
 }
 
-struct arith_normalizer_options {
+struct arith_normalize_options {
     bool m_distribute_mul, m_fuse_mul, m_normalize_div, m_orient_polys;
-    arith_normalizer_options(options const & o):
+    arith_normalize_options(options const & o):
         m_distribute_mul(get_arith_normalizer_distribute_mul(o)),
         m_fuse_mul(get_arith_normalizer_fuse_mul(o)),
         m_normalize_div(get_arith_normalizer_normalize_div(o)),
@@ -76,17 +76,125 @@ struct arith_normalizer_options {
     bool orient_polys() const { return m_orient_polys; }
 };
 
+
+// Helpers
+
+static void get_flattened_nary_summands(expr const & e, buffer<expr> & args) {
+    expr arg1, arg2;
+    if (is_add(e, arg1, arg2)) {
+        get_flattened_nary_summands(arg1, args);
+        get_flattened_nary_summands(arg2, args);
+    } else {
+        args.push_back(e);
+    }
+}
+
+static bool is_numeral_expr(expr const & e) {
+    buffer<expr> args;
+    expr f = get_app_args(e, args);
+    // TODO(dhs): we will throw an exception later if a denominator is ever zero
+    if (!is_constant(f)) {
+        return false;
+    } else if (const_name(f) == get_add_name()
+               || const_name(f) == get_mul_name()
+               || const_name(f) == get_div_name()
+               || const_name(f) == get_sub_name()) {
+        return args.size() == 4 && is_numeral_expr(args[2]) && is_numeral_expr(args[3]);
+    } else if (const_name(f) == get_neg_name()) {
+        return args.size() == 3 && is_numeral_expr(args[2]);
+    } else if (is_num(e)) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+static mpq numeral_expr_to_mpq(expr const & e) {
+    lean_assert(is_numeral_expr(e));
+    buffer<expr> args;
+    expr f = get_app_args(e, args);
+    if (!is_constant(f)) {
+        throw exception("cannot convert application of non-constant to mpq");
+    } else if (const_name(f) == get_add_name() && args.size() == 4) {
+        return numeral_expr_to_mpq(args[2]) + numeral_expr_to_mpq(args[3]);
+    } else if (const_name(f) == get_mul_name() && args.size() == 4) {
+        return numeral_expr_to_mpq(args[2]) * numeral_expr_to_mpq(args[3]);
+    } else if (const_name(f) == get_sub_name() && args.size() == 4) {
+        return numeral_expr_to_mpq(args[2]) - numeral_expr_to_mpq(args[3]);
+    } else if (const_name(f) == get_div_name() && args.size() == 4) {
+        mpq num = numeral_expr_to_mpq(args[2]), den = numeral_expr_to_mpq(args[3]);
+        if (den.is_zero())
+            throw exception("cannot convert application to mpq: division by 0");
+        if (!den.is_zero())
+            return num / den;
+        else
+
+    } else if (const_name(f) == get_neg_name() && args.size() == 3) {
+        return neg(numeral_expr_to_mpq(args[2]));
+    } else {
+        auto v = to_mpq(e);
+        if (v) {
+            return *v;
+        } else {
+            throw exception("expression in numeral_expr_to_mpq is malfomed");
+        }
+    }
+}
+
+static mpq numeral_expr_to_mpq(expr const & e) {
+    lean_assert(is_numeral_expr(e));
+    buffer<expr, 4> args;
+    expr f = get_app_args(e, args);
+    if (!is_constant(f)) {
+        return false;
+    } else if (const_name(f) == get_add_name() && args.size() == 4) {
+        return
+        if (!is_numeral_expr(args[2], num) || !is_numeral_expr(args[3], rhs))
+            return false;
+        num += rhs;
+    } else if (const_name(f) == get_mul_name() && args.size() == 4) {
+        if (!is_numeral_expr(args[2], num) || !is_numeral_expr(args[3], rhs))
+            return false;
+        num += rhs;
+    } else if (const_name(f) == get_sub_name() && args.size() == 4) {
+        if (!is_numeral_expr(args[2], num) || !is_numeral_expr(args[3], rhs))
+            return false;
+        num += rhs;
+    } else if (const_name(f) == get_div_name() && args.size() == 4) {
+        if (!is_numeral_expr(args[2], num) || !is_numeral_expr(args[3], rhs) || rhs.is_zero())
+            return false;
+        num /= rhs;
+    } else if (const_name(f) == get_neg_name() && args.size() == 3) {
+        if (!is_numeral_expr(args[2], num))
+            return false;
+        num.neg();
+
+        return neg(mpq_of_expr(args[2]));
+    } else {
+        if (auto v = to_num(e))
+            num =
+        if (v) {
+            return *v;
+        } else {
+            throw exception("expression in mpq_of_expr is malfomed");
+        }
+    }
+}
+
 // Fast arith_normalizer
 
-static enum class head_type {
-    EQ, LE, LT, GT, GE,
+enum class head_type {
+    EQ, LE, GE,
+    // TODO(dhs): LT, GT
     ADD, MUL,
     SUB, DIV,
     INT_OF_NAT, RAT_OF_INT, REAL_OF_RAT,
     OTHER
         };
 
-static enum class norm_status { DONE, FAILED };
+enum rel_kind { EQ, LE, GE };
+
+enum class norm_status { DONE, FAILED };
 
 static inline head_type get_head_type(expr const & op) {
     if (!is_constant(op)) return head_type::OTHER;
@@ -116,7 +224,7 @@ class fast_arith_normalize_fn {
     type_context            m_tctx;
     arith_normalize_options m_options;
 
-    optional<expr> fast_normalize_numeral(expr const & e) {
+    optional<expr> fast_normalize_numeral_expr(expr const & e) {
         // TODO(dhs): PERF
         // try/catch too slow
         // also need a norm-num that does not bother producing proofs
@@ -135,9 +243,6 @@ class fast_arith_normalize_fn {
         case head_type::EQ:
 
         case head_type::LE:
-        case head_type::LT:
-
-        case head_type::GT:
         case head_type::GE:
 
         case head_type::ADD:
@@ -151,22 +256,79 @@ class fast_arith_normalize_fn {
         case head_type::REAL_OF_RAT:
 
         case head_type::OTHER:
+            break;
         }
         return norm_status::FAILED;
     }
 
     expr normalize_app(expr const & e) {
         lean_assert(is_app(e));
-        if (auto numeral = fast_normalize_numeral(e)) { return *numeral; }
+        if (auto num = fast_normalize_numeral_expr(e)) { return *num; }
 
         expr result = e;
         buffer<expr> args;
         expr op = get_app_args(e, args);
 
-        // note: if normalize_app_core fails, it will not overwrite result
         normalize_app_core(op, args, result);
         return result;
     }
+
+    norm_status fuse_and_cancel_monomials(expr const & lhs, expr const & rhs, expr & new_lhs, expr & new_rhs) {
+        buffer<expr> lhs_summands;
+        buffer<expr> rhs_summands;
+        get_flattened_nary_summands(lhs, lhs_summands);
+        get_flattened_nary_summands(lhs, rhs_summands);
+
+        mpq coeff;
+        for (expr const & m : lhs_summands) {
+            if (auto num = mpq_of_expr(m_tctx, m)) {
+                coeff += num;
+            }
+
+        }
+
+    }
+
+    norm_status normalize_rel_core(expr const & lhs, expr const & rhs, expr & result) {
+        expr new_lhs, new_rhs;
+        norm_status st = fuse_and_cancel_monomials(lhs, rhs, new_lhs, new_rhs);
+
+        // TODO(dhs): if both sides are numerals, then reduce to true or false
+        // TODO(dhs): bounds
+        // TODO(dhs): gcd stuff
+        return st;
+    }
+
+
+
+
+    }
+
+    expr normalize_rel(expr const & e, rel_type rt) {
+        expr result = e;
+        buffer<expr> args;
+        expr op = get_app_args(e, args);
+
+        normalize_rel_core(op, args, result);
+        return result;
+    }
+
+    expr normalize_eq(expr const & e) {
+        lean_assert(is_eq(e));
+        return normalize_rel(e, rel_type::EQ);
+    }
+
+    expr normalize_le(expr const & e) {
+        lean_assert(is_le(e));
+        return normalize_rel(e, rel_type::LE);
+    }
+
+    expr normalize_ge(expr const & e) {
+        lean_assert(is_ge(e));
+        return normalize_rel(e, rel_type::GE);
+    }
+
+
 };
 
 

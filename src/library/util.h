@@ -221,6 +221,11 @@ bool is_not(environment const & env, expr const & e, expr & a);
 bool is_not(environment const & env, expr const & e);
 expr mk_not(abstract_type_context & ctx, expr const & e);
 
+bool is_add(expr const & e, expr & arg1, expr & arg2);
+bool is_mul(expr const & e, expr & arg1, expr & arg2);
+bool is_sub(expr const & e, expr & arg1, expr & arg2);
+bool is_div(expr const & e, expr & arg1, expr & arg2);
+
 /** \brief Create the term <tt>absurd e not_e : t</tt>. */
 expr mk_absurd(abstract_type_context & ctx, expr const & t, expr const & e, expr const & not_e);
 

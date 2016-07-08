@@ -56,6 +56,8 @@ field
 fin
 fin.mk
 funext
+ge
+gt
 has_add
 has_div
 has_mul
@@ -93,6 +95,7 @@ is_trunc.is_prop.elim
 is_trunc.is_set
 ite
 left_distrib
+le
 le.refl
 lift
 lift.down
@@ -102,6 +105,7 @@ linear_ordered_semiring
 list
 list.nil
 list.cons
+lt
 monad
 monad.map
 monad.bind
