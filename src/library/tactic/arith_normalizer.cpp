@@ -130,12 +130,30 @@ class fast_arith_normalize_fn {
     }
 
     norm_status normalize_app_core(expr const & op, buffer<expr> const & args, expr & result) {
+        // TODO(dhs): implement
+        switch (get_head_type(op)) {
+        case head_type::EQ:
 
+        case head_type::LE:
+        case head_type::LT:
 
+        case head_type::GT:
+        case head_type::GE:
 
+        case head_type::ADD:
+        case head_type::MUL:
+
+        case head_type::SUB:
+        case head_type::DIV:
+
+        case head_type::INT_OF_NAT:
+        case head_type::RAT_OF_INT:
+        case head_type::REAL_OF_RAT:
+
+        case head_type::OTHER:
+        }
+        return norm_status::FAILED;
     }
-
-
 
     expr normalize_app(expr const & e) {
         lean_assert(is_app(e));
