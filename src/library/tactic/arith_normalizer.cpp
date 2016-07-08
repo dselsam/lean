@@ -44,6 +44,7 @@ static name * g_arith_normalizer_distribute_mul = nullptr;
 static name * g_arith_normalizer_fuse_mul       = nullptr;
 static name * g_arith_normalizer_normalize_div  = nullptr;
 static name * g_arith_normalizer_orient_polys   = nullptr;
+static name * g_arith_normalizer_sort_monomials = nullptr;
 
 static bool get_arith_normalizer_distribute_mul(options const & o) {
     return o.get_bool(*g_arith_normalizer_distribute_mul, LEAN_DEFAULT_ARITH_NORMALIZER_DISTRIBUTE_MUL);
@@ -61,19 +62,25 @@ static bool get_arith_normalizer_orient_polys(options const & o) {
     return o.get_bool(*g_arith_normalizer_orient_polys, LEAN_DEFAULT_ARITH_NORMALIZER_ORIENT_POLYS);
 }
 
+static bool get_arith_normalizer_sort_monomials(options const & o) {
+    return o.get_bool(*g_arith_normalizer_sort_monomials, LEAN_DEFAULT_ARITH_NORMALIZER_SORT_MONOMIALS);
+}
+
 struct arith_normalize_options {
-    bool m_distribute_mul, m_fuse_mul, m_normalize_div, m_orient_polys;
+    bool m_distribute_mul, m_fuse_mul, m_normalize_div, m_orient_polys, m_sort_monomials;
     arith_normalize_options(options const & o):
         m_distribute_mul(get_arith_normalizer_distribute_mul(o)),
         m_fuse_mul(get_arith_normalizer_fuse_mul(o)),
         m_normalize_div(get_arith_normalizer_normalize_div(o)),
-        m_orient_polys(get_arith_normalizer_orient_polys(o))
+        m_orient_polys(get_arith_normalizer_orient_polys(o)),
+        m_sort_monomials(get_arith_normalizer_sort_monomials(o))
         {}
 
     bool distribute_mul() const { return m_distribute_mul; }
     bool fuse_mul() const { return m_fuse_mul; }
     bool normalize_div() const { return m_normalize_div; }
     bool orient_polys() const { return m_orient_polys; }
+    bool sort_monomials() const { return m_sort_monomials; }
 };
 
 
@@ -124,6 +131,11 @@ static bool is_numeral_expr(expr const & e, mpq & num) {
         return false;
     }
     return true;
+}
+
+static bool is_numeral_expr(expr const & e) {
+    mpq num;
+    return is_numeral_expr(e, num);
 }
 
 // Fast arith_normalizer
@@ -218,44 +230,106 @@ class fast_arith_normalize_fn {
         return result;
     }
 
-    norm_status fuse_and_cancel_monomials(expr const & lhs, expr const & rhs, expr & new_lhs, expr & new_rhs) {
-        buffer<expr> lhs_summands;
-        buffer<expr> rhs_summands;
-        get_flattened_nary_summands(lhs, lhs_summands);
-        get_flattened_nary_summands(lhs, rhs_summands);
+    // Assumes that both sides are in normal form already
+    norm_status cancel_monomials(expr const & lhs, expr const & rhs, expr & new_lhs, expr & new_rhs) {
+        buffer<expr> lhs_monomials;
+        buffer<expr> rhs_monomials;
+        get_flattened_nary_summands(lhs, lhs_monomials);
+        get_flattened_nary_summands(lhs, rhs_monomials);
 
-        // TODO(dhs): expr_struct_set?
-        expr_set visited_power_products;
-        expr_set multi_visited_power_products;
-        bool some_pp_multi_visited = false;
+        // Pass 1: collect numerals, determine which power products appear on both sides
+        // TODO(dhs): expr_set?
+        expr_struct_set lhs_power_products;
+        expr_struct_set shared_power_products;
 
         mpq coeff;
         mpq num;
         unsigned num_coeff = 0;
-        for (expr const & arg : lhs_summands) {
-            expr monomial = fast_normalize(arg);
+
+        for (expr const & monomial : lhs_monomials) {
             if (is_numeral_expr(monomial, num)) {
                 coeff += num;
                 num_coeff++;
             } else {
                 expr power_product = get_power_product(monomial);
-                visited_monomials.insert(power_product);
+                lhs_power_products.insert(power_product);
             }
         }
 
-        for (expr const & arg : rhs_summands) {
-            expr monomial = fast_normalize(arg);
+        for (expr const & monomial : rhs_monomials) {
             if (is_numeral_expr(monomial, num)) {
                 coeff -= num;
                 num_coeffs++;
             } else {
                 expr power_product = get_power_product(monomial);
-                if (visited_power_products.contains(power_product)) {
-                    multi_visited_power_products.insert(power_product);
-                    some_pp_multi_visited = true;
+                if (lhs_power_products.contains(power_product)) {
+                    shared_power_products.insert(power_product);
                 }
             }
         }
+
+        // TODO(dhs): may fail here
+
+        // Pass 2: collect coefficients for power products that appear on both sides
+        expr_struct_map<numeral> power_product_to_coeff;
+
+        for (expr const & monomial : lhs_monomials) {
+            if (is_numeral_expr(monomial))
+                continue;
+            expr power_product = get_power_product(monomial, num);
+            if (!shared_power_products.contains(power_product))
+                continue;
+            power_product_to_coeff[power_product] += num;
+        }
+
+        for (expr const & monomial : rhs_monomials) {
+            if (is_numeral_expr(monomial))
+                continue;
+            expr power_product = get_power_product(monomial, num);
+            if (!shared_power_products.contains(power_product))
+                continue;
+            power_product_to_coeff[power_product] -= num;
+        }
+
+
+        // Pass 3: collect new monomials for both sides
+        buffer<expr> new_lhs_monomials;
+        for (expr const & monomial : lhs_monomials) {
+            if (is_numeral_expr(monomial))
+                continue;
+            expr power_product = get_power_product(monomial, num);
+            if (!shared_power_products.contains(power_product)) {
+                new_lhs_monomials.push_back(monomial);
+            } else {
+                mpq coeff = power_product_to_coeff.at(power_product);
+                if (!coeff.is_zero())
+                    new_lhs_monomials.push_back(mk_monomial(coeff, power_product));
+            }
+        }
+
+        buffer<expr> new_rhs_monomials;
+        for (expr const & monomial : lhs_monomials) {
+            if (is_numeral_expr(monomial))
+                continue;
+            expr power_product = get_power_product(monomial, num);
+            if (!shared_power_products.contains(power_product)) {
+                if (m_options.orient_polys()) {
+                    if (!num.is_zero()) {
+                        if (num == -1) {
+                            new_lhs_monomials.push_back(power_product);
+                        } else {
+                            new_lhs_monomials.push_back(mk_monomial(neg(num), power_product));
+                        }
+                    }
+                } else {
+                    new_rhs_monomials.push_back(monomial);
+                }
+            }
+        }
+
+
+
+
 
 
 
@@ -405,6 +479,7 @@ void initialize_arith_normalizer() {
     g_arith_normalizer_fuse_mul           = new name{"arith_normalizer", "fuse_mul"};
     g_arith_normalizer_normalize_div      = new name{"arith_normalizer", "normalize_div"};
     g_arith_normalizer_orient_polys       = new name{"arith_normalizer", "orient_polys"};
+    g_arith_normalizer_sort_monomials     = new name{"arith_normalizer", "sort_monomials"};
 
     // Register options
     register_bool_option(*g_arith_normalizer_distribute_mul, LEAN_DEFAULT_ARITH_NORMALIZER_DISTRIBUTE_MUL,
@@ -415,6 +490,8 @@ void initialize_arith_normalizer() {
                          "(arith_normalizer) (x / z) * y ==> (x * y) / z");
     register_bool_option(*g_arith_normalizer_orient_polys, LEAN_DEFAULT_ARITH_NORMALIZER_ORIENT_POLYS,
                          "(arith_normalizer) x + y + z = w + 2 ==> x + y + z - w = 2");
+    register_bool_option(*g_arith_normalizer_sort_monomials, LEAN_DEFAULT_ARITH_NORMALIZER_SORT_MONOMIALS,
+                         "(arith_normalizer) z + y + x = z + v + u ==> x + y = u + v");
 
 
     // Declare tactics
