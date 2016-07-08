@@ -36,6 +36,9 @@ Author: Daniel Selsam
 #ifndef LEAN_DEFAULT_ARITH_NORMALIZER_ORIENT_POLYS
 #define LEAN_DEFAULT_ARITH_NORMALIZER_ORIENT_POLYS false
 #endif
+#ifndef LEAN_DEFAULT_ARITH_NORMALIZER_SORT_MONOMIALS
+#define LEAN_DEFAULT_ARITH_NORMALIZER_SORT_MONOMIALS false
+#endif
 
 namespace lean {
 
@@ -491,8 +494,7 @@ void initialize_arith_normalizer() {
     register_bool_option(*g_arith_normalizer_orient_polys, LEAN_DEFAULT_ARITH_NORMALIZER_ORIENT_POLYS,
                          "(arith_normalizer) x + y + z = w + 2 ==> x + y + z - w = 2");
     register_bool_option(*g_arith_normalizer_sort_monomials, LEAN_DEFAULT_ARITH_NORMALIZER_SORT_MONOMIALS,
-                         "(arith_normalizer) z + y + x = z + v + u ==> x + y = u + v");
-
+                         "(arith_normalizer) y + x = v + u ==> x + y = u + v");
 
     // Declare tactics
     DECLARE_VM_BUILTIN(name({"tactic", "arith_normalize"}), tactic_arith_normalize);
@@ -509,6 +511,13 @@ void initialize_arith_normalizer() {
 
 }
 void finalize_arith_normalizer() {
+    // Delete names for options
+    delete g_arith_normalizer_sort_monomials;
+    delete g_arith_normalizer_orient_polys;
+    delete g_arith_normalizer_normalize_div;
+    delete g_arith_normalizer_fuse_mul;
+    delete g_arith_normalizer_distribute_mul;
+
     // Delete names for macro
     delete g_arith_normalizer_macro_name;
     delete g_arith_normalizer_opcode;
