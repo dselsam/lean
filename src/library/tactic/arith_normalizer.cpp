@@ -8,6 +8,7 @@ Author: Daniel Selsam
 #include "util/sexpr/option_declarations.h"
 #include "kernel/abstract.h"
 #include "kernel/expr_maps.h"
+#include "kernel/expr_sets.h"
 #include "kernel/instantiate.h"
 #include "library/trace.h"
 #include "library/constants.h"
@@ -91,6 +92,7 @@ struct arith_normalize_options {
 
 static void get_flattened_nary_summands(expr const & e, buffer<expr> & args) {
     // TODO(dhs): do I process subtraction here?
+    // (currently this is called after normalization, so that subtraction is pushed into the coefficient)
     expr arg1, arg2;
     if (is_add(e, arg1, arg2)) {
         get_flattened_nary_summands(arg1, args);
@@ -100,7 +102,7 @@ static void get_flattened_nary_summands(expr const & e, buffer<expr> & args) {
     }
 }
 
-static expr mk_nary_app(expr const & fn, buffer<expr> & args) {
+static expr mk_nary_app(expr const & fn, buffer<expr> const & args) {
     lean_assert(!args.empty());
     expr e = args.back();
     for (int i = args.size() - 1; i >= 0; --i) {
@@ -111,8 +113,8 @@ static expr mk_nary_app(expr const & fn, buffer<expr> & args) {
 
 static bool is_numeral_expr(expr const & e, mpq & num) {
     lean_assert(is_numeral_expr(e));
-    buffer<expr, 4> args;
-    expr f = get_app_args(e, args)/
+    buffer<expr> args;
+    expr f = get_app_args(e, args);
     if (!is_constant(f))
         return false;
 
@@ -150,6 +152,48 @@ static bool is_numeral_expr(expr const & e) {
     return is_numeral_expr(e, num);
 }
 
+// TODO(dhs): these two might not be what I want where I currently call it
+static bool is_normalized_numeral_core(expr const & e, bool in_neg) {
+    if (is_num(e)) return true;
+    expr arg, arg1, arg2;
+    if (auto arg = is_neg(e)) {
+        if (in_neg)
+            return false;
+        else
+            return is_normalized_numeral_core(*arg, true);
+    } else if (is_div(e, arg1, arg2)) {
+        return is_num(arg1) && is_num(arg2);
+    } else if (is_mul(e, arg1, arg2)) {
+        return is_num(arg1) && is_num(arg2);
+    } else {
+        return false;
+    }
+}
+
+static bool is_normalized_numeral(expr const & e) { return is_normalized_numeral_core(e, false); }
+
+static expr get_power_product(expr const & monomial) {
+    expr lhs, rhs;
+    if (is_mul(monomial, lhs, rhs) && is_normalized_numeral(lhs))
+        return rhs;
+    else
+        return monomial;
+}
+
+static expr get_power_product(expr const & monomial, mpq & num) {
+    expr lhs, rhs;
+    if (is_mul(monomial, lhs, rhs) && is_numeral_expr(lhs, num)) {
+        return rhs;
+    } else {
+        num = 1;
+        return monomial;
+    }
+}
+
+static expr app_arg2(expr const & e) {
+    return app_arg(app_fn(e));
+}
+
 // Fast arith_normalizer
 
 enum class head_type {
@@ -170,19 +214,21 @@ enum class norm_status { DONE, FAILED };
 struct partial_apps {
     expr m_type;
     expr m_zero, m_one;
-    expr m_add_fn, m_mul_fn, m_div_fn, m_sub_fn, m_neg_fn;
+    expr m_add, m_mul, m_div, m_sub, m_neg;
 
+    partial_apps() {} // just for convenience
     partial_apps(expr const & type): m_type(type) { }
 
     // TODO(dhs): synthesize the first time, and then cache
     // URGENT
-    void get_zero(expr const & zero_fn) { return m_zero_fn; }
-    void get_one(expr const & one_fn) { return m_one_fn; }
-    void get_add_fn(expr const & add_fn) { return m_add_fn; }
-    void get_mul_fn(expr const & mul_fn) { return m_mul_fn; }
-    void get_div_fn(expr const & div_fn) { return m_div_fn; }
-    void get_sub_fn(expr const & sub_fn) { return m_sub_fn; }
-    void get_neg_fn(expr const & neg_fn) { return m_neg_fn; }
+    expr get_type() const { return m_type; }
+    expr get_zero() { return m_zero; }
+    expr get_one() { return m_one; }
+    expr get_add() { return m_add; }
+    expr get_mul() { return m_mul; }
+    expr get_div() { return m_div; }
+    expr get_sub() { return m_sub; }
+    expr get_neg() { return m_neg; }
 
 };
 
@@ -193,9 +239,6 @@ static inline head_type get_head_type(expr const & op) {
 
     else if (const_name(op) == get_le_name()) return head_type::LE;
     else if (const_name(op) == get_ge_name()) return head_type::GE;
-
-    else if (const_name(op) == get_lt_name()) return head_type::LT;
-    else if (const_name(op) == get_gt_name()) return head_type::GT;
 
     else if (const_name(op) == get_add_name()) return head_type::ADD;
     else if (const_name(op) == get_mul_name()) return head_type::MUL;
@@ -217,12 +260,14 @@ class fast_arith_normalize_fn {
     partial_apps            m_partial_apps;
 
 public:
-    fast_arith_normalize_fn(type_context & tctx): m_tctx(tctx), m_norm_num(tctx) {}
+    fast_arith_normalize_fn(type_context & tctx): m_tctx(tctx), m_options(tctx.get_options()), m_norm_num(tctx) {}
 
 private:
+    expr get_current_type() const { return m_partial_apps.get_type(); }
+
     expr mk_monomial(mpq const & coeff, expr const & power_product) {
-        expr c = m_norm_num.from_mpq(coeff);
-        return mk_mul(c, power_product);
+        expr c = m_norm_num.from_mpq(coeff, get_current_type());
+        return mk_app(m_partial_apps.get_mul(), c, power_product);
     }
 
     expr mk_polynomial(mpq const & coeff, buffer<expr> const & monomials) {
@@ -230,19 +275,22 @@ private:
         if (monomials.empty())
             return c;
 
-        expr add_fn = m_partial_apps.get_add_fn();
-        return mk_app(add_fn, c, mk_nary_app(add_fn, monomials));
+        expr add = m_partial_apps.get_add();
+        return mk_app(add, c, mk_nary_app(add, monomials));
     }
 
     expr mk_polynomial(buffer<expr> const & monomials) {
         if (monomials.empty())
             return m_partial_apps.get_zero();
 
-        expr add_fn = m_partial_apps.get_add_fn();
-        return mk_app(add_fn, c, mk_nary_app(add_fn, monomials));
+        expr add = m_partial_apps.get_add();
+        return mk_nary_app(add, monomials);
     }
 
-
+    expr normalize(expr const & e) {
+        // TODO(dhs): normalize! here or elsewhere?
+        return e;
+    }
 
 
     optional<expr> fast_normalize_numeral_expr(expr const & e) {
@@ -308,12 +356,12 @@ private:
 
         mpq coeff;
         mpq num;
-        unsigned num_coeff = 0;
+        unsigned num_coeffs = 0;
 
         for (expr const & monomial : lhs_monomials) {
             if (is_numeral_expr(monomial, num)) {
                 coeff += num;
-                num_coeff++;
+                num_coeffs++;
             } else {
                 expr power_product = get_power_product(monomial);
                 lhs_power_products.insert(power_product);
@@ -326,7 +374,7 @@ private:
                 num_coeffs++;
             } else {
                 expr power_product = get_power_product(monomial);
-                if (lhs_power_products.contains(power_product)) {
+                if (lhs_power_products.count(power_product)) {
                     shared_power_products.insert(power_product);
                 }
             }
@@ -335,13 +383,13 @@ private:
         // TODO(dhs): may fail here
 
         // Pass 2: collect coefficients for power products that appear on both sides
-        expr_struct_map<numeral> power_product_to_coeff;
+        expr_struct_map<mpq> power_product_to_coeff;
 
         for (expr const & monomial : lhs_monomials) {
             if (is_numeral_expr(monomial))
                 continue;
             expr power_product = get_power_product(monomial, num);
-            if (!shared_power_products.contains(power_product))
+            if (!shared_power_products.count(power_product))
                 continue;
             power_product_to_coeff[power_product] += num;
         }
@@ -350,7 +398,7 @@ private:
             if (is_numeral_expr(monomial))
                 continue;
             expr power_product = get_power_product(monomial, num);
-            if (!shared_power_products.contains(power_product))
+            if (!shared_power_products.count(power_product))
                 continue;
             power_product_to_coeff[power_product] -= num;
         }
@@ -362,7 +410,7 @@ private:
             if (is_numeral_expr(monomial))
                 continue;
             expr power_product = get_power_product(monomial, num);
-            if (!shared_power_products.contains(power_product)) {
+            if (!shared_power_products.count(power_product)) {
                 new_lhs_monomials.push_back(monomial);
             } else {
                 mpq coeff = power_product_to_coeff.at(power_product);
@@ -376,7 +424,7 @@ private:
             if (is_numeral_expr(monomial))
                 continue;
             expr power_product = get_power_product(monomial, num);
-            if (!shared_power_products.contains(power_product)) {
+            if (!shared_power_products.count(power_product)) {
                 if (m_options.orient_polys()) {
                     if (!num.is_zero()) {
                         if (num == -1) {
@@ -398,7 +446,7 @@ private:
         return norm_status::DONE;
     }
 
-    norm_status normalize_rel_core(expr const & _lhs, expr const & _rhs, expr & result) {
+    norm_status normalize_rel_core(expr const & _lhs, expr const & _rhs, rel_kind rk, expr & result) {
         expr lhs = normalize(_lhs);
         expr rhs = normalize(_rhs);
         expr new_lhs, new_rhs;
@@ -411,33 +459,25 @@ private:
         return st;
     }
 
-
-
-
-    }
-
-    expr normalize_rel(expr const & e, rel_type rt) {
+    expr normalize_rel(expr const & e, rel_kind rk) {
         expr result = e;
-        buffer<expr> args;
-        expr op = get_app_args(e, args);
-
-        normalize_rel_core(op, args, result);
+        normalize_rel_core(app_arg2(e), app_arg(e), rk, result);
         return result;
     }
 
     expr normalize_eq(expr const & e) {
         lean_assert(is_eq(e));
-        return normalize_rel(e, rel_type::EQ);
+        return normalize_rel(e, rel_kind::EQ);
     }
 
     expr normalize_le(expr const & e) {
         lean_assert(is_le(e));
-        return normalize_rel(e, rel_type::LE);
+        return normalize_rel(e, rel_kind::LE);
     }
 
     expr normalize_ge(expr const & e) {
         lean_assert(is_ge(e));
-        return normalize_rel(e, rel_type::GE);
+        return normalize_rel(e, rel_kind::GE);
     }
 
 
