@@ -42,14 +42,17 @@ problem1ToZ3 :: Problem1 -> String
 problem1ToZ3 (Problem1 numVars lhs rhs) = z3Vars numVars ++ assertNotEqZ3 lhs rhs ++ "(check-sat)"
 
 
-leanHeader = "import algebra.ring\nset_option unifier.conservative true\nset_option unifier.max_steps 1000000\nnamespace tactic\nmeta_constant arith_normalize : expr → tactic (prod expr expr)\nmeta_definition arith : tactic unit := do (new_target, Heq) ← target >>= arith_normalize, assert \"Htarget\" new_target, reflexivity, Ht ← get_local \"Htarget\", mk_app (\"eq\" <.> \"mpr\") [Heq, Ht] >>= exact\nend tactic\nopen tactic\nconstants (X : Type.{1}) (X_inst : comm_ring X)\nattribute X_inst [instance]\n"
+leanHeader = "import algebra.ring\nset_option unifier.conservative true\nset_option unifier.max_steps 1000000\nnamespace tactic\nmeta_constant arith_normalize : expr → tactic (prod expr expr)\nmeta_definition arith : tactic unit := do (new_target, Heq) ← target >>= arith_normalize, assert \"Htarget\" new_target, reflexivity, Ht ← get_local \"Htarget\", mk_app (\"eq\" <.> \"mpr\") [Heq, Ht] >>= exact\nend tactic\nopen tactic\nconstants (X : Type.{1}) (X_inst : comm_ring X) (X_add : has_add X) (X_mul : has_mul X)\nattribute X_inst [instance]\n"
 
 leanVars n = "constants (" ++ concatMap (\i -> mkVar i ++ " ") [1..n] ++ " : X)\n"
 
 exampleEqLean :: Polynomial -> Polynomial -> String
 exampleEqLean lhs rhs = "example : " ++ polyToLean lhs ++ " = " ++ polyToLean rhs ++ " := by arith"
 
-polyToLean ms = drop 3 $ foldl (\sf m -> sf ++ " + " ++ m) "" (map (\(c, v) -> show c ++ " * " ++ mkVar v) ms)
+polyToLean ms = let mons = map (\(c, v) -> "(@mul X X_mul " ++ show c ++ " " ++ mkVar v ++ ")") ms
+                    mkAdd mon soFar = "(@add X X_add " ++ mon ++ " " ++ soFar ++ ")"
+                in
+                  foldr mkAdd (last mons) (init mons)
 
 problem1ToLean :: Problem1 -> String
 problem1ToLean (Problem1 numVars lhs rhs) =
