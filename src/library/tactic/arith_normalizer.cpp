@@ -5,6 +5,7 @@ Author: Daniel Selsam
 */
 #include <functional>
 #include "util/optional.h"
+#include "util/interrupt.h"
 #include "util/sexpr/option_declarations.h"
 #include "kernel/abstract.h"
 #include "kernel/expr_maps.h"
@@ -262,7 +263,14 @@ class fast_arith_normalize_fn {
 public:
     fast_arith_normalize_fn(type_context & tctx): m_tctx(tctx), m_options(tctx.get_options()), m_norm_num(tctx) {}
 
+    expr operator()(expr const & e) {
+        scope_trace_env scope(env(), m_tctx);
+        return fast_normalize(e);
+    }
+
 private:
+    environment env() const { return m_tctx.env(); }
+
     expr get_current_type() const { return m_partial_apps.get_type(); }
 
     expr mk_monomial(mpq const & coeff, expr const & power_product) {
@@ -287,11 +295,14 @@ private:
         return mk_nary_app(add, monomials);
     }
 
-    expr normalize(expr const & e) {
+    expr fast_normalize(expr const & e) {
+        check_system("arith_normalizer");
+        lean_trace_inc_depth(name({"arith_normalizer", "fast"}));
+        lean_trace_d(name({"arith_normalizer", "fast"}), tout() << e << "\n";);
+
         // TODO(dhs): normalize! here or elsewhere?
         return e;
     }
-
 
     optional<expr> fast_normalize_numeral_expr(expr const & e) {
         // TODO(dhs): PERF
@@ -306,7 +317,7 @@ private:
         }
     }
 
-    norm_status normalize_app_core(expr const & op, buffer<expr> const & args, expr & result) {
+    norm_status fast_normalize_app_core(expr const & op, buffer<expr> const & args, expr & result) {
         // TODO(dhs): implement
         switch (get_head_type(op)) {
         case head_type::EQ:
@@ -330,7 +341,7 @@ private:
         return norm_status::FAILED;
     }
 
-    expr normalize_app(expr const & e) {
+    expr fast_normalize_app(expr const & e) {
         lean_assert(is_app(e));
         if (auto num = fast_normalize_numeral_expr(e)) { return *num; }
 
@@ -338,12 +349,12 @@ private:
         buffer<expr> args;
         expr op = get_app_args(e, args);
 
-        normalize_app_core(op, args, result);
+        fast_normalize_app_core(op, args, result);
         return result;
     }
 
     // Assumes that both sides are in normal form already
-    norm_status cancel_monomials(expr const & lhs, expr const & rhs, expr & new_lhs, expr & new_rhs) {
+    norm_status fast_cancel_monomials(expr const & lhs, expr const & rhs, expr & new_lhs, expr & new_rhs) {
         buffer<expr> lhs_monomials;
         buffer<expr> rhs_monomials;
         get_flattened_nary_summands(lhs, lhs_monomials);
@@ -446,11 +457,11 @@ private:
         return norm_status::DONE;
     }
 
-    norm_status normalize_rel_core(expr const & _lhs, expr const & _rhs, rel_kind rk, expr & result) {
-        expr lhs = normalize(_lhs);
-        expr rhs = normalize(_rhs);
+    norm_status fast_normalize_rel_core(expr const & _lhs, expr const & _rhs, rel_kind rk, expr & result) {
+        expr lhs = fast_normalize(_lhs);
+        expr rhs = fast_normalize(_rhs);
         expr new_lhs, new_rhs;
-        norm_status st = cancel_monomials(lhs, rhs, new_lhs, new_rhs);
+        norm_status st = fast_cancel_monomials(lhs, rhs, new_lhs, new_rhs);
 
         // TODO(dhs): if both sides are numerals, then reduce to true or false
         // TODO(dhs): bounds
@@ -459,25 +470,25 @@ private:
         return st;
     }
 
-    expr normalize_rel(expr const & e, rel_kind rk) {
+    expr fast_normalize_rel(expr const & e, rel_kind rk) {
         expr result = e;
-        normalize_rel_core(app_arg2(e), app_arg(e), rk, result);
+        fast_normalize_rel_core(app_arg2(e), app_arg(e), rk, result);
         return result;
     }
 
-    expr normalize_eq(expr const & e) {
+    expr fast_normalize_eq(expr const & e) {
         lean_assert(is_eq(e));
-        return normalize_rel(e, rel_kind::EQ);
+        return fast_normalize_rel(e, rel_kind::EQ);
     }
 
-    expr normalize_le(expr const & e) {
+    expr fast_normalize_le(expr const & e) {
         lean_assert(is_le(e));
-        return normalize_rel(e, rel_kind::LE);
+        return fast_normalize_rel(e, rel_kind::LE);
     }
 
-    expr normalize_ge(expr const & e) {
+    expr fast_normalize_ge(expr const & e) {
         lean_assert(is_ge(e));
-        return normalize_rel(e, rel_kind::GE);
+        return fast_normalize_rel(e, rel_kind::GE);
     }
 
 
@@ -542,7 +553,7 @@ static expr mk_arith_normalizer_macro(expr const & thm) {
 
 // Entry points
 expr fast_arith_normalize(type_context & tctx, expr const & lhs) {
-    return lhs;
+    return fast_arith_normalize_fn(tctx)(lhs);
 }
 
 simp_result arith_normalize(type_context & tctx, expr const & lhs) {
@@ -573,6 +584,13 @@ vm_obj tactic_arith_normalize(vm_obj const & e, vm_obj const & s0) {
 // Setup and teardown
 
 void initialize_arith_normalizer() {
+    // Tracing
+    register_trace_class("arith_normalizer");
+    register_trace_class(name({"arith_normalizer", "fast"}));
+    register_trace_class(name({"arith_normalizer", "slow"}));
+
+    register_trace_class(name({"arith_normalizer", "fast", "cancel_monomials"}));
+
     // Options names
     g_arith_normalizer_distribute_mul     = new name{"arith_normalizer", "distribute_mul"};
     g_arith_normalizer_fuse_mul           = new name{"arith_normalizer", "fuse_mul"};
