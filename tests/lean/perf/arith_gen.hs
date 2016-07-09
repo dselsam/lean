@@ -15,12 +15,12 @@ data Problem1 = Problem1 {
      rhs :: Polynomial
 }
 
-genProblem1 :: Int -> Int -> Problem1
-genProblem1 numVars numRepeats =
+genProblem1 :: Int -> Int -> Int -> Problem1
+genProblem1 numVars numRepeats scale =
     -- (x_1 + .. + x_numVars) + ... = numRepeats * x_1 + ... numRepeats * x_numVars
     let vars = [1..numVars]
-        lhs = concat $ replicate numRepeats (map (\var -> (1::Int, var)) vars)
-        rhs = map (\var -> (numRepeats, var)) vars
+        lhs = concat $ replicate numRepeats (map (\var -> (scale, var)) vars)
+        rhs = map (\var -> (numRepeats * scale, var)) vars
     in
       Problem1 numVars lhs rhs
 
@@ -60,7 +60,7 @@ instance Problem Problem1 where
     toLean = problem1ToLean
 
 main = do
-  [numVars, numRepeats] <- getArgs
-  let p1 = genProblem1 (read numVars) (read numRepeats)
+  [numVars, numRepeats, scale] <- getArgs
+  let p1 = genProblem1 (read numVars) (read numRepeats) (read scale)
   writeFile "arith1.smt2" $ toZ3 p1
   writeFile "arith1.lean" $ toLean p1
