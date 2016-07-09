@@ -159,6 +159,12 @@ static bool is_normalized_numeral_core(expr const & e, bool in_neg) {
 }
 
 static bool is_normalized_numeral(expr const & e) { return is_normalized_numeral_core(e, false); }
+static bool is_normalized_numeral(expr const & e, mpq & q) {
+    if (!is_normalized_numeral(e))
+        return false;
+    lean_verify(is_numeral_expr(e, q));
+    return true;
+}
 
 static expr get_power_product(expr const & monomial) {
     expr lhs, rhs;
@@ -170,7 +176,7 @@ static expr get_power_product(expr const & monomial) {
 
 static expr get_power_product(expr const & monomial, mpq & num) {
     expr lhs, rhs;
-    if (is_mul(monomial, lhs, rhs) && is_numeral_expr(lhs, num)) {
+    if (is_mul(monomial, lhs, rhs) && is_normalized_numeral(lhs, num)) {
         return rhs;
     } else {
         num = 1;
@@ -509,7 +515,7 @@ private:
 
         for (expr const & monomial : monomials) {
             // TODO(dhs): I think we will be able to assume that numerals are already in normal form
-            if (is_numeral_expr(monomial, num)) {
+            if (is_normalized_numeral(monomial, num)) {
                 coeff += num;
                 num_coeffs++;
             } else {
@@ -528,7 +534,7 @@ private:
         if (repeated_power_products.empty()) {
             // Only numerals may need to be fused
             for (expr const & monomial : monomials) {
-                if (!is_numeral_expr(monomial)) {
+                if (!is_normalized_numeral(monomial)) {
                     new_monomials.push_back(monomial);
                 }
             }
@@ -538,7 +544,7 @@ private:
             expr_struct_map<mpq> power_product_to_coeff;
 
             for (expr const & monomial : monomials) {
-                if (is_numeral_expr(monomial))
+                if (is_normalized_numeral(monomial))
                     continue;
                 expr power_product = get_power_product(monomial, num);
                 if (!repeated_power_products.count(power_product))
@@ -549,7 +555,7 @@ private:
             power_products.clear();
 
             for (expr const & monomial : monomials) {
-                if (is_numeral_expr(monomial))
+                if (is_normalized_numeral(monomial))
                     continue;
                 expr power_product = get_power_product(monomial, num);
                 if (!repeated_power_products.count(power_product)) {
@@ -584,7 +590,7 @@ private:
         unsigned num_coeffs = 0;
 
         for (expr const & monomial : lhs_monomials) {
-            if (is_numeral_expr(monomial, num)) {
+            if (is_normalized_numeral(monomial, num)) {
                 coeff += num;
                 num_coeffs++;
             } else {
@@ -594,7 +600,7 @@ private:
         }
 
         for (expr const & monomial : rhs_monomials) {
-            if (is_numeral_expr(monomial, num)) {
+            if (is_normalized_numeral(monomial, num)) {
                 coeff -= num;
                 num_coeffs++;
             } else {
@@ -611,7 +617,7 @@ private:
         expr_struct_map<mpq> power_product_to_coeff;
 
         for (expr const & monomial : lhs_monomials) {
-            if (is_numeral_expr(monomial))
+            if (is_normalized_numeral(monomial))
                 continue;
             expr power_product = get_power_product(monomial, num);
             if (!shared_power_products.count(power_product))
@@ -620,7 +626,7 @@ private:
         }
 
         for (expr const & monomial : rhs_monomials) {
-            if (is_numeral_expr(monomial))
+            if (is_normalized_numeral(monomial))
                 continue;
             expr power_product = get_power_product(monomial, num);
             if (!shared_power_products.count(power_product))
@@ -632,7 +638,7 @@ private:
         // Pass 3: collect new monomials for both sides
         buffer<expr> new_lhs_monomials;
         for (expr const & monomial : lhs_monomials) {
-            if (is_numeral_expr(monomial))
+            if (is_normalized_numeral(monomial))
                 continue;
             expr power_product = get_power_product(monomial, num);
             if (!shared_power_products.count(power_product)) {
@@ -646,7 +652,7 @@ private:
 
         buffer<expr> new_rhs_monomials;
         for (expr const & monomial : rhs_monomials) {
-            if (is_numeral_expr(monomial))
+            if (is_normalized_numeral(monomial))
                 continue;
             expr power_product = get_power_product(monomial, num);
             if (!shared_power_products.count(power_product)) {
