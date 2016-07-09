@@ -10,9 +10,9 @@ type Monomial = (Int, Int)
 type Polynomial = [Monomial]
 
 data Problem1 = Problem1 {
-     numVars :: Int,
-     lhs :: Polynomial,
-     rhs :: Polynomial
+     numVars1 :: Int,
+     lhs1 :: Polynomial,
+     rhs1 :: Polynomial
 }
 
 genProblem1 :: Int -> Int -> Int -> Problem1
@@ -49,7 +49,7 @@ leanVars n = "constants (" ++ concatMap (\i -> mkVar i ++ " ") [1..n] ++ " : X)\
 exampleEqLean :: Polynomial -> Polynomial -> String
 exampleEqLean lhs rhs = "example : " ++ polyToLean lhs ++ " = " ++ polyToLean rhs ++ " := by arith"
 
-polyToLean ms = let mons = map (\(c, v) -> "(@mul X X_mul " ++ show c ++ " " ++ mkVar v ++ ")") ms
+polyToLean ms = let mons = map (\(c, v) -> "(@mul X X_mul (" ++ show c ++ ") " ++ mkVar v ++ ")") ms
                     mkAdd mon soFar = "(@add X X_add " ++ mon ++ " " ++ soFar ++ ")"
                 in
                   foldr mkAdd (last mons) (init mons)
@@ -62,8 +62,37 @@ instance Problem Problem1 where
     toZ3 = problem1ToZ3
     toLean = problem1ToLean
 
+-- RHS = 0
+data Problem2 = Problem2 {
+     numVars2 :: Int,
+     lhs2 :: Polynomial
+}
+
+problem2ToLean :: Problem2 -> String
+problem2ToLean (Problem2 numVars lhs) = leanHeader ++ leanVars numVars ++ "example : " ++ polyToLean lhs ++ " = 0 := by arith"
+
+genProblem2 :: Int -> Int -> Int -> Problem2
+genProblem2 numVars numRepeats scale =
+    -- (x_1 + .. + x_numVars) + ... +  (- numRepeats) * x_1 + ... + (- numRepeats) * x_numVars
+    let vars = [1..numVars]
+        lhs = concat $ replicate numRepeats (map (\var -> (scale, var)) vars)
+        rhs = map (\var -> (- numRepeats * scale, var)) vars
+    in
+      Problem2 numVars (lhs ++ rhs)
+
+problem2ToZ3 :: Problem2 -> String
+problem2ToZ3 (Problem2 numVars lhs) = z3Vars numVars ++ "(assert (not (= " ++ polyToZ3 lhs ++ " 0)))\n" ++ "(check-sat)"
+
+instance Problem Problem2 where
+    toZ3 = problem2ToZ3
+    toLean = problem2ToLean
+
 main = do
   [numVars, numRepeats, scale] <- getArgs
   let p1 = genProblem1 (read numVars) (read numRepeats) (read scale)
   writeFile "arith1.smt2" $ toZ3 p1
   writeFile "arith1.lean" $ toLean p1
+
+  let p2 = genProblem2 (read numVars) (read numRepeats) (read scale)
+  writeFile "arith2.smt2" $ toZ3 p2
+  writeFile "arith2.lean" $ toLean p2

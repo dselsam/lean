@@ -220,47 +220,69 @@ struct partial_apps {
         m_level = get_level(m_tctx, type);
     }
 
+    bool init(expr const & e) { return e != expr(); }
+
     // TODO(dhs): PERF synthesize the first time, and then cache
     expr get_type() const { return m_type; }
 
     expr get_zero() {
-        expr inst_type = mk_app(mk_constant(get_has_zero_name(), {m_level}), m_type);
-        if (auto inst = m_tctx.mk_class_instance(inst_type)) {
-            return mk_app(mk_constant(get_zero_name(), {m_level}), m_type, *inst);
+        if (init(m_zero)) {
+            return m_zero;
         } else {
-            throw exception(sstream() << "cannot synthesize [has_zero " << m_type << "]\n");
+            expr inst_type = mk_app(mk_constant(get_has_zero_name(), {m_level}), m_type);
+            if (auto inst = m_tctx.mk_class_instance(inst_type)) {
+                m_zero = mk_app(mk_constant(get_zero_name(), {m_level}), m_type, *inst);
+                return m_zero;
+            } else {
+                throw exception(sstream() << "cannot synthesize [has_zero " << m_type << "]\n");
+            }
         }
     }
 
     expr get_one() {
-        expr inst_type = mk_app(mk_constant(get_has_one_name(), {m_level}), m_type);
-        if (auto inst = m_tctx.mk_class_instance(inst_type)) {
-            return mk_app(mk_constant(get_one_name(), {m_level}), m_type, *inst);
+        if (init(m_one)) {
+            return m_one;
         } else {
-            throw exception(sstream() << "cannot synthesize [has_one " << m_type << "]\n");
+            expr inst_type = mk_app(mk_constant(get_has_one_name(), {m_level}), m_type);
+            if (auto inst = m_tctx.mk_class_instance(inst_type)) {
+                m_one = mk_app(mk_constant(get_one_name(), {m_level}), m_type, *inst);
+                return m_one;
+            } else {
+                throw exception(sstream() << "cannot synthesize [has_one " << m_type << "]\n");
+            }
         }
     }
 
     expr get_bit0() {
-        expr inst_type = mk_app(mk_constant(get_has_add_name(), {m_level}), m_type);
-        if (auto inst = m_tctx.mk_class_instance(inst_type)) {
-            return mk_app(mk_constant(get_bit0_name(), {m_level}), m_type, *inst);
+        if (init(m_bit0)) {
+            return m_bit0;
         } else {
-            throw exception(sstream() << "cannot synthesize [has_add " << m_type << "]\n");
+            expr inst_type = mk_app(mk_constant(get_has_add_name(), {m_level}), m_type);
+            if (auto inst = m_tctx.mk_class_instance(inst_type)) {
+                m_bit0 = mk_app(mk_constant(get_bit0_name(), {m_level}), m_type, *inst);
+                return m_bit0;
+            } else {
+                throw exception(sstream() << "cannot synthesize [has_add " << m_type << "]\n");
+            }
         }
     }
 
     expr get_bit1() {
-        expr inst_type1 = mk_app(mk_constant(get_has_one_name(), {m_level}), m_type);
-        if (auto inst1 = m_tctx.mk_class_instance(inst_type1)) {
-            expr inst_type2 = mk_app(mk_constant(get_has_add_name(), {m_level}), m_type);
-            if (auto inst2 = m_tctx.mk_class_instance(inst_type2)) {
-                return mk_app(mk_constant(get_bit1_name(), {m_level}), m_type, *inst1, *inst2);
-            } else {
-                throw exception(sstream() << "cannot synthesize [has_add " << m_type << "]\n");
-            }
+        if (init(m_bit1)) {
+            return m_bit1;
         } else {
-            throw exception(sstream() << "cannot synthesize [has_one " << m_type << "]\n");
+            expr inst_type1 = mk_app(mk_constant(get_has_one_name(), {m_level}), m_type);
+            if (auto inst1 = m_tctx.mk_class_instance(inst_type1)) {
+                expr inst_type2 = mk_app(mk_constant(get_has_add_name(), {m_level}), m_type);
+                if (auto inst2 = m_tctx.mk_class_instance(inst_type2)) {
+                    m_bit1 = mk_app(mk_constant(get_bit1_name(), {m_level}), m_type, *inst1, *inst2);
+                    return m_bit1;
+                } else {
+                    throw exception(sstream() << "cannot synthesize [has_add " << m_type << "]\n");
+                }
+            } else {
+                throw exception(sstream() << "cannot synthesize [has_one " << m_type << "]\n");
+            }
         }
     }
 
