@@ -498,8 +498,6 @@ private:
     }
 
     expr fast_normalize_add(expr const & e) {
-        lean_trace_d(name({"arith_normalizer", "fast", "normalize_add"}), tout() << e << "\n";);
-
         buffer<expr> monomials;
         fast_get_flattened_nary_summands(e, monomials);
         expr_struct_set power_products;
@@ -571,7 +569,6 @@ private:
 
     // Assumes that both sides are in normal form already
     norm_status fast_cancel_monomials(expr const & lhs, expr const & rhs, expr & new_lhs, expr & new_rhs) {
-        lean_trace_d(name({"arith_normalizer", "fast", "cancel_monomials"}), tout() << lhs << " <> " << rhs << "\n";);
         buffer<expr> lhs_monomials;
         buffer<expr> rhs_monomials;
         fast_get_flattened_nary_summands(lhs, lhs_monomials);
@@ -667,7 +664,6 @@ private:
             }
         }
 
-        // decide which side to put the coefficient on
         bool coeff_on_rhs = m_options.orient_polys() || new_rhs_monomials.empty() || !new_lhs_monomials.empty();
         if (coeff_on_rhs) {
             new_lhs = mk_polynomial(new_lhs_monomials);
