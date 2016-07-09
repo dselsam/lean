@@ -648,7 +648,7 @@ private:
         }
 
         buffer<expr> new_rhs_monomials;
-        for (expr const & monomial : lhs_monomials) {
+        for (expr const & monomial : rhs_monomials) {
             if (is_numeral_expr(monomial))
                 continue;
             expr power_product = get_power_product(monomial, num);
@@ -667,9 +667,15 @@ private:
             }
         }
 
-        // TODO(dhs): do we need more sophistication in deciding which side to put the coefficient on?
-        new_lhs = mk_polynomial(new_lhs_monomials);
-        new_rhs = mk_polynomial(neg(coeff), new_rhs_monomials);
+        // decide which side to put the coefficient on
+        bool coeff_on_rhs = m_options.orient_polys() || new_rhs_monomials.empty() || !new_lhs_monomials.empty();
+        if (coeff_on_rhs) {
+            new_lhs = mk_polynomial(new_lhs_monomials);
+            new_rhs = mk_polynomial(neg(coeff), new_rhs_monomials);
+        } else {
+            new_lhs = mk_polynomial(coeff, new_lhs_monomials);
+            new_rhs = mk_polynomial(new_rhs_monomials);
+        }
 
         lean_trace_d(name({"arith_normalizer", "fast", "cancel_monomials"}), tout() << lhs << " <> " << rhs << " ==> " << new_lhs << " <> " << new_rhs << "\n";);
         return norm_status::DONE;
