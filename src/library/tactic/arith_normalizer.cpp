@@ -91,18 +91,6 @@ struct arith_normalize_options {
 
 // Helpers
 
-static void get_flattened_nary_summands(expr const & e, buffer<expr> & args) {
-    // TODO(dhs): do I process subtraction here?
-    // (currently this is called after normalization, so that subtraction is pushed into the coefficient)
-    expr arg1, arg2;
-    if (is_add(e, arg1, arg2)) {
-        get_flattened_nary_summands(arg1, args);
-        get_flattened_nary_summands(arg2, args);
-    } else {
-        args.push_back(e);
-    }
-}
-
 static expr mk_nary_app(expr const & fn, buffer<expr> const & args) {
     lean_assert(!args.empty());
     expr e = args.back();
@@ -352,11 +340,14 @@ private:
     expr mk_polynomial(mpq const & coeff, buffer<expr> const & monomials) {
         lean_trace(name({"arith_normalizer", "fast", "cancel_monomials"}), tout() << "current type: " << get_current_type() << "\n";);
         expr c = m_norm_num.from_mpq(coeff, get_current_type());
-        if (monomials.empty())
+        if (monomials.empty()) {
             return c;
-
-        expr add = m_partial_apps_ptr->get_add();
-        return mk_app(add, c, mk_nary_app(add, monomials));
+        } else if (coeff.is_zero()) {
+            return mk_polynomial(monomials);
+        } else {
+            expr add = m_partial_apps_ptr->get_add();
+            return mk_app(add, c, mk_nary_app(add, monomials));
+        }
     }
 
     expr mk_polynomial(buffer<expr> const & monomials) {
@@ -384,7 +375,7 @@ private:
         case head_type::LE: return fast_normalize_rel(args[num_args-2], args[num_args-1], rel_kind::LE);
         case head_type::GE: return fast_normalize_rel(args[num_args-2], args[num_args-1], rel_kind::GE);
 
-        case head_type::ADD:
+        case head_type::ADD: return fast_normalize_add(e);
         case head_type::MUL:
 
         case head_type::SUB:
@@ -400,6 +391,98 @@ private:
         // TODO(dhs): this will be unreachable eventually
         return e;
     }
+
+    void get_flattened_nary_summands(expr const & e, buffer<expr> & args) {
+        // TODO(dhs): do I process subtraction here?
+        // (currently this is called after normalization, so that subtraction is pushed into the coefficient)
+        expr arg1, arg2;
+        if (is_add(e, arg1, arg2)) {
+            get_flattened_nary_summands(arg1, args);
+            get_flattened_nary_summands(arg2, args);
+        } else {
+            // This is needed because normalizing may expose additional [add] applications
+            // e.g. [a - b] ==> [a + (-1) * b], [a * (b + c)] ==> (a * b) + (a * c)
+            // Note: do we want fast_normalize WITHOUT fuse, since we are about to fuse?
+            expr e_n = fast_normalize(e);
+            if (is_add(e_n, arg1, arg2)) {
+                get_flattened_nary_summands(arg1, args);
+                get_flattened_nary_summands(arg2, args);
+            } else {
+                args.push_back(e_n);
+            }
+        }
+    }
+
+    expr fast_normalize_add(expr const & _e) {
+        buffer<expr> monomials;
+        get_flattened_nary_summands(e, monomials);
+        expr_struct_set power_products;
+        expr_struct_set repeated_power_products;
+
+        mpq coeff;
+        mpq num;
+        unsigned num_coeffs = 0;
+
+        for (expr const & monomial : monomials) {
+            // TODO(dhs): I think we will be able to assume that numerals are already in normal form
+            if (is_numeral_expr(monomial, num)) {
+                coeff += num;
+                num_coeffs++;
+            } else {
+                expr power_product = get_power_product(monomial);
+                if (power_products.count(power_product)) {
+                    repeated_power_products.insert(power_product);
+                } else {
+                    power_products.insert(power_product);
+                }
+            }
+        }
+
+        if (repeated_power_products.empty()) {
+            // Only numerals may need to be fused
+            buffer<expr> new_monomials;
+            for (expr const & monomial : monomials) {
+                if (!is_numeral_expr(monomial)) {
+                    new_monomials.push_back(monomial);
+                }
+            }
+
+            return mk_polynomial(coeff, new_monomials);
+        } else {
+            lean_assert(!repeated_power_products.empty());
+            expr_struct_map<mpq> power_product_to_coeff;
+
+            for (expr const & monomial : monomials) {
+                if (is_numeral_expr(monomial))
+                    continue;
+                expr power_product = get_power_product(monomial, num);
+                if (!shared_power_products.count(power_product))
+                    continue;
+                power_product_to_coeff[power_product] += num;
+            }
+
+            buffer<expr> new_monomials;
+            power_products.clear();
+
+            for (expr const & monomial : monomials) {
+                if (is_numeral_expr(monomial))
+                    continue;
+                expr power_product = get_power_product(monomial, num);
+                if (!shared_power_products.count(power_product)) {
+                    new_monomials.push_back(monomial);
+                } else if (!power_products.count(power_product)) {
+                    power_products.insert(power_product);
+                    mpq c = power_product_to_coeff.at(power_product);
+                    if (!c.is_zero())
+                        new_monomials.push_back(mk_monomial(c, power_product));
+                }
+            }
+            return mk_polynomial(coeff, new_monomials);
+        }
+
+    }
+
+
 
 
     optional<expr> fast_normalize_numeral_expr(expr const & e) {
@@ -479,7 +562,6 @@ private:
         }
 
         lean_trace(name({"arith_normalizer", "fast", "cancel_monomials"}), tout() << "pass 2 complete\n";);
-
 
         // Pass 3: collect new monomials for both sides
         buffer<expr> new_lhs_monomials;
