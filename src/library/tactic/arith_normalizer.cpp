@@ -94,14 +94,13 @@ struct arith_normalize_options {
 static expr mk_nary_app(expr const & fn, buffer<expr> const & args) {
     lean_assert(!args.empty());
     expr e = args.back();
-    for (int i = args.size() - 1; i >= 0; --i) {
+    for (int i = args.size() - 2; i >= 0; --i) {
         e = mk_app(fn, args[i], e);
     }
     return e;
 }
 
 static bool is_numeral_expr(expr const & e, mpq & num) {
-    lean_assert(is_numeral_expr(e));
     buffer<expr> args;
     expr f = get_app_args(e, args);
     if (!is_constant(f))
@@ -199,7 +198,7 @@ enum rel_kind { EQ, LE, GE };
 enum class norm_status { DONE, FAILED };
 
 // Partial application cache
-// We will use flets to track the current type being normalized
+// The current plan is to use flets to track the current type being normalized
 struct partial_apps {
     type_context m_tctx;
 
@@ -207,6 +206,7 @@ struct partial_apps {
     level m_level;
 
     expr m_zero, m_one;
+    expr m_bit0, m_bit1;
     expr m_add, m_mul, m_div, m_sub, m_neg;
     expr m_eq, m_le, m_ge;
 
@@ -214,8 +214,7 @@ struct partial_apps {
         m_level = get_level(m_tctx, type);
     }
 
-    // TODO(dhs): synthesize the first time, and then cache
-    // URGENT
+    // TODO(dhs): PERF synthesize the first time, and then cache
     expr get_type() const { return m_type; }
 
     expr get_zero() {
@@ -231,6 +230,29 @@ struct partial_apps {
         expr inst_type = mk_app(mk_constant(get_has_one_name(), {m_level}), m_type);
         if (auto inst = m_tctx.mk_class_instance(inst_type)) {
             return mk_app(mk_constant(get_one_name(), {m_level}), m_type, *inst);
+        } else {
+            throw exception(sstream() << "cannot synthesize [has_one " << m_type << "]\n");
+        }
+    }
+
+    expr get_bit0() {
+        expr inst_type = mk_app(mk_constant(get_has_add_name(), {m_level}), m_type);
+        if (auto inst = m_tctx.mk_class_instance(inst_type)) {
+            return mk_app(mk_constant(get_bit0_name(), {m_level}), m_type, *inst);
+        } else {
+            throw exception(sstream() << "cannot synthesize [has_add " << m_type << "]\n");
+        }
+    }
+
+    expr get_bit1() {
+        expr inst_type1 = mk_app(mk_constant(get_has_one_name(), {m_level}), m_type);
+        if (auto inst1 = m_tctx.mk_class_instance(inst_type1)) {
+            expr inst_type2 = mk_app(mk_constant(get_has_add_name(), {m_level}), m_type);
+            if (auto inst2 = m_tctx.mk_class_instance(inst_type2)) {
+                return mk_app(mk_constant(get_bit1_name(), {m_level}), m_type, *inst1, *inst2);
+            } else {
+                throw exception(sstream() << "cannot synthesize [has_add " << m_type << "]\n");
+            }
         } else {
             throw exception(sstream() << "cannot synthesize [has_one " << m_type << "]\n");
         }
@@ -272,10 +294,66 @@ struct partial_apps {
         }
     }
 
+    expr get_neg() {
+        expr inst_type = mk_app(mk_constant(get_has_neg_name(), {m_level}), m_type);
+        if (auto inst = m_tctx.mk_class_instance(inst_type)) {
+            return mk_app(mk_constant(get_neg_name(), {m_level}), m_type, *inst);
+        } else {
+            throw exception(sstream() << "cannot synthesize [has_neg " << m_type << "]\n");
+        }
+    }
+
     expr get_eq() { return mk_app(mk_constant(get_eq_name(), {m_level}), m_type); }
     expr get_le() { return mk_app(mk_constant(get_le_name(), {m_level}), m_type); }
     expr get_ge() { return mk_app(mk_constant(get_ge_name(), {m_level}), m_type); }
 
+};
+
+// TODO(dhs): take a fast_arith_normalizer reference instead?
+struct num2expr {
+    partial_apps * m_partial_apps_ptr;
+
+    void set_partial_apps(partial_apps * papps_ptr) {
+        m_partial_apps_ptr = papps_ptr;
+    }
+
+    expr mpq_to_expr(mpq const & q) {
+        mpz numer = q.get_numerator();
+        if (numer.is_zero())
+            return m_partial_apps_ptr->get_zero();
+
+        mpz denom = q.get_denominator();
+        lean_assert(denom > 0);
+
+        bool flip_sign = false;
+        if (numer.is_neg()) {
+            numer.neg();
+            flip_sign = true;
+        }
+
+        expr e;
+        if (denom == 1) {
+            e = pos_mpz_to_expr(numer);
+        } else {
+            e = mk_app(m_partial_apps_ptr->get_div(), pos_mpz_to_expr(numer), pos_mpz_to_expr(denom));
+        }
+
+        if (flip_sign) {
+            return mk_app(m_partial_apps_ptr->get_neg(), e);
+        } else {
+            return e;
+        }
+    }
+
+    expr pos_mpz_to_expr(mpz const & n) {
+        lean_assert(n > 0);
+        if (n == 1)
+            return m_partial_apps_ptr->get_one();
+        if (n % mpz(2) == 1)
+            return mk_app(m_partial_apps_ptr->get_bit1(), pos_mpz_to_expr(n/2));
+        else
+            return mk_app(m_partial_apps_ptr->get_bit0(), pos_mpz_to_expr(n/2));
+    }
 };
 
 static inline head_type get_head_type(expr const & op) {
@@ -302,11 +380,11 @@ static inline head_type get_head_type(expr const & op) {
 class fast_arith_normalize_fn {
     type_context            m_tctx;
     arith_normalize_options m_options;
-    norm_num_context        m_norm_num;
+    num2expr                m_num2expr;
     partial_apps *          m_partial_apps_ptr;
 
 public:
-    fast_arith_normalize_fn(type_context & tctx): m_tctx(tctx), m_options(tctx.get_options()), m_norm_num(tctx) {}
+    fast_arith_normalize_fn(type_context & tctx): m_tctx(tctx), m_options(tctx.get_options()) {}
 
     expr operator()(expr const & e) {
         scope_trace_env scope(env(), m_tctx);
@@ -320,9 +398,10 @@ public:
         default:
             expr type = args[0];
             partial_apps main_partial_apps(m_tctx, type);
-            // TODO(dhs): temporary hack to work around Rob's bug
-            m_norm_num.set_levels(list<level>(get_level(m_tctx, type)));
-            flet<partial_apps *> with_type(m_partial_apps_ptr, &main_partial_apps);
+            // TODO(dhs): these are hacky and unnecessary
+            flet<partial_apps *> with_papps1(m_partial_apps_ptr, &main_partial_apps);
+            flet<partial_apps *> with_papps2(m_num2expr.m_partial_apps_ptr, &main_partial_apps);
+
             return fast_normalize(e);
         }
     }
@@ -333,13 +412,16 @@ private:
     expr get_current_type() const { return m_partial_apps_ptr->get_type(); }
 
     expr mk_monomial(mpq const & coeff, expr const & power_product) {
-        expr c = m_norm_num.from_mpq(coeff, get_current_type());
-        return mk_app(m_partial_apps_ptr->get_mul(), c, power_product);
+        if (coeff == 1) {
+            return power_product;
+        } else {
+            expr c = m_num2expr.mpq_to_expr(coeff);
+            return mk_app(m_partial_apps_ptr->get_mul(), c, power_product);
+        }
     }
 
     expr mk_polynomial(mpq const & coeff, buffer<expr> const & monomials) {
-        lean_trace(name({"arith_normalizer", "fast", "cancel_monomials"}), tout() << "current type: " << get_current_type() << "\n";);
-        expr c = m_norm_num.from_mpq(coeff, get_current_type());
+        expr c = m_num2expr.mpq_to_expr(coeff);
         if (monomials.empty()) {
             return c;
         } else if (coeff.is_zero()) {
@@ -363,7 +445,10 @@ private:
         lean_trace_inc_depth(name({"arith_normalizer", "fast"}));
         lean_trace_d(name({"arith_normalizer", "fast"}), tout() << e << "\n";);
 
-        if (auto num = fast_normalize_numeral_expr(e)) { return *num; }
+        mpq q;
+        if (is_numeral_expr(e, q)) {
+            return m_num2expr.mpq_to_expr(q);
+        }
 
         buffer<expr> args;
         expr op = get_app_args(e, args);
@@ -392,30 +477,31 @@ private:
         return e;
     }
 
-    void get_flattened_nary_summands(expr const & e, buffer<expr> & args) {
-        // TODO(dhs): do I process subtraction here?
-        // (currently this is called after normalization, so that subtraction is pushed into the coefficient)
+    // Normalizes as well
+    void fast_get_flattened_nary_summands(expr const & e, buffer<expr> & args) {
         expr arg1, arg2;
         if (is_add(e, arg1, arg2)) {
-            get_flattened_nary_summands(arg1, args);
-            get_flattened_nary_summands(arg2, args);
+            fast_get_flattened_nary_summands(arg1, args);
+            fast_get_flattened_nary_summands(arg2, args);
         } else {
             // This is needed because normalizing may expose additional [add] applications
             // e.g. [a - b] ==> [a + (-1) * b], [a * (b + c)] ==> (a * b) + (a * c)
             // Note: do we want fast_normalize WITHOUT fuse, since we are about to fuse?
             expr e_n = fast_normalize(e);
             if (is_add(e_n, arg1, arg2)) {
-                get_flattened_nary_summands(arg1, args);
-                get_flattened_nary_summands(arg2, args);
+                fast_get_flattened_nary_summands(arg1, args);
+                fast_get_flattened_nary_summands(arg2, args);
             } else {
                 args.push_back(e_n);
             }
         }
     }
 
-    expr fast_normalize_add(expr const & _e) {
+    expr fast_normalize_add(expr const & e) {
+        lean_trace_d(name({"arith_normalizer", "fast", "normalize_add"}), tout() << e << "\n";);
+
         buffer<expr> monomials;
-        get_flattened_nary_summands(e, monomials);
+        fast_get_flattened_nary_summands(e, monomials);
         expr_struct_set power_products;
         expr_struct_set repeated_power_products;
 
@@ -438,16 +524,17 @@ private:
             }
         }
 
+        buffer<expr> new_monomials;
+        expr e_n;
+
         if (repeated_power_products.empty()) {
             // Only numerals may need to be fused
-            buffer<expr> new_monomials;
             for (expr const & monomial : monomials) {
                 if (!is_numeral_expr(monomial)) {
                     new_monomials.push_back(monomial);
                 }
             }
-
-            return mk_polynomial(coeff, new_monomials);
+            e_n = mk_polynomial(coeff, new_monomials);
         } else {
             lean_assert(!repeated_power_products.empty());
             expr_struct_map<mpq> power_product_to_coeff;
@@ -456,19 +543,18 @@ private:
                 if (is_numeral_expr(monomial))
                     continue;
                 expr power_product = get_power_product(monomial, num);
-                if (!shared_power_products.count(power_product))
+                if (!repeated_power_products.count(power_product))
                     continue;
                 power_product_to_coeff[power_product] += num;
             }
 
-            buffer<expr> new_monomials;
             power_products.clear();
 
             for (expr const & monomial : monomials) {
                 if (is_numeral_expr(monomial))
                     continue;
                 expr power_product = get_power_product(monomial, num);
-                if (!shared_power_products.count(power_product)) {
+                if (!repeated_power_products.count(power_product)) {
                     new_monomials.push_back(monomial);
                 } else if (!power_products.count(power_product)) {
                     power_products.insert(power_product);
@@ -477,34 +563,19 @@ private:
                         new_monomials.push_back(mk_monomial(c, power_product));
                 }
             }
-            return mk_polynomial(coeff, new_monomials);
+            e_n = mk_polynomial(coeff, new_monomials);
         }
-
-    }
-
-
-
-
-    optional<expr> fast_normalize_numeral_expr(expr const & e) {
-        // TODO(dhs): PERF
-        // try/catch too slow
-        // also need a norm-num that does not bother producing proofs
-        // also need a quick is_numeral check
-        try {
-            pair<expr, expr> result = mk_norm_num(m_tctx, e);
-            return some_expr(result.first);
-        } catch (exception & e) {
-            return none_expr();
-        }
+        lean_trace_d(name({"arith_normalizer", "fast", "normalize_add"}), tout() << e << " ==> " << e_n << "\n";);
+        return e_n;
     }
 
     // Assumes that both sides are in normal form already
     norm_status fast_cancel_monomials(expr const & lhs, expr const & rhs, expr & new_lhs, expr & new_rhs) {
-        lean_trace(name({"arith_normalizer", "fast", "cancel_monomials"}), tout() << lhs << " <> " << rhs << "\n";);
+        lean_trace_d(name({"arith_normalizer", "fast", "cancel_monomials"}), tout() << lhs << " <> " << rhs << "\n";);
         buffer<expr> lhs_monomials;
         buffer<expr> rhs_monomials;
-        get_flattened_nary_summands(lhs, lhs_monomials);
-        get_flattened_nary_summands(lhs, rhs_monomials);
+        fast_get_flattened_nary_summands(lhs, lhs_monomials);
+        fast_get_flattened_nary_summands(rhs, rhs_monomials);
 
         // Pass 1: collect numerals, determine which power products appear on both sides
         // TODO(dhs): expr_set?
@@ -537,7 +608,6 @@ private:
             }
         }
 
-        lean_trace(name({"arith_normalizer", "fast", "cancel_monomials"}), tout() << "pass 1 complete\n";);
         // TODO(dhs): may fail here
 
         // Pass 2: collect coefficients for power products that appear on both sides
@@ -561,7 +631,6 @@ private:
             power_product_to_coeff[power_product] -= num;
         }
 
-        lean_trace(name({"arith_normalizer", "fast", "cancel_monomials"}), tout() << "pass 2 complete\n";);
 
         // Pass 3: collect new monomials for both sides
         buffer<expr> new_lhs_monomials;
@@ -598,13 +667,11 @@ private:
             }
         }
 
-        lean_trace(name({"arith_normalizer", "fast", "cancel_monomials"}), tout() << "pass 3 complete\n";);
-
         // TODO(dhs): do we need more sophistication in deciding which side to put the coefficient on?
         new_lhs = mk_polynomial(new_lhs_monomials);
         new_rhs = mk_polynomial(neg(coeff), new_rhs_monomials);
 
-        lean_trace(name({"arith_normalizer", "fast", "cancel_monomials"}), tout() << lhs << " <> " << rhs << " ==> " << new_lhs << " <> " << new_rhs << "\n";);
+        lean_trace_d(name({"arith_normalizer", "fast", "cancel_monomials"}), tout() << lhs << " <> " << rhs << " ==> " << new_lhs << " <> " << new_rhs << "\n";);
         return norm_status::DONE;
     }
 
@@ -623,6 +690,7 @@ private:
         case rel_kind::LE: return mk_app(m_partial_apps_ptr->get_le(), new_lhs, new_rhs);
         case rel_kind::GE: return mk_app(m_partial_apps_ptr->get_ge(), new_lhs, new_rhs);
         }
+        lean_unreachable();
     }
 
 };
@@ -723,6 +791,7 @@ void initialize_arith_normalizer() {
     register_trace_class(name({"arith_normalizer", "slow"}));
 
     register_trace_class(name({"arith_normalizer", "fast", "cancel_monomials"}));
+    register_trace_class(name({"arith_normalizer", "fast", "normalize_add"}));
 
     // Options names
     g_arith_normalizer_distribute_mul     = new name{"arith_normalizer", "distribute_mul"};

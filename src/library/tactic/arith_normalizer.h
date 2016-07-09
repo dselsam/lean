@@ -9,6 +9,7 @@ Author: Daniel Selsam
 
 namespace lean {
 
+expr fast_arith_normalize(type_context & tctx, expr const & e);
 simp_result arith_normalize(type_context & tctx, expr const & e);
 
 void initialize_arith_normalizer();
