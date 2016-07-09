@@ -100,6 +100,15 @@ static void get_flattened_nary_summands(expr const & e, buffer<expr> & args) {
     }
 }
 
+static expr mk_nary_app(expr const & fn, buffer<expr> & args) {
+    lean_assert(!args.empty());
+    expr e = args.back();
+    for (int i = args.size() - 1; i >= 0; --i) {
+        e = mk_app(fn, args[i], e);
+    }
+    return e;
+}
+
 static bool is_numeral_expr(expr const & e, mpq & num) {
     lean_assert(is_numeral_expr(e));
     buffer<expr, 4> args;
@@ -156,6 +165,27 @@ enum rel_kind { EQ, LE, GE };
 
 enum class norm_status { DONE, FAILED };
 
+// Partial application cache
+// We will use flets to track the current type being normalized
+struct partial_apps {
+    expr m_type;
+    expr m_zero, m_one;
+    expr m_add_fn, m_mul_fn, m_div_fn, m_sub_fn, m_neg_fn;
+
+    partial_apps(expr const & type): m_type(type) { }
+
+    // TODO(dhs): synthesize the first time, and then cache
+    // URGENT
+    void get_zero(expr const & zero_fn) { return m_zero_fn; }
+    void get_one(expr const & one_fn) { return m_one_fn; }
+    void get_add_fn(expr const & add_fn) { return m_add_fn; }
+    void get_mul_fn(expr const & mul_fn) { return m_mul_fn; }
+    void get_div_fn(expr const & div_fn) { return m_div_fn; }
+    void get_sub_fn(expr const & sub_fn) { return m_sub_fn; }
+    void get_neg_fn(expr const & neg_fn) { return m_neg_fn; }
+
+};
+
 static inline head_type get_head_type(expr const & op) {
     if (!is_constant(op)) return head_type::OTHER;
 
@@ -183,6 +213,37 @@ static inline head_type get_head_type(expr const & op) {
 class fast_arith_normalize_fn {
     type_context            m_tctx;
     arith_normalize_options m_options;
+    norm_num_context        m_norm_num;
+    partial_apps            m_partial_apps;
+
+public:
+    fast_arith_normalize_fn(type_context & tctx): m_tctx(tctx), m_norm_num(tctx) {}
+
+private:
+    expr mk_monomial(mpq const & coeff, expr const & power_product) {
+        expr c = m_norm_num.from_mpq(coeff);
+        return mk_mul(c, power_product);
+    }
+
+    expr mk_polynomial(mpq const & coeff, buffer<expr> const & monomials) {
+        expr c = m_norm_num.from_mpq(coeff, get_current_type());
+        if (monomials.empty())
+            return c;
+
+        expr add_fn = m_partial_apps.get_add_fn();
+        return mk_app(add_fn, c, mk_nary_app(add_fn, monomials));
+    }
+
+    expr mk_polynomial(buffer<expr> const & monomials) {
+        if (monomials.empty())
+            return m_partial_apps.get_zero();
+
+        expr add_fn = m_partial_apps.get_add_fn();
+        return mk_app(add_fn, c, mk_nary_app(add_fn, monomials));
+    }
+
+
+
 
     optional<expr> fast_normalize_numeral_expr(expr const & e) {
         // TODO(dhs): PERF
@@ -330,28 +391,23 @@ class fast_arith_normalize_fn {
             }
         }
 
+        // TODO(dhs): do we need more sophistication in deciding which side to put the coefficient on?
+        new_lhs = mk_polynomial(new_lhs_monomials);
+        new_rhs = mk_polynomial(neg(coeff), new_rhs_monomials);
 
-
-
-
-
-
-
-
-//        if (m_options.orient_polys() && num_coeffs == 0 && is_numeral_expr(rhs))
-//            return norm_status::FAILED;
-
-
-
+        return norm_status::DONE;
     }
 
-    norm_status normalize_rel_core(expr const & lhs, expr const & rhs, expr & result) {
+    norm_status normalize_rel_core(expr const & _lhs, expr const & _rhs, expr & result) {
+        expr lhs = normalize(_lhs);
+        expr rhs = normalize(_rhs);
         expr new_lhs, new_rhs;
-        norm_status st = fuse_and_cancel_monomials(lhs, rhs, new_lhs, new_rhs);
+        norm_status st = cancel_monomials(lhs, rhs, new_lhs, new_rhs);
 
         // TODO(dhs): if both sides are numerals, then reduce to true or false
         // TODO(dhs): bounds
         // TODO(dhs): gcd stuff
+        // TODO(dhs): clear denominators?
         return st;
     }
 
