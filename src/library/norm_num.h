@@ -7,6 +7,7 @@ Author: Robert Y. Lewis
 #include <unordered_map>
 #include <string>
 #include "util/name_map.h"
+#include "util/sstream.h"
 #include "util/numerics/mpq.h"
 #include "kernel/environment.h"
 #include "library/type_context.h"
@@ -67,6 +68,7 @@ class norm_num_context {
 public:
     norm_num_context(type_context & type_ctx): m_type_ctx(type_ctx) {}
 
+    void set_levels(levels const & lvls) { m_lvls = lvls; }
     bool is_numeral(expr const & e) const;
     bool is_neg_app(expr const &) const;
     bool is_div(expr const &) const;

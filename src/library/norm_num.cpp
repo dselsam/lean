@@ -81,7 +81,7 @@ expr norm_num_context::mk_has_one(expr const & e) {
         instances[l_name] = *inst;
         return *inst;
     } else {
-        throw exception("failed to synthesize has_one instance");
+        throw exception(sstream() << "failed to synthesize [has_one " << e << "] instance");
     }
 }
 
@@ -96,7 +96,7 @@ expr norm_num_context::mk_has_zero(expr const & e) {
         instances[l_name] = *inst;
         return *inst;
     } else {
-        throw exception("failed to synthesize has_one instance");
+        throw exception(sstream() << "failed to synthesize [has_zero " << e << "]_one instance");
     }
 }
 
