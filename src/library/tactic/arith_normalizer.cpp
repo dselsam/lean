@@ -458,6 +458,10 @@ private:
 
     expr get_current_type() const { return m_partial_apps_ptr->get_type(); }
 
+    expr mk_monomial(mpq const & coeff) {
+        return m_num2expr.mpq_to_expr(coeff);
+    }
+
     expr mk_monomial(mpq const & coeff, expr const & power_product) {
         if (coeff == 1) {
             return power_product;
@@ -684,6 +688,10 @@ private:
                 if (is_add(new_multiplicand))
                     num_add++;
             }
+        }
+
+        if (coeff.is_zero()) {
+            return mk_monomial(coeff);
         }
 
         // TODO(dhs): expr_pow_lt
