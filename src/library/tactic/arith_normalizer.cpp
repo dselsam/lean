@@ -168,16 +168,32 @@ static bool is_normalized_numeral(expr const & e, mpq & q) {
 
 static expr get_power_product(expr const & monomial) {
     expr lhs, rhs;
-    if (is_mul(monomial, lhs, rhs) && is_normalized_numeral(lhs))
-        return rhs;
-    else
+    if (is_mul(monomial, lhs, rhs) && is_normalized_numeral(lhs)) {
+        if (auto neg = is_neg(rhs)) {
+            return *neg;
+        } else {
+            return rhs;
+        }
+    } else if (auto n = is_neg(monomial)) {
+        // assumes double negations have been cleared
+        return *n;
+    } else {
         return monomial;
+    }
 }
 
 static expr get_power_product(expr const & monomial, mpq & num) {
     expr lhs, rhs;
     if (is_mul(monomial, lhs, rhs) && is_normalized_numeral(lhs, num)) {
-        return rhs;
+        if (auto neg = is_neg(rhs)) {
+            num.neg();
+            return *neg;
+        } else {
+            return rhs;
+        }
+    } else if (auto n = is_neg(monomial)) {
+        num = -1;
+        return *n;
     } else {
         num = 1;
         return monomial;
@@ -193,10 +209,11 @@ static expr app_arg2(expr const & e) {
 enum class head_type {
     EQ, LE, GE,
     // TODO(dhs): LT, GT
-    ADD, MUL,
-    SUB, DIV,
-    INT_OF_NAT, RAT_OF_INT, REAL_OF_RAT,
-    OTHER
+        ADD, MUL,
+        SUB, DIV,
+        NEG,
+        INT_OF_NAT, RAT_OF_INT, REAL_OF_RAT,
+        OTHER
         };
 
 enum rel_kind { EQ, LE, GE };
@@ -398,6 +415,8 @@ static inline head_type get_head_type(expr const & op) {
     else if (const_name(op) == get_sub_name()) return head_type::SUB;
     else if (const_name(op) == get_div_name()) return head_type::DIV;
 
+    else if (const_name(op) == get_neg_name()) return head_type::NEG;
+
     else if (const_name(op) == get_int_of_nat_name()) return head_type::INT_OF_NAT;
     else if (const_name(op) == get_rat_of_int_name()) return head_type::RAT_OF_INT;
     else if (const_name(op) == get_real_of_rat_name()) return head_type::REAL_OF_RAT;
@@ -442,6 +461,8 @@ private:
     expr mk_monomial(mpq const & coeff, expr const & power_product) {
         if (coeff == 1) {
             return power_product;
+        } else if (coeff == -1) {
+            return mk_app(m_partial_apps_ptr->get_neg(), power_product);
         } else {
             expr c = m_num2expr.mpq_to_expr(coeff);
             return mk_app(m_partial_apps_ptr->get_mul(), c, power_product);
@@ -494,6 +515,8 @@ private:
         case head_type::SUB:
         case head_type::DIV:
 
+        case head_type::NEG: return fast_normalize_neg(args[2]);
+
         case head_type::INT_OF_NAT:
         case head_type::RAT_OF_INT:
         case head_type::REAL_OF_RAT:
@@ -503,6 +526,18 @@ private:
         }
         // TODO(dhs): this will be unreachable eventually
         return e;
+    }
+
+    expr fast_normalize_neg(expr const & _e) {
+        expr e = fast_normalize(_e);
+
+        if (auto neg = is_neg(e))
+            return *neg;
+
+        mpq num;
+        expr power_product = get_power_product(e, num);
+        num.neg();
+        return mk_monomial(num, power_product);
     }
 
     // Normalizes as well
@@ -640,8 +675,13 @@ private:
                 coeff *= num;
                 num_coeffs++;
             } else {
-                non_num_multiplicands.push_back(multiplicand);
-                if (is_add(multiplicand))
+                expr new_multiplicand = multiplicand;
+                if (auto neg = is_neg(multiplicand)) {
+                    coeff.neg();
+                    new_multiplicand = *neg;
+                }
+                non_num_multiplicands.push_back(new_multiplicand);
+                if (is_add(new_multiplicand))
                     num_add++;
             }
         }
