@@ -1,6 +1,6 @@
 import algebra.ring
 
-constants (A : Type.{1}) (A_inst : comm_ring A) (x y z w : A)
+constants (A : Type.{1}) (A_inst : comm_ring A) (u v w x y z : A)
 attribute [instance] A_inst
 
 -- fast_normalize_add
@@ -76,5 +76,7 @@ set_option arith_normalizer.distribute_mul true
 #fast_arith_normalize 2 * (x + y) = 0
 #fast_arith_normalize 2 * (x + y) = 2 * x + 2 * y
 #fast_arith_normalize 3 * x * (y + z) * 2 = 6 * x * y + 6 * x * z
+#fast_arith_normalize (x + y) * 2 * (z + w) * 3 = 5*x*z + 5*y*z + 5*x*w + 5*y*w
 #fast_arith_normalize (x + y) * 3 * (y + z) * 2 = 6 * x * y + 6 * x * z + 6 * y * y + 6 * y * z
-#fast_arith_normalize (x + w) * (y + z) * (w + (x * (z + w))) = (w + (x * (z + w))) * (w + x) * (z + y)
+#fast_arith_normalize (x + v) * (y + z) * (w + (y * (z + u))) = (w + (y * (z + u))) * (z + y) * (v + x)
+#fast_arith_normalize (x * (y + (x * (y + (x * (y + x)))))) = x * y + x * x * y + x * x * x * y + x * x * x * x

@@ -525,19 +525,21 @@ private:
         }
     }
 
-    void fast_get_flattened_nary_multiplicands(expr const & e, buffer<expr> & args) {
+    void fast_get_flattened_nary_multiplicands(expr const & e, buffer<expr> & args, bool normalize_multiplicands) {
         expr arg1, arg2;
         if (is_mul(e, arg1, arg2)) {
-            fast_get_flattened_nary_multiplicands(arg1, args);
-            fast_get_flattened_nary_multiplicands(arg2, args);
-        } else {
+            fast_get_flattened_nary_multiplicands(arg1, args, normalize_multiplicands);
+            fast_get_flattened_nary_multiplicands(arg2, args, normalize_multiplicands);
+        } else if (normalize_multiplicands) {
             expr e_n = fast_normalize(e);
             if (is_mul(e_n, arg1, arg2)) {
-                fast_get_flattened_nary_multiplicands(arg1, args);
-                fast_get_flattened_nary_multiplicands(arg2, args);
+                fast_get_flattened_nary_multiplicands(arg1, args, normalize_multiplicands);
+                fast_get_flattened_nary_multiplicands(arg2, args, normalize_multiplicands);
             } else {
                 args.push_back(e_n);
             }
+        } else {
+            args.push_back(e);
         }
     }
 
@@ -622,9 +624,9 @@ private:
         }
     }
 
-    expr fast_normalize_mul(expr const & e) {
+    expr fast_normalize_mul(expr const & e, bool normalize_multiplicands = true) {
         buffer<expr> multiplicands;
-        fast_get_flattened_nary_multiplicands(e, multiplicands);
+        fast_get_flattened_nary_multiplicands(e, multiplicands, normalize_multiplicands);
 
         mpq coeff(1);
         mpq num;
@@ -650,7 +652,7 @@ private:
 
         expr e_n;
         if (!m_options.distribute_mul() || num_add == 0) {
-            std::sort(non_num_multiplicands.begin(), non_num_multiplicands.end(), expr_quick_cmp_no_hash());
+            std::sort(non_num_multiplicands.begin(), non_num_multiplicands.end());
             e_n = mk_monomial(coeff, mk_nary_app(m_partial_apps_ptr->get_mul(), non_num_multiplicands));
         } else {
             lean_assert(m_options.distribute_mul());
@@ -682,7 +684,9 @@ private:
                 for (unsigned i = 0; i < non_num_multiplicands.size(); ++i) {
                     tmp.push_back(sums[i][iter[i]]);
                 }
-                new_multiplicands.push_back(mk_nary_app(m_partial_apps_ptr->get_mul(), tmp));
+                // TODO(dhs): there is no need to construct the application only to deconstruct it again
+                // We have can a fast_normalize_mul_core that takes the buffer of arguments
+                new_multiplicands.push_back(fast_normalize_mul(mk_monomial(coeff, mk_nary_app(m_partial_apps_ptr->get_mul(), tmp)), true));
             } while (product_iterator_next(sizes, iter));
             e_n = mk_nary_app(m_partial_apps_ptr->get_add(), new_multiplicands);
         }
