@@ -55,3 +55,26 @@ set_option arith_normalizer.orient_polys true
 #fast_arith_normalize 1 = x + y
 #fast_arith_normalize 0 = x + y + z
 #fast_arith_normalize -1 = (-1) * x + (-1) * y + (-1) * z
+
+print "--------------"
+--set_option trace.arith_normalizer.fast.normalize_mul true
+#fast_arith_normalize x * y = y * x
+#fast_arith_normalize x * y * x = y * x * x
+#fast_arith_normalize x * y * x = x * x * y
+
+print "--------------"
+#fast_arith_normalize 2 * x * y * x * 4 = 8 * (x * (x * y))
+#fast_arith_normalize 2 * x * y * 3 = 6 * (x * y)
+
+print "--------------"
+set_option arith_normalizer.distribute_mul false
+#fast_arith_normalize 3 * x * (y + z) * 2 = 6 * x * (y + z)
+#fast_arith_normalize (x + y) * 3 * (y + z) * 2 = 6 * (x + y) * (y + z)
+
+print "--------------"
+set_option arith_normalizer.distribute_mul true
+#fast_arith_normalize 2 * (x + y) = 0
+#fast_arith_normalize 2 * (x + y) = 2 * x + 2 * y
+#fast_arith_normalize 3 * x * (y + z) * 2 = 6 * x * y + 6 * x * z
+#fast_arith_normalize (x + y) * 3 * (y + z) * 2 = 6 * x * y + 6 * x * z + 6 * y * y + 6 * y * z
+#fast_arith_normalize (x + w) * (y + z) * (w + (x * (z + w))) = (w + (x * (z + w))) * (w + x) * (z + y)

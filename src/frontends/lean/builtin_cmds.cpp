@@ -670,9 +670,9 @@ static environment fast_arith_normalize_cmd(parser & p) {
     expr e; level_param_names ls;
     std::tie(e, ls) = parse_local_expr(p);
     metavar_context mctx;
-    aux_type_context tctx(p.env(), p.get_options(), mctx, p.get_local_context());
-    auto out = regular(p.env(), p.ios(), tctx);
-    out << ">> " << e << " ==> " << fast_arith_normalize(tctx, e) << "\n";
+    aux_type_context aux_tctx(p.env(), p.get_options(), mctx, p.get_local_context());
+    auto out = regular(p.env(), p.ios(), aux_tctx.get());
+    out << ">> " << e << " ==> " << fast_arith_normalize(aux_tctx.get(), e) << "\n";
     return p.env();
 }
 

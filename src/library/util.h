@@ -241,6 +241,8 @@ expr beta_reduce(expr t);
 expr eta_reduce(expr t);
 expr beta_eta_reduce(expr t);
 
+bool product_iterator_next(buffer<unsigned> & sizes, buffer<unsigned> & iter);
+
 void initialize_library_util();
 void finalize_library_util();
 }

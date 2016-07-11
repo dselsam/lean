@@ -938,6 +938,16 @@ expr beta_eta_reduce(expr t) {
     return eta_beta_reduce_fn<true, true>()(t);
 }
 
+bool product_iterator_next(buffer<unsigned> & sizes, buffer<unsigned> & iter) {
+    for (unsigned i = 0; i < sizes.size(); ++i) {
+        iter[i]++;
+        if (iter[i] < sizes[i])
+            return true;
+        iter[i] = 0;
+    }
+    return false;
+}
+
 void initialize_library_util() {
     g_true           = new expr(mk_constant(get_true_name()));
     g_true_intro     = new expr(mk_constant(get_true_intro_name()));

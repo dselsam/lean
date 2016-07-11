@@ -489,7 +489,7 @@ private:
         case head_type::GE: return fast_normalize_rel(args[num_args-2], args[num_args-1], rel_kind::GE);
 
         case head_type::ADD: return fast_normalize_add(e);
-        case head_type::MUL:
+        case head_type::MUL: return fast_normalize_mul(e);
 
         case head_type::SUB:
         case head_type::DIV:
@@ -519,6 +519,22 @@ private:
             if (is_add(e_n, arg1, arg2)) {
                 fast_get_flattened_nary_summands(arg1, args);
                 fast_get_flattened_nary_summands(arg2, args);
+            } else {
+                args.push_back(e_n);
+            }
+        }
+    }
+
+    void fast_get_flattened_nary_multiplicands(expr const & e, buffer<expr> & args) {
+        expr arg1, arg2;
+        if (is_mul(e, arg1, arg2)) {
+            fast_get_flattened_nary_multiplicands(arg1, args);
+            fast_get_flattened_nary_multiplicands(arg2, args);
+        } else {
+            expr e_n = fast_normalize(e);
+            if (is_mul(e_n, arg1, arg2)) {
+                fast_get_flattened_nary_multiplicands(arg1, args);
+                fast_get_flattened_nary_multiplicands(arg2, args);
             } else {
                 args.push_back(e_n);
             }
@@ -592,6 +608,86 @@ private:
             e_n = mk_polynomial(coeff, new_monomials);
         }
         lean_trace_d(name({"arith_normalizer", "fast", "normalize_add"}), tout() << e << " ==> " << e_n << "\n";);
+        return e_n;
+    }
+
+    void get_normalized_add_summands(expr const & e, buffer<expr> & summands) {
+        expr first, rest;
+        if (is_add(e, first, rest)) {
+            lean_assert(!is_add(first));
+            summands.push_back(first);
+            get_normalized_add_summands(rest, summands);
+        } else {
+            summands.push_back(e);
+        }
+    }
+
+    expr fast_normalize_mul(expr const & e) {
+        buffer<expr> multiplicands;
+        fast_get_flattened_nary_multiplicands(e, multiplicands);
+
+        mpq coeff(1);
+        mpq num;
+        unsigned num_coeffs = 0;
+        unsigned num_add    = 0;
+
+        buffer<expr> non_num_multiplicands;
+
+        for (expr const & multiplicand : multiplicands) {
+            if (is_normalized_numeral(multiplicand, num)) {
+                coeff *= num;
+                num_coeffs++;
+            } else {
+                non_num_multiplicands.push_back(multiplicand);
+                if (is_add(multiplicand))
+                    num_add++;
+            }
+        }
+
+        // TODO(dhs): expr_pow_lt
+
+        // TODO(dhs): detect special cases and return early
+
+        expr e_n;
+        if (!m_options.distribute_mul() || num_add == 0) {
+            std::sort(non_num_multiplicands.begin(), non_num_multiplicands.end(), expr_quick_cmp_no_hash());
+            e_n = mk_monomial(coeff, mk_nary_app(m_partial_apps_ptr->get_mul(), non_num_multiplicands));
+        } else {
+            lean_assert(m_options.distribute_mul());
+            lean_assert(num_add > 0);
+
+            buffer<unsigned> sizes;
+            buffer<unsigned> iter;
+            buffer<buffer<expr>> sums;
+
+            for (expr const & multiplicand : non_num_multiplicands) {
+                iter.push_back(0);
+                buffer<expr> sum;
+                if (is_add(multiplicand)) {
+                    get_normalized_add_summands(multiplicand, sum);
+                    sums.push_back(sum);
+                    sizes.push_back(sum.size());
+                } else {
+                    sum.push_back(multiplicand);
+                    sizes.push_back(1);
+                    sums.push_back(sum);
+                    lean_assert(sums.back()[0] == multiplicand);
+                }
+            }
+
+            buffer<expr> new_multiplicands;
+            buffer<expr> tmp;
+            do {
+                tmp.clear();
+                for (unsigned i = 0; i < non_num_multiplicands.size(); ++i) {
+                    tmp.push_back(sums[i][iter[i]]);
+                }
+                new_multiplicands.push_back(mk_nary_app(m_partial_apps_ptr->get_mul(), tmp));
+            } while (product_iterator_next(sizes, iter));
+            e_n = mk_nary_app(m_partial_apps_ptr->get_add(), new_multiplicands);
+        }
+        // TODO(dhs): need to normalize again at the top level (monomials now may be unnormalized)
+        lean_trace_d(name({"arith_normalizer", "fast", "normalize_mul"}), tout() << e << " ==> " << e_n << "\n";);
         return e_n;
     }
 
@@ -822,6 +918,7 @@ void initialize_arith_normalizer() {
 
     register_trace_class(name({"arith_normalizer", "fast", "cancel_monomials"}));
     register_trace_class(name({"arith_normalizer", "fast", "normalize_add"}));
+    register_trace_class(name({"arith_normalizer", "fast", "normalize_mul"}));
 
     // Options names
     g_arith_normalizer_distribute_mul     = new name{"arith_normalizer", "distribute_mul"};
