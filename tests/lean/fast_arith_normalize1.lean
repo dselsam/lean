@@ -132,7 +132,11 @@ set_option arith_normalizer.distribute_mul true
 #fast_arith_normalize (5 * y) / (5 * y) = y / y
 
 #fast_arith_normalize y / (2 * x) - (1/2) * (y / x)
-
-
-
 set_option arith_normalizer.distribute_mul false
+
+-- coercions
+print "--------------"
+set_option trace.app_builder true
+check real.of_rat
+check (1 : rat)
+#fast_arith_normalize real.of_rat (1 : rat)

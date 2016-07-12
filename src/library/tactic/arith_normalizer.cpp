@@ -356,31 +356,49 @@ public:
         scope_trace_env scope(env(), m_tctx);
         buffer<expr> args;
         expr op = get_app_args(e, args);
+
+        expr type;
+        level l;
+
         switch (get_head_type(op)) {
         case head_type::OTHER:
             // TODO(dhs): we may still do something here
             throw exception(sstream() << "fast_arith_normalizer not expecting to be called on expr " << e << "\n");
             return e;
+        case head_type::REAL_OF_RAT:
+            type = mk_constant(get_real_name());
+            l = mk_level_one();
+            break;
+        case head_type::RAT_OF_INT:
+            type = mk_constant(get_rat_name());
+            l = mk_level_one();
+            break;
+        case head_type::INT_OF_NAT:
+            type = mk_constant(get_int_name());
+            l = mk_level_one();
+            break;
         default:
-            expr type = args[0];
-            level l = get_level(m_tctx, type);
-            auto comm_ring_inst = m_tctx.mk_class_instance(mk_app(mk_constant(get_comm_ring_name(), {l}), type));
-            if (!comm_ring_inst) {
-                throw exception(sstream() << "fast_arith_normalizer not expecting to be called on expr " << e << " that is not of a type with commutative ring structure\n");
-                return e;
-            }
-            partial_apps main_partial_apps(m_tctx, type);
-            // TODO(dhs): these are hacky and unnecessary
-            flet<partial_apps *> with_papps1(m_partial_apps_ptr, &main_partial_apps);
+            type = args[0];
+            l = get_level(m_tctx, type);
+            break;
+        }
 
-            if (m_options.profile()) {
-                std::ostringstream msg;
-                msg << " arith_normalizer time: ";
-                timeit timer(get_dummy_ios().get_diagnostic_stream(), msg.str().c_str(), 0.0);
-                return fast_normalize(e);
-            } else {
-                return fast_normalize(e);
-            }
+        auto comm_ring_inst = m_tctx.mk_class_instance(mk_app(mk_constant(get_comm_ring_name(), {l}), type));
+        if (!comm_ring_inst) {
+            throw exception(sstream() << "fast_arith_normalizer not expecting to be called on expr " << e << " that is not of a type with commutative ring structure\n");
+            return e;
+        }
+        partial_apps main_partial_apps(m_tctx, type);
+        // TODO(dhs): these are hacky and unnecessary
+        flet<partial_apps *> with_papps1(m_partial_apps_ptr, &main_partial_apps);
+
+        if (m_options.profile()) {
+            std::ostringstream msg;
+            msg << " arith_normalizer time: ";
+            timeit timer(get_dummy_ios().get_diagnostic_stream(), msg.str().c_str(), 0.0);
+            return fast_normalize(e);
+        } else {
+            return fast_normalize(e);
         }
     }
 
@@ -451,15 +469,69 @@ private:
 
         case head_type::NEG: return fast_normalize_neg(args[2], is_multiplicand);
 
-        case head_type::INT_OF_NAT:
-        case head_type::RAT_OF_INT:
-        case head_type::REAL_OF_RAT:
+        case head_type::INT_OF_NAT: return fast_normalize_int_of_nat(args[0]);
+        case head_type::RAT_OF_INT: return fast_normalize_rat_of_int(args[0]);
+        case head_type::REAL_OF_RAT: return fast_normalize_real_of_rat(args[0]);
 
         case head_type::OTHER:
             break;
         }
         // TODO(dhs): this will be unreachable eventually
         return e;
+    }
+
+    // Coercions
+    // TODO(dhs): confirm that we do not need to re-traverse after pushing
+    expr fast_normalize_real_of_rat(expr const & e) {
+        lean_assert(get_current_type() == mk_constant(get_real_name()));
+        expr e_n;
+        {
+            partial_apps rat_partial_apps(m_tctx, mk_constant(get_rat_name()));
+            flet<partial_apps *> use_rat(m_partial_apps_ptr, &rat_partial_apps);
+            e_n = fast_normalize(e);
+        }
+        lean_assert(get_current_type() == mk_constant(get_real_name()));
+        return fast_push_coe(mk_constant(get_real_of_rat_name()), e_n);
+    }
+
+    expr fast_normalize_rat_of_int(expr const & e) {
+        lean_assert(get_current_type() == mk_constant(get_rat_name()));
+        expr e_n;
+        {
+            partial_apps int_partial_apps(m_tctx, mk_constant(get_int_name()));
+            flet<partial_apps *> use_int(m_partial_apps_ptr, &int_partial_apps);
+            e_n = fast_normalize(e);
+        }
+        lean_assert(get_current_type() == mk_constant(get_rat_name()));
+        return fast_push_coe(mk_constant(get_rat_of_int_name()), e_n);
+    }
+
+    expr fast_normalize_int_of_nat(expr const & e) {
+        lean_assert(get_current_type() == mk_constant(get_int_name()));
+        // TODO(dhs): normalize nat part
+        return fast_push_coe(mk_constant(get_int_of_nat_name()), e);
+    }
+
+    expr fast_push_coe(expr const & coe, expr const & e) {
+        mpq q;
+        expr arg1, arg2;
+
+        if (is_mpq_macro(e, q)) {
+            // real.of_rat <numeral : rat> ==> <numeral : real>
+            return mk_mpq_macro(q, get_current_type());
+        } else if (is_add(e, arg1, arg2)) {
+            lean_assert(!is_add(arg1));
+            arg1 = fast_push_coe(coe, arg1);
+            arg2 = fast_push_coe(coe, arg2);
+            return mk_app(m_partial_apps_ptr->get_add(), arg1, arg2);
+        } else if (is_mul(e, arg1, arg2)) {
+            lean_assert(!is_mul(arg1));
+            arg1 = fast_push_coe(coe, arg1);
+            arg2 = fast_push_coe(coe, arg2);
+            return mk_app(m_partial_apps_ptr->get_mul(), arg1, arg2);
+        } else {
+            return mk_app(coe, e);
+        }
     }
 
     expr fast_normalize_sub(expr const & e1, expr const & e2, bool is_summand) {

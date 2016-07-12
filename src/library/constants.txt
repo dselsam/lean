@@ -90,6 +90,7 @@ implies
 implies_of_if_neg
 implies_of_if_pos
 implies.resolve
+int
 int.of_nat
 IO
 is_trunc.is_prop
@@ -214,9 +215,11 @@ qexpr.subst
 to_qexpr
 quot.mk
 quot.lift
+rat
 rat.divide
 rat.of_num
 rat.of_int
+real
 real.of_rat
 rfl
 right_distrib
