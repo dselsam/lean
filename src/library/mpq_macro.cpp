@@ -132,7 +132,7 @@ bool is_mpq_macro(expr const & e, mpq & q) {
 
 void initialize_mpq_macro() {
     g_mpq_macro_name = new name("mpq");
-    g_mpq_opcode     = new std::string("Arith_Norm");
+    g_mpq_opcode     = new std::string("MPQ");
     register_macro_deserializer(*g_mpq_opcode,
                                 [](deserializer & d, unsigned num, expr const * args) {
                                     if (num != 1)

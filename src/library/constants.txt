@@ -21,6 +21,7 @@ char
 char.of_nat
 classical
 combinator.K
+comm_ring
 congr
 congr_arg
 congr_fun

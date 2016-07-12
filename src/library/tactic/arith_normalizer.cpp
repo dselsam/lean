@@ -331,6 +331,12 @@ public:
             return e;
         default:
             expr type = args[0];
+            level l = get_level(m_tctx, type);
+            auto comm_ring_inst = m_tctx.mk_class_instance(mk_app(mk_constant(get_comm_ring_name(), {l}), type));
+            if (!comm_ring_inst) {
+                throw exception(sstream() << "fast_arith_normalizer not expecting to be called on expr " << e << " that is not of a type with commutative ring structure\n");
+                return e;
+            }
             partial_apps main_partial_apps(m_tctx, type);
             // TODO(dhs): these are hacky and unnecessary
             flet<partial_apps *> with_papps1(m_partial_apps_ptr, &main_partial_apps);
@@ -372,7 +378,7 @@ private:
 
     expr mk_polynomial(buffer<expr> const & monomials) {
         if (monomials.empty())
-            return m_partial_apps_ptr->get_zero();
+            return mk_mpq_macro(mpq(), get_current_type());
 
         expr add = m_partial_apps_ptr->get_add();
         return mk_nary_app(add, monomials);
