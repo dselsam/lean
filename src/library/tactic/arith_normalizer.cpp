@@ -391,7 +391,7 @@ private:
         return mk_nary_app(add, monomials);
     }
 
-    expr fast_normalize(expr const & e) {
+    expr fast_normalize(expr const & e, bool is_summand = false, bool is_multiplicand = false) {
         check_system("arith_normalizer");
         lean_trace_inc_depth(name({"arith_normalizer", "fast"}));
         lean_trace_d(name({"arith_normalizer", "fast"}), tout() << e << "\n";);
@@ -413,10 +413,10 @@ private:
         case head_type::ADD: return fast_normalize_add(e);
         case head_type::MUL: return fast_normalize_mul(e);
 
-        case head_type::SUB:
+        case head_type::SUB: return fast_normalize_sub(args[2], args[3], is_summand);
         case head_type::DIV:
 
-        case head_type::NEG: return fast_normalize_neg(args[2]);
+        case head_type::NEG: return fast_normalize_neg(args[2], is_multiplicand);
 
         case head_type::INT_OF_NAT:
         case head_type::RAT_OF_INT:
@@ -429,16 +429,26 @@ private:
         return e;
     }
 
-    expr fast_normalize_neg(expr const & _e) {
-        expr e = fast_normalize(_e);
+    expr fast_normalize_sub(expr const & e1, expr const & e2, bool is_summand) {
+        if (is_summand) {
+            expr e1_n = fast_normalize(e1);
+            expr e2_neg_n = fast_normalize(mk_app(m_partial_apps_ptr->get_neg(), e2));
+            return mk_app(m_partial_apps_ptr->get_add(), e1_n, e2_neg_n);
+        } else {
+            expr e2_neg = mk_app(m_partial_apps_ptr->get_neg(), e2);
+            return fast_normalize(mk_app(m_partial_apps_ptr->get_add(), e1, e2_neg));
+        }
+    }
 
-        if (auto neg = is_neg(e))
-            return *neg;
-
-        mpq num;
-        expr power_product = get_power_product(e, num);
-        num.neg();
-        return mk_monomial(num, power_product);
+    expr fast_normalize_neg(expr const & e, bool is_multiplicand) {
+        mpq q(-1);
+        expr c = mk_mpq_macro(q, get_current_type());
+        if (is_multiplicand) {
+            expr e_n = fast_normalize(e);
+            return mk_app(m_partial_apps_ptr->get_mul(), c, e_n);
+        } else {
+            return fast_normalize(mk_app(m_partial_apps_ptr->get_mul(), c, e));
+        }
     }
 
     // Normalizes as well
@@ -448,10 +458,9 @@ private:
             fast_get_flattened_nary_summands(arg1, args);
             fast_get_flattened_nary_summands(arg2, args);
         } else {
-            // This is needed because normalizing may expose additional [add] applications
-            // e.g. [a - b] ==> [a + (-1) * b], [a * (b + c)] ==> (a * b) + (a * c)
-            // Note: do we want fast_normalize WITHOUT fuse, since we are about to fuse?
-            expr e_n = fast_normalize(e);
+            bool is_summand = true;
+            bool is_multiplicand = false;
+            expr e_n = fast_normalize(e, is_summand, is_multiplicand);
             if (is_add(e_n, arg1, arg2)) {
                 fast_get_flattened_nary_summands(arg1, args);
                 fast_get_flattened_nary_summands(arg2, args);
@@ -467,7 +476,9 @@ private:
             fast_get_flattened_nary_multiplicands(arg1, args, normalize_multiplicands);
             fast_get_flattened_nary_multiplicands(arg2, args, normalize_multiplicands);
         } else if (normalize_multiplicands) {
-            expr e_n = fast_normalize(e);
+            bool is_summand = false;
+            bool is_multiplicand = true;
+            expr e_n = fast_normalize(e, is_summand, is_multiplicand);
             if (is_mul(e_n, arg1, arg2)) {
                 fast_get_flattened_nary_multiplicands(arg1, args, normalize_multiplicands);
                 fast_get_flattened_nary_multiplicands(arg2, args, normalize_multiplicands);

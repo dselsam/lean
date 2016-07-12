@@ -80,9 +80,11 @@ set_option arith_normalizer.distribute_mul true
 #fast_arith_normalize (x + y) * 3 * (y + z) * 2 = 6 * x * y + 6 * x * z + 6 * y * y + 6 * y * z
 #fast_arith_normalize (x + v) * (y + z) * (w + (y * (z + u))) = (w + (y * (z + u))) * (z + y) * (v + x)
 #fast_arith_normalize (x * (y + (x * (y + (x * (y + x)))))) = x * y + x * x * y + x * x * x * y + x * x * x * x
+set_option arith_normalizer.distribute_mul false
 
 -- neg
 print "--------------"
+set_option arith_normalizer.distribute_mul true
 #fast_arith_normalize - x = -1 * x
 #fast_arith_normalize - (5 * x) = (-5) * x
 #fast_arith_normalize - (-5 * x) = 5 * x
@@ -99,3 +101,14 @@ print "--------------"
 #fast_arith_normalize -(x * -y) = x * y
 #fast_arith_normalize -(x * -(y + z)) = x * y + -x*z
 #fast_arith_normalize x * (-y) + (-x) * y + (-x) * (-y) + x * y
+set_option arith_normalizer.distribute_mul false
+-- sub
+print "--------------"
+set_option arith_normalizer.distribute_mul true
+#fast_arith_normalize x - y = 2 * x - (- (-1) * y) - x
+#fast_arith_normalize -(x + (y - x)) = 2 * y - 3 * y
+#fast_arith_normalize x - (y - x) = x - y + x
+#fast_arith_normalize x * (- x) * (- y) * y = x * x * y * y
+#fast_arith_normalize x + (x - y) + y - x - x = 0
+#fast_arith_normalize x + -(x - y) - y = 0
+set_option arith_normalizer.distribute_mul false
