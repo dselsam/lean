@@ -50,6 +50,7 @@ section division_ring
   theorem one_div_one [simp] : 1 / 1 = (1:A) :=
   div_self (ne.symm zero_ne_one)
 
+  -- useful for one step
   theorem mul_div_assoc (a b : A) : (a * b) / c = a * (b / c) :=
   sorry -- by simp
 

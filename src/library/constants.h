@@ -37,6 +37,7 @@ name const & get_decidable_by_contradiction_name();
 name const & get_distrib_name();
 name const & get_dite_name();
 name const & get_div_name();
+name const & get_div0_name();
 name const & get_empty_name();
 name const & get_empty_rec_name();
 name const & get_eq_name();

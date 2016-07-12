@@ -3,7 +3,9 @@ module RenderLean where
 import Expr
 import Norm
 
-leanHeader numVars = "import algebra.ring\nset_option unifier.conservative true\n"
+leanHeader numVars = "import algebra.ring\n"
+                     ++ "import algebra.arith_util\n"
+                     ++ "set_option unifier.conservative true\n"
                      ++ "set_option unifier.max_steps 1000000\n"
                      ++ "namespace tactic\n"
                      ++ "meta_constant arith_normalize : expr → tactic (prod expr expr)\n"

@@ -148,6 +148,7 @@ enum class head_type {
         ADD, MUL,
         SUB, DIV,
         NEG,
+        DIV0,
         INT_OF_NAT, RAT_OF_INT, REAL_OF_RAT,
         OTHER
         };
@@ -164,16 +165,35 @@ struct partial_apps {
     expr m_type;
     level m_level;
 
+    optional<bool> m_is_field;
+
     expr m_zero, m_one;
     expr m_bit0, m_bit1;
     expr m_add, m_mul, m_div, m_sub, m_neg;
     expr m_eq, m_le, m_ge;
+
+    expr m_div0;
 
     partial_apps(type_context & tctx, expr const & type): m_tctx(tctx), m_type(type) {
         m_level = get_level(m_tctx, type);
     }
 
     bool init(expr const & e) { return e != expr(); }
+
+    bool is_field() {
+        if (m_is_field) {
+            return *m_is_field;
+        } else {
+            expr inst_type = mk_app(mk_constant(get_field_name(), {m_level}), m_type);
+            if (auto inst = m_tctx.mk_class_instance(inst_type)) {
+                m_is_field = optional<bool>(true);
+                return true;
+            } else {
+                m_is_field = optional<bool>(false);
+                return false;
+            }
+        }
+    }
 
     // TODO(dhs): PERF synthesize the first time, and then cache
     expr get_type() const { return m_type; }
@@ -275,6 +295,15 @@ struct partial_apps {
         }
     }
 
+    expr get_div0() {
+        expr inst_type = mk_app(mk_constant(get_has_div_name(), {m_level}), m_type);
+        if (auto inst = m_tctx.mk_class_instance(inst_type)) {
+            return mk_app(mk_constant(get_div0_name(), {m_level}), m_type, *inst);
+        } else {
+            throw exception(sstream() << "cannot synthesize [has_div " << m_type << "]\n");
+        }
+    }
+
     expr get_neg() {
         expr inst_type = mk_app(mk_constant(get_has_neg_name(), {m_level}), m_type);
         if (auto inst = m_tctx.mk_class_instance(inst_type)) {
@@ -305,6 +334,8 @@ static inline head_type get_head_type(expr const & op) {
     else if (const_name(op) == get_div_name()) return head_type::DIV;
 
     else if (const_name(op) == get_neg_name()) return head_type::NEG;
+
+    else if (const_name(op) == get_div0_name()) return head_type::DIV0;
 
     else if (const_name(op) == get_int_of_nat_name()) return head_type::INT_OF_NAT;
     else if (const_name(op) == get_rat_of_int_name()) return head_type::RAT_OF_INT;
@@ -414,7 +445,9 @@ private:
         case head_type::MUL: return fast_normalize_mul(e);
 
         case head_type::SUB: return fast_normalize_sub(args[2], args[3], is_summand);
-        case head_type::DIV:
+        case head_type::DIV: return fast_normalize_div(args[2], args[3]);
+
+        case head_type::DIV0: return fast_normalize_div0(args[2]);
 
         case head_type::NEG: return fast_normalize_neg(args[2], is_multiplicand);
 
@@ -449,6 +482,60 @@ private:
         } else {
             return fast_normalize(mk_app(m_partial_apps_ptr->get_mul(), c, e));
         }
+    }
+
+    expr fast_normalize_div0(expr const & e) {
+        expr e_n = fast_normalize(e);
+        return mk_app(m_partial_apps_ptr->get_div0(), e_n);
+    }
+
+    expr fast_normalize_div(expr const & _e1, expr const & _e2) {
+        expr e1 = fast_normalize(_e1);
+        expr e2 = fast_normalize(_e2);
+
+        mpq q1, q2;
+        if (is_mpq_macro(e2, q2)) {
+            if (q2.is_zero()) {
+                // TODO(dhs): how do we handle division by zero?
+                return mk_app(m_partial_apps_ptr->get_div0(), e1);
+            } else if (is_mpq_macro(e1, q1)) {
+                return mk_mpq_macro(q1/q2, get_current_type());
+            } else {
+                q2.inv();
+                return mk_app(m_partial_apps_ptr->get_mul(), mk_mpq_macro(q2, get_current_type()), e1);
+            }
+        }
+/*
+  theorem field.div_mul_div (a : A) {b : A} (c : A) {d : A} (Hb : b ≠ 0) (Hd : d ≠ 0) :
+      (a / b) * (c / d) = (a * c) / (b * d)
+*/
+
+        if (m_partial_apps_ptr->is_field()) {
+            expr a1, v1, a2, v2;
+            if (is_mul(e1, a1, v1) && is_mpq_macro(a1, q1)) {
+                // already <num> * <other>
+            } else {
+                q1 = 1/1;
+                v1 = e1;
+            }
+
+            if (is_mul(e2, a2, v2) && is_mpq_macro(a2, q2)) {
+                // already <num> * <other>
+            } else {
+                q2 = 1/1;
+                v2 = e2;
+            }
+
+            if (q1 != 1 || q2 != 1) {
+                q1 /= q2;
+                return mk_app(m_partial_apps_ptr->get_mul(), mk_mpq_macro(q1, get_current_type()),
+                              mk_app(m_partial_apps_ptr->get_div(), v1, v2));
+            }
+        }
+
+        // Note: we don't currently bother re-using original expression if it fails to simplify
+        // If we did, we would need to check that the instances matched.
+        return mk_app(m_partial_apps_ptr->get_div(), e1, e2);
     }
 
     // Normalizes as well

@@ -1,6 +1,6 @@
-import algebra.ring
+import algebra.ring algebra.arith_util
 
-constants (A : Type.{1}) (A_inst : comm_ring A) (u v w x y z : A)
+constants (A : Type.{1}) (A_inst : field A) (u v w x y z : A)
 attribute [instance] A_inst
 
 -- fast_normalize_add
@@ -102,6 +102,7 @@ set_option arith_normalizer.distribute_mul true
 #fast_arith_normalize -(x * -(y + z)) = x * y + -x*z
 #fast_arith_normalize x * (-y) + (-x) * y + (-x) * (-y) + x * y
 set_option arith_normalizer.distribute_mul false
+
 -- sub
 print "--------------"
 set_option arith_normalizer.distribute_mul true
@@ -111,4 +112,27 @@ set_option arith_normalizer.distribute_mul true
 #fast_arith_normalize x * (- x) * (- y) * y = x * x * y * y
 #fast_arith_normalize x + (x - y) + y - x - x = 0
 #fast_arith_normalize x + -(x - y) - y = 0
+set_option arith_normalizer.distribute_mul false
+
+-- div
+print "--------------"
+set_option arith_normalizer.distribute_mul true
+#fast_arith_normalize (1:A) / 1 - 1
+#fast_arith_normalize (2:A) / 1 - 2
+#fast_arith_normalize (2:A) / 2 - 1
+#fast_arith_normalize (1:A) / 2 - (1/2)
+
+#fast_arith_normalize x / y - (2 * x) / (2 * y)
+#fast_arith_normalize x / 1 - x
+#fast_arith_normalize x / 2 - (1/2) * x
+#fast_arith_normalize x / (3 / 2) - (2/3) * x
+
+#fast_arith_normalize x / 0 = div0 x
+#fast_arith_normalize (5 * y) / y = y / ((1/5) * y)
+#fast_arith_normalize (5 * y) / (5 * y) = y / y
+
+#fast_arith_normalize y / (2 * x) - (1/2) * (y / x)
+
+
+
 set_option arith_normalizer.distribute_mul false

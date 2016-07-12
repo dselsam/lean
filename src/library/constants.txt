@@ -30,6 +30,7 @@ decidable.by_contradiction
 distrib
 dite
 div
+div0
 empty
 empty.rec
 eq

@@ -35,6 +35,7 @@ name const * g_decidable_by_contradiction = nullptr;
 name const * g_distrib = nullptr;
 name const * g_dite = nullptr;
 name const * g_div = nullptr;
+name const * g_div0 = nullptr;
 name const * g_empty = nullptr;
 name const * g_empty_rec = nullptr;
 name const * g_eq = nullptr;
@@ -290,6 +291,7 @@ void initialize_constants() {
     g_distrib = new name{"distrib"};
     g_dite = new name{"dite"};
     g_div = new name{"div"};
+    g_div0 = new name{"div0"};
     g_empty = new name{"empty"};
     g_empty_rec = new name{"empty", "rec"};
     g_eq = new name{"eq"};
@@ -546,6 +548,7 @@ void finalize_constants() {
     delete g_distrib;
     delete g_dite;
     delete g_div;
+    delete g_div0;
     delete g_empty;
     delete g_empty_rec;
     delete g_eq;
@@ -801,6 +804,7 @@ name const & get_decidable_by_contradiction_name() { return *g_decidable_by_cont
 name const & get_distrib_name() { return *g_distrib; }
 name const & get_dite_name() { return *g_dite; }
 name const & get_div_name() { return *g_div; }
+name const & get_div0_name() { return *g_div0; }
 name const & get_empty_name() { return *g_empty; }
 name const & get_empty_rec_name() { return *g_empty_rec; }
 name const & get_eq_name() { return *g_eq; }
