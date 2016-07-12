@@ -496,7 +496,6 @@ private:
         mpq q1, q2;
         if (is_mpq_macro(e2, q2)) {
             if (q2.is_zero()) {
-                // TODO(dhs): how do we handle division by zero?
                 return mk_app(m_partial_apps_ptr->get_div0(), e1);
             } else if (is_mpq_macro(e1, q1)) {
                 return mk_mpq_macro(q1/q2, get_current_type());
