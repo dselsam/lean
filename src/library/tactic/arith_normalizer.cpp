@@ -149,6 +149,7 @@ enum class head_type {
         SUB, DIV,
         NEG,
         DIV0,
+        ZERO, ONE, BIT0, BIT1,
         INT_OF_NAT, RAT_OF_INT, REAL_OF_RAT,
         OTHER
         };
@@ -347,6 +348,11 @@ static inline head_type get_head_type(expr const & op) {
 
     else if (const_name(op) == get_div0_name()) return head_type::DIV0;
 
+    else if (const_name(op) == get_zero_name()) return head_type::ZERO;
+    else if (const_name(op) == get_one_name()) return head_type::ONE;
+    else if (const_name(op) == get_bit0_name()) return head_type::BIT0;
+    else if (const_name(op) == get_bit1_name()) return head_type::BIT1;
+
     else if (const_name(op) == get_int_of_nat_name()) return head_type::INT_OF_NAT;
     else if (const_name(op) == get_rat_of_int_name()) return head_type::RAT_OF_INT;
     else if (const_name(op) == get_real_of_rat_name()) return head_type::REAL_OF_RAT;
@@ -455,10 +461,6 @@ private:
         lean_trace_inc_depth(name({"arith_normalizer", "fast"}));
         lean_trace_d(name({"arith_normalizer", "fast"}), tout() << e << "\n";);
 
-        if (auto n = to_num(e)) {
-            return mk_mpq_macro(mpq(*n), get_current_type());
-        }
-
         buffer<expr> args;
         expr op = get_app_args(e, args);
 
@@ -482,6 +484,12 @@ private:
         case head_type::INT_OF_NAT: return fast_normalize_int_of_nat(args[0]);
         case head_type::RAT_OF_INT: return fast_normalize_rat_of_int(args[0]);
         case head_type::REAL_OF_RAT: return fast_normalize_real_of_rat(args[0]);
+
+        case head_type::ZERO: case head_type::ONE: case head_type::BIT0: case head_type::BIT1:
+            if (auto n = to_num(e))
+                return mk_mpq_macro(mpq(*n), get_current_type());
+            else
+                break;
 
         case head_type::OTHER:
             break;
@@ -527,7 +535,6 @@ private:
         expr arg1, arg2;
 
         if (is_mpq_macro(e, q)) {
-            // real.of_rat <numeral : rat> ==> <numeral : real>
             return mk_mpq_macro(q, get_current_type());
         } else if (is_add(e, arg1, arg2)) {
             lean_assert(!is_add(arg1));
