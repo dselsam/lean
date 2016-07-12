@@ -37,6 +37,7 @@ Author: Leonardo de Moura
 #include "library/replace_visitor.h"
 #include "library/string.h"
 #include "library/type_context.h"
+#include "library/mpq_macro.h"
 #include "library/definitional/equations.h"
 #include "library/tactic/tactic_state.h"
 #include "library/compiler/comp_irrelevant.h"
@@ -893,6 +894,13 @@ auto pretty_fn::pp_lazy_abstraction(expr const & e) -> result {
     }
 }
 
+auto pretty_fn::pp_mpq_macro(expr const & e) -> result {
+    mpq q;
+    lean_verify(is_mpq_macro(e, q));
+    format r(q);
+    return result(r);
+}
+
 auto pretty_fn::pp_macro(expr const & e) -> result {
     if (is_explicit(e)) {
         return pp_explicit(e);
@@ -900,6 +908,8 @@ auto pretty_fn::pp_macro(expr const & e) -> result {
         return result(format("`(") + nest(2, pp(get_quote_expr(e)).fmt()) + format(")"));
     } else if (is_lazy_abstraction(e)) {
         return pp_lazy_abstraction(e);
+    } else if (is_mpq_macro(e)) {
+        return pp_mpq_macro(e);
     } else if (is_inaccessible(e)) {
         format li = m_unicode ? format("⌞") : format("?(");
         format ri = m_unicode ? format("⌟") : format(")");

@@ -122,6 +122,7 @@ private:
     result pp_macro(expr const & e);
     result pp_explicit(expr const & e);
     result pp_lazy_abstraction(expr const & e);
+    result pp_mpq_macro(expr const & e);
     result pp_let_macro(expr e);
     result pp_let(expr e);
     result pp_num(mpz const & n);

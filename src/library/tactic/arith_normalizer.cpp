@@ -365,8 +365,6 @@ private:
     expr mk_monomial(mpq const & coeff, expr const & power_product) {
         if (coeff == 1) {
             return power_product;
-        } else if (coeff == -1) {
-            return mk_app(m_partial_apps_ptr->get_neg(), power_product);
         } else {
             expr c = mk_mpq_macro(coeff, get_current_type());
             return mk_app(m_partial_apps_ptr->get_mul(), c, power_product);
