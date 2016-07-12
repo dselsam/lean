@@ -21,6 +21,7 @@ Author: Daniel Selsam
 #include "library/app_builder.h"
 #include "library/fun_info.h"
 #include "library/sorry.h"
+#include "library/mpq_macro.h"
 #include "library/kernel_serializer.h"
 #include "library/vm/vm_expr.h"
 #include "library/tactic/tactic_state.h"
@@ -102,7 +103,7 @@ static expr mk_nary_app(expr const & fn, buffer<expr> const & args) {
 
 static expr get_power_product(expr const & monomial) {
     expr lhs, rhs;
-    if (is_mul(monomial, lhs, rhs) && is_normalized_numeral(lhs)) {
+    if (is_mul(monomial, lhs, rhs) && is_mpq_macro(lhs)) {
         if (auto neg = is_neg(rhs)) {
             return *neg;
         } else {
@@ -118,7 +119,7 @@ static expr get_power_product(expr const & monomial) {
 
 static expr get_power_product(expr const & monomial, mpq & num) {
     expr lhs, rhs;
-    if (is_mul(monomial, lhs, rhs) && is_normalized_numeral(lhs, num)) {
+    if (is_mul(monomial, lhs, rhs) && is_mpq_macro(lhs, num)) {
         if (auto neg = is_neg(rhs)) {
             num.neg();
             return *neg;
@@ -314,7 +315,6 @@ static inline head_type get_head_type(expr const & op) {
 class fast_arith_normalize_fn {
     type_context            m_tctx;
     arith_normalize_options m_options;
-    num2expr                m_num2expr;
     partial_apps *          m_partial_apps_ptr;
 
 public:
@@ -334,8 +334,6 @@ public:
             partial_apps main_partial_apps(m_tctx, type);
             // TODO(dhs): these are hacky and unnecessary
             flet<partial_apps *> with_papps1(m_partial_apps_ptr, &main_partial_apps);
-            flet<partial_apps *> with_papps2(m_num2expr.m_partial_apps_ptr, &main_partial_apps);
-
             return fast_normalize(e);
         }
     }
@@ -346,7 +344,7 @@ private:
     expr get_current_type() const { return m_partial_apps_ptr->get_type(); }
 
     expr mk_monomial(mpq const & coeff) {
-        return m_num2expr.mpq_to_expr(coeff);
+        return mk_mpq_macro(coeff, get_current_type());
     }
 
     expr mk_monomial(mpq const & coeff, expr const & power_product) {
@@ -355,13 +353,13 @@ private:
         } else if (coeff == -1) {
             return mk_app(m_partial_apps_ptr->get_neg(), power_product);
         } else {
-            expr c = m_num2expr.mpq_to_expr(coeff);
+            expr c = mk_mpq_macro(coeff, get_current_type());
             return mk_app(m_partial_apps_ptr->get_mul(), c, power_product);
         }
     }
 
     expr mk_polynomial(mpq const & coeff, buffer<expr> const & monomials) {
-        expr c = m_num2expr.mpq_to_expr(coeff);
+        expr c = mk_mpq_macro(coeff, get_current_type());
         if (monomials.empty()) {
             return c;
         } else if (coeff.is_zero()) {
@@ -385,9 +383,8 @@ private:
         lean_trace_inc_depth(name({"arith_normalizer", "fast"}));
         lean_trace_d(name({"arith_normalizer", "fast"}), tout() << e << "\n";);
 
-        mpq q;
-        if (is_numeral_expr(e, q)) {
-            return m_num2expr.mpq_to_expr(q);
+        if (auto n = to_num(e)) {
+            return mk_mpq_macro(mpq(*n), get_current_type());
         }
 
         buffer<expr> args;
@@ -481,7 +478,7 @@ private:
 
         for (expr const & monomial : monomials) {
             // TODO(dhs): I think we will be able to assume that numerals are already in normal form
-            if (is_normalized_numeral(monomial, num)) {
+            if (is_mpq_macro(monomial, num)) {
                 coeff += num;
                 num_coeffs++;
             } else {
@@ -500,7 +497,7 @@ private:
         if (repeated_power_products.empty()) {
             // Only numerals may need to be fused
             for (expr const & monomial : monomials) {
-                if (!is_normalized_numeral(monomial)) {
+                if (!is_mpq_macro(monomial)) {
                     new_monomials.push_back(monomial);
                 }
             }
@@ -510,7 +507,7 @@ private:
             expr_struct_map<mpq> power_product_to_coeff;
 
             for (expr const & monomial : monomials) {
-                if (is_normalized_numeral(monomial))
+                if (is_mpq_macro(monomial))
                     continue;
                 expr power_product = get_power_product(monomial, num);
                 if (!repeated_power_products.count(power_product))
@@ -521,7 +518,7 @@ private:
             power_products.clear();
 
             for (expr const & monomial : monomials) {
-                if (is_normalized_numeral(monomial))
+                if (is_mpq_macro(monomial))
                     continue;
                 expr power_product = get_power_product(monomial, num);
                 if (!repeated_power_products.count(power_product)) {
@@ -562,7 +559,7 @@ private:
         buffer<expr> non_num_multiplicands;
 
         for (expr const & multiplicand : multiplicands) {
-            if (is_normalized_numeral(multiplicand, num)) {
+            if (is_mpq_macro(multiplicand, num)) {
                 coeff *= num;
                 num_coeffs++;
             } else {
@@ -651,7 +648,7 @@ private:
         unsigned num_coeffs = 0;
 
         for (expr const & monomial : lhs_monomials) {
-            if (is_normalized_numeral(monomial, num)) {
+            if (is_mpq_macro(monomial, num)) {
                 coeff += num;
                 num_coeffs++;
             } else {
@@ -661,7 +658,7 @@ private:
         }
 
         for (expr const & monomial : rhs_monomials) {
-            if (is_normalized_numeral(monomial, num)) {
+            if (is_mpq_macro(monomial, num)) {
                 coeff -= num;
                 num_coeffs++;
             } else {
@@ -678,7 +675,7 @@ private:
         expr_struct_map<mpq> power_product_to_coeff;
 
         for (expr const & monomial : lhs_monomials) {
-            if (is_normalized_numeral(monomial))
+            if (is_mpq_macro(monomial))
                 continue;
             expr power_product = get_power_product(monomial, num);
             if (!shared_power_products.count(power_product))
@@ -687,7 +684,7 @@ private:
         }
 
         for (expr const & monomial : rhs_monomials) {
-            if (is_normalized_numeral(monomial))
+            if (is_mpq_macro(monomial))
                 continue;
             expr power_product = get_power_product(monomial, num);
             if (!shared_power_products.count(power_product))
@@ -699,7 +696,7 @@ private:
         // Pass 3: collect new monomials for both sides
         buffer<expr> new_lhs_monomials;
         for (expr const & monomial : lhs_monomials) {
-            if (is_normalized_numeral(monomial))
+            if (is_mpq_macro(monomial))
                 continue;
             expr power_product = get_power_product(monomial, num);
             if (!shared_power_products.count(power_product)) {
@@ -713,7 +710,7 @@ private:
 
         buffer<expr> new_rhs_monomials;
         for (expr const & monomial : rhs_monomials) {
-            if (is_normalized_numeral(monomial))
+            if (is_mpq_macro(monomial))
                 continue;
             expr power_product = get_power_product(monomial, num);
             if (!shared_power_products.count(power_product)) {

@@ -63,7 +63,7 @@ static name * g_mpq_macro_name    = nullptr;
 static std::string * g_mpq_opcode = nullptr;
 
 class mpq_macro_definition_cell : public macro_definition_cell {
-    mpq const & m_q;
+    mpq m_q;
 
     void check_macro(expr const & m) const {
         if (!is_macro(m) || macro_num_args(m) != 1)
@@ -115,6 +115,19 @@ bool is_mpq_macro(expr const & e) {
         return true;
     else
         return false;
+}
+
+bool is_mpq_macro(expr const & e, mpq & q) {
+    if (is_macro(e)) {
+        if (auto def = dynamic_cast<mpq_macro_definition_cell const *>(macro_def(e).raw())) {
+            q = def->get_mpq();
+            return true;
+        } else {
+            return false;
+        }
+    } else {
+        return false;
+    }
 }
 
 void initialize_mpq_macro() {
