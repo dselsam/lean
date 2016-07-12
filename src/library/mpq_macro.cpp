@@ -5,6 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Author: Daniel Selsam
 */
 #include "util/sstream.h"
+#include "util/hash.h"
 #include "library/num.h"
 #include "library/mpq_macro.h"
 #include "library/kernel_serializer.h"
@@ -101,7 +102,7 @@ public:
     }
 
     virtual unsigned hash() const {
-        return get_name().hash();
+        return ::lean::hash(get_name().hash(), m_q.hash());
     }
 };
 

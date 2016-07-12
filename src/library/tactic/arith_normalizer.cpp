@@ -260,20 +260,30 @@ struct partial_apps {
     }
 
     expr get_add() {
-        expr inst_type = mk_app(mk_constant(get_has_add_name(), {m_level}), m_type);
-        if (auto inst = m_tctx.mk_class_instance(inst_type)) {
-            return mk_app(mk_constant(get_add_name(), {m_level}), m_type, *inst);
+        if (init(m_add)) {
+            return m_add;
         } else {
-            throw exception(sstream() << "cannot synthesize [has_add " << m_type << "]\n");
+            expr inst_type = mk_app(mk_constant(get_has_add_name(), {m_level}), m_type);
+            if (auto inst = m_tctx.mk_class_instance(inst_type)) {
+                m_add = mk_app(mk_constant(get_add_name(), {m_level}), m_type, *inst);
+                return m_add;
+            } else {
+                throw exception(sstream() << "cannot synthesize [has_add " << m_type << "]\n");
+            }
         }
     }
 
     expr get_mul() {
-        expr inst_type = mk_app(mk_constant(get_has_mul_name(), {m_level}), m_type);
-        if (auto inst = m_tctx.mk_class_instance(inst_type)) {
-            return mk_app(mk_constant(get_mul_name(), {m_level}), m_type, *inst);
+        if (init(m_mul)) {
+            return m_mul;
         } else {
-            throw exception(sstream() << "cannot synthesize [has_mul " << m_type << "]\n");
+            expr inst_type = mk_app(mk_constant(get_has_mul_name(), {m_level}), m_type);
+            if (auto inst = m_tctx.mk_class_instance(inst_type)) {
+                m_mul = mk_app(mk_constant(get_mul_name(), {m_level}), m_type, *inst);
+                return m_mul;
+            } else {
+                throw exception(sstream() << "cannot synthesize [has_mul " << m_type << "]\n");
+            }
         }
     }
 
