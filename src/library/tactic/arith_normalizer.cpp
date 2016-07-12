@@ -5,6 +5,7 @@ Author: Daniel Selsam
 */
 #include <functional>
 #include "util/optional.h"
+#include "util/timeit.h"
 #include "util/interrupt.h"
 #include "util/sexpr/option_declarations.h"
 #include "kernel/abstract.h"
@@ -39,8 +40,8 @@ Author: Daniel Selsam
 #ifndef LEAN_DEFAULT_ARITH_NORMALIZER_ORIENT_POLYS
 #define LEAN_DEFAULT_ARITH_NORMALIZER_ORIENT_POLYS false
 #endif
-#ifndef LEAN_DEFAULT_ARITH_NORMALIZER_SORT_MONOMIALS
-#define LEAN_DEFAULT_ARITH_NORMALIZER_SORT_MONOMIALS false
+#ifndef LEAN_DEFAULT_ARITH_NORMALIZER_PROFILE
+#define LEAN_DEFAULT_ARITH_NORMALIZER_PROFILE false
 #endif
 
 namespace lean {
@@ -50,7 +51,7 @@ static name * g_arith_normalizer_distribute_mul = nullptr;
 static name * g_arith_normalizer_fuse_mul       = nullptr;
 static name * g_arith_normalizer_normalize_div  = nullptr;
 static name * g_arith_normalizer_orient_polys   = nullptr;
-static name * g_arith_normalizer_sort_monomials = nullptr;
+static name * g_arith_normalizer_profile = nullptr;
 
 static bool get_arith_normalizer_distribute_mul(options const & o) {
     return o.get_bool(*g_arith_normalizer_distribute_mul, LEAN_DEFAULT_ARITH_NORMALIZER_DISTRIBUTE_MUL);
@@ -68,25 +69,25 @@ static bool get_arith_normalizer_orient_polys(options const & o) {
     return o.get_bool(*g_arith_normalizer_orient_polys, LEAN_DEFAULT_ARITH_NORMALIZER_ORIENT_POLYS);
 }
 
-static bool get_arith_normalizer_sort_monomials(options const & o) {
-    return o.get_bool(*g_arith_normalizer_sort_monomials, LEAN_DEFAULT_ARITH_NORMALIZER_SORT_MONOMIALS);
+static bool get_arith_normalizer_profile(options const & o) {
+    return o.get_bool(*g_arith_normalizer_profile, LEAN_DEFAULT_ARITH_NORMALIZER_PROFILE);
 }
 
 struct arith_normalize_options {
-    bool m_distribute_mul, m_fuse_mul, m_normalize_div, m_orient_polys, m_sort_monomials;
+    bool m_distribute_mul, m_fuse_mul, m_normalize_div, m_orient_polys, m_profile;
     arith_normalize_options(options const & o):
         m_distribute_mul(get_arith_normalizer_distribute_mul(o)),
         m_fuse_mul(get_arith_normalizer_fuse_mul(o)),
         m_normalize_div(get_arith_normalizer_normalize_div(o)),
         m_orient_polys(get_arith_normalizer_orient_polys(o)),
-        m_sort_monomials(get_arith_normalizer_sort_monomials(o))
+        m_profile(get_arith_normalizer_profile(o))
         {}
 
     bool distribute_mul() const { return m_distribute_mul; }
     bool fuse_mul() const { return m_fuse_mul; }
     bool normalize_div() const { return m_normalize_div; }
     bool orient_polys() const { return m_orient_polys; }
-    bool sort_monomials() const { return m_sort_monomials; }
+    bool profile() const { return m_profile; }
 };
 
 
@@ -340,7 +341,15 @@ public:
             partial_apps main_partial_apps(m_tctx, type);
             // TODO(dhs): these are hacky and unnecessary
             flet<partial_apps *> with_papps1(m_partial_apps_ptr, &main_partial_apps);
-            return fast_normalize(e);
+
+            if (m_options.profile()) {
+                std::ostringstream msg;
+                msg << " arith_normalizer time: ";
+                timeit timer(get_dummy_ios().get_diagnostic_stream(), msg.str().c_str(), 0.0);
+                return fast_normalize(e);
+            } else {
+                return fast_normalize(e);
+            }
         }
     }
 
@@ -871,7 +880,7 @@ void initialize_arith_normalizer() {
     g_arith_normalizer_fuse_mul           = new name{"arith_normalizer", "fuse_mul"};
     g_arith_normalizer_normalize_div      = new name{"arith_normalizer", "normalize_div"};
     g_arith_normalizer_orient_polys       = new name{"arith_normalizer", "orient_polys"};
-    g_arith_normalizer_sort_monomials     = new name{"arith_normalizer", "sort_monomials"};
+    g_arith_normalizer_profile     = new name{"arith_normalizer", "profile"};
 
     // Register options
     register_bool_option(*g_arith_normalizer_distribute_mul, LEAN_DEFAULT_ARITH_NORMALIZER_DISTRIBUTE_MUL,
@@ -882,8 +891,8 @@ void initialize_arith_normalizer() {
                          "(arith_normalizer) (x / z) * y ==> (x * y) / z");
     register_bool_option(*g_arith_normalizer_orient_polys, LEAN_DEFAULT_ARITH_NORMALIZER_ORIENT_POLYS,
                          "(arith_normalizer) x + y + z = w + 2 ==> x + y + z - w = 2");
-    register_bool_option(*g_arith_normalizer_sort_monomials, LEAN_DEFAULT_ARITH_NORMALIZER_SORT_MONOMIALS,
-                         "(arith_normalizer) y + x = v + u ==> x + y = u + v");
+    register_bool_option(*g_arith_normalizer_profile, LEAN_DEFAULT_ARITH_NORMALIZER_PROFILE,
+                         "(arith_normalizer) print how long an invocation takes");
 
     // Declare tactics
     DECLARE_VM_BUILTIN(name({"tactic", "arith_normalize"}), tactic_arith_normalize);
@@ -901,7 +910,7 @@ void initialize_arith_normalizer() {
 }
 void finalize_arith_normalizer() {
     // Delete names for options
-    delete g_arith_normalizer_sort_monomials;
+    delete g_arith_normalizer_profile;
     delete g_arith_normalizer_orient_polys;
     delete g_arith_normalizer_normalize_div;
     delete g_arith_normalizer_fuse_mul;
