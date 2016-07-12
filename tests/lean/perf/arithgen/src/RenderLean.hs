@@ -15,6 +15,7 @@ leanHeader numVars = "import algebra.ring\nset_option unifier.conservative true\
                      ++ "attribute X_cr [instance]\n"
                      ++ "constants (" ++ concatMap (\i -> exprToLean (Var i) ++ " ") [1..numVars] ++ " : X)\n"
                      ++ "set_option arith_normalizer.distribute_mul true\n"
+                     ++ "set_option arith_normalizer.profile true\n"
 
 
 numToLean k
