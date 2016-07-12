@@ -903,6 +903,10 @@ expr mk_not(type_context & ctx, expr const & H) {
     return mk_app(ctx, get_not_name(), {H});
 }
 
+expr mk_false_rec(type_context & ctx, expr const & c, expr const & H) {
+    return app_builder(ctx).mk_false_rec(c, H);
+}
+
 expr mk_partial_add(type_context & ctx, expr const & A) {
     return app_builder(ctx).mk_partial_add(A);
 }
@@ -927,9 +931,31 @@ expr mk_partial_right_distrib(type_context & ctx, expr const & A) {
     return app_builder(ctx).mk_partial_right_distrib(A);
 }
 
-expr mk_false_rec(type_context & ctx, expr const & c, expr const & H) {
-    return app_builder(ctx).mk_false_rec(c, H);
+// TODO(dhs): optimized versions, perhaps optionally taking level and type as args
+expr mk_neg(type_context & tctx, expr const & e) {
+    return mk_app(tctx, get_neg_name(), e);
 }
+
+expr mk_bit0(type_context & tctx, expr const & e) {
+    return mk_app(tctx, get_bit0_name(), e);
+}
+
+expr mk_bit1(type_context & tctx, expr const & e) {
+    return mk_app(tctx, get_bit1_name(), e);
+}
+
+expr mk_div(type_context & tctx, expr const & n, expr const & d) {
+    return mk_app(tctx, get_div_name(), n, d);
+}
+
+expr mk_add(type_context & tctx, expr const & e1, expr const & e2) {
+    return mk_app(tctx, get_add_name(), e1, e2);
+}
+
+expr mk_mul(type_context & tctx, expr const & e1, expr const & e2) {
+    return mk_app(tctx, get_mul_name(), e1, e2);
+}
+
 
 void initialize_app_builder() {
     register_trace_class("app_builder");

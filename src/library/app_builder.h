@@ -141,6 +141,10 @@ expr mk_false_of_true_iff_false(type_context & ctx, expr const & H);
 
 expr mk_not(type_context & ctx, expr const & H);
 
+/** \brief False elimination */
+expr mk_false_rec(type_context & ctx, expr const & c, expr const & H);
+
+/** \brief Arithmetic */
 expr mk_partial_add(type_context & ctx, expr const & A);
 expr mk_partial_mul(type_context & ctx, expr const & A);
 expr mk_zero(type_context & ctx, expr const & A);
@@ -148,8 +152,12 @@ expr mk_one(type_context & ctx, expr const & A);
 expr mk_partial_left_distrib(type_context & ctx, expr const & A);
 expr mk_partial_right_distrib(type_context & ctx, expr const & A);
 
-/** \brief False elimination */
-expr mk_false_rec(type_context & ctx, expr const & c, expr const & H);
+expr mk_neg(type_context & tctx, expr const & e);
+expr mk_bit0(type_context & tctx, expr const & e);
+expr mk_bit1(type_context & tctx, expr const & e);
+expr mk_div(type_context & tctx, expr const & n, expr const & d);
+expr mk_add(type_context & tctx, expr const & e1, expr const & e2);
+expr mk_mul(type_context & tctx, expr const & e1, expr const & e2);
 
 level get_level(type_context & ctx, expr const & A);
 

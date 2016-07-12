@@ -100,72 +100,6 @@ static expr mk_nary_app(expr const & fn, buffer<expr> const & args) {
     return e;
 }
 
-static bool is_numeral_expr(expr const & e, mpq & num) {
-    buffer<expr> args;
-    expr f = get_app_args(e, args);
-    if (!is_constant(f))
-        return false;
-
-    mpq rhs;
-    if (const_name(f) == get_add_name() && args.size() == 4) {
-        if (!is_numeral_expr(args[2], num) || !is_numeral_expr(args[3], rhs))
-            return false;
-        num += rhs;
-    } else if (const_name(f) == get_mul_name() && args.size() == 4) {
-        if (!is_numeral_expr(args[2], num) || !is_numeral_expr(args[3], rhs))
-            return false;
-        num *= rhs;
-    } else if (const_name(f) == get_sub_name() && args.size() == 4) {
-        if (!is_numeral_expr(args[2], num) || !is_numeral_expr(args[3], rhs))
-            return false;
-        num -= rhs;
-    } else if (const_name(f) == get_div_name() && args.size() == 4) {
-        if (!is_numeral_expr(args[2], num) || !is_numeral_expr(args[3], rhs) || rhs.is_zero())
-            return false;
-        num /= rhs;
-    } else if (const_name(f) == get_neg_name() && args.size() == 3) {
-        if (!is_numeral_expr(args[2], num))
-            return false;
-        num.neg();
-    } else if (auto n = to_num(e)) {
-        num = *n;
-    } else {
-        return false;
-    }
-    return true;
-}
-
-static bool is_numeral_expr(expr const & e) {
-    mpq num;
-    return is_numeral_expr(e, num);
-}
-
-// TODO(dhs): these two might not be what I want where I currently call it
-static bool is_normalized_numeral_core(expr const & e, bool in_neg) {
-    if (is_num(e)) return true;
-    expr arg, arg1, arg2;
-    if (auto arg = is_neg(e)) {
-        if (in_neg)
-            return false;
-        else
-            return is_normalized_numeral_core(*arg, true);
-    } else if (is_div(e, arg1, arg2)) {
-        return is_num(arg1) && is_num(arg2);
-    } else if (is_mul(e, arg1, arg2)) {
-        return is_num(arg1) && is_num(arg2);
-    } else {
-        return false;
-    }
-}
-
-static bool is_normalized_numeral(expr const & e) { return is_normalized_numeral_core(e, false); }
-static bool is_normalized_numeral(expr const & e, mpq & q) {
-    if (!is_normalized_numeral(e))
-        return false;
-    lean_verify(is_numeral_expr(e, q));
-    return true;
-}
-
 static expr get_power_product(expr const & monomial) {
     expr lhs, rhs;
     if (is_mul(monomial, lhs, rhs) && is_normalized_numeral(lhs)) {
@@ -352,53 +286,6 @@ struct partial_apps {
     expr get_le() { return mk_app(mk_constant(get_le_name(), {m_level}), m_type); }
     expr get_ge() { return mk_app(mk_constant(get_ge_name(), {m_level}), m_type); }
 
-};
-
-// TODO(dhs): take a fast_arith_normalizer reference instead?
-struct num2expr {
-    partial_apps * m_partial_apps_ptr;
-
-    void set_partial_apps(partial_apps * papps_ptr) {
-        m_partial_apps_ptr = papps_ptr;
-    }
-
-    expr mpq_to_expr(mpq const & q) {
-        mpz numer = q.get_numerator();
-        if (numer.is_zero())
-            return m_partial_apps_ptr->get_zero();
-
-        mpz denom = q.get_denominator();
-        lean_assert(denom > 0);
-
-        bool flip_sign = false;
-        if (numer.is_neg()) {
-            numer.neg();
-            flip_sign = true;
-        }
-
-        expr e;
-        if (denom == 1) {
-            e = pos_mpz_to_expr(numer);
-        } else {
-            e = mk_app(m_partial_apps_ptr->get_div(), pos_mpz_to_expr(numer), pos_mpz_to_expr(denom));
-        }
-
-        if (flip_sign) {
-            return mk_app(m_partial_apps_ptr->get_neg(), e);
-        } else {
-            return e;
-        }
-    }
-
-    expr pos_mpz_to_expr(mpz const & n) {
-        lean_assert(n > 0);
-        if (n == 1)
-            return m_partial_apps_ptr->get_one();
-        if (n % mpz(2) == 1)
-            return mk_app(m_partial_apps_ptr->get_bit1(), pos_mpz_to_expr(n/2));
-        else
-            return mk_app(m_partial_apps_ptr->get_bit0(), pos_mpz_to_expr(n/2));
-    }
 };
 
 static inline head_type get_head_type(expr const & op) {
@@ -692,14 +579,18 @@ private:
 
         if (coeff.is_zero()) {
             return mk_monomial(coeff);
+        } else if (non_num_multiplicands.empty()) {
+            return mk_monomial(coeff);
         }
 
         // TODO(dhs): expr_pow_lt
 
         // TODO(dhs): detect special cases and return early
 
+
         expr e_n;
         if (!m_options.distribute_mul() || num_add == 0) {
+
             std::sort(non_num_multiplicands.begin(), non_num_multiplicands.end());
             e_n = mk_monomial(coeff, mk_nary_app(m_partial_apps_ptr->get_mul(), non_num_multiplicands));
         } else {

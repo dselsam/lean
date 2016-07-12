@@ -25,4 +25,4 @@ genExpr numVars maxPerAdd maxPerMul maxCoeff recurseWeight = genAdd numVars maxP
       genLeaf numVars maxCoeff = do
                             var <- Random.uniform [1..numVars]
                             coeff <- Random.uniform [-maxCoeff..maxCoeff]
-                            if var == numVars then return (Num coeff) else return (Mul [Var var, Num coeff])
+                            if var == numVars then return (Num (fromIntegral coeff)) else return (Mul [Var var, Num (fromIntegral coeff)])
