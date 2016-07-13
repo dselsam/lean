@@ -167,3 +167,9 @@ print "--------------"
 #fast_arith_normalize (1:A) ≥ 0
 #fast_arith_normalize (1:A) ≥ 1
 #fast_arith_normalize (1:A) ≥ 2
+#fast_arith_normalize (1:A) < 0
+#fast_arith_normalize (1:A) < 1
+#fast_arith_normalize (1:A) < 2
+#fast_arith_normalize (1:A) > 0
+#fast_arith_normalize (1:A) > 1
+#fast_arith_normalize (1:A) > 2

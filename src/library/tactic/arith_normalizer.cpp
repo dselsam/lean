@@ -129,7 +129,7 @@ static expr app_arg2(expr const & e) {
 
 enum class head_type {
     EQ, LE, GE,
-    // TODO(dhs): LT, GT
+        LT, GT,
         ADD, MUL,
         SUB, DIV,
         NEG,
@@ -139,7 +139,7 @@ enum class head_type {
         OTHER
         };
 
-enum rel_kind { EQ, LE, GE };
+enum rel_kind { EQ, LE, LT };
 
 enum class norm_status { DONE, FAILED };
 
@@ -310,9 +310,42 @@ struct partial_apps {
     }
 
     expr get_eq() { return mk_app(mk_constant(get_eq_name(), {m_level}), m_type); }
-    expr get_le() { return mk_app(mk_constant(get_le_name(), {m_level}), m_type); }
-    expr get_ge() { return mk_app(mk_constant(get_ge_name(), {m_level}), m_type); }
 
+    expr get_le() {
+        expr inst_type = mk_app(mk_constant(get_has_le_name(), {m_level}), m_type);
+        if (auto inst = m_tctx.mk_class_instance(inst_type)) {
+            return mk_app(mk_constant(get_le_name(), {m_level}), m_type, *inst);
+        } else {
+            throw exception(sstream() << "cannot synthesize [has_le " << m_type << "]\n");
+        }
+    }
+
+    expr get_ge() {
+        expr inst_type = mk_app(mk_constant(get_has_le_name(), {m_level}), m_type);
+        if (auto inst = m_tctx.mk_class_instance(inst_type)) {
+            return mk_app(mk_constant(get_ge_name(), {m_level}), m_type, *inst);
+        } else {
+            throw exception(sstream() << "cannot synthesize [has_le " << m_type << "]\n");
+        }
+    }
+
+    expr get_lt() {
+        expr inst_type = mk_app(mk_constant(get_has_lt_name(), {m_level}), m_type);
+        if (auto inst = m_tctx.mk_class_instance(inst_type)) {
+            return mk_app(mk_constant(get_lt_name(), {m_level}), m_type, *inst);
+        } else {
+            throw exception(sstream() << "cannot synthesize [has_lt " << m_type << "]\n");
+        }
+    }
+
+    expr get_gt() {
+        expr inst_type = mk_app(mk_constant(get_has_lt_name(), {m_level}), m_type);
+        if (auto inst = m_tctx.mk_class_instance(inst_type)) {
+            return mk_app(mk_constant(get_gt_name(), {m_level}), m_type, *inst);
+        } else {
+            throw exception(sstream() << "cannot synthesize [has_lt " << m_type << "]\n");
+        }
+    }
 };
 
 static inline head_type get_head_type(expr const & op) {
@@ -340,6 +373,9 @@ static inline head_type get_head_type(expr const & op) {
 
     else if (const_name(op) == get_le_name()) return head_type::LE;
     else if (const_name(op) == get_ge_name()) return head_type::GE;
+
+    else if (const_name(op) == get_lt_name()) return head_type::LT;
+    else if (const_name(op) == get_gt_name()) return head_type::GT;
 
     else return head_type::OTHER;
 }
@@ -450,10 +486,13 @@ private:
 
         unsigned num_args = args.size();
         switch (get_head_type(op)) {
-        case head_type::EQ: return fast_normalize_rel(args[num_args-2], args[num_args-1], rel_kind::EQ);
+        case head_type::EQ: return fast_normalize_eq(args[1], args[2]);
 
-        case head_type::LE: return fast_normalize_rel(args[num_args-2], args[num_args-1], rel_kind::LE);
-        case head_type::GE: return fast_normalize_rel(args[num_args-2], args[num_args-1], rel_kind::GE);
+        case head_type::LE: return fast_normalize_le(args[2], args[3]);
+        case head_type::GE: return fast_normalize_ge(args[2], args[3]);
+
+        case head_type::LT: return fast_normalize_lt(args[2], args[3]);
+        case head_type::GT: return fast_normalize_gt(args[2], args[3]);
 
         case head_type::ADD: return fast_normalize_add(e);
         case head_type::MUL: return fast_normalize_mul(e);
@@ -480,6 +519,60 @@ private:
         }
         // TODO(dhs): this will be unreachable eventually
         return e;
+    }
+
+    expr fast_normalize_eq(expr const & lhs, expr const & rhs) { return fast_normalize_rel(lhs, rhs, rel_kind::EQ); }
+    expr fast_normalize_le(expr const & lhs, expr const & rhs) { return fast_normalize_rel(lhs, rhs, rel_kind::LE); }
+    expr fast_normalize_ge(expr const & lhs, expr const & rhs) { return fast_normalize_rel(rhs, lhs, rel_kind::LE); }
+    expr fast_normalize_lt(expr const & lhs, expr const & rhs) {
+        expr e = fast_normalize_rel(lhs, rhs, rel_kind::LT);
+        buffer<expr> args;
+        switch (get_head_type(get_app_args(e, args))) {
+        case head_type::LT:
+            return mk_app(mk_constant(get_not_name()), mk_app(m_partial_apps_ptr->get_le(), args[3], args[2]));
+        default:
+            lean_assert(is_true(e) || is_false(e));
+            return e;
+        }
+    }
+
+    expr fast_normalize_gt(expr const & lhs, expr const & rhs) {
+        expr e = fast_normalize_rel(rhs, lhs, rel_kind::LT);
+        buffer<expr> args;
+        switch (get_head_type(get_app_args(e, args))) {
+        case head_type::LT:
+            return mk_app(mk_constant(get_not_name()), mk_app(m_partial_apps_ptr->get_le(), args[2], args[3]));
+        default:
+            lean_assert(is_true(e) || is_false(e));
+            return e;
+        }
+    }
+
+    expr fast_normalize_rel(expr const & _lhs, expr const & _rhs, rel_kind rk) {
+        expr lhs = fast_normalize(_lhs);
+        expr rhs = fast_normalize(_rhs);
+        expr new_lhs, new_rhs;
+        norm_status st = fast_cancel_monomials(lhs, rhs, new_lhs, new_rhs);
+
+        // TODO(dhs): bounds
+        // TODO(dhs): gcd stuff
+        // TODO(dhs): clear denominators?
+
+        mpq q1, q2;
+        if (is_mpq_macro(new_lhs, q1) && is_mpq_macro(new_rhs, q2)) {
+            switch (rk) {
+            case rel_kind::EQ: return (q1 == q2) ? mk_constant(get_true_name()) : mk_constant(get_false_name());
+            case rel_kind::LE: return (q1 <= q2) ? mk_constant(get_true_name()) : mk_constant(get_false_name());
+            case rel_kind::LT: return (q1 < q2) ? mk_constant(get_true_name()) : mk_constant(get_false_name());
+            }
+        } else {
+            switch (rk) {
+            case rel_kind::EQ: return mk_app(m_partial_apps_ptr->get_eq(), new_lhs, new_rhs);
+            case rel_kind::LE: return mk_app(m_partial_apps_ptr->get_le(), new_lhs, new_rhs);
+            case rel_kind::LT: return mk_app(m_partial_apps_ptr->get_lt(), new_lhs, new_rhs);
+            }
+        }
+        lean_unreachable();
     }
 
     // Coercions
@@ -634,23 +727,21 @@ private:
         }
     }
 
-    void fast_get_flattened_nary_multiplicands(expr const & e, buffer<expr> & args, bool normalize_multiplicands) {
+    void fast_get_flattened_nary_multiplicands(expr const & e, buffer<expr> & args) {
         expr arg1, arg2;
         if (is_mul(e, arg1, arg2)) {
-            fast_get_flattened_nary_multiplicands(arg1, args, normalize_multiplicands);
-            fast_get_flattened_nary_multiplicands(arg2, args, normalize_multiplicands);
-        } else if (normalize_multiplicands) {
+            fast_get_flattened_nary_multiplicands(arg1, args);
+            fast_get_flattened_nary_multiplicands(arg2, args);
+        } else {
             bool is_summand = false;
             bool is_multiplicand = true;
             expr e_n = fast_normalize(e, is_summand, is_multiplicand);
             if (is_mul(e_n, arg1, arg2)) {
-                fast_get_flattened_nary_multiplicands(arg1, args, normalize_multiplicands);
-                fast_get_flattened_nary_multiplicands(arg2, args, normalize_multiplicands);
+                fast_get_flattened_nary_multiplicands(arg1, args);
+                fast_get_flattened_nary_multiplicands(arg2, args);
             } else {
                 args.push_back(e_n);
             }
-        } else {
-            args.push_back(e);
         }
     }
 
@@ -735,10 +826,15 @@ private:
         }
     }
 
-    expr fast_normalize_mul(expr const & e, bool normalize_multiplicands = true) {
+    expr fast_normalize_mul(expr const & e) {
         buffer<expr> multiplicands;
-        fast_get_flattened_nary_multiplicands(e, multiplicands, normalize_multiplicands);
+        fast_get_flattened_nary_multiplicands(e, multiplicands);
+        expr e_n = fast_normalize_mul_core(multiplicands);
+        lean_trace_d(name({"arith_normalizer", "fast", "normalize_mul"}), tout() << e << " ==> " << e_n << "\n";);
+        return e_n;
+    }
 
+    expr fast_normalize_mul_core(buffer<expr> const & multiplicands) {
         mpq coeff(1);
         mpq num;
         unsigned num_coeffs = 0;
@@ -797,20 +893,21 @@ private:
             }
 
             buffer<expr> new_multiplicands;
+
             buffer<expr> tmp;
             do {
                 tmp.clear();
+                tmp.push_back(mk_mpq_macro(coeff, get_current_type()));
                 for (unsigned i = 0; i < non_num_multiplicands.size(); ++i) {
                     tmp.push_back(sums[i][iter[i]]);
                 }
                 // TODO(dhs): there is no need to construct the application only to deconstruct it again
                 // We have can a fast_normalize_mul_core that takes the buffer of arguments
-                new_multiplicands.push_back(fast_normalize_mul(mk_monomial(coeff, mk_nary_app(m_partial_apps_ptr->get_mul(), tmp)), false));
+
+                new_multiplicands.push_back(fast_normalize_mul_core(tmp));
             } while (product_iterator_next(sizes, iter));
             e_n = mk_nary_app(m_partial_apps_ptr->get_add(), new_multiplicands);
         }
-        // TODO(dhs): need to normalize again at the top level (monomials now may be unnormalized)
-        lean_trace_d(name({"arith_normalizer", "fast", "normalize_mul"}), tout() << e << " ==> " << e_n << "\n";);
         return e_n;
     }
 
@@ -922,34 +1019,6 @@ private:
 
         lean_trace_d(name({"arith_normalizer", "fast", "cancel_monomials"}), tout() << lhs << " <> " << rhs << " ==> " << new_lhs << " <> " << new_rhs << "\n";);
         return norm_status::DONE;
-    }
-
-    expr fast_normalize_rel(expr const & _lhs, expr const & _rhs, rel_kind rk) {
-        expr lhs = fast_normalize(_lhs);
-        expr rhs = fast_normalize(_rhs);
-        expr new_lhs, new_rhs;
-        norm_status st = fast_cancel_monomials(lhs, rhs, new_lhs, new_rhs);
-
-        // TODO(dhs): if both sides are numerals, then reduce to true or false
-        // TODO(dhs): bounds
-        // TODO(dhs): gcd stuff
-        // TODO(dhs): clear denominators?
-
-        mpq q1, q2;
-        if (is_mpq_macro(new_lhs, q1) && is_mpq_macro(new_rhs, q2)) {
-            switch (rk) {
-            case rel_kind::EQ: return (q1 == q2) ? mk_constant(get_true_name()) : mk_constant(get_false_name());
-            case rel_kind::LE: return (q1 <= q2) ? mk_constant(get_true_name()) : mk_constant(get_false_name());
-            case rel_kind::GE: return (q1 >= q2) ? mk_constant(get_true_name()) : mk_constant(get_false_name());
-            }
-        } else {
-            switch (rk) {
-            case rel_kind::EQ: return mk_app(m_partial_apps_ptr->get_eq(), new_lhs, new_rhs);
-            case rel_kind::LE: return mk_app(m_partial_apps_ptr->get_le(), new_lhs, new_rhs);
-            case rel_kind::GE: return mk_app(m_partial_apps_ptr->get_ge(), new_lhs, new_rhs);
-            }
-        }
-        lean_unreachable();
     }
 };
 

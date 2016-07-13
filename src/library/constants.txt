@@ -62,6 +62,10 @@ ge
 gt
 has_add
 has_div
+has_ge
+has_gt
+has_le
+has_lt
 has_mul
 has_neg
 has_one

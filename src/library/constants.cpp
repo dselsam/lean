@@ -67,6 +67,10 @@ name const * g_ge = nullptr;
 name const * g_gt = nullptr;
 name const * g_has_add = nullptr;
 name const * g_has_div = nullptr;
+name const * g_has_ge = nullptr;
+name const * g_has_gt = nullptr;
+name const * g_has_le = nullptr;
+name const * g_has_lt = nullptr;
 name const * g_has_mul = nullptr;
 name const * g_has_neg = nullptr;
 name const * g_has_one = nullptr;
@@ -326,6 +330,10 @@ void initialize_constants() {
     g_gt = new name{"gt"};
     g_has_add = new name{"has_add"};
     g_has_div = new name{"has_div"};
+    g_has_ge = new name{"has_ge"};
+    g_has_gt = new name{"has_gt"};
+    g_has_le = new name{"has_le"};
+    g_has_lt = new name{"has_lt"};
     g_has_mul = new name{"has_mul"};
     g_has_neg = new name{"has_neg"};
     g_has_one = new name{"has_one"};
@@ -586,6 +594,10 @@ void finalize_constants() {
     delete g_gt;
     delete g_has_add;
     delete g_has_div;
+    delete g_has_ge;
+    delete g_has_gt;
+    delete g_has_le;
+    delete g_has_lt;
     delete g_has_mul;
     delete g_has_neg;
     delete g_has_one;
@@ -845,6 +857,10 @@ name const & get_ge_name() { return *g_ge; }
 name const & get_gt_name() { return *g_gt; }
 name const & get_has_add_name() { return *g_has_add; }
 name const & get_has_div_name() { return *g_has_div; }
+name const & get_has_ge_name() { return *g_has_ge; }
+name const & get_has_gt_name() { return *g_has_gt; }
+name const & get_has_le_name() { return *g_has_le; }
+name const & get_has_lt_name() { return *g_has_lt; }
 name const & get_has_mul_name() { return *g_has_mul; }
 name const & get_has_neg_name() { return *g_has_neg; }
 name const & get_has_one_name() { return *g_has_one; }
