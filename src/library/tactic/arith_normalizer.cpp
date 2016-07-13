@@ -105,14 +105,7 @@ static expr mk_nary_app(expr const & fn, buffer<expr> const & args) {
 static expr get_power_product(expr const & monomial) {
     expr lhs, rhs;
     if (is_mul(monomial, lhs, rhs) && is_mpq_macro(lhs)) {
-        if (auto neg = is_neg(rhs)) {
-            return *neg;
-        } else {
-            return rhs;
-        }
-    } else if (auto n = is_neg(monomial)) {
-        // assumes double negations have been cleared
-        return *n;
+        return rhs;
     } else {
         return monomial;
     }
@@ -121,15 +114,7 @@ static expr get_power_product(expr const & monomial) {
 static expr get_power_product(expr const & monomial, mpq & num) {
     expr lhs, rhs;
     if (is_mul(monomial, lhs, rhs) && is_mpq_macro(lhs, num)) {
-        if (auto neg = is_neg(rhs)) {
-            num.neg();
-            return *neg;
-        } else {
-            return rhs;
-        }
-    } else if (auto n = is_neg(monomial)) {
-        num = -1;
-        return *n;
+        return rhs;
     } else {
         num = 1;
         return monomial;
@@ -333,29 +318,28 @@ struct partial_apps {
 static inline head_type get_head_type(expr const & op) {
     if (!is_constant(op)) return head_type::OTHER;
 
-    else if (const_name(op) == get_eq_name()) return head_type::EQ;
-
-    else if (const_name(op) == get_le_name()) return head_type::LE;
-    else if (const_name(op) == get_ge_name()) return head_type::GE;
-
     else if (const_name(op) == get_add_name()) return head_type::ADD;
     else if (const_name(op) == get_mul_name()) return head_type::MUL;
-
-    else if (const_name(op) == get_sub_name()) return head_type::SUB;
-    else if (const_name(op) == get_div_name()) return head_type::DIV;
-
-    else if (const_name(op) == get_neg_name()) return head_type::NEG;
-
-    else if (const_name(op) == get_div0_name()) return head_type::DIV0;
 
     else if (const_name(op) == get_zero_name()) return head_type::ZERO;
     else if (const_name(op) == get_one_name()) return head_type::ONE;
     else if (const_name(op) == get_bit0_name()) return head_type::BIT0;
     else if (const_name(op) == get_bit1_name()) return head_type::BIT1;
 
+    else if (const_name(op) == get_neg_name()) return head_type::NEG;
+    else if (const_name(op) == get_sub_name()) return head_type::SUB;
+    else if (const_name(op) == get_div_name()) return head_type::DIV;
+
+    else if (const_name(op) == get_div0_name()) return head_type::DIV0;
+
     else if (const_name(op) == get_int_of_nat_name()) return head_type::INT_OF_NAT;
     else if (const_name(op) == get_rat_of_int_name()) return head_type::RAT_OF_INT;
     else if (const_name(op) == get_real_of_rat_name()) return head_type::REAL_OF_RAT;
+
+    else if (const_name(op) == get_eq_name()) return head_type::EQ;
+
+    else if (const_name(op) == get_le_name()) return head_type::LE;
+    else if (const_name(op) == get_ge_name()) return head_type::GE;
 
     else return head_type::OTHER;
 }
@@ -527,7 +511,12 @@ private:
     expr fast_normalize_int_of_nat(expr const & e) {
         lean_assert(get_current_type() == mk_constant(get_int_name()));
         // TODO(dhs): normalize nat part
-        return fast_push_coe(mk_constant(get_int_of_nat_name()), e);
+        // Note: we don't yet have support for normalizing non-commutative rings
+        if (auto z = is_num(e)) {
+            return mk_mpq_macro(mpq(z), mk_constant(get_int_name()));
+        } else {
+            return mk_app(mk_constant(get_int_of_nat_name()), e);
+        }
     }
 
     expr fast_push_coe(expr const & coe, expr const & e) {
@@ -762,13 +751,8 @@ private:
                 coeff *= num;
                 num_coeffs++;
             } else {
-                expr new_multiplicand = multiplicand;
-                if (auto neg = is_neg(multiplicand)) {
-                    coeff.neg();
-                    new_multiplicand = *neg;
-                }
-                non_num_multiplicands.push_back(new_multiplicand);
-                if (is_add(new_multiplicand))
+                non_num_multiplicands.push_back(multiplicand);
+                if (is_add(multiplicand))
                     num_add++;
             }
         }
@@ -786,10 +770,10 @@ private:
 
         expr e_n;
         if (!m_options.distribute_mul() || num_add == 0) {
-
             std::sort(non_num_multiplicands.begin(), non_num_multiplicands.end());
             e_n = mk_monomial(coeff, mk_nary_app(m_partial_apps_ptr->get_mul(), non_num_multiplicands));
         } else {
+            // TODO(dhs): use buffer<expr &> instead, to avoid all the reference counting
             lean_assert(m_options.distribute_mul());
             lean_assert(num_add > 0);
 
@@ -821,7 +805,7 @@ private:
                 }
                 // TODO(dhs): there is no need to construct the application only to deconstruct it again
                 // We have can a fast_normalize_mul_core that takes the buffer of arguments
-                new_multiplicands.push_back(fast_normalize_mul(mk_monomial(coeff, mk_nary_app(m_partial_apps_ptr->get_mul(), tmp)), true));
+                new_multiplicands.push_back(fast_normalize_mul(mk_monomial(coeff, mk_nary_app(m_partial_apps_ptr->get_mul(), tmp)), false));
             } while (product_iterator_next(sizes, iter));
             e_n = mk_nary_app(m_partial_apps_ptr->get_add(), new_multiplicands);
         }

@@ -136,7 +136,24 @@ set_option arith_normalizer.distribute_mul false
 
 -- coercions
 print "--------------"
-set_option trace.app_builder true
-check real.of_rat
-check (1 : rat)
+namespace coe
+constants (x1 x2 : real) (q1 q2 : rat) (z1 z2 : int) (n1 n2 : nat)
+set_option arith_normalizer.distribute_mul true
 #fast_arith_normalize real.of_rat (1 : rat)
+#fast_arith_normalize 1 + (1 : rat)
+#fast_arith_normalize real.of_rat (1 : rat) + 1
+#fast_arith_normalize real.of_rat (1 + 1) + 1
+#fast_arith_normalize rat.of_int (1 + 1) + 1
+
+#fast_arith_normalize 1 + real.of_rat (1 + rat.of_int 1)
+#fast_arith_normalize 2 + real.of_rat (3 + rat.of_int 5)
+#fast_arith_normalize 2 + real.of_rat (3 * rat.of_int 5)
+#fast_arith_normalize 2 + real.of_rat (3 * rat.of_int (5 + 1))
+#fast_arith_normalize 2 + real.of_rat (3 * rat.of_int (5 + 1) + 2)
+
+#fast_arith_normalize 1 + real.of_rat (1 + rat.of_int (1 + int.of_nat n1) * 2) + 2
+#fast_arith_normalize 1 + real.of_rat (1 + rat.of_int (1 + int.of_nat n1) * 2) + 2
+#fast_arith_normalize 2 * real.of_rat (1 + rat.of_int (1 * int.of_nat n1 + 3) * 2) + 2
+
+
+end coe

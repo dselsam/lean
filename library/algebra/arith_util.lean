@@ -14,3 +14,7 @@ attribute real_lof [instance]
 constants (real.of_rat : rat → real)
 constants (rat.of_int : int → rat)
 constants (int.of_nat : nat → int)
+
+--attribute real.of_rat [coercion]
+--attribute rat.of_int [coercion]
+--attribute int.of_nat [coercion]
