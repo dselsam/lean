@@ -3,6 +3,17 @@ import algebra.ring algebra.arith_util
 constants (A : Type.{1}) (A_inst : linear_ordered_field A) (u v w x y z : A)
 attribute [instance] A_inst
 
+print "======================"
+print "arith_normalizer spec"
+print "======================\n"
+print "------------------------"
+print "-- [0] Preliminaries"
+print "------------------------"
+
+print "Requires: commutative ring structure"
+print "Can exploit: linear_order, field structure, cyclic numerals"
+print "Can handle: coercions on nat numerals\n"
+
 print "---------------------"
 print "-- [I] Basics"
 print "---------------------"

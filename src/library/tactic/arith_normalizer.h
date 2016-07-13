@@ -9,8 +9,16 @@ Author: Daniel Selsam
 
 namespace lean {
 /*
-spec of arith_normalizer
-========================
+======================
+arith_normalizer spec
+======================
+
+------------------------
+-- [0] Preliminaries
+------------------------
+Requires: commutative ring structure
+Can exploit: linear_order, field structure, cyclic numerals
+Can handle: coercions on nat numerals
 
 ---------------------
 -- [I] Basics
@@ -137,7 +145,6 @@ spec of arith_normalizer
 -- We reduce the numerator and denonimator separately
 
 >> 5 / 6 ==> 1/2
-
 */
 
 expr fast_arith_normalize(type_context & tctx, expr const & e);
