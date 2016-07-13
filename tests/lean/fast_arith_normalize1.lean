@@ -55,6 +55,7 @@ set_option arith_normalizer.orient_polys true
 #fast_arith_normalize 1 = x + y
 #fast_arith_normalize 0 = x + y + z
 #fast_arith_normalize -1 = (-1) * x + (-1) * y + (-1) * z
+set_option arith_normalizer.orient_polys false
 
 print "--------------"
 --set_option trace.arith_normalizer.fast.normalize_mul true
@@ -155,6 +156,14 @@ set_option arith_normalizer.distribute_mul true
 #fast_arith_normalize 1 + real.of_rat (1 + rat.of_int (1 + int.of_nat n1) * 2) + 2
 #fast_arith_normalize 2 * real.of_rat (1 + rat.of_int (1 * int.of_nat n1 + 3) * 2) + 2
 end coe
+
+-- relations
+print "--------------"
+#fast_arith_normalize x > y -- ¬ (x ≤ y)
+#fast_arith_normalize x ≥ y -- y ≤ x
+#fast_arith_normalize x < y -- ¬ (y ≤ x)
+#fast_arith_normalize x ≤ y -- x ≤ y
+#fast_arith_normalize x = y -- x = y
 
 -- numerals and relations
 print "--------------"

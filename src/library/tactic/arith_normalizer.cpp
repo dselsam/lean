@@ -617,7 +617,7 @@ private:
         buffer<expr> args;
         switch (get_head_type(get_app_args(e, args))) {
         case head_type::LT:
-            return mk_app(mk_constant(get_not_name()), mk_app(m_partial_apps_ptr->get_le(), args[2], args[3]));
+            return mk_app(mk_constant(get_not_name()), mk_app(m_partial_apps_ptr->get_le(), args[3], args[2]));
         default:
             lean_assert(is_true(e) || is_false(e));
             return e;

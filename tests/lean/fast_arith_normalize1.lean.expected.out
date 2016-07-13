@@ -103,6 +103,12 @@
 >> 1 + real.of_rat (1 + rat.of_int (1 + int.of_nat n1) * 2) + 2 ==> 6 + 2 * real.of_rat (rat.of_int (int.of_nat n1))
 >> 2 * real.of_rat (1 + rat.of_int (1 * int.of_nat n1 + 3) * 2) + 2 ==> 16 + 4 * real.of_rat (rat.of_int (int.of_nat n1))
 --------------
+>> x > y ==> ¬x ≤ y
+>> x ≥ y ==> y ≤ x
+>> x < y ==> ¬y ≤ x
+>> x ≤ y ==> x ≤ y
+>> x = y ==> x = y
+--------------
 >> 1 = 0 ==> false
 >> 1 = 1 ==> true
 >> 1 = 2 ==> false
