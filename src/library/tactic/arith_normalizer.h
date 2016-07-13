@@ -16,10 +16,8 @@ arith_normalizer spec
 ------------------------
 -- [0] Preliminaries
 ------------------------
-Requires: commutative ring structure
-Can exploit: linear_order, field structure, cyclic numerals
-Can handle: coercions on nat numerals
-
+Requires: commutative semiring structure
+Can exploit: add_group, linear_order, field structure, cyclic numerals
 ---------------------
 -- [I] Basics
 ---------------------
@@ -111,11 +109,6 @@ Can handle: coercions on nat numerals
 >> 1 + real.of_rat (1 + 1) ==> 3
 >> 1 + real.of_rat (1 * rat.of_int (2 + 3)) ==> 6
 
--- We do not currently normalize nat expressions
--- (right now we require commutative ring structure to try to do anything)
-
->> int.of_nat (1 + 1) ==> int.of_nat (1 + 1)
-
 -------------------------
 -- [V] Relations
 -------------------------
@@ -145,6 +138,15 @@ Can handle: coercions on nat numerals
 -- We reduce the numerator and denonimator separately
 
 >> 5 / 6 ==> 1/2
+
+------------------------------
+-- [VII] Commutative Semirings
+--------------------------------
+
+-- We do not currently do anything with sub if the type is not an add_group
+-- (all constants in this section are nats)
+
+>> n - n ==> n - n
 */
 
 expr fast_arith_normalize(type_context & tctx, expr const & e);

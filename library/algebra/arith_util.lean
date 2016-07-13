@@ -28,4 +28,6 @@ constant (bv2_cr : field bv2)
 attribute bv2_cr [instance]
 definition bv2_cn [instance] : cyclic_numerals bv2 := ⦃ cyclic_numerals bv2, bv2_cr, bound := 4, cyclic := sorry ⦄
 
-print cyclic_numerals.bound
+constants (nat_csr : comm_semiring ℕ) (nat_los : linear_ordered_semiring ℕ)
+attribute nat_csr [instance]
+attribute nat_los [instance]

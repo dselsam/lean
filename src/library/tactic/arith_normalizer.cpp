@@ -152,6 +152,7 @@ struct partial_apps {
     level m_level;
 
     optional<bool> m_is_field, m_is_comm_ring, m_is_linear_ordered_comm_ring;
+    optional<bool> m_is_comm_semiring, m_is_linear_ordered_semiring, m_is_add_group;
 
     optional<bool> m_has_cyclic_numerals;
     mpz m_numeral_bound;
@@ -220,6 +221,51 @@ struct partial_apps {
                 return true;
             } else {
                 m_is_comm_ring = optional<bool>(false);
+                return false;
+            }
+        }
+    }
+
+    bool is_add_group() {
+        if (m_is_add_group) {
+            return *m_is_add_group;
+        } else {
+            expr inst_type = mk_app(mk_constant(get_add_group_name(), {m_level}), m_type);
+            if (auto inst = m_tctx.mk_class_instance(inst_type)) {
+                m_is_add_group = optional<bool>(true);
+                return true;
+            } else {
+                m_is_add_group = optional<bool>(false);
+                return false;
+            }
+        }
+    }
+
+    bool is_comm_semiring() {
+        if (m_is_comm_semiring) {
+            return *m_is_comm_semiring;
+        } else {
+            expr inst_type = mk_app(mk_constant(get_comm_semiring_name(), {m_level}), m_type);
+            if (auto inst = m_tctx.mk_class_instance(inst_type)) {
+                m_is_comm_semiring = optional<bool>(true);
+                return true;
+            } else {
+                m_is_comm_semiring = optional<bool>(false);
+                return false;
+            }
+        }
+    }
+
+    bool is_linear_ordered_semiring() {
+        if (m_is_linear_ordered_semiring) {
+            return *m_is_linear_ordered_semiring;
+        } else {
+            expr inst_type = mk_app(mk_constant(get_linear_ordered_semiring_name(), {m_level}), m_type);
+            if (auto inst = m_tctx.mk_class_instance(inst_type)) {
+                m_is_linear_ordered_semiring = optional<bool>(true);
+                return true;
+            } else {
+                m_is_linear_ordered_semiring = optional<bool>(false);
                 return false;
             }
         }
@@ -482,8 +528,8 @@ public:
         // TODO(dhs): these are hacky and unnecessary
         flet<partial_apps *> with_papps1(m_partial_apps_ptr, &main_partial_apps);
 
-        if (!m_partial_apps_ptr->is_comm_ring()) {
-            throw exception(sstream() << "fast_arith_normalizer not expecting to be called on expr " << e << " that is not of a type with commutative ring structure\n");
+        if (!m_partial_apps_ptr->is_comm_semiring()) {
+            throw exception(sstream() << "fast_arith_normalizer not expecting to be called on expr " << e << " that is not of a type with commutative semiring structure\n");
             return e;
         }
 
@@ -696,15 +742,14 @@ private:
 
     expr fast_normalize_int_of_nat(expr const & e) {
         lean_assert(get_current_type() == mk_constant(get_int_name()));
-        // TODO(dhs): normalize nat part
-        // Note: we don't yet have support for normalizing non-(commutative-rings)
-        partial_apps int_partial_apps(m_tctx, mk_constant(get_nat_name()));
-        flet<partial_apps *> use_int(m_partial_apps_ptr, &int_partial_apps);
-        if (auto z = is_num(e)) {
-            return mk_mod_mpq_macro(mpq(z));
-        } else {
-            return mk_app(mk_constant(get_int_of_nat_name()), e);
+        expr e_n;
+        {
+            partial_apps nat_partial_apps(m_tctx, mk_constant(get_nat_name()));
+            flet<partial_apps *> use_nat(m_partial_apps_ptr, &nat_partial_apps);
+            e_n = fast_normalize(e);
         }
+        lean_assert(get_current_type() == mk_constant(get_int_name()));
+        return fast_push_coe(mk_constant(get_int_of_nat_name()), e_n);
     }
 
     expr fast_push_coe(expr const & coe, expr const & e) {
@@ -729,7 +774,11 @@ private:
     }
 
     expr fast_normalize_sub(expr const & e1, expr const & e2, bool is_summand) {
-        if (is_summand) {
+        if (!m_partial_apps_ptr->is_add_group()) {
+            expr e1_n = fast_normalize(e1);
+            expr e2_n = fast_normalize(e2);
+            return mk_app(m_partial_apps_ptr->get_sub(), e1_n, e2_n);
+        } else if (is_summand) {
             expr e1_n = fast_normalize(e1);
             expr e2_neg_n = fast_normalize(mk_app(m_partial_apps_ptr->get_neg(), e2));
             return mk_app(m_partial_apps_ptr->get_add(), e1_n, e2_neg_n);

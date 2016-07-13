@@ -30,6 +30,7 @@ name const * g_cyclic_numerals_cyclic = nullptr;
 name const * g_classical = nullptr;
 name const * g_combinator_K = nullptr;
 name const * g_comm_ring = nullptr;
+name const * g_comm_semiring = nullptr;
 name const * g_congr = nullptr;
 name const * g_congr_arg = nullptr;
 name const * g_congr_fun = nullptr;
@@ -297,6 +298,7 @@ void initialize_constants() {
     g_classical = new name{"classical"};
     g_combinator_K = new name{"combinator", "K"};
     g_comm_ring = new name{"comm_ring"};
+    g_comm_semiring = new name{"comm_semiring"};
     g_congr = new name{"congr"};
     g_congr_arg = new name{"congr_arg"};
     g_congr_fun = new name{"congr_fun"};
@@ -565,6 +567,7 @@ void finalize_constants() {
     delete g_classical;
     delete g_combinator_K;
     delete g_comm_ring;
+    delete g_comm_semiring;
     delete g_congr;
     delete g_congr_arg;
     delete g_congr_fun;
@@ -832,6 +835,7 @@ name const & get_cyclic_numerals_cyclic_name() { return *g_cyclic_numerals_cycli
 name const & get_classical_name() { return *g_classical; }
 name const & get_combinator_K_name() { return *g_combinator_K; }
 name const & get_comm_ring_name() { return *g_comm_ring; }
+name const & get_comm_semiring_name() { return *g_comm_semiring; }
 name const & get_congr_name() { return *g_congr; }
 name const & get_congr_arg_name() { return *g_congr_arg; }
 name const & get_congr_fun_name() { return *g_congr_fun; }

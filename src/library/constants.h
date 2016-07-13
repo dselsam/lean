@@ -32,6 +32,7 @@ name const & get_cyclic_numerals_cyclic_name();
 name const & get_classical_name();
 name const & get_combinator_K_name();
 name const & get_comm_ring_name();
+name const & get_comm_semiring_name();
 name const & get_congr_name();
 name const & get_congr_arg_name();
 name const & get_congr_fun_name();

@@ -10,9 +10,8 @@ print "------------------------"
 print "-- [0] Preliminaries"
 print "------------------------"
 
-print "Requires: commutative ring structure"
-print "Can exploit: linear_order, field structure, cyclic numerals"
-print "Can handle: coercions on nat numerals\n"
+print "Requires: commutative semiring structure"
+print "Can exploit: add_group, linear_order, field structure, cyclic numerals"
 
 print "---------------------"
 print "-- [I] Basics"
@@ -92,10 +91,6 @@ print "\n-- We push coercions over + and *\n"
 #fast_arith_normalize 1 + real.of_rat (1 + 1)
 #fast_arith_normalize 1 + real.of_rat (1 * rat.of_int (2 + 3))
 
-print "\n-- We do not currently normalize nat expressions"
-print "-- (right now we require commutative ring structure to try to do anything)\n"
-#fast_arith_normalize int.of_nat (1 + 1)
-
 print "\n-------------------------"
 print "-- [V] Relations"
 print "-------------------------"
@@ -121,3 +116,12 @@ print "-- We reduce numerals modulo the bound (all numerals in this section have
 
 print "\n-- We reduce the numerator and denonimator separately\n"
 #fast_arith_normalize (5:bv2)/6
+
+print "\n------------------------------"
+print "-- [VII] Commutative Semirings"
+print "--------------------------------"
+
+print "\n-- We do not currently do anything with sub if the type is not an add_group"
+print "-- (all constants in this section are nats)\n"
+constants n : nat
+#fast_arith_normalize n - n

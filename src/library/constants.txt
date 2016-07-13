@@ -25,6 +25,7 @@ cyclic_numerals.cyclic
 classical
 combinator.K
 comm_ring
+comm_semiring
 congr
 congr_arg
 congr_fun

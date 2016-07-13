@@ -196,3 +196,13 @@ print "--------------"
 #fast_arith_normalize (1:bv2) + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1
 #fast_arith_normalize (5:bv2) / 6
 #fast_arith_normalize (7:bv2) / 8
+
+-- Nats
+print "--------------"
+namespace test_nat
+constants (m n p : ℕ)
+#fast_arith_normalize m + m
+#fast_arith_normalize m + n + m
+#fast_arith_normalize m * n + n * m
+#fast_arith_normalize n - n + m
+end test_nat
