@@ -681,7 +681,7 @@ private:
             cancel_monomials = true;
             break;
         case rel_kind::LE: case rel_kind::LT:
-            cancel_monomials = m_partial_apps_ptr->is_linear_ordered_comm_ring();
+            cancel_monomials = m_partial_apps_ptr->is_linear_ordered_semiring() && m_partial_apps_ptr->is_comm_semiring();
             break;
         }
 
