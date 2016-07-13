@@ -1132,13 +1132,15 @@ private:
             }
         }
 
+        bool orient_polys = m_options.orient_polys() && m_partial_apps_ptr->is_comm_ring();
+
         buffer<expr> new_rhs_monomials;
         for (expr const & monomial : rhs_monomials) {
             if (is_mpq_macro(monomial))
                 continue;
             expr power_product = get_power_product(monomial, num);
             if (!shared_power_products.count(power_product)) {
-                if (m_options.orient_polys()) {
+                if (orient_polys) {
                     if (!num.is_zero()) {
                         if (num == -1) {
                             new_lhs_monomials.push_back(power_product);
@@ -1152,7 +1154,7 @@ private:
             }
         }
 
-        bool coeff_on_rhs = m_options.orient_polys() || new_rhs_monomials.empty() || !new_lhs_monomials.empty();
+        bool coeff_on_rhs = orient_polys || new_rhs_monomials.empty() || !new_lhs_monomials.empty();
         if (coeff_on_rhs) {
             new_lhs = mk_polynomial(new_lhs_monomials);
             new_rhs = mk_polynomial(neg(coeff), new_rhs_monomials);

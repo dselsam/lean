@@ -200,9 +200,12 @@ print "--------------"
 -- Nats
 print "--------------"
 namespace test_nat
-constants (m n p : ℕ)
+constants (m n : ℕ)
 #fast_arith_normalize m + m
 #fast_arith_normalize m + n + m
 #fast_arith_normalize m * n + n * m
 #fast_arith_normalize n - n + m
+#fast_arith_normalize n + m = n + m
+set_option arith_normalizer.orient_polys true
+#fast_arith_normalize 0 = n + m
 end test_nat

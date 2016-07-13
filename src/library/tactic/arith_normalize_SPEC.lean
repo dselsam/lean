@@ -102,7 +102,6 @@ print "\n-- We replace all [>,≥] with [<,≤] and all strict inequalities with
 #fast_arith_normalize x ≤ y
 
 print "\n-- When both sides of a relation are numerals, we reduce to true or false"
-print "-- (Q: should I skip this step to avoid axioms?)\n"
 #fast_arith_normalize (5:A) < 6
 #fast_arith_normalize (5:A) > 6
 
