@@ -934,14 +934,23 @@ private:
         // TODO(dhs): bounds
         // TODO(dhs): gcd stuff
         // TODO(dhs): clear denominators?
-        switch (rk) {
-        case rel_kind::EQ: return mk_app(m_partial_apps_ptr->get_eq(), new_lhs, new_rhs);
-        case rel_kind::LE: return mk_app(m_partial_apps_ptr->get_le(), new_lhs, new_rhs);
-        case rel_kind::GE: return mk_app(m_partial_apps_ptr->get_ge(), new_lhs, new_rhs);
+
+        mpq q1, q2;
+        if (is_mpq_macro(new_lhs, q1) && is_mpq_macro(new_rhs, q2)) {
+            switch (rk) {
+            case rel_kind::EQ: return (q1 == q2) ? mk_constant(get_true_name()) : mk_constant(get_false_name());
+            case rel_kind::LE: return (q1 <= q2) ? mk_constant(get_true_name()) : mk_constant(get_false_name());
+            case rel_kind::GE: return (q1 >= q2) ? mk_constant(get_true_name()) : mk_constant(get_false_name());
+            }
+        } else {
+            switch (rk) {
+            case rel_kind::EQ: return mk_app(m_partial_apps_ptr->get_eq(), new_lhs, new_rhs);
+            case rel_kind::LE: return mk_app(m_partial_apps_ptr->get_le(), new_lhs, new_rhs);
+            case rel_kind::GE: return mk_app(m_partial_apps_ptr->get_ge(), new_lhs, new_rhs);
+            }
         }
         lean_unreachable();
     }
-
 };
 
 

@@ -1,6 +1,6 @@
 import algebra.ring algebra.arith_util
 
-constants (A : Type.{1}) (A_inst : field A) (u v w x y z : A)
+constants (A : Type.{1}) (A_inst : linear_ordered_field A) (u v w x y z : A)
 attribute [instance] A_inst
 
 -- fast_normalize_add
@@ -154,6 +154,16 @@ set_option arith_normalizer.distribute_mul true
 #fast_arith_normalize 1 + real.of_rat (1 + rat.of_int (1 + int.of_nat n1) * 2) + 2
 #fast_arith_normalize 1 + real.of_rat (1 + rat.of_int (1 + int.of_nat n1) * 2) + 2
 #fast_arith_normalize 2 * real.of_rat (1 + rat.of_int (1 * int.of_nat n1 + 3) * 2) + 2
-
-
 end coe
+
+-- numerals and relations
+print "--------------"
+#fast_arith_normalize (1:A) = 0
+#fast_arith_normalize (1:A) = 1
+#fast_arith_normalize (1:A) = 2
+#fast_arith_normalize (1:A) ≤ 0
+#fast_arith_normalize (1:A) ≤ 1
+#fast_arith_normalize (1:A) ≤ 2
+#fast_arith_normalize (1:A) ≥ 0
+#fast_arith_normalize (1:A) ≥ 1
+#fast_arith_normalize (1:A) ≥ 2
