@@ -151,7 +151,7 @@ struct partial_apps {
     expr m_type;
     level m_level;
 
-    optional<bool> m_is_field;
+    optional<bool> m_is_field, m_is_comm_ring, m_is_linear_ordered_comm_ring;
 
     expr m_zero, m_one;
     expr m_bit0, m_bit1;
@@ -176,6 +176,36 @@ struct partial_apps {
                 return true;
             } else {
                 m_is_field = optional<bool>(false);
+                return false;
+            }
+        }
+    }
+
+    bool is_comm_ring() {
+        if (m_is_comm_ring) {
+            return *m_is_comm_ring;
+        } else {
+            expr inst_type = mk_app(mk_constant(get_comm_ring_name(), {m_level}), m_type);
+            if (auto inst = m_tctx.mk_class_instance(inst_type)) {
+                m_is_comm_ring = optional<bool>(true);
+                return true;
+            } else {
+                m_is_comm_ring = optional<bool>(false);
+                return false;
+            }
+        }
+    }
+
+    bool is_linear_ordered_comm_ring() {
+        if (m_is_linear_ordered_comm_ring) {
+            return *m_is_linear_ordered_comm_ring;
+        } else {
+            expr inst_type = mk_app(mk_constant(get_linear_ordered_comm_ring_name(), {m_level}), m_type);
+            if (auto inst = m_tctx.mk_class_instance(inst_type)) {
+                m_is_linear_ordered_comm_ring = optional<bool>(true);
+                return true;
+            } else {
+                m_is_linear_ordered_comm_ring = optional<bool>(false);
                 return false;
             }
         }
@@ -419,14 +449,14 @@ public:
             break;
         }
 
-        auto comm_ring_inst = m_tctx.mk_class_instance(mk_app(mk_constant(get_comm_ring_name(), {l}), type));
-        if (!comm_ring_inst) {
-            throw exception(sstream() << "fast_arith_normalizer not expecting to be called on expr " << e << " that is not of a type with commutative ring structure\n");
-            return e;
-        }
         partial_apps main_partial_apps(m_tctx, type);
         // TODO(dhs): these are hacky and unnecessary
         flet<partial_apps *> with_papps1(m_partial_apps_ptr, &main_partial_apps);
+
+        if (!m_partial_apps_ptr->is_comm_ring())) {
+            throw exception(sstream() << "fast_arith_normalizer not expecting to be called on expr " << e << " that is not of a type with commutative ring structure\n");
+            return e;
+        }
 
         if (m_options.profile()) {
             std::ostringstream msg;
@@ -552,7 +582,23 @@ private:
         expr lhs = fast_normalize(_lhs);
         expr rhs = fast_normalize(_rhs);
         expr new_lhs, new_rhs;
-        norm_status st = fast_cancel_monomials(lhs, rhs, new_lhs, new_rhs);
+
+        bool cancel_monomials = false;
+        switch (rk) {
+        case rel_kind::EQ:
+            cancel_monomials = true;
+            break;
+        case rel_kind::LE: case rel_kind::LT:
+            cancel_monomials = m_partial_apps_ptr->is_linear_ordered_comm_ring();
+            break;
+        }
+
+        if (cancel_monomials) {
+            fast_cancel_monomials(lhs, rhs, new_lhs, new_rhs);
+        } else {
+            new_lhs = lhs;
+            new_rhs = rhs;
+        }
 
         // TODO(dhs): bounds
         // TODO(dhs): gcd stuff
@@ -560,6 +606,7 @@ private:
 
         mpq q1, q2;
         if (is_mpq_macro(new_lhs, q1) && is_mpq_macro(new_rhs, q2)) {
+            // TODO(dhs): can we do this reduction without the relations being decidable in general?
             switch (rk) {
             case rel_kind::EQ: return (q1 == q2) ? mk_constant(get_true_name()) : mk_constant(get_false_name());
             case rel_kind::LE: return (q1 <= q2) ? mk_constant(get_true_name()) : mk_constant(get_false_name());
