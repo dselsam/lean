@@ -24,6 +24,9 @@ name const * g_cast_eq = nullptr;
 name const * g_cast_heq = nullptr;
 name const * g_char = nullptr;
 name const * g_char_of_nat = nullptr;
+name const * g_cyclic_numerals = nullptr;
+name const * g_cyclic_numerals_bound = nullptr;
+name const * g_cyclic_numerals_cyclic = nullptr;
 name const * g_classical = nullptr;
 name const * g_combinator_K = nullptr;
 name const * g_comm_ring = nullptr;
@@ -112,6 +115,7 @@ name const * g_le_refl = nullptr;
 name const * g_lift = nullptr;
 name const * g_lift_down = nullptr;
 name const * g_lift_up = nullptr;
+name const * g_linear_ordered_comm_ring = nullptr;
 name const * g_linear_ordered_ring = nullptr;
 name const * g_linear_ordered_semiring = nullptr;
 name const * g_list = nullptr;
@@ -287,6 +291,9 @@ void initialize_constants() {
     g_cast_heq = new name{"cast_heq"};
     g_char = new name{"char"};
     g_char_of_nat = new name{"char", "of_nat"};
+    g_cyclic_numerals = new name{"cyclic_numerals"};
+    g_cyclic_numerals_bound = new name{"cyclic_numerals", "bound"};
+    g_cyclic_numerals_cyclic = new name{"cyclic_numerals", "cyclic"};
     g_classical = new name{"classical"};
     g_combinator_K = new name{"combinator", "K"};
     g_comm_ring = new name{"comm_ring"};
@@ -375,6 +382,7 @@ void initialize_constants() {
     g_lift = new name{"lift"};
     g_lift_down = new name{"lift", "down"};
     g_lift_up = new name{"lift", "up"};
+    g_linear_ordered_comm_ring = new name{"linear_ordered_comm_ring"};
     g_linear_ordered_ring = new name{"linear_ordered_ring"};
     g_linear_ordered_semiring = new name{"linear_ordered_semiring"};
     g_list = new name{"list"};
@@ -551,6 +559,9 @@ void finalize_constants() {
     delete g_cast_heq;
     delete g_char;
     delete g_char_of_nat;
+    delete g_cyclic_numerals;
+    delete g_cyclic_numerals_bound;
+    delete g_cyclic_numerals_cyclic;
     delete g_classical;
     delete g_combinator_K;
     delete g_comm_ring;
@@ -639,6 +650,7 @@ void finalize_constants() {
     delete g_lift;
     delete g_lift_down;
     delete g_lift_up;
+    delete g_linear_ordered_comm_ring;
     delete g_linear_ordered_ring;
     delete g_linear_ordered_semiring;
     delete g_list;
@@ -814,6 +826,9 @@ name const & get_cast_eq_name() { return *g_cast_eq; }
 name const & get_cast_heq_name() { return *g_cast_heq; }
 name const & get_char_name() { return *g_char; }
 name const & get_char_of_nat_name() { return *g_char_of_nat; }
+name const & get_cyclic_numerals_name() { return *g_cyclic_numerals; }
+name const & get_cyclic_numerals_bound_name() { return *g_cyclic_numerals_bound; }
+name const & get_cyclic_numerals_cyclic_name() { return *g_cyclic_numerals_cyclic; }
 name const & get_classical_name() { return *g_classical; }
 name const & get_combinator_K_name() { return *g_combinator_K; }
 name const & get_comm_ring_name() { return *g_comm_ring; }
@@ -902,6 +917,7 @@ name const & get_le_refl_name() { return *g_le_refl; }
 name const & get_lift_name() { return *g_lift; }
 name const & get_lift_down_name() { return *g_lift_down; }
 name const & get_lift_up_name() { return *g_lift_up; }
+name const & get_linear_ordered_comm_ring_name() { return *g_linear_ordered_comm_ring; }
 name const & get_linear_ordered_ring_name() { return *g_linear_ordered_ring; }
 name const & get_linear_ordered_semiring_name() { return *g_linear_ordered_semiring; }
 name const & get_list_name() { return *g_list; }

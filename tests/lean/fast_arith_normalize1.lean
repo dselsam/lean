@@ -173,3 +173,17 @@ print "--------------"
 #fast_arith_normalize (1:A) > 0
 #fast_arith_normalize (1:A) > 1
 #fast_arith_normalize (1:A) > 2
+
+-- cyclic numerals
+print "--------------"
+#fast_arith_normalize (1:bv2)
+#fast_arith_normalize (1:bv2) + 1
+#fast_arith_normalize (1:bv2) + 1 + 1
+#fast_arith_normalize (1:bv2) + 1 + 1 + 1
+#fast_arith_normalize (1:bv2) + 1 + 1 + 1 + 1
+#fast_arith_normalize (1:bv2) + 1 + 1 + 1 + 1 + 1
+#fast_arith_normalize (1:bv2) + 1 + 1 + 1 + 1 + 1 + 1
+#fast_arith_normalize (1:bv2) + 1 + 1 + 1 + 1 + 1 + 1 + 1
+#fast_arith_normalize (1:bv2) + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1
+#fast_arith_normalize (5:bv2) / 6
+#fast_arith_normalize (7:bv2) / 8

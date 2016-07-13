@@ -20,10 +20,22 @@ constants (int.of_nat : nat → int)
 --attribute int.of_nat [coercion]
 
 -- TODO(dhs): this may not be the best way to do this
-structure cyclic_numerals [class] (A : Type) [comm_ring A] := (a₀ : A)  (cyclic : ∀ a k : A , a = a - k * a₀)
 
-constant (bv : nat → Type.{1})
-constant (bv_cr : ∀ n, field (bv n))
-attribute bv_cr [instance]
-constant (bv_cn : ∀ n, cyclic_numerals (bv n))
-attribute bv_cn [instance]
+--structure has_numerals [class] (A : Type) extends has_zero A, has_one A, has_add A := (from_nat : ℕ → A)
+/-
+definition from_nat (A : Type) [has_zero A] [has_one A] [has_add A] : ℕ → A := sorry
+
+structure cyclic_numerals [class] (A : Type) extends comm_ring A :=
+(bound : ℕ)  (cyclic : ∀ a k : A , a = a - k * from_nat A bound)
+-/
+
+-- Note: I would rather it extend a comm_ring but it triggers a bunch of errors
+structure cyclic_numerals [class] (A : Type) extends comm_ring A :=
+(bound : A)  (cyclic : ∀ a k : A , a = a - k * bound)
+
+constant (bv2 : Type.{1})
+constant (bv2_cr : field bv2)
+attribute bv2_cr [instance]
+definition bv2_cn [instance] : cyclic_numerals bv2 := ⦃ cyclic_numerals bv2, bv2_cr, bound := 4, cyclic := sorry ⦄
+
+print cyclic_numerals.bound

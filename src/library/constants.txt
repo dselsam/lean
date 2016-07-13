@@ -19,6 +19,9 @@ cast_eq
 cast_heq
 char
 char.of_nat
+cyclic_numerals
+cyclic_numerals.bound
+cyclic_numerals.cyclic
 classical
 combinator.K
 comm_ring
@@ -107,6 +110,7 @@ le.refl
 lift
 lift.down
 lift.up
+linear_ordered_comm_ring
 linear_ordered_ring
 linear_ordered_semiring
 list

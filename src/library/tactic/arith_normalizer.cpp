@@ -153,6 +153,9 @@ struct partial_apps {
 
     optional<bool> m_is_field, m_is_comm_ring, m_is_linear_ordered_comm_ring;
 
+    optional<bool> m_has_cyclic_numerals;
+    mpz m_numeral_bound;
+
     expr m_zero, m_one;
     expr m_bit0, m_bit1;
     expr m_add, m_mul, m_div, m_sub, m_neg;
@@ -165,6 +168,32 @@ struct partial_apps {
     }
 
     bool init(expr const & e) { return e != expr(); }
+
+    bool has_cyclic_numerals(mpz & z) {
+        if (!m_has_cyclic_numerals) {
+            expr inst_type = mk_app(mk_constant(get_cyclic_numerals_name(), {m_level}), m_type);
+            if (auto inst = m_tctx.mk_class_instance(inst_type)) {
+                m_has_cyclic_numerals = optional<bool>(true);
+                expr bound = m_tctx.whnf(mk_app(mk_constant(get_cyclic_numerals_bound_name(), {m_level}), m_type, *inst));
+                if (auto n = to_num(bound)) {
+                    m_numeral_bound = *n;
+                    z = m_numeral_bound;
+                } else {
+                    throw exception(sstream() << "bound in [cyclic_numerals " << m_type << "] must whnf to a numeral\n");
+                }
+                return true;
+            } else {
+                m_has_cyclic_numerals = optional<bool>(false);
+                return false;
+            }
+        } else if (*m_has_cyclic_numerals) {
+            z = m_numeral_bound;
+            return true;
+        } else {
+            lean_assert(!(*m_has_cyclic_numerals));
+            return false;
+        }
+    }
 
     bool is_field() {
         if (m_is_field) {
@@ -453,7 +482,7 @@ public:
         // TODO(dhs): these are hacky and unnecessary
         flet<partial_apps *> with_papps1(m_partial_apps_ptr, &main_partial_apps);
 
-        if (!m_partial_apps_ptr->is_comm_ring())) {
+        if (!m_partial_apps_ptr->is_comm_ring()) {
             throw exception(sstream() << "fast_arith_normalizer not expecting to be called on expr " << e << " that is not of a type with commutative ring structure\n");
             return e;
         }
@@ -473,21 +502,38 @@ private:
 
     expr get_current_type() const { return m_partial_apps_ptr->get_type(); }
 
+    expr mk_mod_mpq_macro(mpq const & coeff) {
+        mpz bound;
+        if (m_partial_apps_ptr->has_cyclic_numerals(bound)) {
+            mpz coeff_n = coeff.get_numerator();
+            coeff_n %= bound;
+            mpq c(coeff_n);
+            mpz coeff_d = coeff.get_denominator();
+            if (coeff_d != 1) {
+                coeff_d %= bound;
+                c /= coeff_d;
+            }
+            return mk_mpq_macro(c, get_current_type());
+        } else {
+            return mk_mpq_macro(coeff, get_current_type());
+        }
+    }
+
     expr mk_monomial(mpq const & coeff) {
-        return mk_mpq_macro(coeff, get_current_type());
+        return mk_mod_mpq_macro(coeff);
     }
 
     expr mk_monomial(mpq const & coeff, expr const & power_product) {
         if (coeff == 1) {
             return power_product;
         } else {
-            expr c = mk_mpq_macro(coeff, get_current_type());
+            expr c = mk_mod_mpq_macro(coeff);
             return mk_app(m_partial_apps_ptr->get_mul(), c, power_product);
         }
     }
 
     expr mk_polynomial(mpq const & coeff, buffer<expr> const & monomials) {
-        expr c = mk_mpq_macro(coeff, get_current_type());
+        expr c = mk_mod_mpq_macro(coeff);
         if (monomials.empty()) {
             return c;
         } else if (coeff.is_zero()) {
@@ -500,7 +546,7 @@ private:
 
     expr mk_polynomial(buffer<expr> const & monomials) {
         if (monomials.empty())
-            return mk_mpq_macro(mpq(), get_current_type());
+            return mk_mod_mpq_macro(mpq(0));
 
         expr add = m_partial_apps_ptr->get_add();
         return mk_nary_app(add, monomials);
@@ -540,7 +586,7 @@ private:
 
         case head_type::ZERO: case head_type::ONE: case head_type::BIT0: case head_type::BIT1:
             if (auto n = to_num(e))
-                return mk_mpq_macro(mpq(*n), get_current_type());
+                return mk_mod_mpq_macro(mpq(*n));
             else
                 break;
 
@@ -651,9 +697,11 @@ private:
     expr fast_normalize_int_of_nat(expr const & e) {
         lean_assert(get_current_type() == mk_constant(get_int_name()));
         // TODO(dhs): normalize nat part
-        // Note: we don't yet have support for normalizing non-commutative rings
+        // Note: we don't yet have support for normalizing non-(commutative-rings)
+        partial_apps int_partial_apps(m_tctx, mk_constant(get_nat_name()));
+        flet<partial_apps *> use_int(m_partial_apps_ptr, &int_partial_apps);
         if (auto z = is_num(e)) {
-            return mk_mpq_macro(mpq(z), mk_constant(get_int_name()));
+            return mk_mod_mpq_macro(mpq(z));
         } else {
             return mk_app(mk_constant(get_int_of_nat_name()), e);
         }
@@ -664,7 +712,7 @@ private:
         expr arg1, arg2;
 
         if (is_mpq_macro(e, q)) {
-            return mk_mpq_macro(q, get_current_type());
+            return mk_mod_mpq_macro(q);
         } else if (is_add(e, arg1, arg2)) {
             lean_assert(!is_add(arg1));
             arg1 = fast_push_coe(coe, arg1);
@@ -693,7 +741,7 @@ private:
 
     expr fast_normalize_neg(expr const & e, bool is_multiplicand) {
         mpq q(-1);
-        expr c = mk_mpq_macro(q, get_current_type());
+        expr c = mk_mod_mpq_macro(q);
         if (is_multiplicand) {
             expr e_n = fast_normalize(e);
             return mk_app(m_partial_apps_ptr->get_mul(), c, e_n);
@@ -716,10 +764,10 @@ private:
             if (q2.is_zero()) {
                 return mk_app(m_partial_apps_ptr->get_div0(), e1);
             } else if (is_mpq_macro(e1, q1)) {
-                return mk_mpq_macro(q1/q2, get_current_type());
+                return mk_mod_mpq_macro(q1/q2);
             } else {
                 q2.inv();
-                return mk_app(m_partial_apps_ptr->get_mul(), mk_mpq_macro(q2, get_current_type()), e1);
+                return mk_app(m_partial_apps_ptr->get_mul(), mk_mod_mpq_macro(q2), e1);
             }
         }
 /*
@@ -745,7 +793,7 @@ private:
 
             if (q1 != 1 || q2 != 1) {
                 q1 /= q2;
-                return mk_app(m_partial_apps_ptr->get_mul(), mk_mpq_macro(q1, get_current_type()),
+                return mk_app(m_partial_apps_ptr->get_mul(), mk_mod_mpq_macro(q1),
                               mk_app(m_partial_apps_ptr->get_div(), v1, v2));
             }
         }
@@ -944,7 +992,7 @@ private:
             buffer<expr> tmp;
             do {
                 tmp.clear();
-                tmp.push_back(mk_mpq_macro(coeff, get_current_type()));
+                tmp.push_back(mk_mod_mpq_macro(coeff));
                 for (unsigned i = 0; i < non_num_multiplicands.size(); ++i) {
                     tmp.push_back(sums[i][iter[i]]);
                 }
