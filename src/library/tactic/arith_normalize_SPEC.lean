@@ -127,5 +127,6 @@ print "--------------------------------"
 
 print "\n-- We do not currently do anything with sub if the type is not an add_group"
 print "-- (all constants in this section are nats)\n"
+print "-- TODO"
 constants n : nat
 #fast_arith_normalize n - n
