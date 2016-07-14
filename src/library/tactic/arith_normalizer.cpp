@@ -132,7 +132,6 @@ enum class head_type {
         ADD, MUL,
         SUB, DIV,
         NEG,
-        DIV0,
         ZERO, ONE, BIT0, BIT1,
         INT_OF_NAT, RAT_OF_INT, REAL_OF_RAT,
         OTHER
@@ -163,7 +162,7 @@ struct partial_apps {
     expr m_type;
     level m_level;
 
-    optional<bool> m_is_field, m_is_comm_ring, m_is_linear_ordered_comm_ring;
+    optional<bool> m_is_field, m_is_discrete_field, m_is_comm_ring, m_is_linear_ordered_comm_ring;
     optional<bool> m_is_comm_semiring, m_is_linear_ordered_semiring, m_is_add_group;
 
     optional<bool> m_has_cyclic_numerals;
@@ -218,6 +217,21 @@ struct partial_apps {
                 return true;
             } else {
                 m_is_field = optional<bool>(false);
+                return false;
+            }
+        }
+    }
+
+    bool is_discrete_field() {
+        if (m_is_discrete_field) {
+            return *m_is_discrete_field;
+        } else {
+            expr inst_type = mk_app(mk_constant(get_discrete_field_name(), {m_level}), m_type);
+            if (auto inst = m_tctx.mk_class_instance(inst_type)) {
+                m_is_discrete_field = optional<bool>(true);
+                return true;
+            } else {
+                m_is_discrete_field = optional<bool>(false);
                 return false;
             }
         }
@@ -540,6 +554,10 @@ private:
     environment env() const { return m_tctx.env(); }
 
     expr get_current_type() const { return m_partial_apps_ptr->get_type(); }
+    bool current_type_is_nat() const { return m_partial_apps_ptr->get_type() == mk_constant(get_nat_name()); }
+    bool current_type_is_int() const { return m_partial_apps_ptr->get_type() == mk_constant(get_int_name()); }
+    bool current_type_is_rat() const { return m_partial_apps_ptr->get_type() == mk_constant(get_rat_name()); }
+    bool current_type_is_field() const { return m_partial_apps_ptr->get_type() == mk_constant(get_field_name()); }
 
     expr mk_mod_mpq_macro(mpq const & coeff) {
         mpz bound;
@@ -614,8 +632,6 @@ private:
 
         case head_type::SUB: return fast_normalize_sub(args[2], args[3], process_summands);
         case head_type::DIV: return fast_normalize_div(args[2], args[3]);
-
-        case head_type::DIV0: return fast_normalize_div0(args[2]);
 
         case head_type::NEG: return fast_normalize_neg(args[2], process_multiplicands);
 
@@ -789,11 +805,6 @@ private:
         }
     }
 
-    expr fast_normalize_div0(expr const & e) {
-        expr e_n = fast_normalize(e);
-        return mk_app(m_partial_apps_ptr->get_div0(), e_n);
-    }
-
     expr fast_normalize_div(expr const & _e1, expr const & _e2) {
         expr e1 = fast_normalize(_e1);
         expr e2 = fast_normalize(_e2);
@@ -801,7 +812,10 @@ private:
         mpq q1, q2;
         if (is_mpq_macro(e2, q2)) {
             if (q2.is_zero()) {
-                return mk_app(m_partial_apps_ptr->get_div0(), e1);
+                if (m_partial_apps_ptr->is_discrete_field() || current_type_is_nat() || current_type_is_int())
+                    return m_partial_apps_ptr->get_zero();
+                else
+                    return mk_app(m_partial_apps_ptr->get_div(), e1, e2);
             } else if (is_mpq_macro(e1, q1)) {
                 return mk_mod_mpq_macro(q1/q2);
             } else {
@@ -1278,7 +1292,6 @@ void initialize_arith_normalizer() {
             {get_sub_name(), head_type::SUB},
             {get_div_name(), head_type::DIV},
             {get_neg_name(), head_type::NEG},
-            {get_div0_name(), head_type::DIV0},
             {get_zero_name(), head_type::ZERO},
             {get_one_name(), head_type::ONE},
             {get_bit0_name(), head_type::BIT0},

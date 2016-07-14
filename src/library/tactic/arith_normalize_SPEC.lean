@@ -77,7 +77,7 @@ print "\n-- If either has the form (c * x) for a numeral, we factor out the nume
 #fast_arith_normalize x / (2 * y)
 #fast_arith_normalize (3 * x) / (2 * y)
 
-print "\n-- For nat, int, rat, real, and any other discrete_field, x/0 ==> 0\n"
+print "\n-- For nat, int, and any other discrete_field, x/0 ==> 0\n"
 #fast_arith_normalize (5:rat)/0
 #fast_arith_normalize (5:real)/0
 
