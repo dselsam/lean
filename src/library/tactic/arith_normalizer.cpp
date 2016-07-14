@@ -599,7 +599,7 @@ private:
         case head_type::LT: return fast_normalize_lt(args[2], args[3]);
         case head_type::GT: return fast_normalize_gt(args[2], args[3]);
 
-        case head_type::ADD: return fast_normalize_add(e);
+        case head_type::ADD: return fast_normalize_add(e, is_summand);
         case head_type::MUL: return fast_normalize_mul(e);
 
         case head_type::SUB: return fast_normalize_sub(args[2], args[3], is_summand);
@@ -654,8 +654,9 @@ private:
     }
 
     expr fast_normalize_rel(expr const & _lhs, expr const & _rhs, rel_kind rk) {
-        expr lhs = fast_normalize(_lhs);
-        expr rhs = fast_normalize(_rhs);
+        bool is_summand = true;
+        expr lhs = fast_normalize(_lhs, is_summand);
+        expr rhs = fast_normalize(_rhs, is_summand);
         expr new_lhs, new_rhs;
 
         bool cancel_monomials = false;
@@ -874,9 +875,15 @@ private:
         }
     }
 
-    expr fast_normalize_add(expr const & e) {
+    expr fast_normalize_add(expr const & e, bool is_summand) {
         buffer<expr> monomials;
         fast_get_flattened_nary_summands(e, monomials);
+
+        if (is_summand) {
+            // We consider the top-level a summand, since we are going to fuse during the cancellation step
+            return mk_polynomial(monomials);
+        }
+
         expr_struct_set power_products;
         expr_struct_set repeated_power_products;
 
@@ -1047,9 +1054,8 @@ private:
         fast_get_flattened_nary_summands(rhs, rhs_monomials, false);
 
         // Pass 1: collect numerals, determine which power products appear on both sides
-        // TODO(dhs): expr_set?
-        expr_struct_set lhs_power_products;
-        expr_struct_set shared_power_products;
+        expr_struct_map<mpq> lhs_power_products;
+        expr_struct_map<mpq> rhs_only_power_products;
 
         mpq coeff;
         mpq num;
@@ -1061,7 +1067,7 @@ private:
                 num_coeffs++;
             } else {
                 expr power_product = get_power_product(monomial);
-                lhs_power_products.insert(power_product);
+                lhs_power_products[power_product] += num;
             }
         }
 
@@ -1072,75 +1078,36 @@ private:
             } else {
                 expr power_product = get_power_product(monomial);
                 if (lhs_power_products.count(power_product)) {
-                    shared_power_products.insert(power_product);
+                    lhs_power_products[power_product] -= num;
+                } else {
+                    rhs_only_power_products[power_product] += num;
                 }
             }
         }
 
-        // TODO(dhs): may fail here
-
-        // Pass 2: collect coefficients for power products that appear on both sides
-        buffer<mpq> coeffs;
-        m_expr2pos.clear();
-
-        for (expr const & monomial : lhs_monomials) {
-            if (is_mpq_macro(monomial))
-                continue;
-            expr power_product = get_power_product(monomial, num);
-            if (!shared_power_products.count(power_product))
-                continue;
-            DEBUG_CODE(auto pos = m_expr2pos.find(power_product); lean_assert(pos != m_expr2pos.end());)
-            m_expr2pos[power_product] = coeffs.size();
-            coeffs.push_back(num);
-        }
-
-        for (expr const & monomial : rhs_monomials) {
-            if (is_mpq_macro(monomial))
-                continue;
-            expr power_product = get_power_product(monomial, num);
-            if (!shared_power_products.count(power_product))
-                continue;
-            auto pos = m_expr2pos.find(power_product);
-            lean_assert(pos != m_expr2pos.end());
-            coeffs[pos->second] -= num;
-        }
-
-        // Pass 3: collect new monomials for both sides
+        // Pass 2: collect new monomials for both sides
         buffer<expr> new_lhs_monomials;
-        for (expr const & monomial : lhs_monomials) {
-            if (is_mpq_macro(monomial))
-                continue;
-            expr power_product = get_power_product(monomial, num);
-            if (!shared_power_products.count(power_product)) {
-                new_lhs_monomials.push_back(monomial);
-            } else {
-                auto pos = m_expr2pos.find(power_product);
-                lean_assert(pos != m_expr2pos.end());
-                mpq & coeff = coeffs[pos->second];
-                if (!coeff.is_zero())
-                    new_lhs_monomials.push_back(mk_monomial(coeff, power_product));
+        for (auto const & p : lhs_power_products) {
+            if (!p.second.is_zero()) {
+                new_lhs_monomials.push_back(mk_monomial(p.second, p.first));
             }
         }
 
         bool orient_polys = m_options.orient_polys() && m_partial_apps_ptr->is_comm_ring();
 
         buffer<expr> new_rhs_monomials;
-        for (expr const & monomial : rhs_monomials) {
-            if (is_mpq_macro(monomial))
+        for (auto const & p : rhs_only_power_products) {
+            if (p.second.is_zero())
                 continue;
-            expr power_product = get_power_product(monomial, num);
-            if (!shared_power_products.count(power_product)) {
-                if (orient_polys) {
-                    if (!num.is_zero()) {
-                        if (num == -1) {
-                            new_lhs_monomials.push_back(power_product);
-                        } else {
-                            new_lhs_monomials.push_back(mk_monomial(neg(num), power_product));
-                        }
-                    }
+
+            if (orient_polys) {
+                if (num == -1) {
+                    new_lhs_monomials.push_back(p.first);
                 } else {
-                    new_rhs_monomials.push_back(monomial);
+                    new_lhs_monomials.push_back(mk_monomial(neg(p.second), p.first));
                 }
+            } else {
+                new_rhs_monomials.push_back(mk_monomial(p.second, p.first));
             }
         }
 
