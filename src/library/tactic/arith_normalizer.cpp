@@ -152,8 +152,6 @@ static head_type get_head_type(expr const & e) {
 
 enum rel_kind { EQ, LE, LT };
 
-enum class norm_status { DONE, FAILED };
-
 // Partial application cache
 // The current plan is to use flets to track the current type being normalized
 struct partial_apps {
@@ -627,7 +625,7 @@ private:
         case head_type::LT: return fast_normalize_lt(args[2], args[3]);
         case head_type::GT: return fast_normalize_gt(args[2], args[3]);
 
-        case head_type::ADD: return fast_normalize_add(e, process_summands);
+        case head_type::ADD: return fast_normalize_add(e, process_summands, true /* normalize_children */);
         case head_type::MUL: return fast_normalize_mul(e);
 
         case head_type::SUB: return fast_normalize_sub(args[2], args[3], process_summands);
@@ -779,8 +777,42 @@ private:
         }
     }
 
+//    expr fast_normalize_add(expr const & e, bool process_summands, bool normalize_children) {
+    expr fast_normalize_nat_sub(expr const & e1, expr const & e2) {
+        expr arg1, arg2;
+        if (is_sub(e1, arg1, arg2)) {
+            // Rule 1: sub(sub(arg1, arg2), p) ==> sub(arg1, add(arg2, p))
+            // TODO(dhs): doesn't need to be true, but Rule 2 needs to know what we decide here
+            bool process_summands = true;
+            bool normalize_children = false;
+            expr t = mk_app(m_partial_apps_ptr->get_add(), arg2, e2);
+            return fast_normalize_nat_sub(arg1, fast_normalize_add(t, process_summands, normalize_children));
+        } else {
+            // Rule 2: sub(add(...), add(...)) cancels things that appear in both sides
+            // Note: if add is not the head of either argument, it is considered an addition of a single term
+            buffer<expr> lhs_monomials, rhs_monomials;
+            bool updated_ignore = false;
+            bool normalize_children = false;
+
+            fast_get_flattened_nary_summands(e1, lhs_monomials, updated_ignore, normalize_children);
+            fast_get_flattened_nary_summands(e2, rhs_monomials, updated_ignore, normalize_children);
+
+            buffer<expr> new_lhs_monomials, new_rhs_monomials;
+            mpq coeff;
+            bool orient_polys = false;
+            // TODO(dhs): flet for orient_polys?
+            // TODO(dhs): have fast_cancel_monomials_core just populate these fields, and adjust fast_cancel_monomials accordingly
+            // Then here we decide whether we need a sub at all
+            fast_cancel_monomials_core(lhs_monomials, rhs_monomials, new_lhs_monomials, new_rhs_monomials, coeff, orient_polys);
+        }
+    }
+
     expr fast_normalize_sub(expr const & e1, expr const & e2, bool process_summands) {
-        if (!m_partial_apps_ptr->is_add_group()) {
+        if (current_type_is_nat()) {
+            expr e1_n = fast_normalize(e1);
+            expr e2_n = fast_normalize(e2);
+            return fast_normalize_nat_sub(e1_n, e2_n);
+        } else if (!m_partial_apps_ptr->is_add_group()) {
             expr e1_n = fast_normalize(e1);
             expr e2_n = fast_normalize(e2);
             return mk_app(m_partial_apps_ptr->get_sub(), e1_n, e2_n);
@@ -900,10 +932,9 @@ private:
         }
     }
 
-    expr fast_normalize_add(expr const & e, bool process_summands) {
+    expr fast_normalize_add(expr const & e, bool process_summands, bool normalize_children) {
         buffer<expr> monomials;
         bool updated = false;
-        bool normalize_children = true;
         fast_get_flattened_nary_summands(e, monomials, updated, normalize_children);
 
         if (!process_summands) {
@@ -1076,16 +1107,20 @@ private:
         return e_n;
     }
 
-    // ssumes that both sides are in normal form already
-    norm_status fast_cancel_monomials(expr const & lhs, expr const & rhs, expr & new_lhs, expr & new_rhs) {
+    void fast_cancel_monomials(expr const & lhs, expr const & rhs, expr & new_lhs, expr & new_rhs) {
         buffer<expr> lhs_monomials;
         buffer<expr> rhs_monomials;
         bool process_summands = false;
-        bool updated = false;
+        bool updated_ignore = false;
         bool normalize_children = false;
-        fast_get_flattened_nary_summands(fast_normalize(lhs, process_summands), lhs_monomials, updated, normalize_children);
-        fast_get_flattened_nary_summands(fast_normalize(rhs, process_summands), rhs_monomials, updated, normalize_children);
+        fast_get_flattened_nary_summands(fast_normalize(lhs, process_summands), lhs_monomials, updated_ignore, normalize_children);
+        fast_get_flattened_nary_summands(fast_normalize(rhs, process_summands), rhs_monomials, updated_ignore, normalize_children);
+        bool orient_polys = m_options.orient_polys() && m_partial_apps_ptr->is_comm_ring();
+        bool keep_coeff_pos = false;
+        fast_cancel_monomials_core(lhs_monomials, rhs_monomials, new_lhs, new_rhs, orient_polys, keep_coeff_pos);
+    }
 
+    void fast_cancel_monomials_core(buffer<expr> const & lhs_monomials, buffer<expr> const & rhs_monomials, expr & new_lhs, expr & new_rhs, bool orient_polys, bool keep_coeff_pos) {
         // Pass 1: collect numerals, determine which power products appear on both sides
         expr_struct_set lhs_power_products;// shared?
         expr_struct_map<mpq> power_product_to_coeff;
@@ -1109,7 +1144,6 @@ private:
             }
         }
 
-        bool orient_polys = m_options.orient_polys() && m_partial_apps_ptr->is_comm_ring();
         for (expr const & monomial : rhs_monomials) {
             if (is_mpq_macro(monomial, num)) {
                 coeff -= num;
@@ -1167,7 +1201,7 @@ private:
                 new_rhs_monomials.push_back(mk_monomial(c, power_product));
         }
 
-        bool coeff_on_rhs = orient_polys || new_rhs_monomials.empty() || !new_lhs_monomials.empty();
+        bool coeff_on_rhs = keep_coeff_pos ? (coeff.is_neg()) : (orient_polys || new_rhs_monomials.empty() || !new_lhs_monomials.empty());
         if (coeff_on_rhs) {
             new_lhs = mk_polynomial(new_lhs_monomials);
             new_rhs = mk_polynomial(neg(coeff), new_rhs_monomials);
@@ -1177,7 +1211,6 @@ private:
         }
 
         lean_trace_d(name({"arith_normalizer", "fast", "cancel_monomials"}), tout() << lhs << " <> " << rhs << " ==> " << new_lhs << " <> " << new_rhs << "\n";);
-        return norm_status::DONE;
     }
 };
 
