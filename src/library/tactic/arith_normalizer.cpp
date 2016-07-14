@@ -513,12 +513,20 @@ public:
         }
 
         // TODO(dhs): why aren't these still cached thread-local from elaboration?
+        m_partial_apps_ptr->get_eq();
         m_partial_apps_ptr->get_add();
         m_partial_apps_ptr->get_mul();
+        m_partial_apps_ptr->is_field();
+        m_partial_apps_ptr->is_comm_ring();
+        m_partial_apps_ptr->is_add_group();
+        m_partial_apps_ptr->is_linear_ordered_comm_ring();
+        m_partial_apps_ptr->is_linear_ordered_semiring();
+        mpz z;
+        m_partial_apps_ptr->has_cyclic_numerals(z);
 
         if (m_options.profile()) {
             std::ostringstream msg;
-            msg << " arith_normalizer time: ";
+            msg << "arith_normalizer time: ";
             timeit timer(get_dummy_ios().get_diagnostic_stream(), msg.str().c_str(), 0.0);
             return fast_normalize(e);
         } else {
@@ -653,12 +661,7 @@ private:
         }
     }
 
-    expr fast_normalize_rel(expr const & _lhs, expr const & _rhs, rel_kind rk) {
-        bool is_summand = true;
-        expr lhs = fast_normalize(_lhs, is_summand);
-        expr rhs = fast_normalize(_rhs, is_summand);
-        expr new_lhs, new_rhs;
-
+    expr fast_normalize_rel(expr const & lhs, expr const & rhs, rel_kind rk) {
         bool cancel_monomials = false;
         switch (rk) {
         case rel_kind::EQ:
@@ -669,11 +672,13 @@ private:
             break;
         }
 
+        expr new_lhs, new_rhs;
         if (cancel_monomials) {
-            fast_cancel_monomials(lhs, rhs, new_lhs, new_rhs);
+            bool is_summand = true;
+            fast_cancel_monomials(fast_normalize(lhs, is_summand), fast_normalize(rhs, is_summand), new_lhs, new_rhs);
         } else {
-            new_lhs = lhs;
-            new_rhs = rhs;
+            new_lhs = fast_normalize(lhs);
+            new_rhs = fast_normalize(rhs);
         }
 
         // TODO(dhs): bounds
