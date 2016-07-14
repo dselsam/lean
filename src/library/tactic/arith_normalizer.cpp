@@ -862,21 +862,23 @@ private:
         }
     }
 
-    void fast_get_flattened_nary_multiplicands(expr const & e, buffer<expr> & args) {
+    void fast_get_flattened_nary_multiplicands(expr const & e, buffer<expr> & args, bool normalize_children=true) {
         expr arg1, arg2;
         if (is_mul(e, arg1, arg2)) {
-            fast_get_flattened_nary_multiplicands(arg1, args);
-            fast_get_flattened_nary_multiplicands(arg2, args);
-        } else {
-            bool is_summand = false;
-            bool is_multiplicand = true;
+            fast_get_flattened_nary_multiplicands(arg1, args, normalize_children);
+            fast_get_flattened_nary_multiplicands(arg2, args, normalize_children);
+        } else if (normalize_children) {
+            bool is_summand = true;
+            bool is_multiplicand = false;
             expr e_n = fast_normalize(e, is_summand, is_multiplicand);
             if (is_mul(e_n, arg1, arg2)) {
-                fast_get_flattened_nary_multiplicands(arg1, args);
-                fast_get_flattened_nary_multiplicands(arg2, args);
+                fast_get_flattened_nary_multiplicands(arg1, args, normalize_children);
+                fast_get_flattened_nary_multiplicands(arg2, args, normalize_children);
             } else {
                 args.push_back(e_n);
             }
+        } else {
+            args.push_back(e);
         }
     }
 
@@ -966,9 +968,9 @@ private:
         }
     }
 
-    expr fast_normalize_mul(expr const & e) {
+    expr fast_normalize_mul(expr const & e, bool is_multiplicand) {
         buffer<expr> multiplicands;
-        fast_get_flattened_nary_multiplicands(e, multiplicands);
+        fast_get_flattened_nary_multiplicands(e, multiplicands, is_multiplicand);
         expr e_n = fast_normalize_mul_core(multiplicands);
         lean_trace_d(name({"arith_normalizer", "fast", "normalize_mul"}), tout() << e << " ==> " << e_n << "\n";);
         return e_n;
@@ -1071,7 +1073,7 @@ private:
                 coeff += num;
                 num_coeffs++;
             } else {
-                expr power_product = get_power_product(monomial);
+                expr power_product = get_power_product(monomial, num);
                 lhs_power_products[power_product] += num;
             }
         }
@@ -1081,7 +1083,7 @@ private:
                 coeff -= num;
                 num_coeffs++;
             } else {
-                expr power_product = get_power_product(monomial);
+                expr power_product = get_power_product(monomial, num);
                 if (lhs_power_products.count(power_product)) {
                     lhs_power_products[power_product] -= num;
                 } else {
