@@ -843,17 +843,21 @@ private:
     }
 
     // Normalizes as well
-    void fast_get_flattened_nary_summands(expr const & e, buffer<expr> & args, bool normalize_children=true) {
+    void fast_get_flattened_nary_summands(expr const & e, buffer<expr> & args, bool & updated, bool normalize_children) {
         expr arg1, arg2;
         if (is_add(e, arg1, arg2)) {
-            fast_get_flattened_nary_summands(arg1, args);
-            fast_get_flattened_nary_summands(arg2, args);
+            fast_get_flattened_nary_summands(arg1, args, updated, normalize_children);
+            fast_get_flattened_nary_summands(arg2, args, updated, normalize_children);
         } else if (normalize_children) {
             bool process_summands = false;
             expr e_n = fast_normalize(e, process_summands);
+
+            if (e != e_n)
+                updated = true;
+
             if (is_add(e_n, arg1, arg2)) {
-                fast_get_flattened_nary_summands(arg1, args);
-                fast_get_flattened_nary_summands(arg2, args);
+                fast_get_flattened_nary_summands(arg1, args, updated, normalize_children);
+                fast_get_flattened_nary_summands(arg2, args, updated, normalize_children);
             } else {
                 args.push_back(e_n);
             }
@@ -884,10 +888,15 @@ private:
 
     expr fast_normalize_add(expr const & e, bool process_summands) {
         buffer<expr> monomials;
-        fast_get_flattened_nary_summands(e, monomials);
+        bool updated = false;
+        bool normalize_children = true;
+        fast_get_flattened_nary_summands(e, monomials, updated, normalize_children);
 
         if (!process_summands) {
-            return mk_polynomial(monomials);
+            if (!updated)
+                return e;
+            else
+                return mk_polynomial(monomials);
         }
 
         expr_struct_set power_products;
@@ -911,9 +920,10 @@ private:
             }
         }
 
-        buffer<expr> new_monomials;
-        expr e_n;
+        if (!updated && num_coeffs == 0 && repeated_power_products.empty())
+            return e;
 
+        buffer<expr> new_monomials;
         if (repeated_power_products.empty()) {
             // Only numerals may need to be fused
             for (expr const & monomial : monomials) {
@@ -921,7 +931,9 @@ private:
                     new_monomials.push_back(monomial);
                 }
             }
-            e_n = mk_polynomial(coeff, new_monomials);
+            expr e_n = mk_polynomial(coeff, new_monomials);
+            lean_trace_d(name({"arith_normalizer", "fast", "normalize_add"}), tout() << e << " ==> " << e_n << "\n";);
+            return e_n;
         } else {
             lean_assert(!repeated_power_products.empty());
             expr_struct_map<mpq> power_product_to_coeff;
@@ -950,10 +962,10 @@ private:
                         new_monomials.push_back(mk_monomial(c, power_product));
                 }
             }
-            e_n = mk_polynomial(coeff, new_monomials);
+            expr e_n = mk_polynomial(coeff, new_monomials);
+            lean_trace_d(name({"arith_normalizer", "fast", "normalize_add"}), tout() << e << " ==> " << e_n << "\n";);
+            return e_n;
         }
-        lean_trace_d(name({"arith_normalizer", "fast", "normalize_add"}), tout() << e << " ==> " << e_n << "\n";);
-        return e_n;
     }
 
     void get_normalized_add_summands(expr const & e, buffer<expr> & summands) {
@@ -1054,10 +1066,11 @@ private:
     norm_status fast_cancel_monomials(expr const & lhs, expr const & rhs, expr & new_lhs, expr & new_rhs) {
         buffer<expr> lhs_monomials;
         buffer<expr> rhs_monomials;
-        bool normalize_children = false;
         bool process_summands = false;
-        fast_get_flattened_nary_summands(fast_normalize(lhs, process_summands), lhs_monomials, normalize_children);
-        fast_get_flattened_nary_summands(fast_normalize(rhs, process_summands), rhs_monomials, normalize_children);
+        bool updated = false;
+        bool normalize_children = false;
+        fast_get_flattened_nary_summands(fast_normalize(lhs, process_summands), lhs_monomials, updated, normalize_children);
+        fast_get_flattened_nary_summands(fast_normalize(rhs, process_summands), rhs_monomials, updated, normalize_children);
 
         // Pass 1: collect numerals, determine which power products appear on both sides
         expr_struct_set lhs_power_products;// shared?
