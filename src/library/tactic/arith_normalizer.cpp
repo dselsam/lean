@@ -94,6 +94,8 @@ struct arith_normalize_options {
 
 // Helpers
 
+struct expr_quick_lt { int operator()(expr const & e1, expr const & e2) const { return is_lt(e1, e2, true); } };
+
 static expr mk_nary_app(expr const & fn, buffer<expr> const & args) {
     lean_assert(!args.empty());
     expr e = args.back();
@@ -467,7 +469,6 @@ class fast_arith_normalize_fn {
     type_context              m_tctx;
     arith_normalize_options   m_options;
     partial_apps *            m_partial_apps_ptr;
-    expr_struct_map<unsigned> m_expr2pos;
 
 public:
     fast_arith_normalize_fn(type_context & tctx): m_tctx(tctx), m_options(tctx.get_options()) {}
@@ -1055,8 +1056,11 @@ private:
         fast_get_flattened_nary_summands(rhs, rhs_monomials);
 
         // Pass 1: collect numerals, determine which power products appear on both sides
-        expr_struct_map<mpq> lhs_power_products;
-        expr_struct_map<mpq> rhs_only_power_products;
+        // TODO(dhs): hash maps? different algorithm? We want to traverse the map and do not want the non-determinism introduced by
+        // traversing the hash map
+        // Note: the alternative is to traverse the monomials again, and check the maps for each non-numeral.
+        std::map<expr, mpq, expr_quick_lt> lhs_power_products;
+        std::map<expr, mpq, expr_quick_lt> rhs_only_power_products;
 
         mpq coeff;
         mpq num;

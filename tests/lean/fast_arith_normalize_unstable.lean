@@ -6,14 +6,6 @@ attribute [instance] A_inst
 -- fast_cancel_monomials
 print "--------------"
 set_option arith_normalizer.orient_polys false
-#fast_arith_normalize x = x
-#fast_arith_normalize x + y = x + y
-#fast_arith_normalize x + y = y + x
-#fast_arith_normalize 2 * x + y = y + 2 * x
-#fast_arith_normalize 2 * x + 3 * y = 3 * y + 2 * x
-
-print "--------------"
-set_option arith_normalizer.orient_polys false
 #fast_arith_normalize 2 * x = x
 #fast_arith_normalize x = 2 * x
 #fast_arith_normalize 2 * x = 3 * x
