@@ -11,7 +11,7 @@ print "-- [0] Preliminaries"
 print "------------------------"
 
 print "Requires: commutative semiring structure"
-print "Can exploit: add_group, linear_order, field structure, cyclic numerals"
+print "Can exploit: add_group, linear_order, field structure, cyclic numerals, nat.sub"
 
 print "---------------------"
 print "-- [I] Basics"
@@ -39,6 +39,7 @@ print "\n-- Zero coefficients of monomials sets monomial to zero\n"
 
 print "\n-- We cancel monomials (linear-ordered only for inequalities)\n"
 #fast_arith_normalize 2 * x + y = x + y
+#fast_arith_normalize 2 * x + y ≤ x + y
 
 print "\n-------------------------"
 print "-- [II] Basic options"
@@ -76,8 +77,12 @@ print "\n-- If either has the form (c * x) for a numeral, we factor out the nume
 #fast_arith_normalize x / (2 * y)
 #fast_arith_normalize (3 * x) / (2 * y)
 
-print "\n-- If we divide by 0, we replace with a special definition\n"
-#fast_arith_normalize x / 0 -- div0 x
+print "\n-- For nat, int, rat, real, and any other discrete_field, x/0 ==> 0\n"
+#fast_arith_normalize (5:rat)/0
+#fast_arith_normalize (5:real)/0
+
+print "\nFor other structures, if we divide by 0 we leave as is\n"
+#fast_arith_normalize x / 0
 
 print "\n-------------------------"
 print "-- [IV] Coercions"
