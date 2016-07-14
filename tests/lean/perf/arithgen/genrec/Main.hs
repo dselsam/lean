@@ -12,6 +12,6 @@ import Control.Monad.Random (evalRandIO)
 main :: IO ()
 main = do
   [numVars, maxPerAdd, maxPerMul, maxCoeff, bottomWeight] <- getArgs
-  e <- evalRandIO $ genExpr (read numVars) (read maxPerAdd) (read maxPerMul) (read maxCoeff) (fromIntegral . read $ bottomWeight)
-  writeFile "rand1.smt2" $ exprToZ3Assert (read numVars) e
-  writeFile "rand1.lean" $ exprToLeanExample (read numVars) e
+  e <- evalRandIO $ genRecExpr (read numVars) (read maxPerAdd) (read maxPerMul) (read maxCoeff) (fromIntegral . read $ bottomWeight)
+  writeFile "genrec1.smt2" $ exprToZ3Assert (read numVars) e
+  writeFile "genrec1.lean" $ exprToLeanExample (read numVars) e

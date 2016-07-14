@@ -5,8 +5,8 @@ import Control.Monad.Random (Rand, RandomGen)
 
 import Expr
 
-genExpr :: (RandomGen g) => Int -> Int -> Int -> Int -> Rational -> Rand g Expr
-genExpr numVars maxPerAdd maxPerMul maxCoeff bottomWeight = genAdd numVars maxPerAdd maxPerMul maxCoeff bottomWeight
+genRecExpr :: (RandomGen g) => Int -> Int -> Int -> Int -> Rational -> Rand g Expr
+genRecExpr numVars maxPerAdd maxPerMul maxCoeff bottomWeight = genAdd numVars maxPerAdd maxPerMul maxCoeff bottomWeight
     where
       genAdd :: (RandomGen g) => Int -> Int -> Int -> Int -> Rational -> Rand g Expr
       genAdd numVars maxPerAdd maxPerMul maxCoeff bottomWeight = do
@@ -26,3 +26,7 @@ genExpr numVars maxPerAdd maxPerMul maxCoeff bottomWeight = genAdd numVars maxPe
                             var <- Random.uniform [1..numVars]
                             coeff <- Random.uniform [-maxCoeff..maxCoeff]
                             if var == numVars then return (Num (fromIntegral coeff)) else return (Mul [Var var, Num (fromIntegral coeff)])
+
+
+genFuseExpr :: Int -> Expr
+genFuseExpr numToFuse = Add $ map (\_ -> Var 1) [1..numToFuse]

@@ -24,17 +24,22 @@ library
                      , transformers
   default-language:    Haskell2010
 
-executable arithgen-exe
-  hs-source-dirs:      app
+executable genrec-exe
+  hs-source-dirs:      genrec
   main-is:             Main.hs
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   build-depends:       base
                      , arithgen
-                     , containers
-                     , random
                      , MonadRandom
-                     , mtl
-                     , transformers
+  default-language:    Haskell2010
+
+executable genfuse-exe
+  hs-source-dirs:      genfuse
+  main-is:             Main.hs
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  build-depends:       base
+                     , arithgen
+                     , MonadRandom
   default-language:    Haskell2010
 
 test-suite arithgen-test

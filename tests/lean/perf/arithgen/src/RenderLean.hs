@@ -13,7 +13,8 @@ leanHeader numVars = "import algebra.ring\n"
                      ++ "end tactic\n"
                      ++ "open tactic\n"
                      ++ "open tactic\n"
-                     ++ "constants (X : Type.{1}) (X_cr : comm_ring X) (X_add : has_add X) (X_mul : has_mul X) (X_one : has_one X) (X_zero : has_zero X) (X_neg : has_neg X)\n"
+--                     ++ "constants (X : Type.{1}) (X_cr : comm_ring X) (X_add : has_add X) (X_mul : has_mul X) (X_one : has_one X) (X_zero : has_zero X) (X_neg : has_neg X)\n"
+                     ++ "constants (X : Type.{1}) (X_cr : comm_ring X)\n"
                      ++ "attribute X_cr [instance]\n"
                      ++ "constants (" ++ concatMap (\i -> exprToLean (Var i) ++ " ") [1..numVars] ++ " : X)\n"
                      ++ "set_option arith_normalizer.distribute_mul true\n"
@@ -32,10 +33,10 @@ numToLean k
       mkBit0 k = "(@bit0.{1} X X_add " ++ numToLean k ++ ")"
       mkBit1 k = "(@bit1.{1} X X_one X_add " ++ numToLean k ++ ")"
 
-exprToLean (Add es) = foldr (\e s -> "(@add.{1} X X_add " ++ exprToLean e ++ " " ++ s ++ ")") (exprToLean (last es)) (init es)
-exprToLean (Mul es) = foldr (\e s -> "(@mul.{1} X X_mul " ++ exprToLean e ++ " " ++ s ++ ")") (exprToLean (last es)) (init es)
+exprToLean (Add es) = foldl (\s e -> "(add " ++ exprToLean e ++ " " ++ s ++ ")") (exprToLean (last es)) (init es)
+exprToLean (Mul es) = foldl (\s e -> "(mul " ++ exprToLean e ++ " " ++ s ++ ")") (exprToLean (last es)) (init es)
 exprToLean (Var i) = "x" ++ show i
-exprToLean (Num i) = numToLean i
+exprToLean (Num i) = "(" ++ show i ++ " : X)"
 
 exprToLeanCmd numVars e = leanHeader numVars ++ "#fast_arith_normalize " ++ exprToLean e
 

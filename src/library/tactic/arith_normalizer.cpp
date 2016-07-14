@@ -7,6 +7,7 @@ Author: Daniel Selsam
 #include "util/optional.h"
 #include "util/timeit.h"
 #include "util/interrupt.h"
+#include "util/name_hash_map.h"
 #include "util/sexpr/option_declarations.h"
 #include "kernel/abstract.h"
 #include "kernel/expr_maps.h"
@@ -138,6 +139,19 @@ enum class head_type {
         INT_OF_NAT, RAT_OF_INT, REAL_OF_RAT,
         OTHER
         };
+
+static name_hash_map<head_type> * g_head_type_map = nullptr;
+static head_type get_head_type(expr const & e) {
+    if (!is_constant(e))
+        return head_type::OTHER;
+
+    auto it = g_head_type_map->find(const_name(e));
+    if (it == g_head_type_map->end()) {
+        return head_type::OTHER;
+    } else {
+        return it->second;
+    }
+}
 
 enum rel_kind { EQ, LE, LT };
 
@@ -453,38 +467,6 @@ struct partial_apps {
     }
 };
 
-static inline head_type get_head_type(expr const & op) {
-    if (!is_constant(op)) return head_type::OTHER;
-
-    else if (const_name(op) == get_add_name()) return head_type::ADD;
-    else if (const_name(op) == get_mul_name()) return head_type::MUL;
-
-    else if (const_name(op) == get_zero_name()) return head_type::ZERO;
-    else if (const_name(op) == get_one_name()) return head_type::ONE;
-    else if (const_name(op) == get_bit0_name()) return head_type::BIT0;
-    else if (const_name(op) == get_bit1_name()) return head_type::BIT1;
-
-    else if (const_name(op) == get_neg_name()) return head_type::NEG;
-    else if (const_name(op) == get_sub_name()) return head_type::SUB;
-    else if (const_name(op) == get_div_name()) return head_type::DIV;
-
-    else if (const_name(op) == get_div0_name()) return head_type::DIV0;
-
-    else if (const_name(op) == get_int_of_nat_name()) return head_type::INT_OF_NAT;
-    else if (const_name(op) == get_rat_of_int_name()) return head_type::RAT_OF_INT;
-    else if (const_name(op) == get_real_of_rat_name()) return head_type::REAL_OF_RAT;
-
-    else if (const_name(op) == get_eq_name()) return head_type::EQ;
-
-    else if (const_name(op) == get_le_name()) return head_type::LE;
-    else if (const_name(op) == get_ge_name()) return head_type::GE;
-
-    else if (const_name(op) == get_lt_name()) return head_type::LT;
-    else if (const_name(op) == get_gt_name()) return head_type::GT;
-
-    else return head_type::OTHER;
-}
-
 class fast_arith_normalize_fn {
     type_context            m_tctx;
     arith_normalize_options m_options;
@@ -532,6 +514,10 @@ public:
             throw exception(sstream() << "fast_arith_normalizer not expecting to be called on expr " << e << " that is not of a type with commutative semiring structure\n");
             return e;
         }
+
+        // TODO(dhs): why aren't these still cached thread-local from elaboration?
+        m_partial_apps_ptr->get_add();
+        m_partial_apps_ptr->get_mul();
 
         if (m_options.profile()) {
             std::ostringstream msg;
@@ -1267,6 +1253,28 @@ void initialize_arith_normalizer() {
     register_trace_class(name({"arith_normalizer", "fast", "normalize_add"}));
     register_trace_class(name({"arith_normalizer", "fast", "normalize_mul"}));
 
+    // Head types
+    g_head_type_map = new name_hash_map<head_type>({
+            {get_eq_name(), head_type::EQ},
+            {get_le_name(), head_type::LE},
+            {get_ge_name(), head_type::GE},
+            {get_lt_name(), head_type::LT},
+            {get_gt_name(), head_type::GT},
+            {get_add_name(), head_type::ADD},
+            {get_mul_name(), head_type::MUL},
+            {get_sub_name(), head_type::SUB},
+            {get_div_name(), head_type::DIV},
+            {get_neg_name(), head_type::NEG},
+            {get_div0_name(), head_type::DIV0},
+            {get_zero_name(), head_type::ZERO},
+            {get_one_name(), head_type::ONE},
+            {get_bit0_name(), head_type::BIT0},
+            {get_bit1_name(), head_type::BIT1},
+            {get_int_of_nat_name(), head_type::INT_OF_NAT},
+            {get_rat_of_int_name(), head_type::RAT_OF_INT},
+            {get_real_of_rat_name(), head_type::REAL_OF_RAT}
+        });
+
     // Options names
     g_arith_normalizer_distribute_mul     = new name{"arith_normalizer", "distribute_mul"};
     g_arith_normalizer_fuse_mul           = new name{"arith_normalizer", "fuse_mul"};
@@ -1301,6 +1309,9 @@ void initialize_arith_normalizer() {
 
 }
 void finalize_arith_normalizer() {
+    // Head types
+    delete g_head_type_map;
+
     // Delete names for options
     delete g_arith_normalizer_profile;
     delete g_arith_normalizer_orient_polys;

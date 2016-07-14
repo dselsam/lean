@@ -17,7 +17,7 @@ normalize_add es =
         coeff = sum (map (\e -> case e of
                                   Num i -> i
                                   _ -> 0) es_n)
-        pps_to_count = foldl (\m e -> case e of
+        pps_to_count = foldr (\e m -> case e of
                                         Num i -> m
                                         Mul [Num i, v] ->
                                             Map.alter (\v -> case v of
@@ -41,7 +41,7 @@ normalize_add es =
 normalize_mul :: [Expr] -> Bool -> Expr
 normalize_mul es norm =
     let es_n = if norm then map normalize es else es
-        coeff = foldl (\n e -> case e of
+        coeff = foldr (\e n -> case e of
                                  Num i -> n * i
                                  Mul [Num i, v] -> n * i
                                  _ -> n) 1 es_n
