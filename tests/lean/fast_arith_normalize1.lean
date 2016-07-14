@@ -34,6 +34,13 @@ set_option arith_normalizer.orient_polys false
 #fast_arith_normalize 2 * x + 3 * y = 3 * y + 2 * x
 
 print "--------------"
+#fast_arith_normalize 2 * x = x + x
+#fast_arith_normalize 2 * x + x + y + y = x + x + y + x + y
+set_option arith_normalizer.distribute_mul true
+#fast_arith_normalize x - (y - (x - y)) = 2 * x - 2 * y
+set_option arith_normalizer.distribute_mul false
+
+print "--------------"
 --set_option trace.arith_normalizer.fast.normalize_mul true
 #fast_arith_normalize x * y = y * x
 #fast_arith_normalize x * y * x = y * x * x

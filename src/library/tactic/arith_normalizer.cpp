@@ -513,7 +513,8 @@ public:
             return e;
         }
 
-        // TODO(dhs): why aren't these still cached thread-local from elaboration?
+        // TODO(dhs): why aren't any of these still cached thread-local from elaboration?
+        // TODO(dhs): for nat, int, rat, and real, globally pre-load a partial_apps structure
         m_partial_apps_ptr->get_eq();
         m_partial_apps_ptr->get_add();
         m_partial_apps_ptr->get_mul();
@@ -675,7 +676,6 @@ private:
 
         expr new_lhs, new_rhs;
         if (cancel_monomials) {
-            bool process_summands = false;
             fast_cancel_monomials(lhs, rhs, new_lhs, new_rhs);
         } else {
             new_lhs = fast_normalize(lhs);
@@ -843,12 +843,12 @@ private:
     }
 
     // Normalizes as well
-    void fast_get_flattened_nary_summands(expr const & e, buffer<expr> & args) {
+    void fast_get_flattened_nary_summands(expr const & e, buffer<expr> & args, bool normalize_children=true) {
         expr arg1, arg2;
         if (is_add(e, arg1, arg2)) {
             fast_get_flattened_nary_summands(arg1, args);
             fast_get_flattened_nary_summands(arg2, args);
-        } else {
+        } else if (normalize_children) {
             bool process_summands = false;
             expr e_n = fast_normalize(e, process_summands);
             if (is_add(e_n, arg1, arg2)) {
@@ -857,6 +857,8 @@ private:
             } else {
                 args.push_back(e_n);
             }
+        } else {
+            args.push_back(e);
         }
     }
 
@@ -1048,19 +1050,18 @@ private:
         return e_n;
     }
 
-    // Assumes that both sides are in normal form already
+    // ssumes that both sides are in normal form already
     norm_status fast_cancel_monomials(expr const & lhs, expr const & rhs, expr & new_lhs, expr & new_rhs) {
         buffer<expr> lhs_monomials;
         buffer<expr> rhs_monomials;
-        fast_get_flattened_nary_summands(lhs, lhs_monomials);
-        fast_get_flattened_nary_summands(rhs, rhs_monomials);
+        bool normalize_children = false;
+        bool process_summands = false;
+        fast_get_flattened_nary_summands(fast_normalize(lhs, process_summands), lhs_monomials, normalize_children);
+        fast_get_flattened_nary_summands(fast_normalize(rhs, process_summands), rhs_monomials, normalize_children);
 
         // Pass 1: collect numerals, determine which power products appear on both sides
-        // TODO(dhs): hash maps? different algorithm? We want to traverse the map and do not want the non-determinism introduced by
-        // traversing the hash map
-        // Note: the alternative is to traverse the monomials again, and check the maps for each non-numeral.
-        std::map<expr, mpq, expr_quick_lt> lhs_power_products;
-        std::map<expr, mpq, expr_quick_lt> rhs_only_power_products;
+        expr_struct_set lhs_power_products;// shared?
+        expr_struct_map<mpq> power_product_to_coeff;
 
         mpq coeff;
         mpq num;
@@ -1072,48 +1073,71 @@ private:
                 num_coeffs++;
             } else {
                 expr power_product = get_power_product(monomial, num);
-                lhs_power_products[power_product] += num;
+                lhs_power_products.insert(power_product);
+                auto it = power_product_to_coeff.find(power_product);
+                if (it != power_product_to_coeff.end())
+                    it->second += num;
+                else
+                    power_product_to_coeff.insert({power_product, num});
             }
         }
 
+        bool orient_polys = m_options.orient_polys() && m_partial_apps_ptr->is_comm_ring();
         for (expr const & monomial : rhs_monomials) {
             if (is_mpq_macro(monomial, num)) {
                 coeff -= num;
                 num_coeffs++;
             } else {
                 expr power_product = get_power_product(monomial, num);
-                if (lhs_power_products.count(power_product)) {
-                    lhs_power_products[power_product] -= num;
+                if (lhs_power_products.count(power_product) || orient_polys) {
+                    auto it = power_product_to_coeff.find(power_product);
+                    if (it != power_product_to_coeff.end()) {
+                        it->second -= num;
+                    } else {
+                        num.neg();
+                        power_product_to_coeff.insert({power_product, num});
+                    }
                 } else {
-                    rhs_only_power_products[power_product] += num;
+                    auto it = power_product_to_coeff.find(power_product);
+                    if (it != power_product_to_coeff.end())
+                        it->second += num;
+                    else
+                        power_product_to_coeff.insert({power_product, num});
                 }
             }
         }
 
-        // Pass 2: collect new monomials for both sides
+        lhs_power_products.clear();
         buffer<expr> new_lhs_monomials;
-        for (auto const & p : lhs_power_products) {
-            if (!p.second.is_zero()) {
-                new_lhs_monomials.push_back(mk_monomial(p.second, p.first));
-            }
+        for (expr const & monomial : lhs_monomials) {
+            if (is_mpq_macro(monomial))
+                continue;
+            expr power_product = get_power_product(monomial, num);
+            if (lhs_power_products.count(power_product))
+                continue;
+            lhs_power_products.insert(power_product);
+            mpq & c = power_product_to_coeff[power_product];
+            if (!c.is_zero())
+                new_lhs_monomials.push_back(mk_monomial(c, power_product));
         }
 
-        bool orient_polys = m_options.orient_polys() && m_partial_apps_ptr->is_comm_ring();
-
+        expr_struct_set rhs_visited;
         buffer<expr> new_rhs_monomials;
-        for (auto const & p : rhs_only_power_products) {
-            if (p.second.is_zero())
+        for (expr const & monomial : rhs_monomials) {
+            if (is_mpq_macro(monomial))
+                continue;
+            expr power_product = get_power_product(monomial);
+            if (lhs_power_products.count(power_product) || rhs_visited.count(power_product))
                 continue;
 
-            if (orient_polys) {
-                if (num == -1) {
-                    new_lhs_monomials.push_back(p.first);
-                } else {
-                    new_lhs_monomials.push_back(mk_monomial(neg(p.second), p.first));
-                }
-            } else {
-                new_rhs_monomials.push_back(mk_monomial(p.second, p.first));
-            }
+            rhs_visited.insert(power_product);
+            mpq & c = power_product_to_coeff[power_product];
+            if (c.is_zero())
+                continue;
+            if (orient_polys)
+                new_lhs_monomials.push_back(mk_monomial(c, power_product));
+            else
+                new_rhs_monomials.push_back(mk_monomial(c, power_product));
         }
 
         bool coeff_on_rhs = orient_polys || new_rhs_monomials.empty() || !new_lhs_monomials.empty();
