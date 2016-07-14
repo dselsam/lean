@@ -21,6 +21,9 @@ assertNotEqZ3 lhs rhs = "(assert (not (= " ++ exprToZ3 lhs ++ " " ++ exprToZ3 rh
 exprToZ3Assert :: Int -> Expr -> String
 exprToZ3Assert numVars e = z3Header numVars ++ assertNotEqZ3 e (normalize e) ++ "(check-sat)"
 
+exprToZ3Assert2 :: Int -> Expr -> Expr -> String
+exprToZ3Assert2 numVars e1 e2 = z3Header numVars ++ assertNotEqZ3 e1 e2 ++ "(check-sat)"
+
 ----
 
 exprToZ3_bin :: Expr -> String

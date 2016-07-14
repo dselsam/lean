@@ -30,3 +30,6 @@ genRecExpr numVars maxPerAdd maxPerMul maxCoeff bottomWeight = genAdd numVars ma
 
 genFuseExpr :: Int -> Expr
 genFuseExpr numToFuse = Add $ map (\_ -> Var 1) [1..numToFuse]
+
+genCancelExpr :: Int -> Expr
+genCancelExpr numToCancel = Add $ map (\i -> Var i) [1..numToCancel]

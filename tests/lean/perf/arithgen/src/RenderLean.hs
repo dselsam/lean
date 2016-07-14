@@ -41,3 +41,4 @@ exprToLean (Num i) = "(" ++ show i ++ " : X)"
 exprToLeanCmd numVars e = leanHeader numVars ++ "#fast_arith_normalize " ++ exprToLean e
 
 exprToLeanExample numVars e = leanHeader numVars ++ "example : @eq.{1} X (" ++ exprToLean e ++ ") (" ++ exprToLean (normalize e) ++ ") := by arith"
+exprToLeanExample2 numVars e1 e2 = leanHeader numVars ++ "example : @eq.{1} X (" ++ exprToLean e1 ++ ") (" ++ exprToLean e2 ++ ") := by arith"

@@ -122,10 +122,6 @@ static expr get_power_product(expr const & monomial, mpq & num) {
     }
 }
 
-static expr app_arg2(expr const & e) {
-    return app_arg(app_fn(e));
-}
-
 // Fast arith_normalizer
 
 enum class head_type {
@@ -468,9 +464,10 @@ struct partial_apps {
 };
 
 class fast_arith_normalize_fn {
-    type_context            m_tctx;
-    arith_normalize_options m_options;
-    partial_apps *          m_partial_apps_ptr;
+    type_context              m_tctx;
+    arith_normalize_options   m_options;
+    partial_apps *            m_partial_apps_ptr;
+    expr_struct_map<unsigned> m_expr2pos;
 
 public:
     fast_arith_normalize_fn(type_context & tctx): m_tctx(tctx), m_options(tctx.get_options()) {}
@@ -839,21 +836,23 @@ private:
     }
 
     // Normalizes as well
-    void fast_get_flattened_nary_summands(expr const & e, buffer<expr> & args) {
+    void fast_get_flattened_nary_summands(expr const & e, buffer<expr> & args, bool normalize_children=true) {
         expr arg1, arg2;
         if (is_add(e, arg1, arg2)) {
-            fast_get_flattened_nary_summands(arg1, args);
-            fast_get_flattened_nary_summands(arg2, args);
-        } else {
+            fast_get_flattened_nary_summands(arg1, args, normalize_children);
+            fast_get_flattened_nary_summands(arg2, args, normalize_children);
+        } else if (normalize_children) {
             bool is_summand = true;
             bool is_multiplicand = false;
             expr e_n = fast_normalize(e, is_summand, is_multiplicand);
             if (is_add(e_n, arg1, arg2)) {
-                fast_get_flattened_nary_summands(arg1, args);
-                fast_get_flattened_nary_summands(arg2, args);
+                fast_get_flattened_nary_summands(arg1, args, normalize_children);
+                fast_get_flattened_nary_summands(arg2, args, normalize_children);
             } else {
                 args.push_back(e_n);
             }
+        } else {
+            args.push_back(e);
         }
     }
 
@@ -886,7 +885,6 @@ private:
         unsigned num_coeffs = 0;
 
         for (expr const & monomial : monomials) {
-            // TODO(dhs): I think we will be able to assume that numerals are already in normal form
             if (is_mpq_macro(monomial, num)) {
                 coeff += num;
                 num_coeffs++;
@@ -1045,8 +1043,8 @@ private:
     norm_status fast_cancel_monomials(expr const & lhs, expr const & rhs, expr & new_lhs, expr & new_rhs) {
         buffer<expr> lhs_monomials;
         buffer<expr> rhs_monomials;
-        fast_get_flattened_nary_summands(lhs, lhs_monomials);
-        fast_get_flattened_nary_summands(rhs, rhs_monomials);
+        fast_get_flattened_nary_summands(lhs, lhs_monomials, false);
+        fast_get_flattened_nary_summands(rhs, rhs_monomials, false);
 
         // Pass 1: collect numerals, determine which power products appear on both sides
         // TODO(dhs): expr_set?
@@ -1082,7 +1080,8 @@ private:
         // TODO(dhs): may fail here
 
         // Pass 2: collect coefficients for power products that appear on both sides
-        expr_struct_map<mpq> power_product_to_coeff;
+        buffer<mpq> coeffs;
+        m_expr2pos.clear();
 
         for (expr const & monomial : lhs_monomials) {
             if (is_mpq_macro(monomial))
@@ -1090,7 +1089,9 @@ private:
             expr power_product = get_power_product(monomial, num);
             if (!shared_power_products.count(power_product))
                 continue;
-            power_product_to_coeff[power_product] += num;
+            DEBUG_CODE(auto pos = m_expr2pos.find(power_product); lean_assert(pos != m_expr2pos.end());)
+            m_expr2pos[power_product] = coeffs.size();
+            coeffs.push_back(num);
         }
 
         for (expr const & monomial : rhs_monomials) {
@@ -1099,9 +1100,10 @@ private:
             expr power_product = get_power_product(monomial, num);
             if (!shared_power_products.count(power_product))
                 continue;
-            power_product_to_coeff[power_product] -= num;
+            auto pos = m_expr2pos.find(power_product);
+            lean_assert(pos != m_expr2pos.end());
+            coeffs[pos->second] -= num;
         }
-
 
         // Pass 3: collect new monomials for both sides
         buffer<expr> new_lhs_monomials;
@@ -1112,7 +1114,9 @@ private:
             if (!shared_power_products.count(power_product)) {
                 new_lhs_monomials.push_back(monomial);
             } else {
-                mpq coeff = power_product_to_coeff.at(power_product);
+                auto pos = m_expr2pos.find(power_product);
+                lean_assert(pos != m_expr2pos.end());
+                mpq & coeff = coeffs[pos->second];
                 if (!coeff.is_zero())
                     new_lhs_monomials.push_back(mk_monomial(coeff, power_product));
             }
