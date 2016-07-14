@@ -122,11 +122,33 @@ print "\n-- We reduce the numerator and denonimator separately\n"
 #fast_arith_normalize (5:bv2)/6
 
 print "\n------------------------------"
-print "-- [VII] Commutative Semirings"
+print "-- [VII] Natural numbers"
 print "--------------------------------"
 
-print "\n-- We do not currently do anything with sub if the type is not an add_group"
-print "-- (all constants in this section are nats)\n"
-print "-- TODO"
-constants n : nat
-#fast_arith_normalize n - n
+print "\n-- We have special processing for subtraction on natural numbers"
+print "(all constants in this section are nats)\n"
+namespace spec_nat
+constants m n p q n₁ n₂ n₃ n₄ : nat
+
+print "\n-- Sub(Add(n, *₁), Add(n, *₂) ==> Sub(*₁, *₂)\n"
+#fast_arith_normalize n - n -- 0
+#fast_arith_normalize n + m - n -- m
+#fast_arith_normalize m + n - n -- m
+
+#fast_arith_normalize (m + n) - (n + p) -- m - p
+#fast_arith_normalize (m + n + p) - (m + n + q) -- p - q
+#fast_arith_normalize (m + n + p) - (m + n + p) -- 0
+
+print "\n-- Sub(Sub(m, n), p) = Sub(m, Add(n, p))\n"
+#fast_arith_normalize (m - n) - p -- m - (n + p)
+#fast_arith_normalize (m - (n₁ + n₂)) - (n₃ + n₄) -- m - (n₁ + n₂ + n₃ + n₄)
+
+print "\n-- Sub(m, Sub(n, p)) is stuck\n"
+#fast_arith_normalize m - (n - p) -- m - (n - p)
+
+print "\n-- Add(n1, ..., Sub(m, p), ...) is also stuck\n"
+#fast_arith_normalize m + (n - p) -- m + (n - p)
+#fast_arith_normalize m + (n - m) -- m + (n - m)
+#fast_arith_normalize m + (m - n) -- m + (m - n)
+
+end spec_nat
