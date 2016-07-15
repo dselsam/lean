@@ -32,9 +32,16 @@ class arith_instance_manager {
 
     bool null(expr const & e) { return e == expr(); }
 
-public:
     arith_instance_manager(type_context & tctx, expr const & type);
     arith_instance_manager(type_context & tctx, expr const & type, level const & l);
+
+    friend arith_instance_manager get_arith_instance_manager_for_real(type_context & tctx);
+    friend arith_instance_manager get_arith_instance_manager_for_rat(type_context & tctx);
+    friend arith_instance_manager get_arith_instance_manager_for_int(type_context & tctx);
+    friend arith_instance_manager get_arith_instance_manager_for(type_context & tctx, expr const & type);
+
+public:
+    arith_instance_manager(type_context) {}
 
     expr get_type() const { return m_type; }
 
@@ -62,6 +69,16 @@ public:
     expr get_lt();
     expr get_gt();
 };
+
+// TODO(dhs): once the library instances are more stable, precompute the managers for real, rat, and int.
+// Note: we may switch to returning pointers, and have the instance_manager actually manage this data
+// for many different type simultaneously, depending on the lifecycle.
+// For example, the prover could keep an `arith_instance_manager` object, or
+// even an `arith_normalizer` object, that lived for the duration of the proof.
+arith_instance_manager get_arith_instance_manager_for_real(type_context & tctx);
+arith_instance_manager get_arith_instance_manager_for_rat(type_context & tctx);
+arith_instance_manager get_arith_instance_manager_for_int(type_context & tctx);
+arith_instance_manager get_arith_instance_manager_for(type_context & tctx, expr const & type);
 
 void initialize_arith_normalizer_instance_manager();
 void finalize_arith_normalizer_instance_manager();

@@ -48,8 +48,7 @@ public:
         buffer<expr> args;
         expr op = get_app_args(e, args);
 
-        expr type;
-        level l;
+        arith_instance_manager inst_manager;
 
         switch (get_head_type(op)) {
         case head_type::OTHER:
@@ -57,42 +56,24 @@ public:
             throw exception(sstream() << "fast_arith_normalizer not expecting to be called on expr " << e << "\n");
             return e;
         case head_type::REAL_OF_RAT:
-            type = mk_constant(get_real_name());
-            l = mk_level_one();
+            inst_manager = get_arith_instance_manager_for_real();
             break;
         case head_type::RAT_OF_INT:
-            type = mk_constant(get_rat_name());
-            l = mk_level_one();
+            inst_manager = get_arith_instance_manager_for_rat();
             break;
         case head_type::INT_OF_NAT:
-            type = mk_constant(get_int_name());
-            l = mk_level_one();
+            inst_manager = get_arith_instance_manager_for_int();
             break;
         default:
-            type = args[0];
-            l = get_level(m_tctx, type);
+            expr type = args[0];
+            arith_instance_manager = get_arith_instance_manager_for(m_tctx, type);
+            if (!m_im->is_comm_semiring()) {
+                throw exception(sstream() << "fast_arith_normalizer not expecting to be called on expr " << e << " that is not of a type with commutative semiring structure\n");
+            }
             break;
         }
 
-        arith_instance_manager inst_manager(m_tctx, type, l);
         flet<arith_instance_manager *> with_instance_manager(m_im, &inst_manager);
-
-        if (!m_im->is_comm_semiring()) {
-            throw exception(sstream() << "fast_arith_normalizer not expecting to be called on expr " << e << " that is not of a type with commutative semiring structure\n");
-            return e;
-        }
-
-        // TODO(dhs): why aren't any of these still cached thread-local from elaboration?
-        // TODO(dhs): for nat, int, rat, and real, globally pre-load a partial_apps structure
-        // (only calling these to control type class resolution while profiling)
-        m_im->get_add();
-        m_im->get_mul();
-        m_im->is_field();
-        m_im->is_comm_ring();
-        m_im->is_add_group();
-        m_im->is_linear_ordered_comm_ring();
-        m_im->is_linear_ordered_semiring();
-        m_im->has_cyclic_numerals();
 
         if (m_options.m_profile) {
             std::ostringstream msg;

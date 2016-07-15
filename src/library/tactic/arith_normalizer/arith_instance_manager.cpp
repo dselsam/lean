@@ -302,6 +302,23 @@ expr arith_instance_manager::get_gt() {
     }
 }
 
+// Entry points
+arith_instance_manager get_arith_instance_manager_for_real(type_context & tctx) {
+    return get_arith_instance_manager_for(tctx, mk_constant(get_real_name()));
+}
+
+arith_instance_manager get_arith_instance_manager_for_rat(type_context & tctx) {
+    return get_arith_instance_manager_for(tctx, mk_constant(get_rat_name()));
+}
+
+arith_instance_manager get_arith_instance_manager_for_int(type_context & tctx) {
+    return get_arith_instance_manager_for(tctx, mk_constant(get_int_name()));
+}
+
+arith_instance_manager get_arith_instance_manager_for(type_context & tctx, expr const & type) {
+    return arith_instance_manager(tctx, type);
+}
+
 // Setup and teardown
 void initialize_arith_normalizer_instance_manager() {}
 void finalize_arith_normalizer_instance_manager() {}
