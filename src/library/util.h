@@ -221,13 +221,11 @@ bool is_not(environment const & env, expr const & e, expr & a);
 bool is_not(environment const & env, expr const & e);
 expr mk_not(abstract_type_context & ctx, expr const & e);
 
-//bool is_neg(expr const & e);
 bool is_add(expr const & e);
 bool is_mul(expr const & e);
 bool is_div(expr const & e);
 bool is_sub(expr const & e);
 
-//bool is_neg(expr const & e, expr & neg_e);
 bool is_add(expr const & e, expr & arg1, expr & arg2);
 bool is_mul(expr const & e, expr & arg1, expr & arg2);
 bool is_div(expr const & e, expr & arg1, expr & arg2);

@@ -826,13 +826,11 @@ bool is_app_binary(expr const & e, name const & n, unsigned num_implicits, expr 
     return true;
 }
 
-//bool is_neg(expr const & e) { return is_app_of(e, get_neg_name(), 3); }
 bool is_add(expr const & e) { return is_app_of(e, get_add_name(), 4); }
 bool is_mul(expr const & e) { return is_app_of(e, get_mul_name(), 4); }
 bool is_div(expr const & e) { return is_app_of(e, get_div_name(), 4); }
 bool is_sub(expr const & e) { return is_app_of(e, get_sub_name(), 4); }
 
-//bool is_neg(expr const & e, expr & neg_e) { return is_app_unary(e, get_neg_name(), 2, arg); }
 bool is_add(expr const & e, expr & arg1, expr & arg2) { return is_app_binary(e, get_add_name(), 2, arg1, arg2); }
 bool is_mul(expr const & e, expr & arg1, expr & arg2) { return is_app_binary(e, get_mul_name(), 2, arg1, arg2); }
 bool is_div(expr const & e, expr & arg1, expr & arg2) { return is_app_binary(e, get_div_name(), 2, arg1, arg2); }

@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 
 Author: Daniel Selsam
 */
+#include <string>
 #include "util/sstream.h"
 #include "util/hash.h"
 #include "library/num.h"

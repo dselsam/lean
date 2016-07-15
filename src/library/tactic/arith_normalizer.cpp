@@ -4,6 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Author: Daniel Selsam
 */
 #include <functional>
+#include <string>
+#include <algorithm>
 #include "util/optional.h"
 #include "util/timeit.h"
 #include "util/interrupt.h"
@@ -925,7 +927,7 @@ private:
         }
     }
 
-    void fast_get_flattened_nary_multiplicands(expr const & e, buffer<expr> & args, bool normalize_children=true) {
+    void fast_get_flattened_nary_multiplicands(expr const & e, buffer<expr> & args, bool normalize_children = true) {
         expr arg1, arg2;
         if (is_mul(e, arg1, arg2)) {
             fast_get_flattened_nary_multiplicands(arg1, args, normalize_children);
@@ -1377,8 +1379,8 @@ void initialize_arith_normalizer() {
                                         throw corrupted_stream_exception();
                                     return mk_arith_normalizer_macro(args[0]);
                                 });
-
 }
+
 void finalize_arith_normalizer() {
     // Head types
     delete g_head_type_map;
