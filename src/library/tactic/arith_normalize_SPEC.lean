@@ -5,13 +5,13 @@ attribute [instance] A_inst
 
 print "======================"
 print "arith_normalizer spec"
-print "======================\n"
+print "======================\n\n"
 print "------------------------"
 print "-- [0] Preliminaries"
 print "------------------------"
 
 print "Requires: commutative semiring structure"
-print "Can exploit: add_group, linear_order, field structure, cyclic numerals, nat.sub"
+print "Can exploit: add_group, linear_order, field structure, cyclic numerals, some aspects of nat.sub\n"
 
 print "---------------------"
 print "-- [I] Basics"
@@ -37,7 +37,7 @@ print "\n-- Sub is adding the neg\n"
 print "\n-- Zero coefficients of monomials sets monomial to zero\n"
 #fast_arith_normalize x * 0 * y
 
-print "\n-- We cancel monomials (linear-ordered only for inequalities)\n"
+print "\n-- We cancel monomials (linear-ordered-only for inequalities)\n"
 #fast_arith_normalize 2 * x + y = x + y
 #fast_arith_normalize 2 * x + y ≤ x + y
 
@@ -130,8 +130,16 @@ print "(all constants in this section are nats)\n"
 namespace spec_nat
 constants m n p q n₁ n₂ n₃ n₄ : nat
 
-print "\n-- Sub(Add(n, *₁), Add(n, *₂) ==> Sub(*₁, *₂)\n"
+print "\n-- Sub(Sub(m, n), p) = Sub(m, Add(n, p))\n"
+#fast_arith_normalize (m - n) - p -- m - (n + p)
+#fast_arith_normalize (m - (n₁ + n₂)) - (n₃ + n₄) -- m - (n₁ + n₂ + n₃ + n₄)
+
+print "\n-- Sub(Add(n, *₁), Add(n, *₂) ==> Sub(*₁, *₂)"
+print "-- Sub(0, *) ==> 0\n"
+
 #fast_arith_normalize n - n -- 0
+#fast_arith_normalize n - (n + 1) -- 0
+#fast_arith_normalize (n + 1) - n -- 1
 #fast_arith_normalize n + m - n -- m
 #fast_arith_normalize m + n - n -- m
 
@@ -139,9 +147,6 @@ print "\n-- Sub(Add(n, *₁), Add(n, *₂) ==> Sub(*₁, *₂)\n"
 #fast_arith_normalize (m + n + p) - (m + n + q) -- p - q
 #fast_arith_normalize (m + n + p) - (m + n + p) -- 0
 
-print "\n-- Sub(Sub(m, n), p) = Sub(m, Add(n, p))\n"
-#fast_arith_normalize (m - n) - p -- m - (n + p)
-#fast_arith_normalize (m - (n₁ + n₂)) - (n₃ + n₄) -- m - (n₁ + n₂ + n₃ + n₄)
 
 print "\n-- Sub(m, Sub(n, p)) is stuck\n"
 #fast_arith_normalize m - (n - p) -- m - (n - p)
@@ -151,4 +156,6 @@ print "\n-- Add(n1, ..., Sub(m, p), ...) is also stuck\n"
 #fast_arith_normalize m + (n - m) -- m + (n - m)
 #fast_arith_normalize m + (m - n) -- m + (m - n)
 
+print "\nAlthough there is a distribution for nat.sub over nat.mul, we do not [yet] apply it\n"
+#fast_arith_normalize m * (n - p) -- m * n - m * p
 end spec_nat

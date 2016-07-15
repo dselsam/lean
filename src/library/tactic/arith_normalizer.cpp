@@ -791,19 +791,32 @@ private:
             // Rule 2: sub(add(...), add(...)) cancels things that appear in both sides
             // Note: if add is not the head of either argument, it is considered an addition of a single term
             buffer<expr> lhs_monomials, rhs_monomials;
-            bool updated_ignore = false;
             bool normalize_children = false;
 
-            fast_get_flattened_nary_summands(e1, lhs_monomials, updated_ignore, normalize_children);
-            fast_get_flattened_nary_summands(e2, rhs_monomials, updated_ignore, normalize_children);
+            fast_get_flattened_nary_summands(e1, lhs_monomials, normalize_children);
+            fast_get_flattened_nary_summands(e2, rhs_monomials, normalize_children);
 
             buffer<expr> new_lhs_monomials, new_rhs_monomials;
             mpq coeff;
             bool orient_polys = false;
-            // TODO(dhs): flet for orient_polys?
-            // TODO(dhs): have fast_cancel_monomials_core just populate these fields, and adjust fast_cancel_monomials accordingly
-            // Then here we decide whether we need a sub at all
+
             fast_cancel_monomials_core(lhs_monomials, rhs_monomials, new_lhs_monomials, new_rhs_monomials, coeff, orient_polys);
+
+            if (new_lhs_monomials.empty() && !coeff.is_pos()) {
+                // 0 - x ==> 0
+                return m_partial_apps_ptr->get_zero();
+            } else if (new_rhs_monomials.empty() && !coeff.is_neg()) {
+                // x - 0 ==> x
+                return mk_polynomial(coeff, new_lhs_monomials);
+            } else if (coeff.is_zero()) {
+                return mk_app(m_partial_apps_ptr->get_sub(), mk_polynomial(new_lhs_monomials), mk_polynomial(new_rhs_monomials));
+            } else if (coeff.is_neg()) {
+                coeff.neg();
+                return mk_app(m_partial_apps_ptr->get_sub(), mk_polynomial(new_lhs_monomials), mk_polynomial(coeff, new_rhs_monomials));
+            } else {
+                lean_assert(coeff.is_pos());
+                return mk_app(m_partial_apps_ptr->get_sub(), mk_polynomial(coeff, new_lhs_monomials), mk_polynomial(new_rhs_monomials));
+            }
         }
     }
 
@@ -889,21 +902,21 @@ private:
     }
 
     // Normalizes as well
-    void fast_get_flattened_nary_summands(expr const & e, buffer<expr> & args, bool & updated, bool normalize_children) {
+    void fast_get_flattened_nary_summands(expr const & e, buffer<expr> & args, bool normalize_children, bool * updated = nullptr) {
         expr arg1, arg2;
         if (is_add(e, arg1, arg2)) {
-            fast_get_flattened_nary_summands(arg1, args, updated, normalize_children);
-            fast_get_flattened_nary_summands(arg2, args, updated, normalize_children);
+            fast_get_flattened_nary_summands(arg1, args, normalize_children, updated);
+            fast_get_flattened_nary_summands(arg2, args, normalize_children, updated);
         } else if (normalize_children) {
             bool process_summands = false;
             expr e_n = fast_normalize(e, process_summands);
 
-            if (e != e_n)
-                updated = true;
+            if (updated != nullptr && e != e_n)
+                *updated = true;
 
             if (is_add(e_n, arg1, arg2)) {
-                fast_get_flattened_nary_summands(arg1, args, updated, normalize_children);
-                fast_get_flattened_nary_summands(arg2, args, updated, normalize_children);
+                fast_get_flattened_nary_summands(arg1, args, normalize_children, updated);
+                fast_get_flattened_nary_summands(arg2, args, normalize_children, updated);
             } else {
                 args.push_back(e_n);
             }
@@ -935,7 +948,7 @@ private:
     expr fast_normalize_add(expr const & e, bool process_summands, bool normalize_children) {
         buffer<expr> monomials;
         bool updated = false;
-        fast_get_flattened_nary_summands(e, monomials, updated, normalize_children);
+        fast_get_flattened_nary_summands(e, monomials, normalize_children, &updated);
 
         if (!process_summands) {
             if (!updated)
@@ -1111,21 +1124,33 @@ private:
         buffer<expr> lhs_monomials;
         buffer<expr> rhs_monomials;
         bool process_summands = false;
-        bool updated_ignore = false;
         bool normalize_children = false;
-        fast_get_flattened_nary_summands(fast_normalize(lhs, process_summands), lhs_monomials, updated_ignore, normalize_children);
-        fast_get_flattened_nary_summands(fast_normalize(rhs, process_summands), rhs_monomials, updated_ignore, normalize_children);
+        fast_get_flattened_nary_summands(fast_normalize(lhs, process_summands), lhs_monomials, normalize_children);
+        fast_get_flattened_nary_summands(fast_normalize(rhs, process_summands), rhs_monomials, normalize_children);
         bool orient_polys = m_options.orient_polys() && m_partial_apps_ptr->is_comm_ring();
-        bool keep_coeff_pos = false;
-        fast_cancel_monomials_core(lhs_monomials, rhs_monomials, new_lhs, new_rhs, orient_polys, keep_coeff_pos);
+
+        buffer<expr> new_lhs_monomials, new_rhs_monomials;
+        mpq coeff;
+        fast_cancel_monomials_core(lhs_monomials, rhs_monomials, new_lhs_monomials, new_rhs_monomials, coeff, orient_polys);
+
+        bool coeff_on_rhs = orient_polys || new_rhs_monomials.empty() || !new_lhs_monomials.empty();
+        if (coeff_on_rhs) {
+            new_lhs = mk_polynomial(new_lhs_monomials);
+            new_rhs = mk_polynomial(neg(coeff), new_rhs_monomials);
+        } else {
+            new_lhs = mk_polynomial(coeff, new_lhs_monomials);
+            new_rhs = mk_polynomial(new_rhs_monomials);
+        }
+        lean_trace_d(name({"arith_normalizer", "fast", "cancel_monomials"}), tout() << lhs << " <> " << rhs << " ==> " << new_lhs << " <> " << new_rhs << "\n";);
     }
 
-    void fast_cancel_monomials_core(buffer<expr> const & lhs_monomials, buffer<expr> const & rhs_monomials, expr & new_lhs, expr & new_rhs, bool orient_polys, bool keep_coeff_pos) {
+    void fast_cancel_monomials_core(buffer<expr> const & lhs_monomials, buffer<expr> const & rhs_monomials,
+                                    buffer<expr> & new_lhs_monomials, buffer<expr> & new_rhs_monomials,
+                                    mpq & coeff, bool orient_polys) {
         // Pass 1: collect numerals, determine which power products appear on both sides
         expr_struct_set lhs_power_products;// shared?
         expr_struct_map<mpq> power_product_to_coeff;
 
-        mpq coeff;
         mpq num;
         unsigned num_coeffs = 0;
 
@@ -1169,7 +1194,6 @@ private:
         }
 
         lhs_power_products.clear();
-        buffer<expr> new_lhs_monomials;
         for (expr const & monomial : lhs_monomials) {
             if (is_mpq_macro(monomial))
                 continue;
@@ -1183,7 +1207,6 @@ private:
         }
 
         expr_struct_set rhs_visited;
-        buffer<expr> new_rhs_monomials;
         for (expr const & monomial : rhs_monomials) {
             if (is_mpq_macro(monomial))
                 continue;
@@ -1200,17 +1223,6 @@ private:
             else
                 new_rhs_monomials.push_back(mk_monomial(c, power_product));
         }
-
-        bool coeff_on_rhs = keep_coeff_pos ? (coeff.is_neg()) : (orient_polys || new_rhs_monomials.empty() || !new_lhs_monomials.empty());
-        if (coeff_on_rhs) {
-            new_lhs = mk_polynomial(new_lhs_monomials);
-            new_rhs = mk_polynomial(neg(coeff), new_rhs_monomials);
-        } else {
-            new_lhs = mk_polynomial(coeff, new_lhs_monomials);
-            new_rhs = mk_polynomial(new_rhs_monomials);
-        }
-
-        lean_trace_d(name({"arith_normalizer", "fast", "cancel_monomials"}), tout() << lhs << " <> " << rhs << " ==> " << new_lhs << " <> " << new_rhs << "\n";);
     }
 };
 

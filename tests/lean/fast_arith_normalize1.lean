@@ -41,6 +41,22 @@ set_option arith_normalizer.distribute_mul true
 set_option arith_normalizer.distribute_mul false
 
 print "--------------"
+set_option arith_normalizer.orient_polys false
+#fast_arith_normalize 2 * x = x
+#fast_arith_normalize x = 2 * x
+#fast_arith_normalize 2 * x = 3 * x
+#fast_arith_normalize 3 * x = 2 * x
+
+print "--------------"
+set_option arith_normalizer.orient_polys false
+#fast_arith_normalize 1 = x
+#fast_arith_normalize x = y + x
+#fast_arith_normalize x = x + y
+#fast_arith_normalize 1 + x = x
+#fast_arith_normalize 0 = x + y
+#fast_arith_normalize 1 = x + y
+
+print "--------------"
 --set_option trace.arith_normalizer.fast.normalize_mul true
 #fast_arith_normalize x * y = y * x
 #fast_arith_normalize x * y * x = y * x * x
@@ -110,7 +126,7 @@ set_option arith_normalizer.distribute_mul true
 #fast_arith_normalize x / 2 - (1/2) * x = 0
 #fast_arith_normalize x / (3 / 2) - (2/3) * x = 0
 
-#fast_arith_normalize x / 0 = div0 x
+#fast_arith_normalize x / 0
 #fast_arith_normalize (5 * y) / y = y / ((1/5) * y)
 #fast_arith_normalize (5 * y) / (5 * y) = y / y
 
@@ -134,7 +150,20 @@ set_option arith_normalizer.distribute_mul true
 #fast_arith_normalize 2 + real.of_rat (3 * rat.of_int (5 + 1)) = 20
 #fast_arith_normalize 2 + real.of_rat (3 * rat.of_int (5 + 1) + 2) = 22
 #fast_arith_normalize 1 + real.of_rat (1 + rat.of_int (1 + int.of_nat 3) * 2) + 2 = 12
+
+set_option arith_normalizer.distribute_mul true
+#fast_arith_normalize 1 + real.of_rat (1 + rat.of_int (1 + int.of_nat n1) * 2) + 2
+#fast_arith_normalize 1 + real.of_rat (1 + rat.of_int (1 + int.of_nat n1) * 2) + 2
+#fast_arith_normalize 2 * real.of_rat (1 + rat.of_int (1 * int.of_nat n1 + 3) * 2) + 2
 end coe
+
+-- relations
+print "--------------"
+#fast_arith_normalize x > y -- ¬ (x ≤ y)
+#fast_arith_normalize x ≥ y -- y ≤ x
+#fast_arith_normalize x < y -- ¬ (y ≤ x)
+#fast_arith_normalize x ≤ y -- x ≤ y
+#fast_arith_normalize x = y -- x = y
 
 -- numerals and relations
 print "--------------"
