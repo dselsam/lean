@@ -33,7 +33,9 @@ Author: Leonardo de Moura
 #include "library/tactic/defeq_simplifier/defeq_simp_lemmas.h"
 #include "library/tactic/defeq_simplifier/defeq_simplifier.h"
 #include "library/tactic/simplifier/simp_extensions.h"
-#include "library/tactic/arith_normalizer.h"
+#include "library/tactic/arith_normalizer/util.h"
+#include "library/tactic/arith_normalizer/fast_arith_normalizer.h"
+#include "library/tactic/arith_normalizer/arith_normalizer.h"
 #include "library/vm/vm.h"
 #include "library/vm/vm_string.h"
 #include "library/compiler/vm_compiler.h"
@@ -672,7 +674,8 @@ static environment fast_arith_normalize_cmd(parser & p) {
     metavar_context mctx;
     aux_type_context aux_tctx(p.env(), p.get_options(), mctx, p.get_local_context());
     auto out = regular(p.env(), p.ios(), aux_tctx.get());
-    out << ">> " << e << " ==> " << fast_arith_normalize(aux_tctx.get(), e) << "\n";
+    arith_normalize_options options(p.get_options());
+    out << ">> " << e << " ==> " << fast_arith_normalize(aux_tctx.get(), e, options) << "\n";
     return p.env();
 }
 

@@ -24,7 +24,7 @@ Author: Leonardo de Moura
 #include "library/tactic/defeq_simplifier/init_module.h"
 #include "library/tactic/simplifier/init_module.h"
 #include "library/tactic/backward/init_module.h"
-#include "library/tactic/arith_normalizer.h"
+#include "library/tactic/arith_normalizer/init_module.h"
 
 namespace lean {
 void initialize_tactic_module() {
@@ -48,10 +48,10 @@ void initialize_tactic_module() {
     initialize_simplifier_module();
     initialize_backward_module();
     initialize_elaborate();
-    initialize_arith_normalizer();
+    initialize_arith_normalizer_module();
 }
 void finalize_tactic_module() {
-    finalize_arith_normalizer();
+    finalize_arith_normalizer_module();
     finalize_elaborate();
     finalize_backward_module();
     finalize_simplifier_module();

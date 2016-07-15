@@ -4,4 +4,4 @@ add_library(tactic OBJECT tactic_state.cpp intro_tactic.cpp
   change_tactic.cpp assert_tactic.cpp apply_tactic.cpp
   fun_info_tactics.cpp congr_lemma_tactics.cpp match_tactic.cpp
   ac_tactics.cpp induction_tactic.cpp gexpr.cpp
-  elaborate.cpp init_module.cpp arith_normalizer.cpp)
+  elaborate.cpp init_module.cpp)
