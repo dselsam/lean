@@ -17,8 +17,7 @@ constants (lookup : Π {A B : Type.{1}} [decidable_eq A] [inhabited A], A → ma
 
 end map
 
-
-inductive x86reg : Type.{1} := eax | ebx | ecx | edx | edi
+inductive x86reg : Type.{1} := eax | ebx | ecx | edx | edi | esi
 definition x86reg_dec_eq [instance] : decidable_eq x86reg := sorry -- need 'deriving ...'!
 definition x86reg_inhabited [instance] : inhabited x86reg := sorry -- need 'deriving ...'!
 
@@ -121,7 +120,10 @@ definition add := update_bin add
 definition and := update_bin bw_and
 definition or := update_bin bw_or
 definition xor := update_bin bw_xor
-definition ror32 := update_bin bw_ror32
+
+definition ror32 (dst : operand) (k : uint32) : code unit :=
+do old ← eval_operand dst,
+   store_at_operand (bw_ror32 old k) dst
 
 definition not32 := update_un bw_not32
 end x86
@@ -149,20 +151,25 @@ end test
 namespace test_sha256
 
 notation x `:==` y := x86.mov x y
-notation x `+:=` y := x86.add x y
-notation x `&:=` y := x86.and x y
-notation x `|:=` y := x86.or x y
-notation x `^:=` y := x86.xor x y
+notation x `+=` y := x86.add x y
+notation x `&=` y := x86.and x y
+notation x `|=` y := x86.or x y
+notation x `^=` y := x86.xor x y
 notation `#` k := operand.stack k
 
-attribute operand.const [coercion]
+--attribute operand.const [coercion]
 attribute operand.reg [coercion]
 open x86reg
 open x86
 
+-- Ignoring while loops and non-termination for now, it is easy to write down
+-- the kind of assembly programs you are writing in Spartan.
+-- Note that there is no post-processing here -- we have written down a computable functional program
+-- Note: to extract the assembly program as opposed to the monadic computation, we need to reify the instructions
+-- and then denote them, but we can use exactly the same syntax.
 definition compute_one_step_noSHA (K : uint32) (W : operand) : code unit :=
 let a := #0, b := #1, c := #2, d := #3, e := #4, f := #5, g := #6, h := #7,
-       a' := #8, b' := #9, c' := #10, d' := #11, e' := #12, f' := #13, g' := #14, h' := #15
+    a' := #8, b' := #9, c' := #10, d' := #11, e' := #12, f' := #13, g' := #14, h' := #15
 in do
    eax :== a,
    b' :== eax,
@@ -171,21 +178,21 @@ in do
    ecx :== c,
    edx :== ebx,
 
-   ebx &:= eax,
-   edx &:= ecx,
-   ecx &:= eax,
-   ebx ^:= ecx,
-   ebx ^:= ebx,
+   ebx &= eax,
+   edx &= ecx,
+   ecx &= eax,
+   ebx ^= ecx,
+   ebx ^= ebx,
 
    -- calculate bsig0
    ecx :== eax,
    edx :== eax,
    ror32 edx 2,
    ror32 ecx 13,
-   eax ^:= ecx,
+   eax ^= ecx,
    ror32 edx 22,
-   eax ^:= edx,
-   eax +:= ebx,
+   eax ^= edx,
+   eax += ebx,
 
    -- calculate my_ch
    ebx :== e,
@@ -194,33 +201,39 @@ in do
    not32 edx,
    ecx :== g,
    h' :== ecx,
-   edx &:= ecx,
+   edx &= ecx,
    ecx :== f,
    g' :== ecx,
-   ecx &:= ebx,
-   ecx ^:= edx,
+   ecx &= ebx,
+   ecx ^= edx,
 
    -- calculate bsig1
    edx :== ebx,
    edi :== ebx,
    ror32 edx 6,
-   edx ^:= edi,
+   edx ^= edi,
    ror32 ebx 25,
-   edx ^:= ebx,
+   edx ^= ebx,
 
    -- calculate T1
    ebx :== h,
-   ebx +:= edx,
-   ebx +:= ecx,
-   ebx +:= K,
+   ebx += edx,
+   ebx += ecx,
+   ebx += operand.const K,
    ecx :== W,
-   ebx +:= ecx,
-   eax +:= ebx,
+   ebx += ecx,
+   eax += ebx,
    a' :== eax,
    eax :== d,
-   eax +:= ebx,
+   eax += ebx,
    e' :== eax
 
+/-
+lemma compute_one_step_noSHA_SPEC
+  : ∀ (K : uint32) (W : operand),
+      ⦃ λ s, ∃ offset, W = operand.heap (maddr.reg esi offset) ⦄
+      (compute_one_step_noSHA K W)
+      ⦃ λ s a s', true ⦄ := sorry
 
-
+-/
 end test_sha256
