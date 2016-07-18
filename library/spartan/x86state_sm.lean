@@ -168,6 +168,9 @@ open x86
 -- Note: to extract the assembly program as opposed to the monadic computation, we need to reify the instructions
 -- and then denote them, but we can use exactly the same syntax.
 definition compute_one_step_noSHA (K : uint32) (W : operand) : code unit :=
+let a := #0 in eax :== a
+
+/-
 let a := #0, b := #1, c := #2, d := #3, e := #4, f := #5, g := #6, h := #7,
     a' := #8, b' := #9, c' := #10, d' := #11, e' := #12, f' := #13, g' := #14, h' := #15
 in do
@@ -227,13 +230,13 @@ in do
    eax :== d,
    eax += ebx,
    e' :== eax
-
+-/
 /-
 lemma compute_one_step_noSHA_SPEC
   : ∀ (K : uint32) (W : operand),
       ⦃ λ s, ∃ offset, W = operand.heap (maddr.reg esi offset) ⦄
       (compute_one_step_noSHA K W)
-      ⦃ λ s a s', true ⦄ := sorry
-
+      ⦃ λ s a s', state.heap s = state.heap s' ∧ eval_operand esi s = eval_operand esi s' ⦄ := sorry
 -/
+
 end test_sha256

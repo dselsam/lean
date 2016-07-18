@@ -191,7 +191,7 @@ class simp_inductive_fn : public compiler_step_visitor {
         unsigned cidx    = get_constructor_idx(env(), fn);
         buffer<bool> rel_fields;
         get_constructor_info(fn, rel_fields);
-        lean_assert(args.size() == nparams + rel_fields.size());
+//        lean_assert(args.size() == nparams + rel_fields.size());
         buffer<expr> new_args;
         for (unsigned i = 0; i < rel_fields.size(); i++) {
             if (rel_fields[i]) {
