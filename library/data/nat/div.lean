@@ -24,7 +24,11 @@ protected definition div := fix div.F
 definition nat_has_divide : has_div nat :=
 has_div.mk nat.div
 
+
 local attribute [instance] nat_has_divide
+
+eval div (6 : ℕ) (2 : ℕ)
+
 
 theorem div_def (x y : nat) : div x y = if 0 < y ∧ y ≤ x then div (x - y) y + 1 else 0 :=
 congr_fun (fix_eq div.F x) y

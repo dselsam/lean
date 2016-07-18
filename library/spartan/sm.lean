@@ -50,6 +50,7 @@ definition HoareTriple {A : Type} (pre : Pre) (P : State S A) (post : Post A) :=
 ∀ s, pre s → match run_state P s with
                | (a, s') := post s a s'
                end
+notation `⦃` P `⦄` S `⦃` Q `⦄` := HoareTriple P S Q
 
 lemma strengthen_PRE {A : Type} {pre₁ pre₂ : Pre} {P : State S A} {post : Post A} :
   HoareTriple pre₁ P post → (∀ s, pre₂ s → pre₁ s) → HoareTriple pre₂ P post :=
