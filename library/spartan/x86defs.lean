@@ -248,21 +248,20 @@ inductive evals_to : code → state → state → Prop :=
                    eval_state (eval_obool test) s = some ff →
                    evals_to celse s s'→
                    evals_to (ifte test cthen celse) s s'
-  -- note: right now loop invariant is ignored
-| eval_while_true : Π (test : obool) (inv : X86State bool) (cbody : code) (s s' s'': state),
+| eval_while_true : Π (test : obool) (invar : X86State bool) (cbody : code) (s s' s'': state),
+                    eval_state invar s = some tt → -- TODO does this make sense? the program only evals if the given loop invaniant is correct?
                     eval_state (eval_obool test) s = some tt →
                     evals_to cbody s s' →
-                    evals_to (while test inv cbody) s' s'' →
-                    evals_to (while test inv cbody) s s''
-| eval_while_false : Π (test : obool) (inv : X86State bool) (cbody : code) (s : state),
+                    evals_to (while test invar cbody) s' s'' →
+                    evals_to (while test invar cbody) s s''
+| eval_while_false : Π (test : obool) (invar : X86State bool) (cbody : code) (s : state),
+                     eval_state invar s = some tt →
                      eval_state (eval_obool test) s = some ff →
-                     evals_to (while test inv cbody) s s
-
+                     evals_to (while test invar cbody) s s
 | eval_call : Π (c : code) (s s' s'' : state),
               pop_gframe s' = some s'' → -- here only because of ordering req
               evals_to c (push_gframe s) s' →
               evals_to (call c) s s''
-
 | eval_seq : Π (c₁ c₂ : code) (s s' s'' : state),
                evals_to c₁ s s' →
                evals_to c₂ s' s'' →
@@ -358,7 +357,7 @@ lemma code2_runs : runs_safely (sequence ∘ map denote_instruction $ code2) s�
 lemma code2_always_runs : ∀ s, runs_safely (sequence ∘ map denote_instruction $ code2) s := sorry
 
 definition code3 : code :=
-  seq (sline code1) (code.ifte (obool.mk ocmp.OEq eax (ghost 0)) (sline [mov32 ebx eax]) (sline [mov32 ecx eax]))
+  seq (sline code1) (ifte (obool.mk ocmp.OEq eax (ghost 0)) (sline [mov32 ebx eax]) (sline [mov32 ecx eax]))
 
 -- TODO need more here -- code3 must run safely, and the evaling-operands must run safely as well (always the case)
 lemma code3_sets_ebx_to_1 : ∀ s s', evals_to code3 s s' → eval_state (eval_operand ebx) s' = eval_state (eval_operand eax) s' := sorry
