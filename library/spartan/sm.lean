@@ -5,55 +5,55 @@ inductive Result (S : Type) (A : Type) :=
 | success    : A → S → Result S A
 | failure {} : Result S A
 
-definition State (S A : Type) := S → Result S A
+definition FState (S A : Type) := S → Result S A
 
-definition fmap {S A B : Type} (f : A → B) (Prog : State S A) : State S B :=
+definition fmap {S A B : Type} (f : A → B) (Prog : FState S A) : FState S B :=
 λ s, match Prog s with
      | (Result.success a s') := Result.success (f a) s'
      | Result.failure := Result.failure
      end
 
-definition ret {S A : Type} (a : A) : State S A := λ s, Result.success a s
+definition ret {S A : Type} (a : A) : FState S A := λ s, Result.success a s
 
-definition bind {S A B : Type} (Prog₁ : State S A) (Prog₂ : A → State S B) : State S B :=
+definition bind {S A B : Type} (Prog₁ : FState S A) (Prog₂ : A → FState S B) : FState S B :=
 λ s₁, match Prog₁ s₁ with
       | (Result.success a s₂) := Prog₂ a s₂
       | Result.failure := Result.failure
       end
 
-definition is_monad [instance] {S : Type} : monad (State S) :=
+definition is_monad [instance] {S : Type} : monad (FState S) :=
 monad.mk (@fmap S) (@ret S) (@bind S)
 
-definition fail {S A : Type} : State S A := λ s, Result.failure
-definition guard {S : Type} (P : S → Prop) [decidable_pred P] : State S unit :=
+definition fail {S A : Type} : FState S A := λ s, Result.failure
+definition guard {S : Type} (P : S → Prop) [decidable_pred P] : FState S unit :=
 λ s, if P s then Result.success unit.star s else Result.failure
 
-definition get {S : Type} : State S S := λ (s : S), Result.success s s
-definition gets {S X : Type} (f : S → X) : State S X := state.bind get (λ s, return (f s))
+definition get {S : Type} : FState S S := λ (s : S), Result.success s s
+definition gets {S X : Type} (f : S → X) : FState S X := state.bind get (λ s, return (f s))
 
-definition put {S : Type} (s_new : S) : State S unit := λ (s : S), Result.success unit.star s_new
+definition put {S : Type} (s_new : S) : FState S unit := λ (s : S), Result.success unit.star s_new
 
-definition modify {S : Type} (f : S → S) : State S unit := state.bind get (λ s', put (f s'))
+definition modify {S : Type} (f : S → S) : FState S unit := state.bind get (λ s', put (f s'))
 
-definition run_state {S A : Type} (Prog : State S A) (s : S) : option (prod A S) :=
+definition run_state {S A : Type} (Prog : FState S A) (s : S) : option (prod A S) :=
   match Prog s with
   | (Result.success a s') := some (a, s')
   | Reult.failure := none
   end
 
-definition eval_state {S A : Type} (Prog : State S A) (s : S) : option A :=
+definition eval_state {S A : Type} (Prog : FState S A) (s : S) : option A :=
   match Prog s with
   | (Result.success a s') := some a
   | Reult.failure := none
   end
 
-definition exec_state {S A : Type} (Prog : State S A) (s : S) : option S :=
+definition exec_state {S A : Type} (Prog : FState S A) (s : S) : option S :=
   match Prog s with
   | (Result.success a s') := some s'
   | Reult.failure := none
   end
 
-definition sequence {S : Type} : list (State S unit) → State S unit
+definition sequence {S : Type} : list (FState S unit) → FState S unit
 | (list.cons prog progs) := bind prog (λ ignore, sequence progs)
 | list.nil := return unit.star
 
@@ -68,20 +68,20 @@ variable {S : Type}
 definition Pre := S → Prop
 definition Post (A : Type) := S → A → S → Prop
 
-definition HoareTriple {A : Type} (pre : Pre) (P : State S A) (post : Post A) :=
+definition HoareTriple {A : Type} (pre : Pre) (P : FState S A) (post : Post A) :=
 ∀ s, pre s → match run_state P s with
                | (a, s') := post s a s'
                end
 notation `⦃` P `⦄` S `⦃` Q `⦄` := HoareTriple P S Q
 
-lemma strengthen_PRE {A : Type} {pre₁ pre₂ : Pre} {P : State S A} {post : Post A} :
+lemma strengthen_PRE {A : Type} {pre₁ pre₂ : Pre} {P : FState S A} {post : Post A} :
   HoareTriple pre₁ P post → (∀ s, pre₂ s → pre₁ s) → HoareTriple pre₂ P post :=
 assume H₁ : HoareTriple pre₁ P post,
 assume H₂ : ∀ s, pre₂ s → pre₁ s,
 assume (s : S) (p₂ : pre₂ s),
 H₁ s (H₂ s p₂)
 
-lemma weaken_POST {A : Type} {pre : Pre} {P : State S A} {post₁ post₂ : Post A} :
+lemma weaken_POST {A : Type} {pre : Pre} {P : FState S A} {post₁ post₂ : Post A} :
   HoareTriple pre P post₁ → (∀ s a s', post₁ s a s' → post₂ s a s') → HoareTriple pre P post₂ :=
 assume H₁ : HoareTriple pre P post₁,
 assume H₂ : ∀ {s} {a} {s'}, post₁ s a s' → post₂ s a s',
@@ -92,7 +92,7 @@ assume (s : S) (p : pre s),
   (H₁ s p)
 
 lemma bind_SPEC {A B : Type} :
-                ∀ (P₁ : State S A) (P₂ : A → State S B)
+                ∀ (P₁ : FState S A) (P₂ : A → FState S B)
                 {pre₁ : Pre} {pre₂ : A → Pre}
                 {post₁ : Post A} {post₂ : A → Post B},
                 HoareTriple pre₁ P₁ post₁ →

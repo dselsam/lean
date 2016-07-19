@@ -31,6 +31,8 @@ structure state := (regs : Map reg uint32)
 end basic
 open basic
 
+definition X86State [reducible] := monad.state.FState state
+
 namespace fields
 definition regs : state → Map reg uint32
 | (state.mk rgs _ _ _) := rgs
@@ -52,8 +54,9 @@ inductive instruction :=
 | mov32 : operand → operand → instruction
 | add32 : operand → operand → instruction
 | and32 : operand → operand → instruction
+| assert : X86State bool → instruction -- TODO tricky to use decidable here
 
-namespace instruction end instruction -- Need to do this to open it?
+--namespace instruction end instruction -- Need to do this to open it?
 
 inductive ocmp := OEq | OLe
 
@@ -65,6 +68,7 @@ inductive code :=
 | ite : obool → code → code → code
 | while : obool → code → code
 | call : code → code -- pushes onto the ghost stack
+| seq : code → code → code
 -- | block : list code → code
 
 definition prog := list code
@@ -74,18 +78,18 @@ end prog
 namespace primitives
 open monad.state
 
-definition get_reg (rg : reg) : State state uint32 :=
+definition get_reg (rg : reg) : X86State uint32 :=
 do ov ← gets (Map.lookup rg ∘ fields.regs),
    match ov with
    | (some k) := return k
    | none := fail
    end
 
-definition get_mem_addr : maddr → State state uint32
+definition get_mem_addr : maddr → X86State uint32
 | (maddr.const u) := return u
 | (maddr.reg rg offset) := do addr ← get_reg rg, return $ addr + offset
 
-definition get_stack_addr (k : uint32) : State state uint32 :=
+definition get_stack_addr (k : uint32) : X86State uint32 :=
 do st ← gets fields.stack,
    match st with
    | (list.cons fr frs) := match Map.lookup k fr with
@@ -95,7 +99,7 @@ do st ← gets fields.stack,
    | list.nil := fail
    end
 
-definition get_ghost_addr (k : uint32) : State state uint32 :=
+definition get_ghost_addr (k : uint32) : X86State uint32 :=
 do st ← gets fields.ghost,
    match st with
    | (list.cons fr frs) := match Map.lookup k fr with
@@ -105,19 +109,19 @@ do st ← gets fields.ghost,
    | list.nil := fail
    end
 
-definition eval_operand : operand → State state uint32
+definition eval_operand : operand → X86State uint32
 | (operand.const u) := return u
 | (operand.reg rg) := get_reg rg
 | (operand.stack saddr) := get_stack_addr saddr
 | (operand.heap addr) := get_mem_addr addr
 | (operand.ghost gaddr) := get_ghost_addr gaddr
 
-definition put_reg (v : uint32) (rg : reg) : State state unit :=
+definition put_reg (v : uint32) (rg : reg) : X86State unit :=
   modify (λ s, match s with
                | (state.mk regs stack heap ghost) := state.mk (Map.insert rg v regs) stack heap ghost
                end)
 
-definition put_mem_addr (v : uint32) : maddr → State state unit
+definition put_mem_addr (v : uint32) : maddr → X86State unit
 | (maddr.const u) := modify (λ s, match s with
                                   | (state.mk regs stack heap ghost) := state.mk regs stack (Map.insert u v heap) ghost
                                   end)
@@ -126,7 +130,7 @@ definition put_mem_addr (v : uint32) : maddr → State state unit
                                            | (state.mk regs stack heap ghost) := state.mk regs stack (Map.insert (addr + offset) v heap) ghost
                                            end)
 
-definition put_stack_addr (v : uint32) (saddr : uint32) : State state unit :=
+definition put_stack_addr (v : uint32) (saddr : uint32) : X86State unit :=
 bind get $ λ s,
    match s with
    | (state.mk regs st heap ghost) :=
@@ -136,7 +140,7 @@ bind get $ λ s,
                    end
    end
 
-definition put_ghost_addr (v : uint32) (gaddr : uint32) : State state unit :=
+definition put_ghost_addr (v : uint32) (gaddr : uint32) : X86State unit :=
 bind get $ λ s,
    match s with
    | (state.mk regs st heap ghost) :=
@@ -146,7 +150,7 @@ bind get $ λ s,
                    end
    end
 
-definition store_at_operand (v : uint32) : operand → State state unit
+definition store_at_operand (v : uint32) : operand → X86State unit
 | (operand.const u) := put_mem_addr v (maddr.const u)
 | (operand.reg r) := put_reg v r
 | (operand.stack saddr) := put_stack_addr v saddr
@@ -170,15 +174,22 @@ definition pop_gframe : state → option state
                                    | (list.cons fr frs) := some $ state.mk regs st heap frs
                                    end
 
-definition update_bin (f : uint32 → uint32 → uint32) (dst src : operand) : State state unit :=
+definition update_bin (f : uint32 → uint32 → uint32) (dst src : operand) : X86State unit :=
 if ghost_tainted dst src then fail else
 do increment ← eval_operand src,
    old ← eval_operand dst,
    store_at_operand (f old increment) dst
 
-definition update_un (f : uint32 → uint32) (dst : operand) : State state unit :=
+definition update_un (f : uint32 → uint32) (dst : operand) : X86State unit :=
 do old ← eval_operand dst,
    store_at_operand (f old) dst
+
+
+definition guard (p : Prop) [decidable p] : X86State unit :=
+if p then return unit.star else fail
+
+definition gassert (pred : X86State bool) : X86State unit :=
+do b ← pred, guard (b = tt)
 
 end primitives
 
@@ -195,15 +206,16 @@ definition denote_ocmp : ocmp → (uint32 → uint32 → Prop)
 
 definition denote_ocmp_dec_eq [instance] (cmp : ocmp) : decidable_rel (denote_ocmp cmp) := sorry
 
-definition eval_obool : obool → State state bool
+definition eval_obool : obool → X86State bool
 | (obool.mk cmp o₁ o₂) := do v₁ ← eval_operand o₁,
                              v₂ ← eval_operand o₂,
                              if (denote_ocmp cmp v₁ v₂) then return tt else return ff
 
-definition denote_instruction : instruction → State state unit
+definition denote_instruction : instruction → X86State unit
 | (mov32 dst src) := update_bin (λ x y, y) dst src
 | (add32 dst src) := update_bin add dst src
 | (and32 dst src) := update_bin bw_and dst src
+| (assert pred) := gassert pred
 
 end denotation
 
@@ -228,22 +240,69 @@ inductive evals_to : code → state → state → Prop :=
                    evals_to celse s s'→
                    evals_to (ite test cthen celse) s s'
 
-| eval_while_true : Π (test : obool) (cbody : code) (s : state),
+| eval_while_true : Π (test : obool) (cbody : code) (s s' s'': state),
                     eval_state (eval_obool test) s = some tt →
-                    evals_to (while test cbody) s s
-| eval_while_false : Π (test : obool) (cbody : code) (s s' s'' : state),
+                    evals_to cbody s s' →
+                    evals_to (while test cbody) s' s'' →
+                    evals_to (while test cbody) s s''
+| eval_while_false : Π (test : obool) (cbody : code) (s : state),
                      eval_state (eval_obool test) s = some ff →
-                     evals_to cbody s s' →
-                     evals_to (while test cbody) s' s'' →
-                     evals_to (while test cbody) s s''
+                     evals_to (while test cbody) s s
 
-| eval_call : ∀ (c : code) (s s' s'' : state),
+| eval_call : Π (c : code) (s s' s'' : state),
               pop_gframe s' = some s'' → -- here only because of ordering req
               evals_to c (push_gframe s) s' →
               evals_to (call c) s s''
 
+| eval_seq : Π (c₁ c₂ : code) (s s' s'' : state),
+               evals_to c₁ s s' →
+               evals_to c₂ s' s'' →
+               evals_to (seq c₁ c₂) s s''
+
 end interpret
 
+namespace example1
+open basic
+open basic.reg
+open prog
+open prog.code
+open prog.instruction
+open primitives
+open basic.operand
+attribute operand.reg [coercion]
+open monad.state
+
+definition s₀ : state := state.mk Map.empty [Map.empty] Map.empty [Map.empty]
+
+set_option unifier.conservative true
+
+definition code1 : code :=
+sline [
+  mov32 eax (operand.const 1),
+  add32 eax eax,
+  add32 eax eax,
+
+  mov32 (ghost 0) (operand.const 10),
+  add32 (ghost 0) (ghost 0),
+  add32 (ghost 0) (ghost 0),
+
+  assert (λ s, if eval_state (eval_operand (ghost 0)) s = option_fmap (λ v:uint32, 10 * v) (eval_state (eval_operand eax) s) then Result.success tt s else Result.success ff s)
+]
+
+
+
+
+
+
+/-
+| sline : list instruction → code
+| ite : obool → code → code → code
+| while : obool → code → code
+| call : code → code -- pushes onto the ghost stack
+-/
+
+
+end example1
 
 
 end x86
