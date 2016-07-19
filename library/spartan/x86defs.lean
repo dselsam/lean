@@ -160,10 +160,10 @@ definition store_at_operand (v : uint32) : operand → X86State unit
 | (operand.ghost gaddr) := put_ghost_addr v gaddr
 
 definition ghost_tainted : operand → operand → Prop
-| (operand.ghost g₁) (operand.ghost g₂) := false
-| (operand.ghost g₁) o₂ := true
+| (operand.ghost g₁) o₂ := false
 | o₁ (operand.ghost g₂) := true
 | o₁ o₂ := false
+
 
 definition ghost_tainted_dec_eq [instance] : decidable_rel ghost_tainted := sorry
 
