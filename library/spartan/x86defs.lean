@@ -19,8 +19,8 @@ inductive operand :=
 
 definition operand_dec_eq [instance] : decidable_eq operand := sorry
 
-definition sframe := map uint32 uint32
-definition gframe := map uint32 uint32
+definition sframe [reducible] := map uint32 uint32
+definition gframe [reducible] := map uint32 uint32
 
 structure state := (regs : map reg uint32)
                    (stack : list sframe)
@@ -112,49 +112,60 @@ definition eval_operand : operand → State state uint32
 | (operand.heap addr) := get_mem_addr addr
 | (operand.ghost gaddr) := get_ghost_addr gaddr
 
-end x86_sm
-
-open monad.state
-
-
-
-
-
-/-
-
-
-
-
-----------------------------
-
-definition eval_operand : operand → code uint32
-| (operand.const u) := state.ret u
-| (operand.reg r) := get_reg r
-| (operand.stack saddr) := get_stack_addr saddr
-| (operand.heap addr) := get_mem_addr addr
-
-definition put_reg (v : uint32) (reg : x86reg) : code unit :=
+definition put_reg (v : uint32) (rg : reg) : State state unit :=
   modify (λ s, match s with
-               | (x86.state.mk regs stack heap) := x86.state.mk (map.insert reg v regs) stack heap
+               | (state.mk regs stack heap ghost) := state.mk (map.insert rg v regs) stack heap ghost
                end)
 
-definition put_mem_addr (v : uint32) : maddr → code unit
+definition put_mem_addr (v : uint32) : maddr → State state unit
 | (maddr.const u) := modify (λ s, match s with
-                                  | (x86.state.mk regs stack heap) := x86.state.mk regs stack (map.insert u v heap)
+                                  | (state.mk regs stack heap ghost) := state.mk regs stack (map.insert u v heap) ghost
                                   end)
-| (maddr.reg reg offset) := state.bind (get_reg reg) (λ addr, modify (λ s,
-                                match s with
-                                | (x86.state.mk regs stack heap) := x86.state.mk regs stack (map.insert (addr + offset) v heap)
-                                end))
+| (maddr.reg rg offset) := do addr ← get_reg rg,
+                              modify (λ s, match s with
+                                           | (state.mk regs stack heap ghost) := state.mk regs stack (map.insert (addr + offset) v heap) ghost
+                                           end)
 
-definition put_stack_addr (v : uint32) (saddr : uint32) : code unit :=
-  modify (λ s, match s with
-               | (x86.state.mk regs (fr, rest) heap) := x86.state.mk regs (map.insert saddr v fr, rest) heap
-               end)
+set_option unifier.conservative true
+set_option pp.implicit true
 
-definition store_at_operand (v : uint32) : operand → code unit
+definition put_stack_addr (v : uint32) (saddr : uint32) : State state unit :=
+bind get (λ s,
+   match s with
+   | (state.mk regs st heap ghost) :=
+                   match st with
+                   | (list.cons fr frs) := put $ state.mk regs (list.cons (map.insert saddr v fr) frs) heap ghost
+                   | list.nil := fail
+                   end
+   end)
+
+definition put_ghost_addr (v : uint32) (gaddr : uint32) : State state unit :=
+bind get (λ s,
+   match s with
+   | (state.mk regs st heap ghost) :=
+                   match ghost with
+                   | (list.cons fr frs) := put $ state.mk regs st heap (list.cons (map.insert gaddr v fr) frs)
+                   | list.nil := fail
+                   end
+   end)
+
+/- TODO(dhs): why doesn't do notation work here?
+do s ← get,
+   match s with
+   | (state.mk regs st heap ghost) :=
+                   match st with
+                   | (list.cons fr frs) := return unit.star --put $ state.mk regs (list.cons (map.insert saddr v fr) frs) heap ghost
+                   | list.nil := fail
+                   end
+   end
+-/
+definition store_at_operand (v : uint32) : operand → State state unit
 | (operand.const u) := put_mem_addr v (maddr.const u)
 | (operand.reg r) := put_reg v r
 | (operand.stack saddr) := put_stack_addr v saddr
 | (operand.heap addr) := put_mem_addr v addr
--/
+| (operand.ghost gaddr) := put_ghost_addr v gaddr
+
+end x86_sm
+
+open monad.state
