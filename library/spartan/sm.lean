@@ -35,6 +35,12 @@ definition put {S : Type} (s_new : S) : State S unit := λ (s : S), Result.succe
 
 definition modify {S : Type} (f : S → S) : State S unit := state.bind get (λ s', put (f s'))
 
+definition run_state {S A : Type} (Prog : State S A) (s : S) : option (prod A S) :=
+  match Prog s with
+  | (Result.success a s') := some (a, s')
+  | Reult.failure := none
+  end
+
 definition eval_state {S A : Type} (Prog : State S A) (s : S) : option A :=
   match Prog s with
   | (Result.success a s') := some a
@@ -46,6 +52,10 @@ definition exec_state {S A : Type} (Prog : State S A) (s : S) : option S :=
   | (Result.success a s') := some s'
   | Reult.failure := none
   end
+
+definition sequence {S : Type} : list (State S unit) → State S unit
+| (list.cons prog progs) := bind prog (λ ignore, sequence progs)
+| list.nil := return unit.star
 
 end state
 end monad
