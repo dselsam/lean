@@ -139,7 +139,9 @@ bind get (λ s,
                    end
    end)
 
+print monad.bind
 definition put_ghost_addr (v : uint32) (gaddr : uint32) : State state unit :=
+/-
 bind get (λ s,
    match s with
    | (state.mk regs st heap ghost) :=
@@ -148,8 +150,7 @@ bind get (λ s,
                    | list.nil := fail
                    end
    end)
-
-/- TODO(dhs): why doesn't do notation work here?
+-/
 do s ← get,
    match s with
    | (state.mk regs st heap ghost) :=
@@ -158,7 +159,7 @@ do s ← get,
                    | list.nil := fail
                    end
    end
--/
+
 definition store_at_operand (v : uint32) : operand → State state unit
 | (operand.const u) := put_mem_addr v (maddr.const u)
 | (operand.reg r) := put_reg v r
