@@ -3,20 +3,6 @@ import algebra.ring
 
 open monad.state
 
-constants (uint32 : Type.{1}) (uint32_cr : comm_ring uint32) (uint32_de : decidable_eq uint32) (uint32_in : inhabited uint32)
-          (bw_and bw_or bw_not bw_xor bw_ror32 : uint32 → uint32 → uint32) (bw_not32 : uint32 → uint32)
-attribute uint32_cr [instance]
-attribute uint32_de [instance]
-attribute uint32_in [instance]
-
-constant (map : Π (A B : Type.{1}) [decidable_eq A] [inhabited A], Type.{1})
-
-namespace map
-constants (insert : Π {A B : Type.{1}} [decidable_eq A] [inhabited A], A → B → map A B → map A B)
-constants (lookup : Π {A B : Type.{1}} [decidable_eq A] [inhabited A], A → map A B → B)
-
-end map
-
 inductive x86reg : Type.{1} := eax | ebx | ecx | edx | edi | esi
 definition x86reg_dec_eq [instance] : decidable_eq x86reg := sorry -- need 'deriving ...'!
 definition x86reg_inhabited [instance] : inhabited x86reg := sorry -- need 'deriving ...'!
