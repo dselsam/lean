@@ -65,11 +65,13 @@ inductive obool :=
 
 inductive code :=
 | sline : list instruction → code
-| ite : obool → code → code → code
-| while : obool → code → code
+| ifte : obool → code → code → code
+| while : obool → X86State bool → code → code
 | call : code → code -- pushes onto the ghost stack
 | seq : code → code → code
 -- | block : list code → code
+
+definition code_dec_eq [instance] : decidable_eq code := sorry
 
 definition prog := list code
 
@@ -189,7 +191,13 @@ definition guard (p : Prop) [decidable p] : X86State unit :=
 if p then return unit.star else fail
 
 definition gassert (pred : X86State bool) : X86State unit :=
-do b ← pred, guard (b = tt)
+do old_s ← get, b ← pred, guard (b = tt), put old_s
+
+definition is_ghost : operand → Prop
+| (operand.ghost gaddr) := true
+| _ := false
+
+definition is_ghost_dec_eq [instance] : decidable_pred (is_ghost) := sorry
 
 end primitives
 
@@ -207,7 +215,8 @@ definition denote_ocmp : ocmp → (uint32 → uint32 → Prop)
 definition denote_ocmp_dec_eq [instance] (cmp : ocmp) : decidable_rel (denote_ocmp cmp) := sorry
 
 definition eval_obool : obool → X86State bool
-| (obool.mk cmp o₁ o₂) := do v₁ ← eval_operand o₁,
+| (obool.mk cmp o₁ o₂) := if is_ghost o₁ ∨ is_ghost o₂ then fail else do
+                             v₁ ← eval_operand o₁,
                              v₂ ← eval_operand o₂,
                              if (denote_ocmp cmp v₁ v₂) then return tt else return ff
 
@@ -231,23 +240,23 @@ inductive evals_to : code → state → state → Prop :=
 | eval_sline : Π (ins : list instruction) (s s' : state),
                  exec_state (sequence ∘ map denote_instruction $ ins) s = some s' →
                  evals_to (sline ins) s s'
-| eval_ite_true : Π (test : obool) (cthen celse : code) (s s' : state),
+| eval_ifte_true : Π (test : obool) (cthen celse : code) (s s' : state),
                   eval_state (eval_obool test) s = some tt →
                   evals_to cthen s s'→
-                  evals_to (ite test cthen celse) s s'
-| eval_ite_false : Π (test : obool) (cthen celse : code) (s s' : state),
+                  evals_to (ifte test cthen celse) s s'
+| eval_ifte_false : Π (test : obool) (cthen celse : code) (s s' : state),
                    eval_state (eval_obool test) s = some ff →
                    evals_to celse s s'→
-                   evals_to (ite test cthen celse) s s'
-
-| eval_while_true : Π (test : obool) (cbody : code) (s s' s'': state),
+                   evals_to (ifte test cthen celse) s s'
+  -- note: right now loop invariant is ignored
+| eval_while_true : Π (test : obool) (inv : X86State bool) (cbody : code) (s s' s'': state),
                     eval_state (eval_obool test) s = some tt →
                     evals_to cbody s s' →
-                    evals_to (while test cbody) s' s'' →
-                    evals_to (while test cbody) s s''
-| eval_while_false : Π (test : obool) (cbody : code) (s : state),
+                    evals_to (while test inv cbody) s' s'' →
+                    evals_to (while test inv cbody) s s''
+| eval_while_false : Π (test : obool) (inv : X86State bool) (cbody : code) (s : state),
                      eval_state (eval_obool test) s = some ff →
-                     evals_to (while test cbody) s s
+                     evals_to (while test inv cbody) s s
 
 | eval_call : Π (c : code) (s s' s'' : state),
               pop_gframe s' = some s'' → -- here only because of ordering req
@@ -261,7 +270,7 @@ inductive evals_to : code → state → state → Prop :=
 
 end interpret
 
-namespace example1
+namespace compile
 open basic
 open basic.reg
 open prog
@@ -271,38 +280,92 @@ open primitives
 open basic.operand
 attribute operand.reg [coercion]
 open monad.state
+open list
+open denotation
+open interpret
+
+definition is_computational : instruction → Prop
+| (mov32 dst src) := not (is_ghost dst) ∧ not (is_ghost src)
+| (add32 dst src) := not (is_ghost dst) ∧ not (is_ghost src)
+| (and32 dst src) := not (is_ghost dst) ∧ not (is_ghost src)
+| (assert pred) := false
+
+definition is_computational_dec_eq [instance] : decidable_pred is_computational := sorry
+
+definition erase_noncomputational : code → code
+| (sline ins) := sline (filter is_computational ins)
+| (ifte ob cthen celse) := ifte ob (erase_noncomputational cthen) (erase_noncomputational celse)
+| (while ob invar cbody) := while ob invar (erase_noncomputational cbody)
+| (call c) := erase_noncomputational c
+| (seq c₁ c₂) := let c₁' := erase_noncomputational c₁, c₂' := erase_noncomputational c₂ in
+                 if c₁' = sline [] then c₂' else
+                 if c₂' = sline [] then c₁' else seq c₁' c₂'
+
+
+end compile
+
+namespace examples1
+open basic
+open basic.reg
+open prog
+open prog.code
+open prog.instruction
+open primitives
+open basic.operand
+attribute operand.reg [coercion]
+open monad.state
+open list
+open denotation
+open interpret
+open compile
 
 definition s₀ : state := state.mk Map.empty [Map.empty] Map.empty [Map.empty]
 
+definition runs_safely (prog : X86State unit) (s : state) : Prop := match exec_state prog s with
+                                                                    | (some s') := true
+                                                                    | none := false
+                                                                    end
 set_option unifier.conservative true
 
-definition code1 : code :=
-sline [
+definition code1 : list instruction :=
+ [
   mov32 eax (operand.const 1),
-  add32 eax eax,
+  mov32 (ghost 0) (operand.const 10),
+  assert $ do
+    u ← eval_operand eax,
+    g ← eval_operand (ghost 0),
+    return $ to_bool (g = 10 * u)
+]
+
+lemma code1_runs : runs_safely (sequence ∘ map denote_instruction $ code1) s₀ := sorry -- should be rfl once decidable-eqs are filled in
+lemma code1_compiled : erase_noncomputational (sline code1) = sline [mov32 eax (operand.const 1)] := sorry -- rfl
+
+definition code2 : list instruction :=
+[
+  mov32 eax (operand.const 1),
   add32 eax eax,
 
   mov32 (ghost 0) (operand.const 10),
   add32 (ghost 0) (ghost 0),
-  add32 (ghost 0) (ghost 0),
 
-  assert (λ s, if eval_state (eval_operand (ghost 0)) s = option_fmap (λ v:uint32, 10 * v) (eval_state (eval_operand eax) s) then Result.success tt s else Result.success ff s)
+  assert $ do
+    u ← eval_operand eax,
+    g ← eval_operand (ghost 0),
+    return $ to_bool (g = 10 * u)
 ]
 
+lemma code2_runs : runs_safely (sequence ∘ map denote_instruction $ code2) s₀ := sorry -- should be rfl once decidable-eqs are filled in
+lemma code2_always_runs : ∀ s, runs_safely (sequence ∘ map denote_instruction $ code2) s := sorry
+
+definition code3 : code :=
+  seq (sline code1) (code.ifte (obool.mk ocmp.OEq eax (ghost 0)) (sline [mov32 ebx eax]) (sline [mov32 ecx eax]))
+
+-- TODO need more here -- code3 must run safely, and the evaling-operands must run safely as well (always the case)
+lemma code3_sets_ebx_to_1 : ∀ s s', evals_to code3 s s' → eval_state (eval_operand ebx) s' = eval_state (eval_operand eax) s' := sorry
+
+end examples1
 
 
-
-
-
-/-
-| sline : list instruction → code
-| ite : obool → code → code → code
-| while : obool → code → code
-| call : code → code -- pushes onto the ghost stack
--/
-
-
-end example1
 
 
 end x86

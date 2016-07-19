@@ -14,3 +14,5 @@ constants (insert : Π {A B : Type} [decidable_eq A], A → B → Map A B → Ma
 constants (lookup : Π {A B : Type} [decidable_eq A], A → Map A B → option B)
 
 end Map
+
+definition to_bool (P : Prop) [decidable P] : bool := if P then tt else ff
