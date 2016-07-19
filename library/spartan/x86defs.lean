@@ -19,18 +19,34 @@ inductive operand :=
 
 definition operand_dec_eq [instance] : decidable_eq operand := sorry
 
-definition frame := map uint32 uint32
+definition sframe := map uint32 uint32
+definition gframe := map uint32 uint32
 
 structure state := (regs : map reg uint32)
-                   (stack : list (map uint32 uint32))
+                   (stack : list sframe)
                    (heap : map uint32 uint32)
-                   (ghost : list (map ℕ uint32))
+                   (ghost : list gframe)
+
+namespace fields
+definition regs : state → map reg uint32
+| (state.mk rgs _ _ _) := rgs
+
+definition stack : state → list sframe
+| (state.mk _ st _ _) := st
+
+definition heap : state → map uint32 uint32
+| (state.mk _ _ h _) := h
+
+definition ghost : state → list gframe
+| (state.mk _ _ _ g) := g
+
+end fields
+
 
 end x86
 
-open x86
-
 namespace prog
+open x86
 
 inductive instruction :=
 | mov32 : operand → operand → instruction
@@ -53,13 +69,50 @@ definition prog := list code
 
 end prog
 
-open prog
 
-namespace x86
+namespace x86_sm
+open monad.state
+open x86
 
+definition get_reg (rg : reg) : State state uint32 :=
+do ov ← gets (map.lookup rg ∘ fields.regs),
+   match ov with
+   | (some k) := return k
+   | none := fail
+   end
 
+definition get_mem_addr : maddr → State state uint32
+| (maddr.const u) := return u
+| (maddr.reg rg offset) := do addr ← get_reg rg, return $ addr + offset
 
-end x86
+definition get_stack_addr (k : uint32) : State state uint32 :=
+do st ← gets fields.stack,
+   match st with
+   | (list.cons fr frs) := match map.lookup k fr with
+                           | (some v) := return v
+                           | none := fail
+                           end
+   | list.nil := fail
+   end
+
+definition get_ghost_addr (k : uint32) : State state uint32 :=
+do st ← gets fields.ghost,
+   match st with
+   | (list.cons fr frs) := match map.lookup k fr with
+                           | (some v) := return v
+                           | none := fail
+                           end
+   | list.nil := fail
+   end
+
+definition eval_operand : operand → State state uint32
+| (operand.const u) := return u
+| (operand.reg rg) := get_reg rg
+| (operand.stack saddr) := get_stack_addr saddr
+| (operand.heap addr) := get_mem_addr addr
+| (operand.ghost gaddr) := get_ghost_addr gaddr
+
+end x86_sm
 
 open monad.state
 
@@ -71,31 +124,8 @@ open monad.state
 
 
 
-definition code [reducible] (A : Type) := State x86.state A
-
-definition get_regs : code (map x86reg uint32) :=
-state.bind get (λ s, match s with x86.state.mk regs stack heap := state.ret regs end)
-
-definition get_stack : code (prod frame (list frame)) :=
-state.bind get (λ s, match s with x86.state.mk regs stack heap := state.ret stack end)
-
-definition get_stack_frame : code frame :=
-state.bind get_stack (λ stack, match stack with (fr, rest) := state.ret fr end)
-
-definition get_heap : code (map uint32 uint32) :=
-state.bind get (λ s, match s with (x86.state.mk regs stack heap) := state.ret heap end)
 
 ----------------------------
-
-definition get_reg (reg : x86reg) : code uint32 :=
-  state.bind get_regs (λ regs, state.ret $ map.lookup reg regs)
-
-definition get_mem_addr : maddr → code uint32
-| (maddr.const u) := state.ret u
-| (maddr.reg reg offset) := state.bind (get_reg reg) (λ addr, state.ret $ addr + offset)
-
-definition get_stack_addr (k : uint32) : code uint32 :=
-  state.bind get_stack_frame (λ fr, state.ret $ map.lookup k fr)
 
 definition eval_operand : operand → code uint32
 | (operand.const u) := state.ret u

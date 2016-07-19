@@ -1,45 +1,57 @@
 namespace monad
 namespace state
 
-definition State (S A : Type) := S → prod A S
-variable {S : Type}
-namespace state
+inductive Result (S : Type) (A : Type) :=
+| success    : A → S → Result S A
+| failure {} : Result S A
 
-definition fmap : Π {A B : Type}, (A → B) → State S A → State S B :=
-  λ (A B : Type) (f : A → B) (P : S → prod A S) (s : S),
-     match P s with
-     | (a, s') := (f a, s')
+definition State (S A : Type) := S → Result S A
+
+definition fmap {S A B : Type} (f : A → B) (Prog : State S A) : State S B :=
+λ s, match Prog s with
+     | (Result.success a s') := Result.success (f a) s'
+     | Result.failure := Result.failure
      end
 
-definition ret : Π {A : Type}, A → State S A :=
-  λ (A : Type) (a : A) (s : S), (a, s)
+definition ret {S A : Type} (a : A) : State S A := λ s, Result.success a s
 
-definition bind : Π {A B : Type}, State S A → (A → State S B) → State S B :=
-  λ (A B : Type) (P₁ : State S A) (P₂ : A → State S B) (s₁ : S),
-    match P₁ s₁ with
-    | (a, s₂) := P₂ a s₂
-    end
-end state
+definition bind {S A B : Type} (Prog₁ : State S A) (Prog₂ : A → State S B) : State S B :=
+λ s₁, match Prog₁ s₁ with
+      | (Result.success a s₂) := Prog₂ a s₂
+      | Result.failure := Result.failure
+      end
 
-definition is_monad [instance] : monad (State S) :=
-monad.mk (@state.fmap S) (@state.ret S) (@state.bind S)
+definition is_monad [instance] {S : Type} : monad (State S) :=
+monad.mk (@fmap S) (@ret S) (@bind S)
 
-definition get : State S S := λ (s : S), (s, s)
-definition put (s_new : S) : State S unit := λ (s : S), (unit.star, s_new)
-definition modify (f : S → S) : State S unit := state.bind get (λ s', put (f s')) -- elaborator is nuts
-definition run_state {A : Type} (P : State S A) (s : S) : prod A S := P s
-definition eval_state {A : Type} (P : State S A) (s₁ : S) : A := match P s₁ with
-                                                                | (a, s₂) := a
-                                                                end
+definition fail {S A : Type} : State S A := λ s, Result.failure
+definition guard {S : Type} (P : S → Prop) [decidable_pred P] : State S unit :=
+λ s, if P s then Result.success unit.star s else Result.failure
 
-definition exec_state {A : Type} (P : State S A) (s₁ : S) : S := match P s₁ with
-                                                                | (a, s₂) := s₂
-                                                                end
+definition get {S : Type} : State S S := λ (s : S), Result.success s s
+definition gets {S X : Type} (f : S → X) : State S X := state.bind get (λ s, return (f s))
+
+definition put {S : Type} (s_new : S) : State S unit := λ (s : S), Result.success unit.star s_new
+
+definition modify {S : Type} (f : S → S) : State S unit := state.bind get (λ s', put (f s'))
+
+definition eval_state {S A : Type} (Prog : State S A) (s : S) : option A :=
+  match Prog s with
+  | (Result.success a s') := some a
+  | Reult.failure := none
+  end
+
+definition exec_state {S A : Type} (Prog : State S A) (s : S) : option S :=
+  match Prog s with
+  | (Result.success a s') := some s'
+  | Reult.failure := none
+  end
 
 end state
 end monad
 open monad.state
 
+/-
 namespace hoare
 variable {S : Type}
 
@@ -109,3 +121,4 @@ H₃
 
 -- The overall strategy would be: see what PRE and POST the bind version would yield, and then strengthen and weaken.
 end hoare
+-/
