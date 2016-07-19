@@ -92,22 +92,20 @@ assume (s : S) (ignore : true),
 rfl
 
 lemma modify_SPEC_composition (f : S → S) : HoareTriple (λ (s : S), true) (state.bind get (λ s', put (f s'))) (λ s a s', s' = f s) :=
-have H₁ : HoareTriple (λ (s : S), true) get (λ s a s', s' = s ∧ a = s), from get_SPEC,
-have H₂ : ∀ (a : S), HoareTriple (λ (s : S), true) (put (f a)) (λ s b s', s' = f a), from assume a, put_SPEC (f a),
-have H₃ : HoareTriple (λ (s₁ : S), true ∧ (∀ a s₂, s₂ = s₁ ∧ a = s₁ → true))
+have H₁ : HoareTriple (λ (s₁ : S), true ∧ (∀ a s₂, s₂ = s₁ ∧ a = s₁ → true))
                       (state.bind get (λ s', put (f s')))
-                      (λ s₁ b s₃, ∃ a s₂, (s₂ = s₁ ∧ a = s₁) ∧ s₃ = (f s₁)), from bind_SPEC get (λ s', put (f s')) H₁ H₂,
-have H₄ : HoareTriple (λ (s₁ : S), true)
+                      (λ s₁ b s₃, ∃ a s₂, (s₂ = s₁ ∧ a = s₁) ∧ s₃ = (f s₁)), from bind_SPEC get (λ s', put (f s')) get_SPEC (λ a, put_SPEC (f a)),
+have H₂ : HoareTriple (λ (s₁ : S), true)
                       (state.bind get (λ s', put (f s')))
                       (λ s₁ b s₃, ∃ a s₂, (s₂ = s₁ ∧ a = s₁) ∧ s₃ = (f s₁)),
-     from strengthen_PRE H₃ (λ s ig₁, and.intro trivial (λ ig₁ ig₂ ig₃, trivial)),
-have H₅ : HoareTriple (λ (s₁ : S), true)
+     from strengthen_PRE H₁ (λ s ig₁, and.intro trivial (λ ig₁ ig₂ ig₃, trivial)),
+have H₃ : HoareTriple (λ (s₁ : S), true)
                       (state.bind get (λ s', put (f s')))
                       (λ s₁ b s₃, s₃ = f s₁),
-     from weaken_POST H₄ (λ s ig₁ s' ex₁,
+     from weaken_POST H₂ (λ s ig₁ s' ex₁,
                          Exists.cases_on ex₁
                            (λ a₁ ex₂, Exists.cases_on ex₂ (λ a₂ and₁, and.elim_right and₁))),
-H₅
+H₃
 
 -- The overall strategy would be: see what PRE and POST the bind version would yield, and then strengthen and weaken.
 end hoare

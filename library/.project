@@ -37,3 +37,4 @@
 - complete_lattice.lean
 - homomorphism.lean
 - data/mset
+- spartan/old
