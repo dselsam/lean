@@ -357,7 +357,8 @@ lemma code2_runs : runs_safely (sequence ∘ map denote_instruction $ code2) s�
 lemma code2_always_runs : ∀ s, runs_safely (sequence ∘ map denote_instruction $ code2) s := sorry
 
 definition code3 : code :=
-  seq (sline code1) (ifte (obool.mk ocmp.OEq eax (ghost 0)) (sline [mov32 ebx eax]) (sline [mov32 ecx eax]))
+  -- mov eax 10, mov ebx 10, if eax == ebx then mov edx 100 else mov ecx 100
+  seq (sline [mov32 eax (operand.const 10), mov32 ebx (operand.const 10)]) (ifte (obool.mk ocmp.OEq eax ebx) (sline [mov32 edx (operand.const 100)]) (sline [mov32 ecx (operand.const 100)]))
 
 -- TODO need more here -- code3 must run safely, and the evaling-operands must run safely as well (always the case)
 lemma code3_sets_ebx_to_1 : ∀ s s', evals_to code3 s s' → eval_state (eval_operand ebx) s' = eval_state (eval_operand eax) s' := sorry
