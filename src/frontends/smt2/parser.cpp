@@ -26,7 +26,7 @@ Author: Daniel Selsam
 namespace lean {
 namespace smt2 {
 
-enum class fun_attr = { DEFAULT, CHAINABLE, LEFT_ASSOC, RIGHT_ASSOC, PAIRWISE };
+enum class fun_attr { DEFAULT, CHAINABLE, LEFT_ASSOC, RIGHT_ASSOC, PAIRWISE };
 
 struct fun_decl {
     expr     m_e;
@@ -36,12 +36,40 @@ struct fun_decl {
     fun_attr get_fun_attr() const { return m_fun_attr; }
 };
 
-
 // Theory symbols
 // TODO(dhs): I may not actually do it this way, and instead just have a chain of IF statements.
 static std::unordered_map<std::string, expr> *     g_theory_sort_symbols        = nullptr;
-static std::unordered_map<std::string, fun_decl> * g_pure_theory_symbols        = nullptr;
-static std::unordered_map<std::string, fun_decl> * g_polymorphic_theory_symbols = nullptr;
+static std::unordered_map<std::string, expr> *     g_theory_constant_symbols    = nullptr;
+static std::unordered_map<std::string, fun_decl> * g_theory_function_symbols    = nullptr;
+
+static optional<expr> is_theory_sort_symbol(std::string const & sym) {
+    auto it = g_theory_sort_symbols.find();
+    if (it == g_theory_sort_symbols.end()) {
+        return none_expr();
+    } else {
+        return some_expr(it->second);
+    }
+}
+
+static optional<expr> is_theory_constant_symbol(std::string const & sym) {
+    auto it = g_theory_constant_symbols.find();
+    if (it == g_theory_constant_symbols.end()) {
+        return none_expr();
+    } else {
+        return some_expr(it->second);
+    }
+}
+
+static optional<fun_decl> is_theory_function_symbol(std::string const & sym) {
+    auto it = g_pure_theory_symbols.find();
+    if (it == g_pure_theory_symbols.end()) {
+        return optional<fun_decl>();
+    } else {
+        return optional<fun_decl>(it->second);
+    }
+}
+
+static name * g_name_minus;
 
 // Reserved words
 // (a) General
@@ -115,7 +143,21 @@ private:
     void throw_parser_exception(char const * msg) { throw_parser_exception(msg, m_scanner.get_pos_info()); }
 
     // TODO(dhs): implement!
-    expr elaborate(expr const & e) { return e; }
+    // (possibly on top of Leo's elaborator)
+    expr elaborate_app(buffer<expr> & args) {
+        int num_args = args.size() - 1;
+        lean_assert(num_args > 0);
+
+        // Step 1: resolve the operator expression
+        lean_assert(is_constant(args[0]));
+        name op_name = const_name(args[0]);
+
+        // One special case: (-) can be `neg` or `sub`
+        if (op_name == get_symbol_minus() && num_args == 1) {
+            args[0] = mk_constant(get_neg_name());
+        } else if (auto fdecl = is_theory_function_symbol(
+        return e;
+    }
 
     environment & env() {
         lean_assert(!m_env_stack.empty());
@@ -157,8 +199,8 @@ private:
             return mk_constant(mk_sort_name(sym));
         } else if (curr_kind() == scanner::token_kind::LEFT_PAREN) {
             next();
-            buffer<sort> args;
-            parse_exprs(args, is_sort, context);
+            buffer<expr> args;
+            parse_sorts(args, context);
             return mk_app(args);
         } else {
             throw_parser_exception((std::string(context) + ", invalid sort").c_str());
@@ -174,22 +216,18 @@ private:
         if (curr_kind() == scanner::token_kind::SYMBOL) {
             // We cannot resolve all function symbols yet because of `-`, which can be either unary-minus or subtraction.
             // We also cannot resolve the implicit arguments for polymorphic functions such as `+`.
-            // Luckily, `-` is polymorphic, so we simply resolve all non-polymorphic functions now, and then
-            // resolve all polymorphic constants when we elaborate the application.
-            // Note: there are no polymorphic constants, so we do not need to elaborate non-applications.
+            // Note: no constants are polymorphic nor have special attributes, so we do not need to elaborate non-applications.
             symbol sym = curr_symbol();
-            auto it = g_pure_theory_symbols->find(sym);
-            if (it != g_pure_theory_symbols->end()) {
-                next();
-                return it->second;
-            }
             next();
-            return mk_constant(name(sym));
+            if (auto e = is_theory_constant_symbol(sym))
+                return *e;
+            else
+                return mk_constant(name(sym));
         } else if (curr_kind() == scanner::token_kind::LEFT_PAREN) {
             next();
             buffer<expr> args;
             parse_exprs(args, context);
-            return elaborate_app(mk_app(args));
+            return elaborate_app(args);
         } else {
             throw_parser_exception((std::string(context) + ", invalid expression").c_str());
         }
@@ -391,6 +429,8 @@ bool parse_commands(environment & env, io_state & ios, std::istream & strm, char
 }
 
 void initialize_parser() {
+    g_name_minus = new name({"-"});
+
     g_theory_sort_symbols = new std::unordered_map<std::string, expr>({
             {"Bool", mk_Prop()},
             {"Int", mk_constant(get_int_name())},
@@ -398,21 +438,25 @@ void initialize_parser() {
             {"Array", mk_constant(get_array_name())}, // TODO(dhs): may not exist yet
                 });
 
-    g_pure_theory_symbols = new std::unordered_map<std::string, expr>({
+    g_theory_constant_symbols = new std::unordered_map<std::string, expr>({
+            {"true", mk_constant(get_true_name())},
+            {"false", mk_constant(get_false_name())},
+                });
+
+    g_theory_function_symbols = new std::unordered_map<std::string, expr>({
+            // I. Non-polymorphic
             // (a) Core
-            {"true", fun_decl(mk_constant(get_true_name()), fun_attr::DEFAULT)},
-            {"false", fun_decl(mk_constant(get_false_name()), fun_attr::DEFAULT)},
             {"not", fun_decl(mk_constant(get_not_name()), fun_attr::DEFAULT)},
-            {"=>", fun_decl(mk_constant(get_implies_name())},
-            {"and", fun_decl(mk_constant(get_and_name())},
-            {"or", fun_decl(mk_constant(get_or_name())},
-            {"xor", fun_decl(mk_constant(get_xor_name())},
+            {"=>", fun_decl(mk_constant(get_implies_name()), fun_attr::RIGHT_ASSOC)},
+            {"and", fun_decl(mk_constant(get_and_name()), fun_attr::LEFT_ASSOC)},
+            {"or", fun_decl(mk_constant(get_or_name()), fun_attr::LEFT_ASSOC)},
+            {"xor", fun_decl(mk_constant(get_xor_name()), fun_attr::LEFT_ASSOC)},
 
             // (b) Arithmetic
-            {"div", fun_decl(mk_constant(get_div_name())},
+            {"div", fun_decl(mk_constant(get_div_name()), fun_attr::LEFT_ASSOC)},
             {"mod", fun_decl(mk_constant(get_mod_name()), fun_attr::DEFAULT)},
             {"abs", fun_decl(mk_constant(get_abs_name()), fun_attr::DEFAULT)},
-            {"/", fun_decl(mk_constant(get_div_name())},
+            {"/", fun_decl(mk_constant(get_div_name()), fun_attr::LEFT_ASSOC)},
             {"to_real", fun_decl(mk_constant(get_to_real_name())},
             {"to_int", fun_decl(mk_constant(get_to_int_name())},
             {"is_int", fun_decl(mk_constant(get_is_int_name())},
@@ -420,18 +464,17 @@ void initialize_parser() {
              // (c) Arrays
             {"select", fun_decl(mk_constant(get_array_select_name())}, // TODO(dhs): may not exist yet
             {"store", fun_decl(mk_constant(get_array_store_name())} // TODO(dhs): may not exist yet
-        });
 
-    g_polymorphic_theory_symbols = new std::unordered_map<std::string, expr>({
+            // II. Polymorphic
             // (a) Core
-            {"=", fun_decl(mk_constant(get_eq_name())},
-            {"distinct", fun_decl(mk_constant(get_distinct_name())},
+            {"=", fun_decl(mk_constant(get_eq_name()), fun_attr::CHAINABLE)},
+            {"distinct", fun_decl(mk_constant(get_distinct_name()), fun_attr::PAIRWISE)},
             {"ite", fun_decl(mk_constant(get_ite_name()), fun_attr::DEFAULT)},
 
             // (b) Arithmetic
-            {"+", fun_decl(mk_constant(get_add_name())},
-            {"-", fun_decl(mk_constant(get_sub_name())},
-            {"*", fun_decl(mk_constant(get_mul_name())},
+            {"+", fun_decl(mk_constant(get_add_name()), fun_attr::LEFT_ASSOC)},
+            {"-", fun_decl(mk_constant(get_sub_name()), fun_attr::LEFT_ASSOC)},
+            {"*", fun_decl(mk_constant(get_mul_name()), fun_attr::LEFT_ASSOC)},
             {"<", fun_decl(mk_constant(get_lt_name())},
             {"<=", fun_decl(mk_constant(get_le_name())},
             {">", fun_decl(mk_constant(get_gt_name())},
@@ -441,8 +484,10 @@ void initialize_parser() {
 
 void finalize_parser() {
     delete g_theory_sort_symbols;
-    delete g_polymorphic_theory_symbols;
-    delete g_pure_theory_symbols;
+    delete g_theory_constant_symbols;
+    delete g_theory_function_symbols;
+
+    delete g_name_minus;
 }
 
 }}
