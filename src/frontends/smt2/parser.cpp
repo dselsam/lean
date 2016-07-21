@@ -26,7 +26,7 @@ Author: Daniel Selsam
 namespace lean {
 namespace smt2 {
 
-enum class fun_attr { DEFAULT, CHAINABLE, LEFT_ASSOC, RIGHT_ASSOC, PAIRWISE };
+enum class fun_attr { DEFAULT, LEFT_ASSOC, RIGHT_ASSOC, CHAINABLE, PAIRWISE };
 
 struct fun_decl {
     expr     m_e;
@@ -36,28 +36,49 @@ struct fun_decl {
     fun_attr get_fun_attr() const { return m_fun_attr; }
 };
 
-static expr mk_chainable_app(buffer<expr> const & args) { throw exception("NYI"); }
-static expr mk_left_assoc_app(buffer<expr> const & args) { throw exception("NYI"); }
-static expr mk_right_assoc_app(buffer<expr> const & args) { throw exception("NYI"); }
+static expr mk_left_assoc_app(buffer<expr> const & args) {
+    lean_assert(args.size() >= 2);
+    // f x1 x2 x3 ==> f (f x1 x2) x3
+    expr e = mk_app(args[0], args[1], args[2]);
+    for (unsigned i = 3; i < args.size(); ++i) {
+        e = mk_app(args[0], e, args[i]);
+    }
+    return e;
+}
+
+static expr mk_right_assoc_app(buffer<expr> const & args) {
+    lean_assert(args.size() >= 2);
+    // f x1 x2 x3 ==> f x1 (f x2 x3)
+    int k = args.size();
+    expr e = mk_app(args[0], args[k - 2], args[k - 1]);
+    for (int i = k - 3; i >= 0; --i) {
+        e = mk_app(args[0], args[i], e);
+    }
+    return e;
+}
+
+static expr mk_chainable_app(buffer<expr> const & args) {
+    // f x1 x2 x3 ==> and (f x1 x2) (f x2 x3)
+    lean_assert(args.size() >= 2);
+    buffer<expr> args_to_and;
+    args_to_and.push_back(mk_constant(get_and_name()));
+    for (unsigned i = 1; i < args.size() - 1; ++i) {
+        args_to_and.push_back(mk_app(args[0], args[i], args[i+1]));
+    }
+    return mk_left_assoc_app(args_to_and);
+}
+
+// TODO(dhs): use a macro for this? It scales quadratically.
 static expr mk_pairwise_app(buffer<expr> const & args) { throw exception("NYI"); }
 
 // Theory symbols
 // TODO(dhs): I may not actually do it this way, and instead just have a chain of IF statements.
-static std::unordered_map<std::string, expr> *     g_theory_constant_symbols    = nullptr;
+static std::unordered_map<std::string, expr>     * g_theory_constant_symbols    = nullptr;
 static std::unordered_map<std::string, fun_decl> * g_theory_function_symbols    = nullptr;
 
-static optional<expr> is_theory_sort_symbol(std::string const & sym) {
-    auto it = g_theory_sort_symbols.find();
-    if (it == g_theory_sort_symbols.end()) {
-        return none_expr();
-    } else {
-        return some_expr(it->second);
-    }
-}
-
 static optional<expr> is_theory_constant_symbol(std::string const & sym) {
-    auto it = g_theory_constant_symbols.find();
-    if (it == g_theory_constant_symbols.end()) {
+    auto it = g_theory_constant_symbols->find(sym);
+    if (it == g_theory_constant_symbols->end()) {
         return none_expr();
     } else {
         return some_expr(it->second);
@@ -65,8 +86,8 @@ static optional<expr> is_theory_constant_symbol(std::string const & sym) {
 }
 
 static optional<fun_decl> is_theory_function_symbol(std::string const & sym) {
-    auto it = g_pure_theory_symbols.find();
-    if (it == g_pure_theory_symbols.end()) {
+    auto it = g_theory_function_symbols->find(sym);
+    if (it == g_theory_function_symbols->end()) {
         return optional<fun_decl>();
     } else {
         return optional<fun_decl>(it->second);
@@ -149,7 +170,7 @@ private:
 
     // TODO(dhs): implement!
     // Note: Leo's elaborator will be called at the end
-    expr elaborate_app(buffer<expr> & args) {
+    expr pre_elaborate_app(buffer<expr> & args) {
         int num_args = args.size() - 1;
         lean_assert(num_args > 0);
 
@@ -160,23 +181,23 @@ private:
         if (is_constant(args[0])) {
             std::string op_str = const_name(args[0]).get_string();
             // One special case: (-) can be `neg` or `sub`
-            if (op_str == *g_symbol_minus() && num_args == 1) {
+            if (op_str.c_str() == g_symbol_minus && num_args == 1) {
                 args[0] = mk_constant(get_neg_name());
             } else if (auto fdecl = is_theory_function_symbol(op_str)) {
-                args[0] = fdecl.get_expr();
-                fattr = fdecl.get_fun_attr();
+                args[0] = fdecl->get_expr();
+                fattr = fdecl->get_fun_attr();
             }
         }
 
         switch (fattr) {
         case fun_attr::DEFAULT:
             return mk_app(args);
-        case fun_attr::CHAINABLE:
-            return mk_chainable_app(args);
         case fun_attr::LEFT_ASSOC:
             return mk_left_assoc_app(args);
         case fun_attr::RIGHT_ASSOC:
             return mk_right_assoc_app(args);
+        case fun_attr::CHAINABLE:
+            return mk_chainable_app(args);
         case fun_attr::PAIRWISE:
             return mk_pairwise_app(args);
         }
@@ -192,6 +213,7 @@ private:
     std::string const & curr_string() const { return m_scanner.get_str_val(); }
     symbol const & curr_symbol() const { return m_scanner.get_symbol_val(); }
     mpq const & curr_numeral() const { return m_scanner.get_num_val(); }
+    mpq curr_numeral_next() { mpq q = m_scanner.get_num_val(); next(); return q; }
 
     void scan() {
         switch (curr_kind()) {
@@ -213,48 +235,55 @@ private:
     // Parsing sorts
     expr parse_expr(bool is_sort, char const * context) {
         // { LEFT_PAREN, RIGHT_PAREN, KEYWORD, SYMBOL, STRING, INT, FLOAT, BV };
+        symbol sym;
+        std::unordered_map<std::string, expr>::const_iterator it;
+        buffer<expr> args;
+
         switch (curr_kind()) {
         case scanner::token_kind::SYMBOL:
-            symbol sym = curr_symbol();
+            sym = curr_symbol();
             next();
-            auto it = g_theory_constant_symbols->find(sym);
+            it = g_theory_constant_symbols->find(sym);
             if (it != g_theory_constant_symbols->end())
                 return it->second;
             else
                 return mk_constant(is_sort ? mk_sort_name(sym) : sym);
             lean_unreachable();
+            break;
         case scanner::token_kind::STRING:
             // TODO(dhs): strings
             throw_parser_exception("string literals not accepted in expressions yet");
+            lean_unreachable();
+            break;
         case scanner::token_kind::INT:
-            mpq const & n = curr_numeral();
-            next();
-            return mk_mpq_macro(n, mk_constant(get_int_name()));
+            // TODO(dhs): Lean's bv may want a Nat instead of an Int
+            return mk_mpq_macro(curr_numeral_next(), mk_constant(get_int_name()));
         case scanner::token_kind::FLOAT:
-            mpq const & q = curr_numeral();
-            next();
-            return mk_mpq_macro(q, mk_constant(get_real_name()));
+            return mk_mpq_macro(curr_numeral_next(), mk_constant(get_real_name()));
         case scanner::token_kind::BV:
             // TODO(dhs): bit vectors
             // (Already getting the value in the scanner, just don't have a good Lean target yet)
             throw_parser_exception("bit-vector literals not accepted in expressions yet");
+            lean_unreachable();
+            break;
         case scanner::token_kind::LEFT_PAREN:
             next();
-            buffer<expr> args;
-            if (curr_kind() == scanner::token_Kind::SYMBOL && curr_symbol() == g_symbol_dependent_type) {
+            if (curr_kind() == scanner::token_kind::SYMBOL && curr_symbol() == g_symbol_dependent_type) {
                 next();
             }
             parse_exprs(args, is_sort, context);
-            return elaborate_app(args);
-        case scanner::token_kind::DEFAULT:
+            return pre_elaborate_app(args);
+        default:
             throw_parser_exception((std::string(context) + ", invalid sort").c_str());
+            lean_unreachable();
+            break;
         }
         lean_unreachable();
     }
 
     void parse_exprs(buffer<expr> & es, bool is_sort, char const * context) {
         while (curr_kind() != scanner::token_kind::RIGHT_PAREN) {
-            es.push_back(is_sort ? parse_sort(context) : parse_expr(context));
+            es.push_back(parse_expr(is_sort, context));
         }
         if (es.empty()) {
             throw_parser_exception(std::string(context) + ", () not a legal expression");
@@ -265,7 +294,7 @@ private:
     void parse_expr_list(buffer<expr> & es, bool is_sort, char const * context) {
         check_curr_kind(scanner::token_kind::LEFT_PAREN, context);
         next();
-        parse_exprs_or_sorts(es, is_sort, context);
+        parse_exprs(es, is_sort, context);
     }
 
     // Outer loop
@@ -354,9 +383,9 @@ private:
         buffer<expr> parameter_sorts;
         bool is_sort = true;
         parse_expr_list(parameter_sorts, is_sort, "invalid function declaration");
-        expr ty = elaborate(parse_expr(is_sort, "invalid function declaration"));
+        expr ty = parse_expr(is_sort, "invalid function declaration");
         for (int i = parameter_sorts.size() - 1; i >= 0; ++i) {
-            ty = mk_arrow(elaborate(parameter_sorts[i]), ty);
+            ty = mk_arrow(parameter_sorts[i], ty);
         }
 
         declaration d = mk_axiom(fn_name, list<name>(), ty);
@@ -441,8 +470,6 @@ bool parse_commands(environment & env, io_state & ios, std::istream & strm, char
 }
 
 void initialize_parser() {
-    g_name_minus = new name({"-"});
-
     g_theory_constant_symbols = new std::unordered_map<std::string, expr>({
             // Sorts
             {"Bool", mk_Prop()},
@@ -472,9 +499,9 @@ void initialize_parser() {
             {"mod", fun_decl(mk_constant(get_mod_name()), fun_attr::DEFAULT)},
             {"abs", fun_decl(mk_constant(get_abs_name()), fun_attr::DEFAULT)},
             {"/", fun_decl(mk_constant(get_div_name()), fun_attr::LEFT_ASSOC)},
-            {"to_real", fun_decl(mk_constant(get_to_real_name()), fun_attr::DEFAULT)},
-            {"to_int", fun_decl(mk_constant(get_to_int_name()), fun_attr::DEFAULT)},
-            {"is_int", fun_decl(mk_constant(get_is_int_name()), fun_attr::DEFAULT)},
+            {"to_real", fun_decl(mk_constant(get_real_of_int_name()), fun_attr::DEFAULT)},
+            {"to_int", fun_decl(mk_constant(get_real_to_int_name()), fun_attr::DEFAULT)},
+            {"is_int", fun_decl(mk_constant(get_real_is_int_name()), fun_attr::DEFAULT)},
 
              // (c) Arrays
             {"select", fun_decl(mk_constant(get_array_select_name()), fun_attr::DEFAULT)}, // TODO(dhs): may not exist yet
@@ -490,7 +517,7 @@ void initialize_parser() {
             {"+", fun_decl(mk_constant(get_add_name()), fun_attr::LEFT_ASSOC)},
             {"-", fun_decl(mk_constant(get_sub_name()), fun_attr::LEFT_ASSOC)}, // note: if 1 arg, then neg instead
             {"*", fun_decl(mk_constant(get_mul_name()), fun_attr::LEFT_ASSOC)},
-            {"<", fun_decl(mk_constant(get_lt_name())}, fun_attr::CHAINABLE)},
+            {"<", fun_decl(mk_constant(get_lt_name()), fun_attr::CHAINABLE)},
             {"<=", fun_decl(mk_constant(get_le_name()), fun_attr::CHAINABLE)},
             {">", fun_decl(mk_constant(get_gt_name()), fun_attr::CHAINABLE)},
             {">=", fun_decl(mk_constant(get_ge_name()), fun_attr::CHAINABLE)}
@@ -498,11 +525,8 @@ void initialize_parser() {
 }
 
 void finalize_parser() {
-    delete g_theory_sort_symbols;
     delete g_theory_constant_symbols;
     delete g_theory_function_symbols;
-
-    delete g_name_minus;
 }
 
 }}

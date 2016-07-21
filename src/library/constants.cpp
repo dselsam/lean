@@ -3,6 +3,7 @@
 // DO NOT EDIT, automatically generated file, generator scripts/gen_constants_cpp.py
 #include "util/name.h"
 namespace lean{
+name const * g_abs = nullptr;
 name const * g_absurd = nullptr;
 name const * g_acc_cases_on = nullptr;
 name const * g_add = nullptr;
@@ -22,6 +23,7 @@ name const * g_bit1 = nullptr;
 name const * g_bool = nullptr;
 name const * g_bool_ff = nullptr;
 name const * g_bool_tt = nullptr;
+name const * g_bv = nullptr;
 name const * g_cast = nullptr;
 name const * g_cast_eq = nullptr;
 name const * g_cast_heq = nullptr;
@@ -98,6 +100,7 @@ name const * g_implies_of_if_neg = nullptr;
 name const * g_implies_of_if_pos = nullptr;
 name const * g_implies_resolve = nullptr;
 name const * g_int = nullptr;
+name const * g_int_of_nat = nullptr;
 name const * g_IO = nullptr;
 name const * g_is_trunc_is_prop = nullptr;
 name const * g_is_trunc_is_prop_elim = nullptr;
@@ -115,6 +118,7 @@ name const * g_list = nullptr;
 name const * g_list_nil = nullptr;
 name const * g_list_cons = nullptr;
 name const * g_lt = nullptr;
+name const * g_mod = nullptr;
 name const * g_monad = nullptr;
 name const * g_monad_map = nullptr;
 name const * g_monad_bind = nullptr;
@@ -223,7 +227,12 @@ name const * g_quot_mk = nullptr;
 name const * g_quot_lift = nullptr;
 name const * g_rat_divide = nullptr;
 name const * g_rat_of_num = nullptr;
+name const * g_rat_of_int = nullptr;
 name const * g_real = nullptr;
+name const * g_real_is_int = nullptr;
+name const * g_real_of_rat = nullptr;
+name const * g_real_of_int = nullptr;
+name const * g_real_to_int = nullptr;
 name const * g_rfl = nullptr;
 name const * g_right_distrib = nullptr;
 name const * g_ring = nullptr;
@@ -261,6 +270,7 @@ name const * g_zero_le_one = nullptr;
 name const * g_zero_lt_one = nullptr;
 name const * g_zero_mul = nullptr;
 void initialize_constants() {
+    g_abs = new name{"abs"};
     g_absurd = new name{"absurd"};
     g_acc_cases_on = new name{"acc", "cases_on"};
     g_add = new name{"add"};
@@ -280,6 +290,7 @@ void initialize_constants() {
     g_bool = new name{"bool"};
     g_bool_ff = new name{"bool", "ff"};
     g_bool_tt = new name{"bool", "tt"};
+    g_bv = new name{"bv"};
     g_cast = new name{"cast"};
     g_cast_eq = new name{"cast_eq"};
     g_cast_heq = new name{"cast_heq"};
@@ -356,6 +367,7 @@ void initialize_constants() {
     g_implies_of_if_pos = new name{"implies_of_if_pos"};
     g_implies_resolve = new name{"implies", "resolve"};
     g_int = new name{"int"};
+    g_int_of_nat = new name{"int", "of_nat"};
     g_IO = new name{"IO"};
     g_is_trunc_is_prop = new name{"is_trunc", "is_prop"};
     g_is_trunc_is_prop_elim = new name{"is_trunc", "is_prop", "elim"};
@@ -373,6 +385,7 @@ void initialize_constants() {
     g_list_nil = new name{"list", "nil"};
     g_list_cons = new name{"list", "cons"};
     g_lt = new name{"lt"};
+    g_mod = new name{"mod"};
     g_monad = new name{"monad"};
     g_monad_map = new name{"monad", "map"};
     g_monad_bind = new name{"monad", "bind"};
@@ -481,7 +494,12 @@ void initialize_constants() {
     g_quot_lift = new name{"quot", "lift"};
     g_rat_divide = new name{"rat", "divide"};
     g_rat_of_num = new name{"rat", "of_num"};
+    g_rat_of_int = new name{"rat", "of_int"};
     g_real = new name{"real"};
+    g_real_is_int = new name{"real", "is_int"};
+    g_real_of_rat = new name{"real", "of_rat"};
+    g_real_of_int = new name{"real", "of_int"};
+    g_real_to_int = new name{"real", "to_int"};
     g_rfl = new name{"rfl"};
     g_right_distrib = new name{"right_distrib"};
     g_ring = new name{"ring"};
@@ -520,6 +538,7 @@ void initialize_constants() {
     g_zero_mul = new name{"zero_mul"};
 }
 void finalize_constants() {
+    delete g_abs;
     delete g_absurd;
     delete g_acc_cases_on;
     delete g_add;
@@ -539,6 +558,7 @@ void finalize_constants() {
     delete g_bool;
     delete g_bool_ff;
     delete g_bool_tt;
+    delete g_bv;
     delete g_cast;
     delete g_cast_eq;
     delete g_cast_heq;
@@ -615,6 +635,7 @@ void finalize_constants() {
     delete g_implies_of_if_pos;
     delete g_implies_resolve;
     delete g_int;
+    delete g_int_of_nat;
     delete g_IO;
     delete g_is_trunc_is_prop;
     delete g_is_trunc_is_prop_elim;
@@ -632,6 +653,7 @@ void finalize_constants() {
     delete g_list_nil;
     delete g_list_cons;
     delete g_lt;
+    delete g_mod;
     delete g_monad;
     delete g_monad_map;
     delete g_monad_bind;
@@ -740,7 +762,12 @@ void finalize_constants() {
     delete g_quot_lift;
     delete g_rat_divide;
     delete g_rat_of_num;
+    delete g_rat_of_int;
     delete g_real;
+    delete g_real_is_int;
+    delete g_real_of_rat;
+    delete g_real_of_int;
+    delete g_real_to_int;
     delete g_rfl;
     delete g_right_distrib;
     delete g_ring;
@@ -778,6 +805,7 @@ void finalize_constants() {
     delete g_zero_lt_one;
     delete g_zero_mul;
 }
+name const & get_abs_name() { return *g_abs; }
 name const & get_absurd_name() { return *g_absurd; }
 name const & get_acc_cases_on_name() { return *g_acc_cases_on; }
 name const & get_add_name() { return *g_add; }
@@ -797,6 +825,7 @@ name const & get_bit1_name() { return *g_bit1; }
 name const & get_bool_name() { return *g_bool; }
 name const & get_bool_ff_name() { return *g_bool_ff; }
 name const & get_bool_tt_name() { return *g_bool_tt; }
+name const & get_bv_name() { return *g_bv; }
 name const & get_cast_name() { return *g_cast; }
 name const & get_cast_eq_name() { return *g_cast_eq; }
 name const & get_cast_heq_name() { return *g_cast_heq; }
@@ -873,6 +902,7 @@ name const & get_implies_of_if_neg_name() { return *g_implies_of_if_neg; }
 name const & get_implies_of_if_pos_name() { return *g_implies_of_if_pos; }
 name const & get_implies_resolve_name() { return *g_implies_resolve; }
 name const & get_int_name() { return *g_int; }
+name const & get_int_of_nat_name() { return *g_int_of_nat; }
 name const & get_IO_name() { return *g_IO; }
 name const & get_is_trunc_is_prop_name() { return *g_is_trunc_is_prop; }
 name const & get_is_trunc_is_prop_elim_name() { return *g_is_trunc_is_prop_elim; }
@@ -890,6 +920,7 @@ name const & get_list_name() { return *g_list; }
 name const & get_list_nil_name() { return *g_list_nil; }
 name const & get_list_cons_name() { return *g_list_cons; }
 name const & get_lt_name() { return *g_lt; }
+name const & get_mod_name() { return *g_mod; }
 name const & get_monad_name() { return *g_monad; }
 name const & get_monad_map_name() { return *g_monad_map; }
 name const & get_monad_bind_name() { return *g_monad_bind; }
@@ -998,7 +1029,12 @@ name const & get_quot_mk_name() { return *g_quot_mk; }
 name const & get_quot_lift_name() { return *g_quot_lift; }
 name const & get_rat_divide_name() { return *g_rat_divide; }
 name const & get_rat_of_num_name() { return *g_rat_of_num; }
+name const & get_rat_of_int_name() { return *g_rat_of_int; }
 name const & get_real_name() { return *g_real; }
+name const & get_real_is_int_name() { return *g_real_is_int; }
+name const & get_real_of_rat_name() { return *g_real_of_rat; }
+name const & get_real_of_int_name() { return *g_real_of_int; }
+name const & get_real_to_int_name() { return *g_real_to_int; }
 name const & get_rfl_name() { return *g_rfl; }
 name const & get_right_distrib_name() { return *g_right_distrib; }
 name const & get_ring_name() { return *g_ring; }

@@ -1,3 +1,4 @@
+abs
 absurd
 acc.cases_on
 add
@@ -17,6 +18,7 @@ bit1
 bool
 bool.ff
 bool.tt
+bv
 cast
 cast_eq
 cast_heq
@@ -93,6 +95,7 @@ implies_of_if_neg
 implies_of_if_pos
 implies.resolve
 int
+int.of_nat
 IO
 is_trunc.is_prop
 is_trunc.is_prop.elim
@@ -110,6 +113,7 @@ list
 list.nil
 list.cons
 lt
+mod
 monad
 monad.map
 monad.bind
@@ -218,7 +222,12 @@ quot.mk
 quot.lift
 rat.divide
 rat.of_num
+rat.of_int
 real
+real.is_int
+real.of_rat
+real.of_int
+real.to_int
 rfl
 right_distrib
 ring
