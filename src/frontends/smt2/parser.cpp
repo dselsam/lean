@@ -16,6 +16,7 @@ Author: Daniel Selsam
 #include "kernel/type_checker.h"
 #include "kernel/expr_maps.h"
 #include "kernel/pos_info_provider.h"
+#include "library/constants.h"
 #include "library/io_state.h"
 #include "library/io_state_stream.h"
 #include "library/local_context.h"
@@ -25,11 +26,10 @@ Author: Daniel Selsam
 namespace lean {
 namespace smt2 {
 
-
 // Theory symbols
 // TODO(dhs): I may not actually do it this way, and instead just have a chain of IF statements.
-static std::unsigned_map<std::string, expr> * g_pure_theory_symbols        = nullptr;
-static std::unsigned_map<std::string, expr> * g_polymorphic_theory_symbols = nullptr;
+static std::unordered_map<std::string, expr> * g_pure_theory_symbols        = nullptr;
+static std::unordered_map<std::string, expr> * g_polymorphic_theory_symbols = nullptr;
 
 // Reserved words
 // (a) General
@@ -94,13 +94,16 @@ private:
     // Util
     std::string const & get_stream_name() const { return m_scanner.get_stream_name(); }
 
-    void throw_parser_exception(char const * msg, pos_info p) {
+    [[ noreturn ]] void throw_parser_exception(char const * msg, pos_info p) {
         throw parser_exception(msg, get_stream_name().c_str(), p.first, p.second);
     }
 
     void throw_parser_exception(std::string const & msg, pos_info p) { throw_parser_exception(msg.c_str(), p); }
     void throw_parser_exception(std::string const & msg) { throw_parser_exception(msg.c_str(), m_scanner.get_pos_info()); }
     void throw_parser_exception(char const * msg) { throw_parser_exception(msg, m_scanner.get_pos_info()); }
+
+    // TODO(dhs): implement!
+    expr elaborate(expr const & e) { return e; }
 
     environment & env() {
         lean_assert(!m_env_stack.empty());
@@ -132,6 +135,17 @@ private:
     expr parse_expr(bool is_sort, char const * context) {
         if (curr_kind() == scanner::token_kind::SYMBOL) {
             symbol sym = curr_symbol();
+            auto it_pure = g_pure_theory_symbols->find(sym);
+            if (it_pure != g_pure_theory_symbols->end()) {
+                next();
+                return it_pure->second;
+            }
+            auto it_poly = g_polymorphic_theory_symbols->find(sym);
+            if (it_poly != g_polymorphic_theory_symbols->end()) {
+                // TODO(dhs): these will need to be elaborated. I do not think we will be able to decide implicit arguments locally
+                next();
+                return it_poly->second;
+            }
             next();
             return mk_constant(is_sort ? mk_sort_name(sym) : name(sym));
         } else if (curr_kind() == scanner::token_kind::LEFT_PAREN) {
@@ -142,6 +156,7 @@ private:
         } else {
             throw_parser_exception((std::string(context) + ", invalid expression").c_str());
         }
+        lean_unreachable();
     }
 
     void parse_exprs(buffer<expr> & es, bool is_sort, char const * context) {
@@ -246,9 +261,9 @@ private:
         buffer<expr> parameter_sorts;
         bool is_sort = true;
         parse_expr_list(parameter_sorts, is_sort, "invalid function declaration");
-        expr ty = parse_expr(is_sort, "invalid function declaration");
+        expr ty = elaborate(parse_expr(is_sort, "invalid function declaration"));
         for (int i = parameter_sorts.size() - 1; i >= 0; ++i) {
-            ty = mk_arrow(parameter_sorts[i], ty);
+            ty = mk_arrow(elaborate(parameter_sorts[i]), ty);
         }
 
         declaration d = mk_axiom(fn_name, list<name>(), ty);
@@ -339,7 +354,7 @@ void initialize_parser() {
             {"true", mk_constant(get_true_name())},
             {"false", mk_constant(get_false_name())},
             {"not", mk_constant(get_not_name())},
-            {"=>", mk_constant(get_imp_name())}, // TODO(dhs): may not exist yet
+            {"=>", mk_constant(get_implies_name())},
             {"and", mk_constant(get_and_name())},
             {"or", mk_constant(get_or_name())},
             {"xor", mk_constant(get_xor_name())},
@@ -351,13 +366,15 @@ void initialize_parser() {
 
              // (c) Arrays
             {"Array", mk_constant(get_array_name())}, // TODO(dhs): may not exist yet
-            {"select", mk_constant(get_select_name())}, // TODO(dhs): may not exist yet
-            {"store", mk_constant(get_store_name())} // TODO(dhs): may not exist yet
+            {"select", mk_constant(get_array_select_name())}, // TODO(dhs): may not exist yet
+            {"store", mk_constant(get_array_store_name())} // TODO(dhs): may not exist yet
         });
 
-    g_parametric_theory_symbols = new std::unordered_map<std::string, expr>({
+    g_polymorphic_theory_symbols = new std::unordered_map<std::string, expr>({
+            // (a) Core
             {"=", mk_constant(get_eq_name())},
 
+            // (b) Arithmetic
             {"+", mk_constant(get_add_name())},
             {"-", mk_constant(get_sub_name())},
             {"*", mk_constant(get_mul_name())},
@@ -370,7 +387,7 @@ void initialize_parser() {
 
 void finalize_parser() {
     delete g_pure_theory_symbols;
-    delete g_parametric_theory_symbols;
+    delete g_polymorphic_theory_symbols;
 }
 
 }}

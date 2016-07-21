@@ -14,6 +14,9 @@ name const * g_and = nullptr;
 name const * g_and_elim_left = nullptr;
 name const * g_and_elim_right = nullptr;
 name const * g_and_intro = nullptr;
+name const * g_array = nullptr;
+name const * g_array_select = nullptr;
+name const * g_array_store = nullptr;
 name const * g_bit0 = nullptr;
 name const * g_bit1 = nullptr;
 name const * g_bool = nullptr;
@@ -61,6 +64,8 @@ name const * g_field = nullptr;
 name const * g_fin = nullptr;
 name const * g_fin_mk = nullptr;
 name const * g_funext = nullptr;
+name const * g_ge = nullptr;
+name const * g_gt = nullptr;
 name const * g_has_add = nullptr;
 name const * g_has_div = nullptr;
 name const * g_has_mul = nullptr;
@@ -91,12 +96,14 @@ name const * g_implies = nullptr;
 name const * g_implies_of_if_neg = nullptr;
 name const * g_implies_of_if_pos = nullptr;
 name const * g_implies_resolve = nullptr;
+name const * g_int = nullptr;
 name const * g_IO = nullptr;
 name const * g_is_trunc_is_prop = nullptr;
 name const * g_is_trunc_is_prop_elim = nullptr;
 name const * g_is_trunc_is_set = nullptr;
 name const * g_ite = nullptr;
 name const * g_left_distrib = nullptr;
+name const * g_le = nullptr;
 name const * g_le_refl = nullptr;
 name const * g_lift = nullptr;
 name const * g_lift_down = nullptr;
@@ -106,6 +113,7 @@ name const * g_linear_ordered_semiring = nullptr;
 name const * g_list = nullptr;
 name const * g_list_nil = nullptr;
 name const * g_list_cons = nullptr;
+name const * g_lt = nullptr;
 name const * g_monad = nullptr;
 name const * g_monad_map = nullptr;
 name const * g_monad_bind = nullptr;
@@ -214,6 +222,7 @@ name const * g_quot_mk = nullptr;
 name const * g_quot_lift = nullptr;
 name const * g_rat_divide = nullptr;
 name const * g_rat_of_num = nullptr;
+name const * g_real = nullptr;
 name const * g_rfl = nullptr;
 name const * g_right_distrib = nullptr;
 name const * g_ring = nullptr;
@@ -245,6 +254,7 @@ name const * g_unit = nullptr;
 name const * g_unit_star = nullptr;
 name const * g_weak_order = nullptr;
 name const * g_well_founded = nullptr;
+name const * g_xor = nullptr;
 name const * g_zero = nullptr;
 name const * g_zero_le_one = nullptr;
 name const * g_zero_lt_one = nullptr;
@@ -261,6 +271,9 @@ void initialize_constants() {
     g_and_elim_left = new name{"and", "elim_left"};
     g_and_elim_right = new name{"and", "elim_right"};
     g_and_intro = new name{"and", "intro"};
+    g_array = new name{"array"};
+    g_array_select = new name{"array", "select"};
+    g_array_store = new name{"array", "store"};
     g_bit0 = new name{"bit0"};
     g_bit1 = new name{"bit1"};
     g_bool = new name{"bool"};
@@ -308,6 +321,8 @@ void initialize_constants() {
     g_fin = new name{"fin"};
     g_fin_mk = new name{"fin", "mk"};
     g_funext = new name{"funext"};
+    g_ge = new name{"ge"};
+    g_gt = new name{"gt"};
     g_has_add = new name{"has_add"};
     g_has_div = new name{"has_div"};
     g_has_mul = new name{"has_mul"};
@@ -338,12 +353,14 @@ void initialize_constants() {
     g_implies_of_if_neg = new name{"implies_of_if_neg"};
     g_implies_of_if_pos = new name{"implies_of_if_pos"};
     g_implies_resolve = new name{"implies", "resolve"};
+    g_int = new name{"int"};
     g_IO = new name{"IO"};
     g_is_trunc_is_prop = new name{"is_trunc", "is_prop"};
     g_is_trunc_is_prop_elim = new name{"is_trunc", "is_prop", "elim"};
     g_is_trunc_is_set = new name{"is_trunc", "is_set"};
     g_ite = new name{"ite"};
     g_left_distrib = new name{"left_distrib"};
+    g_le = new name{"le"};
     g_le_refl = new name{"le", "refl"};
     g_lift = new name{"lift"};
     g_lift_down = new name{"lift", "down"};
@@ -353,6 +370,7 @@ void initialize_constants() {
     g_list = new name{"list"};
     g_list_nil = new name{"list", "nil"};
     g_list_cons = new name{"list", "cons"};
+    g_lt = new name{"lt"};
     g_monad = new name{"monad"};
     g_monad_map = new name{"monad", "map"};
     g_monad_bind = new name{"monad", "bind"};
@@ -461,6 +479,7 @@ void initialize_constants() {
     g_quot_lift = new name{"quot", "lift"};
     g_rat_divide = new name{"rat", "divide"};
     g_rat_of_num = new name{"rat", "of_num"};
+    g_real = new name{"real"};
     g_rfl = new name{"rfl"};
     g_right_distrib = new name{"right_distrib"};
     g_ring = new name{"ring"};
@@ -492,6 +511,7 @@ void initialize_constants() {
     g_unit_star = new name{"unit", "star"};
     g_weak_order = new name{"weak_order"};
     g_well_founded = new name{"well_founded"};
+    g_xor = new name{"xor"};
     g_zero = new name{"zero"};
     g_zero_le_one = new name{"zero_le_one"};
     g_zero_lt_one = new name{"zero_lt_one"};
@@ -509,6 +529,9 @@ void finalize_constants() {
     delete g_and_elim_left;
     delete g_and_elim_right;
     delete g_and_intro;
+    delete g_array;
+    delete g_array_select;
+    delete g_array_store;
     delete g_bit0;
     delete g_bit1;
     delete g_bool;
@@ -556,6 +579,8 @@ void finalize_constants() {
     delete g_fin;
     delete g_fin_mk;
     delete g_funext;
+    delete g_ge;
+    delete g_gt;
     delete g_has_add;
     delete g_has_div;
     delete g_has_mul;
@@ -586,12 +611,14 @@ void finalize_constants() {
     delete g_implies_of_if_neg;
     delete g_implies_of_if_pos;
     delete g_implies_resolve;
+    delete g_int;
     delete g_IO;
     delete g_is_trunc_is_prop;
     delete g_is_trunc_is_prop_elim;
     delete g_is_trunc_is_set;
     delete g_ite;
     delete g_left_distrib;
+    delete g_le;
     delete g_le_refl;
     delete g_lift;
     delete g_lift_down;
@@ -601,6 +628,7 @@ void finalize_constants() {
     delete g_list;
     delete g_list_nil;
     delete g_list_cons;
+    delete g_lt;
     delete g_monad;
     delete g_monad_map;
     delete g_monad_bind;
@@ -709,6 +737,7 @@ void finalize_constants() {
     delete g_quot_lift;
     delete g_rat_divide;
     delete g_rat_of_num;
+    delete g_real;
     delete g_rfl;
     delete g_right_distrib;
     delete g_ring;
@@ -740,6 +769,7 @@ void finalize_constants() {
     delete g_unit_star;
     delete g_weak_order;
     delete g_well_founded;
+    delete g_xor;
     delete g_zero;
     delete g_zero_le_one;
     delete g_zero_lt_one;
@@ -756,6 +786,9 @@ name const & get_and_name() { return *g_and; }
 name const & get_and_elim_left_name() { return *g_and_elim_left; }
 name const & get_and_elim_right_name() { return *g_and_elim_right; }
 name const & get_and_intro_name() { return *g_and_intro; }
+name const & get_array_name() { return *g_array; }
+name const & get_array_select_name() { return *g_array_select; }
+name const & get_array_store_name() { return *g_array_store; }
 name const & get_bit0_name() { return *g_bit0; }
 name const & get_bit1_name() { return *g_bit1; }
 name const & get_bool_name() { return *g_bool; }
@@ -803,6 +836,8 @@ name const & get_field_name() { return *g_field; }
 name const & get_fin_name() { return *g_fin; }
 name const & get_fin_mk_name() { return *g_fin_mk; }
 name const & get_funext_name() { return *g_funext; }
+name const & get_ge_name() { return *g_ge; }
+name const & get_gt_name() { return *g_gt; }
 name const & get_has_add_name() { return *g_has_add; }
 name const & get_has_div_name() { return *g_has_div; }
 name const & get_has_mul_name() { return *g_has_mul; }
@@ -833,12 +868,14 @@ name const & get_implies_name() { return *g_implies; }
 name const & get_implies_of_if_neg_name() { return *g_implies_of_if_neg; }
 name const & get_implies_of_if_pos_name() { return *g_implies_of_if_pos; }
 name const & get_implies_resolve_name() { return *g_implies_resolve; }
+name const & get_int_name() { return *g_int; }
 name const & get_IO_name() { return *g_IO; }
 name const & get_is_trunc_is_prop_name() { return *g_is_trunc_is_prop; }
 name const & get_is_trunc_is_prop_elim_name() { return *g_is_trunc_is_prop_elim; }
 name const & get_is_trunc_is_set_name() { return *g_is_trunc_is_set; }
 name const & get_ite_name() { return *g_ite; }
 name const & get_left_distrib_name() { return *g_left_distrib; }
+name const & get_le_name() { return *g_le; }
 name const & get_le_refl_name() { return *g_le_refl; }
 name const & get_lift_name() { return *g_lift; }
 name const & get_lift_down_name() { return *g_lift_down; }
@@ -848,6 +885,7 @@ name const & get_linear_ordered_semiring_name() { return *g_linear_ordered_semir
 name const & get_list_name() { return *g_list; }
 name const & get_list_nil_name() { return *g_list_nil; }
 name const & get_list_cons_name() { return *g_list_cons; }
+name const & get_lt_name() { return *g_lt; }
 name const & get_monad_name() { return *g_monad; }
 name const & get_monad_map_name() { return *g_monad_map; }
 name const & get_monad_bind_name() { return *g_monad_bind; }
@@ -956,6 +994,7 @@ name const & get_quot_mk_name() { return *g_quot_mk; }
 name const & get_quot_lift_name() { return *g_quot_lift; }
 name const & get_rat_divide_name() { return *g_rat_divide; }
 name const & get_rat_of_num_name() { return *g_rat_of_num; }
+name const & get_real_name() { return *g_real; }
 name const & get_rfl_name() { return *g_rfl; }
 name const & get_right_distrib_name() { return *g_right_distrib; }
 name const & get_ring_name() { return *g_ring; }
@@ -987,6 +1026,7 @@ name const & get_unit_name() { return *g_unit; }
 name const & get_unit_star_name() { return *g_unit_star; }
 name const & get_weak_order_name() { return *g_weak_order; }
 name const & get_well_founded_name() { return *g_well_founded; }
+name const & get_xor_name() { return *g_xor; }
 name const & get_zero_name() { return *g_zero; }
 name const & get_zero_le_one_name() { return *g_zero_le_one; }
 name const & get_zero_lt_one_name() { return *g_zero_lt_one; }

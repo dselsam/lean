@@ -9,6 +9,9 @@ and
 and.elim_left
 and.elim_right
 and.intro
+array
+array.select
+array.store
 bit0
 bit1
 bool
@@ -56,6 +59,8 @@ field
 fin
 fin.mk
 funext
+ge
+gt
 has_add
 has_div
 has_mul
@@ -86,12 +91,14 @@ implies
 implies_of_if_neg
 implies_of_if_pos
 implies.resolve
+int
 IO
 is_trunc.is_prop
 is_trunc.is_prop.elim
 is_trunc.is_set
 ite
 left_distrib
+le
 le.refl
 lift
 lift.down
@@ -101,6 +108,7 @@ linear_ordered_semiring
 list
 list.nil
 list.cons
+lt
 monad
 monad.map
 monad.bind
@@ -209,6 +217,7 @@ quot.mk
 quot.lift
 rat.divide
 rat.of_num
+real
 rfl
 right_distrib
 ring
@@ -240,6 +249,7 @@ unit
 unit.star
 weak_order
 well_founded
+xor
 zero
 zero_le_one
 zero_lt_one
