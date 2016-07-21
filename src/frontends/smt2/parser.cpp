@@ -12,6 +12,8 @@ Author: Daniel Selsam
 #include "util/name_map.h"
 #include "util/exception.h"
 #include "kernel/environment.h"
+#include "kernel/declaration.h"
+#include "kernel/type_checker.h"
 #include "kernel/expr_maps.h"
 #include "kernel/pos_info_provider.h"
 #include "library/io_state.h"
@@ -69,7 +71,7 @@ static char const * g_token_set_option            = "set-option";
 // TODO(dhs): we need to create a unique name here
 // Note: the issue is that sort names in a different namespace than term names
 static char const * g_sort_name_prefix            = "#sort";
-static name mk_sort_name(symbol const & s) { return name({g_sort_name_prefix, s}); }
+static name mk_sort_name(symbol const & s) { return name({g_sort_name_prefix, s.c_str()}); }
 
 // Parser class
 class parser {
@@ -86,16 +88,18 @@ private:
     // Util
     std::string const & get_stream_name() const { return m_scanner.get_stream_name(); }
 
-    void throw_parser_exception(char const * msg, pos_info p = pos_info()) {
+    void throw_parser_exception(char const * msg, pos_info p) {
         throw parser_exception(msg, get_stream_name().c_str(), p.first, p.second);
     }
 
-    environment const & env() const {
+    void throw_parser_exception(std::string const & msg, pos_info p) { throw_parser_exception(msg.c_str(), p); }
+    void throw_parser_exception(std::string const & msg) { throw_parser_exception(msg.c_str(), m_scanner.get_pos_info()); }
+    void throw_parser_exception(char const * msg) { throw_parser_exception(msg, m_scanner.get_pos_info()); }
+
+    environment & env() {
         lean_assert(!m_env_stack.empty());
         return m_env_stack.top();
     }
-
-    void print_success() { m_ios.get_regular_stream() << "success\n"; }
 
     scanner::token_kind curr_kind() const { return m_curr_kind; }
     std::string const & curr_string() const { return m_scanner.get_str_val(); }
@@ -116,6 +120,38 @@ private:
     void check_curr_kind(scanner::token_kind kind, char const * msg, pos_info p = pos_info()) {
         if (curr_kind() != kind)
             throw_parser_exception(msg, p);
+    }
+
+    // Parser helpers
+    expr parse_expr(bool is_sort, char const * context) {
+        if (curr_kind() == scanner::token_kind::SYMBOL) {
+            symbol sym = curr_symbol();
+            next();
+            return mk_constant(is_sort ? mk_sort_name(sym) : name(sym));
+        } else if (curr_kind() == scanner::token_kind::LEFT_PAREN) {
+            next();
+            buffer<expr> args;
+            parse_exprs(args, is_sort, context);
+            return mk_app(args);
+        } else {
+            throw_parser_exception((std::string(context) + ", invalid expression").c_str());
+        }
+    }
+
+    void parse_exprs(buffer<expr> & es, bool is_sort, char const * context) {
+        while (curr_kind() != scanner::token_kind::RIGHT_PAREN) {
+            es.push_back(parse_expr(is_sort, context));
+        }
+        if (es.empty()) {
+            throw_parser_exception(std::string(context) + ", () not a legal expression");
+        }
+        next();
+    }
+
+    void parse_expr_list(buffer<expr> & es, bool is_sort, char const * context) {
+        check_curr_kind(scanner::token_kind::LEFT_PAREN, context);
+        next();
+        parse_exprs(es, is_sort, context);
     }
 
     // Outer loop
@@ -192,7 +228,28 @@ private:
     void parse_check_sat() { throw_parser_exception("check-sat not yet supported"); }
     void parse_check_sat_assuming() { throw_parser_exception("check-sat-assuming not yet supported"); }
     void parse_declare_const() { throw_parser_exception("declare-const not yet supported"); }
-    void parse_declare_fun() { throw_parser_exception("declare-fun not yet supported"); }
+
+    void parse_declare_fun() {
+        lean_assert(curr_kind() == scanner::token_kind::SYMBOL);
+        lean_assert(curr_symbol() == g_token_declare_fun);
+        next();
+        check_curr_kind(scanner::token_kind::SYMBOL, "invalid function declaration, symbol expected");
+        name fn_name = name(curr_symbol());
+        next();
+
+        buffer<expr> parameter_sorts;
+        bool is_sort = true;
+        parse_expr_list(parameter_sorts, is_sort, "invalid function declaration");
+        expr ty = parse_expr(is_sort, "invalid function declaration");
+        for (int i = parameter_sorts.size() - 1; i >= 0; ++i) {
+            ty = mk_arrow(parameter_sorts[i], ty);
+        }
+
+        declaration d = mk_axiom(fn_name, list<name>(), ty);
+        env().add(check(env(), d));
+        check_curr_kind(scanner::token_kind::RIGHT_PAREN, "invalid function declaration, ')' expected");
+        next();
+    }
 
     void parse_declare_sort() {
         lean_assert(curr_kind() == scanner::token_kind::SYMBOL);
@@ -205,19 +262,28 @@ private:
             throw_parser_exception("invalid sort declaration, sort already declared/defined");
         }
         next();
-        // Note: the official standard requires the arity
-        // We may need to relax this restriction
-        check_curr_kind(scanner::token_kind::INT, "invalid sort declaration, arity (<numeral>) expected");
-        mpq arity = curr_numeral();
-        // TODO(dhs): the standard does not put a limit on the arity, but a parametric sort that takes more than ten-thousand arguments is absurd
-        // (arbitrary)
-        if (arity > 10000) {
-            throw_parser_exception("invalid sort declaration, arities greater than 10,000 not supported");
+        // Note: the official standard requires the arity, but it seems to be convention to have no arity mean 0
+        mpq arity;
+        if (curr_kind() == scanner::token_kind::RIGHT_PAREN) {
+            // no arity means 0
+        } else {
+            check_curr_kind(scanner::token_kind::INT, "invalid sort declaration, arity (<numeral>) expected");
+            arity = curr_numeral();
+            // TODO(dhs): the standard does not put a limit on the arity, but a parametric sort that takes more than ten-thousand arguments is absurd
+            // (arbitrary)
+            if (arity > 10000) {
+                throw_parser_exception("invalid sort declaration, arities greater than 10,000 not supported");
+            }
+            next();
         }
-        register_sort(sort_name, arity);
-        next();
+
+        expr ty = mk_Type();
+        for (unsigned i = 0; i < arity; ++i) {
+            ty = mk_arrow(mk_Type(), ty);
+        }
+        declaration d = mk_axiom(sort_name, list<name>(), ty);
+        env().add(check(env(), d));
         check_curr_kind(scanner::token_kind::RIGHT_PAREN, "invalid sort declaration, ')' expected");
-        print_success();
         next();
     }
 
