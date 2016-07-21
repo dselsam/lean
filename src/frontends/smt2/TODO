@@ -1,0 +1,3 @@
+1. Sorts and expressions are supposed to have distinct namespaces. Prepend all sort-names with a special prefix, e.g. <unique_id>.<sort-name>?
+2. (* <real> (+ 5 7)) -- we cannon elaborate (+ 5 7) locally.
+3. exception handling -- do I need to recover after scanner errors? what about parser errors?
