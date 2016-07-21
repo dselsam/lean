@@ -25,6 +25,12 @@ Author: Daniel Selsam
 namespace lean {
 namespace smt2 {
 
+
+// Theory symbols
+// TODO(dhs): I may not actually do it this way, and instead just have a chain of IF statements.
+static std::unsigned_map<std::string, expr> * g_pure_theory_symbols        = nullptr;
+static std::unsigned_map<std::string, expr> * g_polymorphic_theory_symbols = nullptr;
+
 // Reserved words
 // (a) General
 static char const * g_token_as          = "as";
@@ -47,7 +53,7 @@ static char const * g_token_declare_fun           = "declare-fun";
 static char const * g_token_declare_sort          = "declare-sort";
 static char const * g_token_define_fun            = "define-fun";
 static char const * g_token_define_fun_rec        = "define-fun-rec";
-static char const * g_token_define_funs_rec        = "define-fun-rec";
+static char const * g_token_define_funs_rec       = "define-fun-rec";
 static char const * g_token_define_sort           = "define-sort";
 static char const * g_token_echo                  = "echo";
 static char const * g_token_exit                  = "exit";
@@ -326,7 +332,45 @@ bool parse_commands(environment & env, io_state & ios, std::istream & strm, char
     return p();
 }
 
-void initialize_parser() {}
-void finalize_parser() {}
+void initialize_parser() {
+    g_pure_theory_symbols = new std::unordered_map<std::string, expr>({
+            // (a) Core
+            {"Bool", mk_Prop()},
+            {"true", mk_constant(get_true_name())},
+            {"false", mk_constant(get_false_name())},
+            {"not", mk_constant(get_not_name())},
+            {"=>", mk_constant(get_imp_name())}, // TODO(dhs): may not exist yet
+            {"and", mk_constant(get_and_name())},
+            {"or", mk_constant(get_or_name())},
+            {"xor", mk_constant(get_xor_name())},
+
+            // (b) Arithmetic
+            {"Int", mk_constant(get_int_name())},
+            {"Real", mk_constant(get_real_name())},
+            {"/", mk_constant(get_div_name())},
+
+             // (c) Arrays
+            {"Array", mk_constant(get_array_name())}, // TODO(dhs): may not exist yet
+            {"select", mk_constant(get_select_name())}, // TODO(dhs): may not exist yet
+            {"store", mk_constant(get_store_name())} // TODO(dhs): may not exist yet
+        });
+
+    g_parametric_theory_symbols = new std::unordered_map<std::string, expr>({
+            {"=", mk_constant(get_eq_name())},
+
+            {"+", mk_constant(get_add_name())},
+            {"-", mk_constant(get_sub_name())},
+            {"*", mk_constant(get_mul_name())},
+            {"<", mk_constant(get_lt_name())},
+            {"<=", mk_constant(get_le_name())},
+            {">", mk_constant(get_gt_name())},
+            {">=", mk_constant(get_ge_name())}
+        });
+}
+
+void finalize_parser() {
+    delete g_pure_theory_symbols;
+    delete g_parametric_theory_symbols;
+}
 
 }}
