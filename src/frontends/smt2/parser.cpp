@@ -371,7 +371,20 @@ private:
     void parse_assert() { throw_parser_exception("assert not yet supported"); }
     void parse_check_sat() { throw_parser_exception("check-sat not yet supported"); }
     void parse_check_sat_assuming() { throw_parser_exception("check-sat-assuming not yet supported"); }
-    void parse_declare_const() { throw_parser_exception("declare-const not yet supported"); }
+    void parse_declare_const() {
+        lean_assert(curr_kind() == scanner::token_kind::SYMBOL);
+        lean_assert(curr_symbol() == g_token_declare_const);
+        next();
+        check_curr_kind(scanner::token_kind::SYMBOL, "invalid constant declaration, symbol expected");
+        name fn_name = name(curr_symbol());
+        next();
+        bool is_sort = true;
+        expr ty = parse_expr(is_sort, "invalid constant declaration");
+        declaration d = mk_axiom(fn_name, list<name>(), ty);
+        env().add(check(env(), d));
+        check_curr_kind(scanner::token_kind::RIGHT_PAREN, "invalid constant declaration, ')' expected");
+        next();
+    }
 
     void parse_declare_fun() {
         lean_assert(curr_kind() == scanner::token_kind::SYMBOL);
