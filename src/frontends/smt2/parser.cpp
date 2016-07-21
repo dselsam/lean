@@ -20,6 +20,7 @@ Author: Daniel Selsam
 #include "library/io_state.h"
 #include "library/io_state_stream.h"
 #include "library/local_context.h"
+#include "library/mpq_macro.h"
 #include "frontends/smt2/scanner.h"
 #include "frontends/smt2/parser.h"
 
