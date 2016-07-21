@@ -14,3 +14,12 @@
 4. Need to handle the function attributes, such as left-assoc, chainable, pairwise
 -- What does Z3 do with all of these? It never seems to check for the attributes, although it does expand
 -- `distinct` during internalization. Needs more investigation.
+
+5. `-` can be neg or seb
+-- We can resolve this during local elaboration of a single application, depending on the number of args-
+
+6. Dependent types and dependent functions
+-- sorts: (_ BitVec m)
+-- functions: (_ extract i j)
+-- For sorts: we can first check the first operator symbol, and see if it is "_". If it is, we do something special.
+-- For functions: we can first check the first operator symbol, and see if it is "_". If it is, we do something special.

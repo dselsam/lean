@@ -70,6 +70,7 @@ static optional<fun_decl> is_theory_function_symbol(std::string const & sym) {
 }
 
 static name * g_name_minus;
+static char const * g_symbol_dependent_type = "_";
 
 // Reserved words
 // (a) General
@@ -200,8 +201,13 @@ private:
         } else if (curr_kind() == scanner::token_kind::LEFT_PAREN) {
             next();
             buffer<expr> args;
-            parse_sorts(args, context);
-            return mk_app(args);
+            if (curr_kind() == scanner::token_Kind::SYMBOL && curr_symbol() == g_symbol_dependent_type) {
+                next();
+                parse_and_elaborate_dependent_sort(args);
+            } else {
+                parse_sorts(args, context);
+                return mk_app(args);
+            }
         } else {
             throw_parser_exception((std::string(context) + ", invalid sort").c_str());
         }
@@ -435,7 +441,7 @@ void initialize_parser() {
             {"Bool", mk_Prop()},
             {"Int", mk_constant(get_int_name())},
             {"Real", mk_constant(get_real_name())},
-            {"Array", mk_constant(get_array_name())}, // TODO(dhs): may not exist yet
+            {"Array", mk_constant(get_array_name())},
                 });
 
     g_theory_constant_symbols = new std::unordered_map<std::string, expr>({
@@ -457,13 +463,13 @@ void initialize_parser() {
             {"mod", fun_decl(mk_constant(get_mod_name()), fun_attr::DEFAULT)},
             {"abs", fun_decl(mk_constant(get_abs_name()), fun_attr::DEFAULT)},
             {"/", fun_decl(mk_constant(get_div_name()), fun_attr::LEFT_ASSOC)},
-            {"to_real", fun_decl(mk_constant(get_to_real_name())},
-            {"to_int", fun_decl(mk_constant(get_to_int_name())},
-            {"is_int", fun_decl(mk_constant(get_is_int_name())},
+            {"to_real", fun_decl(mk_constant(get_to_real_name()), fun_attr::DEFAULT)},
+            {"to_int", fun_decl(mk_constant(get_to_int_name()), fun_attr::DEFAULT)},
+            {"is_int", fun_decl(mk_constant(get_is_int_name()), fun_attr::DEFAULT)},
 
              // (c) Arrays
-            {"select", fun_decl(mk_constant(get_array_select_name())}, // TODO(dhs): may not exist yet
-            {"store", fun_decl(mk_constant(get_array_store_name())} // TODO(dhs): may not exist yet
+            {"select", fun_decl(mk_constant(get_array_select_name()), fun_attr::DEFAULT)}, // TODO(dhs): may not exist yet
+            {"store", fun_decl(mk_constant(get_array_store_name()), fun_attr::DEFAULT)}, // TODO(dhs): may not exist yet
 
             // II. Polymorphic
             // (a) Core
@@ -473,12 +479,12 @@ void initialize_parser() {
 
             // (b) Arithmetic
             {"+", fun_decl(mk_constant(get_add_name()), fun_attr::LEFT_ASSOC)},
-            {"-", fun_decl(mk_constant(get_sub_name()), fun_attr::LEFT_ASSOC)},
+            {"-", fun_decl(mk_constant(get_sub_name()), fun_attr::LEFT_ASSOC)}, // note: if 1 arg, then neg instead
             {"*", fun_decl(mk_constant(get_mul_name()), fun_attr::LEFT_ASSOC)},
-            {"<", fun_decl(mk_constant(get_lt_name())},
-            {"<=", fun_decl(mk_constant(get_le_name())},
-            {">", fun_decl(mk_constant(get_gt_name())},
-            {">=", fun_decl(mk_constant(get_ge_name())}
+            {"<", fun_decl(mk_constant(get_lt_name())}, fun_attr::CHAINABLE)},
+            {"<=", fun_decl(mk_constant(get_le_name()), fun_attr::CHAINABLE)},
+            {">", fun_decl(mk_constant(get_gt_name()), fun_attr::CHAINABLE)},
+            {">=", fun_decl(mk_constant(get_ge_name()), fun_attr::CHAINABLE)}
         });
 }
 
