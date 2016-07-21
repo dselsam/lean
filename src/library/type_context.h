@@ -550,6 +550,22 @@ public:
     type_context_cache & get_cache_for(environment const & env, options const & o);
 };
 
+class type_context_from_abstract {
+    aux_type_context m_aux_tctx;
+    type_context &   m_tctx;
+
+    type_context_from_abstract(abstract_type_context & abs_tctx) {
+        if (type_context & tctx = dynamic_cast<type_context &>(abs_tctx)) {
+            m_tctx = tctx;
+        } else {
+
+
+        }
+    }
+
+
+};
+
 void initialize_type_context();
 void finalize_type_context();
 }
