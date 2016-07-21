@@ -48,12 +48,8 @@ bool scanner::is_next_digit() {
 }
 
 // Constructor
-scanner::scanner(std::istream & strm, char const * strm_name, unsigned line): m_stream(strm) {
+scanner::scanner(std::istream & strm, char const * strm_name): m_stream(strm) {
     m_stream_name = strm_name ? strm_name : "[unknown]";
-    m_cline = line;
-    m_cpos  = 0;
-    m_tline  = line;
-    m_tpos  = 0;
     if (std::getline(m_stream, m_curr_line)) {
         m_last_line = false;
         m_curr_line.push_back('\n');
