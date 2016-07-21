@@ -1,3 +1,16 @@
 1. Sorts and expressions are supposed to have distinct namespaces. Prepend all sort-names with a special prefix, e.g. <unique_id>.<sort-name>?
+-- Theory symbols will be the real names we use in Lean
+-- User-sort symbols will be in <unique1>.name
+-- User-fun symbols will be in <unique2>.name
+
 2. (* <real> (+ 5 7)) -- we cannon elaborate (+ 5 7) locally.
+-- We actually can, since it doesn't matter where we put the coercions. The arith_normalizer will push the coercions in.
+-- We could either do the "collect-the-nary-leaves-of-the-same-type" trick as the new elaborator,
+-- or else the local elaboration process can just do this trick locally (and n-ary).
+
 3. exception handling -- do I need to recover after scanner errors? what about parser errors?
+-- Come on, neither of these is that hard.
+
+4. Need to handle the function attributes, such as left-assoc, chainable, pairwise
+-- What does Z3 do with all of these? It never seems to check for the attributes, although it does expand
+-- `distinct` during internalization. Needs more investigation.
