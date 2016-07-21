@@ -482,7 +482,7 @@ void initialize_parser() {
             {"false", mk_constant(get_false_name())},
                 });
 
-    g_theory_function_symbols = new std::unordered_map<std::string, expr>({
+    g_theory_function_symbols = new std::unordered_map<std::string, fun_decl>({
             // Sorts
             {"BitVec", fun_decl(mk_constant(get_bv_name()), fun_attr::DEFAULT)},
 
