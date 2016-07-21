@@ -66,6 +66,10 @@ static char const * g_token_set_info              = "set-info";
 static char const * g_token_set_logic             = "set-logic";
 static char const * g_token_set_option            = "set-option";
 
+// TODO(dhs): we need to create a unique name here
+// Note: the issue is that sort names in a different namespace than term names
+static char const * g_sort_name_prefix            = "#sort";
+static name mk_sort_name(symbol const & s) { return name({g_sort_name_prefix, s}); }
 
 // Parser class
 class parser {
@@ -91,7 +95,12 @@ private:
         return m_env_stack.top();
     }
 
+    void print_success() { m_ios.get_regular_stream() << "success\n"; }
+
     scanner::token_kind curr_kind() const { return m_curr_kind; }
+    std::string const & curr_string() const { return m_scanner.get_str_val(); }
+    symbol const & curr_symbol() const { return m_scanner.get_symbol_val(); }
+    mpq const & curr_numeral() const { return m_scanner.get_num_val(); }
 
     void scan() {
         switch (curr_kind()) {
@@ -184,7 +193,34 @@ private:
     void parse_check_sat_assuming() { throw_parser_exception("check-sat-assuming not yet supported"); }
     void parse_declare_const() { throw_parser_exception("declare-const not yet supported"); }
     void parse_declare_fun() { throw_parser_exception("declare-fun not yet supported"); }
-    void parse_declare_sort() { throw_parser_exception("declare-sort not yet supported"); }
+
+    void parse_declare_sort() {
+        lean_assert(curr_kind() == scanner::token_kind::SYMBOL);
+        lean_assert(curr_symbol() == g_token_declare_sort);
+        next();
+
+        check_curr_kind(scanner::token_kind::SYMBOL, "invalid sort declaration, symbol expected");
+        name sort_name = mk_sort_name(curr_symbol());
+        if (env().find(sort_name)) {
+            throw_parser_exception("invalid sort declaration, sort already declared/defined");
+        }
+        next();
+        // Note: the official standard requires the arity
+        // We may need to relax this restriction
+        check_curr_kind(scanner::token_kind::INT, "invalid sort declaration, arity (<numeral>) expected");
+        mpq arity = curr_numeral();
+        // TODO(dhs): the standard does not put a limit on the arity, but a parametric sort that takes more than ten-thousand arguments is absurd
+        // (arbitrary)
+        if (arity > 10000) {
+            throw_parser_exception("invalid sort declaration, arities greater than 10,000 not supported");
+        }
+        register_sort(sort_name, arity);
+        next();
+        check_curr_kind(scanner::token_kind::RIGHT_PAREN, "invalid sort declaration, ')' expected");
+        print_success();
+        next();
+    }
+
     void parse_define_fun() { throw_parser_exception("define-fun not yet supported"); }
     void parse_define_fun_rec() { throw_parser_exception("define-fun-rec not yet supported"); }
     void parse_define_funs_rec() { throw_parser_exception("define-funs-rec not yet supported"); }

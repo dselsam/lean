@@ -16,6 +16,8 @@ Author: Daniel Selsam
 namespace lean {
 namespace smt2 {
 
+typedef std::string symbol;
+
 class scanner {
 public:
     enum class token_kind { BEGIN, END, LEFT_PAREN, RIGHT_PAREN, KEYWORD, SYMBOL, STRING, INT, FLOAT, BV };
@@ -72,6 +74,7 @@ public:
     mpq const & get_num_val() const { return m_num_val; }
     name const & get_name_val() const { return m_name_val; }
     std::string const & get_str_val() const { return m_str_val; }
+    symbol const & get_symbol_val() const { return m_str_val; }
     token_kind const & get_token_kind() const { return m_token_kind; }
 
     std::string const & get_stream_name() const { return m_stream_name; }
