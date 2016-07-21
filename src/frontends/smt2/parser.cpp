@@ -26,10 +26,22 @@ Author: Daniel Selsam
 namespace lean {
 namespace smt2 {
 
+enum class fun_attr = { DEFAULT, CHAINABLE, LEFT_ASSOC, RIGHT_ASSOC, PAIRWISE };
+
+struct fun_decl {
+    expr     m_e;
+    fun_attr m_fun_attr;
+    fun_decl(expr const & e, fun_attr fattr): m_e(e), m_fun_attr(fattr) {}
+    expr const & get_expr() const { return m_e; }
+    fun_attr get_fun_attr() const { return m_fun_attr; }
+};
+
+
 // Theory symbols
 // TODO(dhs): I may not actually do it this way, and instead just have a chain of IF statements.
-static std::unordered_map<std::string, expr> * g_pure_theory_symbols        = nullptr;
-static std::unordered_map<std::string, expr> * g_polymorphic_theory_symbols = nullptr;
+static std::unordered_map<std::string, expr> *     g_theory_sort_symbols        = nullptr;
+static std::unordered_map<std::string, fun_decl> * g_pure_theory_symbols        = nullptr;
+static std::unordered_map<std::string, fun_decl> * g_polymorphic_theory_symbols = nullptr;
 
 // Reserved words
 // (a) General
@@ -132,36 +144,64 @@ private:
     }
 
     // Parser helpers
-    expr parse_expr(bool is_sort, char const * context) {
+    // Parsing sorts
+    expr parse_sort(char const * context) {
         if (curr_kind() == scanner::token_kind::SYMBOL) {
             symbol sym = curr_symbol();
-            auto it_pure = g_pure_theory_symbols->find(sym);
-            if (it_pure != g_pure_theory_symbols->end()) {
+            auto it = g_theory_sort_symbols->find(sym);
+            if (it != g_theory_sort_symbols->end()) {
                 next();
-                return it_pure->second;
-            }
-            auto it_poly = g_polymorphic_theory_symbols->find(sym);
-            if (it_poly != g_polymorphic_theory_symbols->end()) {
-                // TODO(dhs): these will need to be elaborated. I do not think we will be able to decide implicit arguments locally
-                next();
-                return it_poly->second;
+                return it->second;
             }
             next();
-            return mk_constant(is_sort ? mk_sort_name(sym) : name(sym));
+            return mk_constant(mk_sort_name(sym));
+        } else if (curr_kind() == scanner::token_kind::LEFT_PAREN) {
+            next();
+            buffer<sort> args;
+            parse_exprs(args, is_sort, context);
+            return mk_app(args);
+        } else {
+            throw_parser_exception((std::string(context) + ", invalid sort").c_str());
+        }
+        lean_unreachable();
+    }
+
+    void parse_sorts(buffer<expr> & es, char const * context) { parse_exprs_or_sorts(es, true, context); }
+    void parse_sort_list(buffer<expr> & es, char const * context) { parse_expr_or_sort_list(es, true, context); }
+
+    // Parsing exprs
+    expr parse_expr(char const * context) {
+        if (curr_kind() == scanner::token_kind::SYMBOL) {
+            // We cannot resolve all function symbols yet because of `-`, which can be either unary-minus or subtraction.
+            // We also cannot resolve the implicit arguments for polymorphic functions such as `+`.
+            // Luckily, `-` is polymorphic, so we simply resolve all non-polymorphic functions now, and then
+            // resolve all polymorphic constants when we elaborate the application.
+            // Note: there are no polymorphic constants, so we do not need to elaborate non-applications.
+            symbol sym = curr_symbol();
+            auto it = g_pure_theory_symbols->find(sym);
+            if (it != g_pure_theory_symbols->end()) {
+                next();
+                return it->second;
+            }
+            next();
+            return mk_constant(name(sym));
         } else if (curr_kind() == scanner::token_kind::LEFT_PAREN) {
             next();
             buffer<expr> args;
-            parse_exprs(args, is_sort, context);
-            return mk_app(args);
+            parse_exprs(args, context);
+            return elaborate_app(mk_app(args));
         } else {
             throw_parser_exception((std::string(context) + ", invalid expression").c_str());
         }
         lean_unreachable();
     }
 
-    void parse_exprs(buffer<expr> & es, bool is_sort, char const * context) {
+    void parse_exprs(buffer<expr> & es, char const * context) { parse_exprs_or_sorts(es, false, context); }
+    void parse_expr_list(buffer<expr> & es, char const * context) { parse_expr_or_sort_list(es, false, context); }
+
+    void parse_exprs_or_sorts(buffer<expr> & es, bool is_sort, char const * context) {
         while (curr_kind() != scanner::token_kind::RIGHT_PAREN) {
-            es.push_back(parse_expr(is_sort, context));
+            es.push_back(is_sort ? parse_sort(context) : parse_expr(context));
         }
         if (es.empty()) {
             throw_parser_exception(std::string(context) + ", () not a legal expression");
@@ -169,11 +209,14 @@ private:
         next();
     }
 
-    void parse_expr_list(buffer<expr> & es, bool is_sort, char const * context) {
+    void parse_expr_or_sort_list(buffer<expr> & es, bool is_sort, char const * context) {
         check_curr_kind(scanner::token_kind::LEFT_PAREN, context);
         next();
-        parse_exprs(es, is_sort, context);
+        parse_exprs_or_sorts(es, is_sort, context);
     }
+
+
+
 
     // Outer loop
     bool parse_commands() {
@@ -348,46 +391,58 @@ bool parse_commands(environment & env, io_state & ios, std::istream & strm, char
 }
 
 void initialize_parser() {
-    g_pure_theory_symbols = new std::unordered_map<std::string, expr>({
-            // (a) Core
+    g_theory_sort_symbols = new std::unordered_map<std::string, expr>({
             {"Bool", mk_Prop()},
-            {"true", mk_constant(get_true_name())},
-            {"false", mk_constant(get_false_name())},
-            {"not", mk_constant(get_not_name())},
-            {"=>", mk_constant(get_implies_name())},
-            {"and", mk_constant(get_and_name())},
-            {"or", mk_constant(get_or_name())},
-            {"xor", mk_constant(get_xor_name())},
-
-            // (b) Arithmetic
             {"Int", mk_constant(get_int_name())},
             {"Real", mk_constant(get_real_name())},
-            {"/", mk_constant(get_div_name())},
+            {"Array", mk_constant(get_array_name())}, // TODO(dhs): may not exist yet
+                });
+
+    g_pure_theory_symbols = new std::unordered_map<std::string, expr>({
+            // (a) Core
+            {"true", fun_decl(mk_constant(get_true_name()), fun_attr::DEFAULT)},
+            {"false", fun_decl(mk_constant(get_false_name()), fun_attr::DEFAULT)},
+            {"not", fun_decl(mk_constant(get_not_name()), fun_attr::DEFAULT)},
+            {"=>", fun_decl(mk_constant(get_implies_name())},
+            {"and", fun_decl(mk_constant(get_and_name())},
+            {"or", fun_decl(mk_constant(get_or_name())},
+            {"xor", fun_decl(mk_constant(get_xor_name())},
+
+            // (b) Arithmetic
+            {"div", fun_decl(mk_constant(get_div_name())},
+            {"mod", fun_decl(mk_constant(get_mod_name()), fun_attr::DEFAULT)},
+            {"abs", fun_decl(mk_constant(get_abs_name()), fun_attr::DEFAULT)},
+            {"/", fun_decl(mk_constant(get_div_name())},
+            {"to_real", fun_decl(mk_constant(get_to_real_name())},
+            {"to_int", fun_decl(mk_constant(get_to_int_name())},
+            {"is_int", fun_decl(mk_constant(get_is_int_name())},
 
              // (c) Arrays
-            {"Array", mk_constant(get_array_name())}, // TODO(dhs): may not exist yet
-            {"select", mk_constant(get_array_select_name())}, // TODO(dhs): may not exist yet
-            {"store", mk_constant(get_array_store_name())} // TODO(dhs): may not exist yet
+            {"select", fun_decl(mk_constant(get_array_select_name())}, // TODO(dhs): may not exist yet
+            {"store", fun_decl(mk_constant(get_array_store_name())} // TODO(dhs): may not exist yet
         });
 
     g_polymorphic_theory_symbols = new std::unordered_map<std::string, expr>({
             // (a) Core
-            {"=", mk_constant(get_eq_name())},
+            {"=", fun_decl(mk_constant(get_eq_name())},
+            {"distinct", fun_decl(mk_constant(get_distinct_name())},
+            {"ite", fun_decl(mk_constant(get_ite_name()), fun_attr::DEFAULT)},
 
             // (b) Arithmetic
-            {"+", mk_constant(get_add_name())},
-            {"-", mk_constant(get_sub_name())},
-            {"*", mk_constant(get_mul_name())},
-            {"<", mk_constant(get_lt_name())},
-            {"<=", mk_constant(get_le_name())},
-            {">", mk_constant(get_gt_name())},
-            {">=", mk_constant(get_ge_name())}
+            {"+", fun_decl(mk_constant(get_add_name())},
+            {"-", fun_decl(mk_constant(get_sub_name())},
+            {"*", fun_decl(mk_constant(get_mul_name())},
+            {"<", fun_decl(mk_constant(get_lt_name())},
+            {"<=", fun_decl(mk_constant(get_le_name())},
+            {">", fun_decl(mk_constant(get_gt_name())},
+            {">=", fun_decl(mk_constant(get_ge_name())}
         });
 }
 
 void finalize_parser() {
-    delete g_pure_theory_symbols;
+    delete g_theory_sort_symbols;
     delete g_polymorphic_theory_symbols;
+    delete g_pure_theory_symbols;
 }
 
 }}

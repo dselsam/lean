@@ -34,6 +34,7 @@ name const * g_congr_arg = nullptr;
 name const * g_congr_fun = nullptr;
 name const * g_decidable = nullptr;
 name const * g_decidable_by_contradiction = nullptr;
+name const * g_distinct = nullptr;
 name const * g_distrib = nullptr;
 name const * g_dite = nullptr;
 name const * g_div = nullptr;
@@ -291,6 +292,7 @@ void initialize_constants() {
     g_congr_fun = new name{"congr_fun"};
     g_decidable = new name{"decidable"};
     g_decidable_by_contradiction = new name{"decidable", "by_contradiction"};
+    g_distinct = new name{"distinct"};
     g_distrib = new name{"distrib"};
     g_dite = new name{"dite"};
     g_div = new name{"div"};
@@ -549,6 +551,7 @@ void finalize_constants() {
     delete g_congr_fun;
     delete g_decidable;
     delete g_decidable_by_contradiction;
+    delete g_distinct;
     delete g_distrib;
     delete g_dite;
     delete g_div;
@@ -806,6 +809,7 @@ name const & get_congr_arg_name() { return *g_congr_arg; }
 name const & get_congr_fun_name() { return *g_congr_fun; }
 name const & get_decidable_name() { return *g_decidable; }
 name const & get_decidable_by_contradiction_name() { return *g_decidable_by_contradiction; }
+name const & get_distinct_name() { return *g_distinct; }
 name const & get_distrib_name() { return *g_distrib; }
 name const & get_dite_name() { return *g_dite; }
 name const & get_div_name() { return *g_div; }
