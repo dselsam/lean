@@ -429,7 +429,8 @@ int main(int argc, char ** argv) {
         io_state ios(opts, lean::mk_pretty_formatter_factory());
         bool ok = true;
         try {
-            ok = ::lean::smt2::parse_commands(env, ios, argv[optind], base_dir, false);
+            bool use_exceptions = true;
+            ok = ::lean::smt2::parse_commands(env, ios, argv[optind], use_exceptions);
         } catch (lean::exception & ex) {
             simple_pos_info_provider pp(argv[optind]);
             ok = false;

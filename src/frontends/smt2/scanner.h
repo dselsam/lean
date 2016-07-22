@@ -44,6 +44,7 @@ private:
     unsigned            m_bv_size;
 
     [[ noreturn ]] void throw_exception(char const * msg);
+    [[ noreturn ]] void throw_exception(std::string const & msg);
 
     void next();
     char curr() const { return m_curr; }

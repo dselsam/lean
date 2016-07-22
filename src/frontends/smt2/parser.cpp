@@ -12,6 +12,7 @@ Author: Daniel Selsam
 #include "util/name_map.h"
 #include "util/exception.h"
 #include "util/fresh_name.h"
+#include "util/lean_path.h"
 #include "kernel/environment.h"
 #include "kernel/declaration.h"
 #include "kernel/type_checker.h"
@@ -21,6 +22,7 @@ Author: Daniel Selsam
 #include "library/io_state.h"
 #include "library/io_state_stream.h"
 #include "library/local_context.h"
+#include "library/module.h"
 #include "library/mpq_macro.h"
 #include "library/tactic/tactic_state.h"
 #include "frontends/smt2/scanner.h"
@@ -362,7 +364,7 @@ private:
         pos_info pinfo = m_scanner.get_pos_info();
         next();
         check_curr_kind(scanner::token_kind::SYMBOL, "invalid command, symbol expected");
-        const char * const s = m_scanner.get_str_val().c_str();
+        std::string const & s = m_scanner.get_str_val();
         if (s == g_token_assert)                     parse_assert();
         else if (s == g_token_check_sat)             parse_check_sat();
         else if (s == g_token_check_sat_assuming)    parse_check_sat_assuming();
@@ -533,18 +535,30 @@ private:
 public:
 
     // Constructor
-    parser(environment const & env, io_state & ios, std::istream & strm, char const * strm_name, optional<std::string> const & base, bool use_exceptions):
+    parser(environment const & env, io_state & ios, std::istream & strm, char const * strm_name, bool use_exceptions):
         m_env(env), m_ios(ios), m_scanner(strm, strm_name), m_use_exceptions(use_exceptions) { }
 
     // Entry point
-    bool operator()() { return parse_commands(); }
+    bool operator()() {
+        buffer<module_name> olean_files;
+        std::string f = find_file(name("init"));
+        olean_files.push_back(module_name(f));
+        std::string base = dirname(get_stream_name().c_str());
+        unsigned num_threads = 0;
+        bool keep_imported_theorems = false;
+
+        m_env = import_modules(m_env, base, olean_files.size(), olean_files.data(), num_threads, keep_imported_theorems, m_ios);
+
+        parse_commands();
+        return true;
+    }
 };
 
 // Setup and teardown
 
 void initialize_parser() {
     g_smt2_prefix = new name(name::mk_internal_unique_name());
-    g_smt2_tactic = new name({"tactic", "trace_state"});
+    g_smt2_tactic = new name({"tactic", "smt2"});
 
     g_theory_constant_symbols = new std::unordered_map<std::string, expr>({
             // Sorts
@@ -609,12 +623,12 @@ void finalize_parser() {
 }
 
 // Entry point
-bool parse_commands(environment & env, io_state & ios, char const * fname, optional<std::string> const & base, bool use_exceptions) {
+bool parse_commands(environment & env, io_state & ios, char const * fname, bool use_exceptions) {
     std::ifstream in(fname);
     if (in.bad() || in.fail())
         throw exception(sstream() << "failed to open file '" << fname << "'");
 
-    parser p(env, ios, in, fname, base, use_exceptions);
+    parser p(env, ios, in, fname, use_exceptions);
     return p();
 }
 

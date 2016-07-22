@@ -30,6 +30,8 @@ static scanner::char_kind get_kind(char c) { return g_char_to_kind[to_uchar(c)];
     throw parser_exception(msg, m_stream_name.c_str(), line, pos);
 }
 
+[[ noreturn ]] void scanner::throw_exception(std::string const & msg) { throw_exception(msg.c_str()); }
+
 void scanner::check_not_eof(char const * error_msg) {
     if (curr() == EOF) throw_exception(error_msg);
 }
@@ -285,7 +287,7 @@ scanner::token_kind scanner::scan() {
             read_simple_symbol();
             return token_kind::SYMBOL;
         case char_kind::UNEXPECTED:
-            throw_exception("unexpected character");
+            throw_exception(std::string("unexpected character: ") + c);
         }
     }
 }
@@ -342,7 +344,7 @@ static void initialize_g_char_to_kind() {
     g_char_to_kind['('] = scanner::char_kind::LEFT_PAREN;
 
     // (5) Right-paren
-    g_char_to_kind['('] = scanner::char_kind::LEFT_PAREN;
+    g_char_to_kind[')'] = scanner::char_kind::RIGHT_PAREN;
 
     // (6) Keyword
     g_char_to_kind[':'] = scanner::char_kind::KEYWORD;

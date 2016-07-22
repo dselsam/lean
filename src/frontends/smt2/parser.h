@@ -14,7 +14,7 @@ Author: Daniel Selsam
 namespace lean {
 namespace smt2 {
 
-bool parse_commands(environment & env, io_state & ios, char const * fname, optional<std::string> const & base, bool use_exceptions);
+bool parse_commands(environment & env, io_state & ios, char const * fname, bool use_exceptions);
 
 void initialize_parser();
 void finalize_parser();
