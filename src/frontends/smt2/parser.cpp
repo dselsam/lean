@@ -23,6 +23,7 @@ Author: Daniel Selsam
 #include "library/io_state_stream.h"
 #include "library/local_context.h"
 #include "library/module.h"
+#include "library/trace.h"
 #include "library/mpq_macro.h"
 #include "library/tactic/tactic_state.h"
 #include "frontends/smt2/scanner.h"
@@ -551,7 +552,6 @@ public:
         std::string base = dirname(get_stream_name().c_str());
         name f("init");
         optional<unsigned> k;
-//        find_file(base, k, f, ".olean");
         olean_files.push_back(module_name(k, f));
 
         unsigned num_threads = 0;
