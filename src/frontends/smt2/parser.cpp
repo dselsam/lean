@@ -55,7 +55,7 @@ static expr mk_left_assoc_app(buffer<expr> const & args) {
 }
 
 static expr mk_right_assoc_app(buffer<expr> const & args) {
-    lean_assert(args.size() >= 2);
+    lean_assert(args.size() >= 3);
     // f x1 x2 x3 ==> f x1 (f x2 x3)
     int k = args.size();
     expr e = mk_app(args[0], args[k - 2], args[k - 1]);
@@ -67,7 +67,10 @@ static expr mk_right_assoc_app(buffer<expr> const & args) {
 
 static expr mk_chainable_app(buffer<expr> const & args) {
     // f x1 x2 x3 ==> and (f x1 x2) (f x2 x3)
-    lean_assert(args.size() >= 2);
+    if (args.size() == 3) {
+        return mk_app(args);
+    }
+    lean_assert(args.size() >= 3);
     buffer<expr> args_to_and;
     args_to_and.push_back(mk_constant(get_and_name()));
     for (unsigned i = 1; i < args.size() - 1; ++i) {
@@ -181,7 +184,7 @@ private:
             m_lctx.mk_local_decl(n, ty);
         } else {
             declaration d = mk_axiom(n, list<name>(), ty);
-            env().add(check(env(), d));
+            env() = env().add(check(env(), d));
         }
     }
 
@@ -191,7 +194,7 @@ private:
             m_lctx.mk_local_decl(n, ty);
         } else {
             declaration d = mk_axiom(n, list<name>(), ty);
-            env().add(check(env(), d));
+            env() = env().add(check(env(), d));
         }
     }
 
@@ -420,9 +423,13 @@ private:
         vm_obj result = get_tactic_vm_state(env()).invoke(*g_smt2_tactic, s);
         if (optional<tactic_state> s_new = is_tactic_success(result)) {
             expr proof = mctx.instantiate_mvars(goal_mvar);
-            ios().get_regular_stream() << "unsat\n";
+            if (has_expr_metavar(proof)) {
+                ios().get_regular_stream() << "<tactic succeeded but left metavars>\n";
+            } else {
+                ios().get_regular_stream() << "unsat\n";
+            }
         } else {
-            ios().get_regular_stream() << "<unknown>\n";
+            ios().get_regular_stream() << "<tactic failed>\n";
         }
         check_curr_kind(scanner::token_kind::RIGHT_PAREN, "invalid constant declaration, ')' expected");
         next();
@@ -541,9 +548,12 @@ public:
     // Entry point
     bool operator()() {
         buffer<module_name> olean_files;
-        std::string f = find_file(name("init"));
-        olean_files.push_back(module_name(f));
         std::string base = dirname(get_stream_name().c_str());
+        name f("init");
+        optional<unsigned> k;
+//        find_file(base, k, f, ".olean");
+        olean_files.push_back(module_name(k, f));
+
         unsigned num_threads = 0;
         bool keep_imported_theorems = false;
 
@@ -558,7 +568,8 @@ public:
 
 void initialize_parser() {
     g_smt2_prefix = new name(name::mk_internal_unique_name());
-    g_smt2_tactic = new name({"tactic", "smt2"});
+    // TODO(dhs): write a theorem prover and call that instead
+    g_smt2_tactic = new name({"tactic", "trace_state"});
 
     g_theory_constant_symbols = new std::unordered_map<std::string, expr>({
             // Sorts
@@ -573,6 +584,7 @@ void initialize_parser() {
                 });
 
     g_theory_function_symbols = new std::unordered_map<std::string, fun_decl>({
+            // TODO(dhs): other universe levels
             // Sorts
             {"BitVec", fun_decl(mk_constant(get_bv_name()), fun_attr::DEFAULT)},
 
@@ -585,10 +597,10 @@ void initialize_parser() {
             {"xor", fun_decl(mk_constant(get_xor_name()), fun_attr::LEFT_ASSOC)},
 
             // (b) Arithmetic
-            {"div", fun_decl(mk_constant(get_div_name()), fun_attr::LEFT_ASSOC)},
+            {"div", fun_decl(mk_constant(get_div_name(), {mk_level_one()}), fun_attr::LEFT_ASSOC)},
             {"mod", fun_decl(mk_constant(get_mod_name()), fun_attr::DEFAULT)},
             {"abs", fun_decl(mk_constant(get_abs_name()), fun_attr::DEFAULT)},
-            {"/", fun_decl(mk_constant(get_div_name()), fun_attr::LEFT_ASSOC)},
+            {"/", fun_decl(mk_constant(get_div_name(), {mk_level_one()}), fun_attr::LEFT_ASSOC)},
             {"to_real", fun_decl(mk_constant(get_real_of_int_name()), fun_attr::DEFAULT)},
             {"to_int", fun_decl(mk_constant(get_real_to_int_name()), fun_attr::DEFAULT)},
             {"is_int", fun_decl(mk_constant(get_real_is_int_name()), fun_attr::DEFAULT)},
@@ -599,18 +611,18 @@ void initialize_parser() {
 
             // II. Polymorphic
             // (a) Core
-            {"=", fun_decl(mk_constant(get_eq_name()), fun_attr::CHAINABLE)},
+            {"=", fun_decl(mk_constant(get_eq_name(), {mk_level_one()}), fun_attr::CHAINABLE)},
             {"distinct", fun_decl(mk_constant(get_distinct_name()), fun_attr::PAIRWISE)},
             {"ite", fun_decl(mk_constant(get_ite_name()), fun_attr::DEFAULT)},
 
             // (b) Arithmetic
-            {"+", fun_decl(mk_constant(get_add_name()), fun_attr::LEFT_ASSOC)},
-            {"-", fun_decl(mk_constant(get_sub_name()), fun_attr::LEFT_ASSOC)}, // note: if 1 arg, then neg instead
-            {"*", fun_decl(mk_constant(get_mul_name()), fun_attr::LEFT_ASSOC)},
-            {"<", fun_decl(mk_constant(get_lt_name()), fun_attr::CHAINABLE)},
-            {"<=", fun_decl(mk_constant(get_le_name()), fun_attr::CHAINABLE)},
-            {">", fun_decl(mk_constant(get_gt_name()), fun_attr::CHAINABLE)},
-            {">=", fun_decl(mk_constant(get_ge_name()), fun_attr::CHAINABLE)}
+                {"+", fun_decl(mk_constant(get_add_name(), {mk_level_one()}), fun_attr::LEFT_ASSOC)},
+            {"-", fun_decl(mk_constant(get_sub_name(), {mk_level_one()}), fun_attr::LEFT_ASSOC)}, // note: if 1 arg, then neg instead
+            {"*", fun_decl(mk_constant(get_mul_name(), {mk_level_one()}), fun_attr::LEFT_ASSOC)},
+            {"<", fun_decl(mk_constant(get_lt_name(), {mk_level_one()}), fun_attr::CHAINABLE)},
+            {"<=", fun_decl(mk_constant(get_le_name(), {mk_level_one()}), fun_attr::CHAINABLE)},
+            {">", fun_decl(mk_constant(get_gt_name(), {mk_level_one()}), fun_attr::CHAINABLE)},
+            {">=", fun_decl(mk_constant(get_ge_name(), {mk_level_one()}), fun_attr::CHAINABLE)}
         });
 }
 
