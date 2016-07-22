@@ -11,6 +11,7 @@ Author: Daniel Selsam
 #include "util/flet.h"
 #include "util/name_map.h"
 #include "util/exception.h"
+#include "util/fresh_name.h"
 #include "kernel/environment.h"
 #include "kernel/declaration.h"
 #include "kernel/type_checker.h"
@@ -21,11 +22,15 @@ Author: Daniel Selsam
 #include "library/io_state_stream.h"
 #include "library/local_context.h"
 #include "library/mpq_macro.h"
+#include "library/tactic/tactic_state.h"
 #include "frontends/smt2/scanner.h"
 #include "frontends/smt2/parser.h"
 
 namespace lean {
 namespace smt2 {
+
+static name * g_smt2_prefix;
+static name * g_smt2_tactic;
 
 enum class fun_attr { DEFAULT, LEFT_ASSOC, RIGHT_ASSOC, CHAINABLE, PAIRWISE };
 
@@ -178,7 +183,15 @@ private:
         }
     }
 
-
+    void register_hypothesis(expr const & ty) {
+        name n = mk_tagged_fresh_name(*g_smt2_prefix);
+        if (m_use_locals) {
+            m_lctx.mk_local_decl(n, ty);
+        } else {
+            declaration d = mk_axiom(n, list<name>(), ty);
+            env().add(check(env(), d));
+        }
+    }
 
     // TODO(dhs): implement!
     // Note: Leo's elaborator will be called at the end
@@ -217,6 +230,7 @@ private:
     }
 
     environment & env() { return m_env; }
+    io_state & ios() { return m_ios; }
     local_context & lctx() { return m_lctx; }
 
     scanner::token_kind curr_kind() const { return m_curr_kind; }
@@ -243,7 +257,7 @@ private:
 
     // Parser helpers
     // Parsing sorts
-    expr parse_expr(bool is_sort, char const * context) {
+    expr parse_expr(char const * context) {
         // { LEFT_PAREN, RIGHT_PAREN, KEYWORD, SYMBOL, STRING, INT, FLOAT, BV };
         symbol sym;
         std::unordered_map<std::string, expr>::const_iterator it;
@@ -285,7 +299,7 @@ private:
             if (curr_kind() == scanner::token_kind::SYMBOL && curr_symbol() == g_symbol_dependent_type) {
                 next();
             }
-            parse_exprs(args, is_sort, context);
+            parse_exprs(args, context);
             return pre_elaborate_app(args);
         default:
             throw_parser_exception((std::string(context) + ", invalid sort").c_str());
@@ -295,9 +309,9 @@ private:
         lean_unreachable();
     }
 
-    void parse_exprs(buffer<expr> & es, bool is_sort, char const * context) {
+    void parse_exprs(buffer<expr> & es, char const * context) {
         while (curr_kind() != scanner::token_kind::RIGHT_PAREN) {
-            es.push_back(parse_expr(is_sort, context));
+            es.push_back(parse_expr(context));
         }
         if (es.empty()) {
             throw_parser_exception(std::string(context) + ", () not a legal expression");
@@ -305,10 +319,10 @@ private:
         next();
     }
 
-    void parse_expr_list(buffer<expr> & es, bool is_sort, char const * context) {
+    void parse_expr_list(buffer<expr> & es, char const * context) {
         check_curr_kind(scanner::token_kind::LEFT_PAREN, context);
         next();
-        parse_exprs(es, is_sort, context);
+        parse_exprs(es, context);
     }
 
     // Outer loop
@@ -381,8 +395,37 @@ private:
     }
 
     // Individual commands
-    void parse_assert() { throw_parser_exception("assert not yet supported"); }
-    void parse_check_sat() { throw_parser_exception("check-sat not yet supported"); }
+    void parse_assert() {
+        lean_assert(curr_kind() == scanner::token_kind::SYMBOL);
+        lean_assert(curr_symbol() == g_token_assert);
+        next();
+
+        expr e = parse_expr("invalid assert command");
+        register_hypothesis(e);
+
+        check_curr_kind(scanner::token_kind::RIGHT_PAREN, "invalid constant declaration, ')' expected");
+        next();
+    }
+
+    void parse_check_sat() {
+        lean_assert(curr_kind() == scanner::token_kind::SYMBOL);
+        lean_assert(curr_symbol() == g_token_check_sat);
+        next();
+
+        metavar_context mctx;
+        expr goal_mvar = mctx.mk_metavar_decl(lctx(), mk_constant(get_false_name()));
+        vm_obj s = to_obj(tactic_state(env(), ios().get_options(), mctx, list<expr>(goal_mvar), goal_mvar));
+        vm_obj result = get_tactic_vm_state(env()).invoke(*g_smt2_tactic, s);
+        if (optional<tactic_state> s_new = is_tactic_success(result)) {
+            expr proof = mctx.instantiate_mvars(goal_mvar);
+            ios().get_regular_stream() << "unsat\n";
+        } else {
+            ios().get_regular_stream() << "<unknown>\n";
+        }
+        check_curr_kind(scanner::token_kind::RIGHT_PAREN, "invalid constant declaration, ')' expected");
+        next();
+    }
+
     void parse_check_sat_assuming() { throw_parser_exception("check-sat-assuming not yet supported"); }
     void parse_declare_const() {
         lean_assert(curr_kind() == scanner::token_kind::SYMBOL);
@@ -391,8 +434,7 @@ private:
         check_curr_kind(scanner::token_kind::SYMBOL, "invalid constant declaration, symbol expected");
         name c_name = name(curr_symbol());
         next();
-        bool is_sort = true;
-        expr ty = parse_expr(is_sort, "invalid constant declaration");
+        expr ty = parse_expr("invalid constant declaration");
         register_hypothesis(c_name, ty);
         check_curr_kind(scanner::token_kind::RIGHT_PAREN, "invalid constant declaration, ')' expected");
         next();
@@ -407,9 +449,8 @@ private:
         next();
 
         buffer<expr> parameter_sorts;
-        bool is_sort = true;
-        parse_expr_list(parameter_sorts, is_sort, "invalid function declaration");
-        expr ty = parse_expr(is_sort, "invalid function declaration");
+        parse_expr_list(parameter_sorts, "invalid function declaration");
+        expr ty = parse_expr("invalid function declaration");
         for (int i = parameter_sorts.size() - 1; i >= 0; ++i) {
             ty = mk_arrow(parameter_sorts[i], ty);
         }
@@ -506,6 +547,9 @@ bool parse_commands(environment & env, io_state & ios, std::istream & strm, char
 }
 
 void initialize_parser() {
+    g_smt2_prefix = new name(name::mk_internal_unique_name());
+    g_smt2_tactic = new name({"tactic", "trace_state"});
+
     g_theory_constant_symbols = new std::unordered_map<std::string, expr>({
             // Sorts
             {"Bool", mk_Prop()},
@@ -563,6 +607,9 @@ void initialize_parser() {
 void finalize_parser() {
     delete g_theory_constant_symbols;
     delete g_theory_function_symbols;
+
+    delete g_smt2_prefix;
+    delete g_smt2_tactic;
 }
 
 }}
