@@ -15,6 +15,7 @@ Author: Daniel Selsam
 #include "util/lean_path.h"
 #include "kernel/environment.h"
 #include "kernel/abstract.h"
+#include "kernel/instantiate.h"
 #include "kernel/declaration.h"
 #include "kernel/type_checker.h"
 #include "kernel/expr_maps.h"
@@ -247,10 +248,66 @@ private:
         return new_e;
     }
 
+    // TODO(dhs): just create a type context?
+    expr infer_constant(expr const & e) {
+        declaration d   = env().get(const_name(e));
+        auto const & ps = d.get_univ_params();
+        auto const & ls = const_levels(e);
+        lean_assert(length(ps) == length(ls));
+        return instantiate_type_univ_params(d, ls);
+    }
+
+    expr infer_macro(expr const & e) {
+        auto def = macro_def(e);
+        bool infer_only = true;
+        return def.check_type(e, *this, infer_only);
+    }
+
+    expr infer_let(expr const & e) {
+        buffer<expr> vs;
+        while (is_let(e)) {
+            expr v = instantiate_rev(let_value(e), vs.size(), vs.data());
+            vs.push_back(v);
+            e = let_body(e);
+        }
+        return infer_type(instantiate_rev(e, vs.size(), vs.data()));
+    }
+
+    expr infer_app(expr const & e) {
+        buffer<expr> args;
+        expr const & f = get_app_args(e, args);
+        expr f_type    = infer_type(f);
+        unsigned j     = 0;
+        unsigned nargs = args.size();
+        for (unsigned i = 0; i < nargs; i++) {
+            if (is_pi(f_type)) {
+                f_type = binding_body(f_type);
+            } else {
+                f_type = instantiate_rev(f_type, i-j, args.data()+j);
+                if (!is_pi(f_type))
+                    throw exception("infer type failed, Pi expected");
+                f_type = binding_body(f_type);
+                j = i;
+            }
+        }
+        return instantiate_rev(f_type, nargs-j, args.data()+j);
+    }
+
     expr infer_type(expr const & e) {
-        // TODO(dhs): implement!
-
-
+        switch (e.kind()) {
+        case expr_kind::Local:    return lctx().get_local_decl(e)->get_type();
+        case expr_kind::Constant: return infer_constant(e);
+        case expr_kind::Macro:    return infer_macro(e);
+        case expr_kind::Let:      return infer_let(e);
+        case expr_kind::App:      return infer_app(e);
+        case expr_kind::Meta:
+        case expr_kind::Var:
+        case expr_kind::Sort:
+        case expr_kind::Lambda:
+        case expr_kind::Pi:
+            lean_unreachable();  // LCOV_EXCL_LINE
+            break;
+        }
     }
 
     // TODO(dhs): implement!
