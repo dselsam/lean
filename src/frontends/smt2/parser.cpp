@@ -304,9 +304,37 @@ private:
             next();
             if (curr_kind() == scanner::token_kind::SYMBOL && curr_symbol() == g_symbol_dependent_type) {
                 next();
+                parse_exprs(args, context);
+                return pre_elaborate_app(args);
+            } else if (curr_kind() == scanner::token_kind::SYMBOL && curr_symbol() == g_symbol_forall) {
+                next();
+                buffer<expr> bindings;
+                // TODO(dhs): write this
+                parse_sorted_var_list(context);
+                expr e = parse_expr(context);
+                // TODO(dhs): confirm that we can use the Kernel's abstract even though our locals are in an lctx
+                return Pi(bindings, e);
+                //check_curr_kind(scanner::token_kind::LEFT_PAREN, "invalid forall, sorted-val list expected");
+                //next();
+            } else if (curr_kind() == scanner::token_kind::SYMBOL && curr_symbol() == g_symbol_exists) {
+                next();
+                buffer<expr> bindings;
+                parse_sorted_var_list(context);
+                expr e = parse_expr(context);
+                // TODO(dhs): write this
+                return Exists(bindings, e);
+            } else if (curr_kind() == scanner::token_kind::SYMBOL && curr_symbol() == g_symbol_let) {
+                next();
+                buffer<expr> bindings;
+                // TODO(dhs): write this
+                parse_var_binding_list(context);
+                expr e = parse_expr(context);
+                // TODO(dhs): write this
+                return Let(bindings, e);
+            } else {
+                parse_exprs(args, context);
+                return pre_elaborate_app(args);
             }
-            parse_exprs(args, context);
-            return pre_elaborate_app(args);
         default:
             throw_parser_exception((std::string(context) + ", invalid sort").c_str());
             lean_unreachable();
