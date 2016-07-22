@@ -98,6 +98,9 @@ static optional<fun_decl> is_theory_function_symbol(std::string const & sym) {
 static char const * g_symbol_minus          = "-";
 static char const * g_symbol_dependent_type = "_";
 
+static char const * g_token_use_locals      = ":use_locals";
+
+
 // Reserved words
 // (a) General
 static char const * g_token_as          = "as";
@@ -468,7 +471,23 @@ private:
     void parse_reset_assertions() { throw_parser_exception("reset-assertions not yet supported"); }
     void parse_set_info() { throw_parser_exception("set_info not yet supported"); }
     void parse_set_logic() { throw_parser_exception("set_logic not yet supported"); }
-    void parse_set_option() { throw_parser_exception("set_option not yet supported"); }
+
+    void parse_set_option() {
+        lean_assert(curr_kind() == scanner::token_kind::SYMBOL);
+        lean_assert(curr_symbol() == g_token_set_option);
+        next();
+        check_curr_kind(scanner::token_kind::KEYWORD, "invalid set-option command, keyword expected");
+        symbol sym = curr_symbol();
+        next();
+        if (sym == g_token_use_locals) {
+            m_use_locals = true;
+        } else {
+            // TODO(dhs): just a warning?
+            throw_parser_exception("unsupported option");
+        }
+        check_curr_kind(scanner::token_kind::RIGHT_PAREN, "invalid set-option, ')' expected");
+        next();
+    }
 
 public:
 
