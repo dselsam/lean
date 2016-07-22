@@ -102,6 +102,11 @@ name const * g_implies_of_if_pos = nullptr;
 name const * g_implies_resolve = nullptr;
 name const * g_int = nullptr;
 name const * g_int_of_nat = nullptr;
+name const * g_int_has_add = nullptr;
+name const * g_int_has_mul = nullptr;
+name const * g_int_has_sub = nullptr;
+name const * g_int_has_le = nullptr;
+name const * g_int_has_lt = nullptr;
 name const * g_IO = nullptr;
 name const * g_is_trunc_is_prop = nullptr;
 name const * g_is_trunc_is_prop_elim = nullptr;
@@ -119,6 +124,9 @@ name const * g_list = nullptr;
 name const * g_list_nil = nullptr;
 name const * g_list_cons = nullptr;
 name const * g_lt = nullptr;
+name const * g_map = nullptr;
+name const * g_map_insert = nullptr;
+name const * g_map_lookup = nullptr;
 name const * g_mod = nullptr;
 name const * g_monad = nullptr;
 name const * g_monad_map = nullptr;
@@ -230,6 +238,11 @@ name const * g_rat_divide = nullptr;
 name const * g_rat_of_num = nullptr;
 name const * g_rat_of_int = nullptr;
 name const * g_real = nullptr;
+name const * g_real_has_add = nullptr;
+name const * g_real_has_mul = nullptr;
+name const * g_real_has_sub = nullptr;
+name const * g_real_has_le = nullptr;
+name const * g_real_has_lt = nullptr;
 name const * g_real_is_int = nullptr;
 name const * g_real_of_rat = nullptr;
 name const * g_real_of_int = nullptr;
@@ -370,6 +383,11 @@ void initialize_constants() {
     g_implies_resolve = new name{"implies", "resolve"};
     g_int = new name{"int"};
     g_int_of_nat = new name{"int", "of_nat"};
+    g_int_has_add = new name{"int", "has_add"};
+    g_int_has_mul = new name{"int", "has_mul"};
+    g_int_has_sub = new name{"int", "has_sub"};
+    g_int_has_le = new name{"int", "has_le"};
+    g_int_has_lt = new name{"int", "has_lt"};
     g_IO = new name{"IO"};
     g_is_trunc_is_prop = new name{"is_trunc", "is_prop"};
     g_is_trunc_is_prop_elim = new name{"is_trunc", "is_prop", "elim"};
@@ -387,6 +405,9 @@ void initialize_constants() {
     g_list_nil = new name{"list", "nil"};
     g_list_cons = new name{"list", "cons"};
     g_lt = new name{"lt"};
+    g_map = new name{"map"};
+    g_map_insert = new name{"map", "insert"};
+    g_map_lookup = new name{"map", "lookup"};
     g_mod = new name{"mod"};
     g_monad = new name{"monad"};
     g_monad_map = new name{"monad", "map"};
@@ -498,6 +519,11 @@ void initialize_constants() {
     g_rat_of_num = new name{"rat", "of_num"};
     g_rat_of_int = new name{"rat", "of_int"};
     g_real = new name{"real"};
+    g_real_has_add = new name{"real", "has_add"};
+    g_real_has_mul = new name{"real", "has_mul"};
+    g_real_has_sub = new name{"real", "has_sub"};
+    g_real_has_le = new name{"real", "has_le"};
+    g_real_has_lt = new name{"real", "has_lt"};
     g_real_is_int = new name{"real", "is_int"};
     g_real_of_rat = new name{"real", "of_rat"};
     g_real_of_int = new name{"real", "of_int"};
@@ -639,6 +665,11 @@ void finalize_constants() {
     delete g_implies_resolve;
     delete g_int;
     delete g_int_of_nat;
+    delete g_int_has_add;
+    delete g_int_has_mul;
+    delete g_int_has_sub;
+    delete g_int_has_le;
+    delete g_int_has_lt;
     delete g_IO;
     delete g_is_trunc_is_prop;
     delete g_is_trunc_is_prop_elim;
@@ -656,6 +687,9 @@ void finalize_constants() {
     delete g_list_nil;
     delete g_list_cons;
     delete g_lt;
+    delete g_map;
+    delete g_map_insert;
+    delete g_map_lookup;
     delete g_mod;
     delete g_monad;
     delete g_monad_map;
@@ -767,6 +801,11 @@ void finalize_constants() {
     delete g_rat_of_num;
     delete g_rat_of_int;
     delete g_real;
+    delete g_real_has_add;
+    delete g_real_has_mul;
+    delete g_real_has_sub;
+    delete g_real_has_le;
+    delete g_real_has_lt;
     delete g_real_is_int;
     delete g_real_of_rat;
     delete g_real_of_int;
@@ -907,6 +946,11 @@ name const & get_implies_of_if_pos_name() { return *g_implies_of_if_pos; }
 name const & get_implies_resolve_name() { return *g_implies_resolve; }
 name const & get_int_name() { return *g_int; }
 name const & get_int_of_nat_name() { return *g_int_of_nat; }
+name const & get_int_has_add_name() { return *g_int_has_add; }
+name const & get_int_has_mul_name() { return *g_int_has_mul; }
+name const & get_int_has_sub_name() { return *g_int_has_sub; }
+name const & get_int_has_le_name() { return *g_int_has_le; }
+name const & get_int_has_lt_name() { return *g_int_has_lt; }
 name const & get_IO_name() { return *g_IO; }
 name const & get_is_trunc_is_prop_name() { return *g_is_trunc_is_prop; }
 name const & get_is_trunc_is_prop_elim_name() { return *g_is_trunc_is_prop_elim; }
@@ -924,6 +968,9 @@ name const & get_list_name() { return *g_list; }
 name const & get_list_nil_name() { return *g_list_nil; }
 name const & get_list_cons_name() { return *g_list_cons; }
 name const & get_lt_name() { return *g_lt; }
+name const & get_map_name() { return *g_map; }
+name const & get_map_insert_name() { return *g_map_insert; }
+name const & get_map_lookup_name() { return *g_map_lookup; }
 name const & get_mod_name() { return *g_mod; }
 name const & get_monad_name() { return *g_monad; }
 name const & get_monad_map_name() { return *g_monad_map; }
@@ -1035,6 +1082,11 @@ name const & get_rat_divide_name() { return *g_rat_divide; }
 name const & get_rat_of_num_name() { return *g_rat_of_num; }
 name const & get_rat_of_int_name() { return *g_rat_of_int; }
 name const & get_real_name() { return *g_real; }
+name const & get_real_has_add_name() { return *g_real_has_add; }
+name const & get_real_has_mul_name() { return *g_real_has_mul; }
+name const & get_real_has_sub_name() { return *g_real_has_sub; }
+name const & get_real_has_le_name() { return *g_real_has_le; }
+name const & get_real_has_lt_name() { return *g_real_has_lt; }
 name const & get_real_is_int_name() { return *g_real_is_int; }
 name const & get_real_of_rat_name() { return *g_real_of_rat; }
 name const & get_real_of_int_name() { return *g_real_of_int; }

@@ -97,6 +97,11 @@ implies_of_if_pos
 implies.resolve
 int
 int.of_nat
+int.has_add
+int.has_mul
+int.has_sub
+int.has_le
+int.has_lt
 IO
 is_trunc.is_prop
 is_trunc.is_prop.elim
@@ -114,6 +119,9 @@ list
 list.nil
 list.cons
 lt
+map
+map.insert
+map.lookup
 mod
 monad
 monad.map
@@ -225,6 +233,11 @@ rat.divide
 rat.of_num
 rat.of_int
 real
+real.has_add
+real.has_mul
+real.has_sub
+real.has_le
+real.has_lt
 real.is_int
 real.of_rat
 real.of_int
