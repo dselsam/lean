@@ -141,22 +141,19 @@ static char const * g_token_set_info              = "set-info";
 static char const * g_token_set_logic             = "set-logic";
 static char const * g_token_set_option            = "set-option";
 
-// TODO(dhs): we need to create a unique name here
-// Note: the issue is that sort names in a different namespace than term names
-static char const * g_sort_name_prefix            = "#sort";
-static name mk_sort_name(symbol const & s) { return name({g_sort_name_prefix, s.c_str()}); }
-
 // Parser class
 class parser {
 private:
+    environment             m_env;
     io_state                m_ios;
     scanner                 m_scanner;
-
-    std::stack<environment> m_env_stack;
+    local_context           m_lctx;
 
     bool                    m_use_exceptions;
     unsigned                m_num_open_paren{0};
     scanner::token_kind     m_curr_kind{scanner::token_kind::BEGIN};
+
+    bool                    m_use_locals{false};
 
     // Util
     std::string const & get_stream_name() const { return m_scanner.get_stream_name(); }
@@ -168,6 +165,17 @@ private:
     void throw_parser_exception(std::string const & msg, pos_info p) { throw_parser_exception(msg.c_str(), p); }
     void throw_parser_exception(std::string const & msg) { throw_parser_exception(msg.c_str(), m_scanner.get_pos_info()); }
     void throw_parser_exception(char const * msg) { throw_parser_exception(msg, m_scanner.get_pos_info()); }
+
+    void register_hypothesis(name const & n, expr const & ty) {
+        if (m_use_locals) {
+            m_lctx.mk_local_decl(n, ty);
+        } else {
+            declaration d = mk_axiom(n, list<name>(), ty);
+            env().add(check(env(), d));
+        }
+    }
+
+
 
     // TODO(dhs): implement!
     // Note: Leo's elaborator will be called at the end
@@ -205,10 +213,8 @@ private:
         lean_unreachable();
     }
 
-    environment & env() {
-        lean_assert(!m_env_stack.empty());
-        return m_env_stack.top();
-    }
+    environment & env() { return m_env; }
+    local_context & lctx() { return m_lctx; }
 
     scanner::token_kind curr_kind() const { return m_curr_kind; }
     std::string const & curr_string() const { return m_scanner.get_str_val(); }
@@ -239,6 +245,8 @@ private:
         symbol sym;
         std::unordered_map<std::string, expr>::const_iterator it;
         buffer<expr> args;
+        optional<local_decl> l;
+        //optional<local_decl>
 
         switch (curr_kind()) {
         case scanner::token_kind::SYMBOL:
@@ -247,8 +255,10 @@ private:
             it = g_theory_constant_symbols->find(sym);
             if (it != g_theory_constant_symbols->end())
                 return it->second;
+            else if (l = lctx().get_local_decl_from_user_name(sym))
+                return l->mk_ref();
             else
-                return mk_constant(is_sort ? mk_sort_name(sym) : sym);
+                return mk_constant(sym);
             lean_unreachable();
             break;
         case scanner::token_kind::STRING:
@@ -376,12 +386,11 @@ private:
         lean_assert(curr_symbol() == g_token_declare_const);
         next();
         check_curr_kind(scanner::token_kind::SYMBOL, "invalid constant declaration, symbol expected");
-        name fn_name = name(curr_symbol());
+        name c_name = name(curr_symbol());
         next();
         bool is_sort = true;
         expr ty = parse_expr(is_sort, "invalid constant declaration");
-        declaration d = mk_axiom(fn_name, list<name>(), ty);
-        env().add(check(env(), d));
+        register_hypothesis(c_name, ty);
         check_curr_kind(scanner::token_kind::RIGHT_PAREN, "invalid constant declaration, ')' expected");
         next();
     }
@@ -401,9 +410,7 @@ private:
         for (int i = parameter_sorts.size() - 1; i >= 0; ++i) {
             ty = mk_arrow(parameter_sorts[i], ty);
         }
-
-        declaration d = mk_axiom(fn_name, list<name>(), ty);
-        env().add(check(env(), d));
+        register_hypothesis(fn_name, ty);
         check_curr_kind(scanner::token_kind::RIGHT_PAREN, "invalid function declaration, ')' expected");
         next();
     }
@@ -414,10 +421,7 @@ private:
         next();
 
         check_curr_kind(scanner::token_kind::SYMBOL, "invalid sort declaration, symbol expected");
-        name sort_name = mk_sort_name(curr_symbol());
-        if (env().find(sort_name)) {
-            throw_parser_exception("invalid sort declaration, sort already declared/defined");
-        }
+        name sort_name = name(curr_symbol());
         next();
         // Note: the official standard requires the arity, but it seems to be convention to have no arity mean 0
         mpq arity;
@@ -438,8 +442,7 @@ private:
         for (unsigned i = 0; i < arity; ++i) {
             ty = mk_arrow(mk_Type(), ty);
         }
-        declaration d = mk_axiom(sort_name, list<name>(), ty);
-        env().add(check(env(), d));
+        register_hypothesis(sort_name, ty);
         check_curr_kind(scanner::token_kind::RIGHT_PAREN, "invalid sort declaration, ')' expected");
         next();
     }
@@ -471,7 +474,7 @@ public:
 
     // Constructor
     parser(environment const & env, io_state & ios, std::istream & strm, char const * strm_name, optional<std::string> const & base, bool use_exceptions):
-        m_ios(ios), m_scanner(strm, strm_name), m_env_stack({env}), m_use_exceptions(use_exceptions) { }
+        m_env(env), m_ios(ios), m_scanner(strm, strm_name), m_use_exceptions(use_exceptions) { }
 
     // Entry point
     bool operator()() { return parse_commands(); }
