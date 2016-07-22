@@ -391,7 +391,7 @@ private:
         else if (s == g_token_set_info)              parse_set_info();
         else if (s == g_token_set_logic)             parse_set_logic();
         else if (s == g_token_set_option)            parse_set_option();
-        else throw_parser_exception("unknown command", pinfo);
+        else throw_parser_exception(std::string("unknown command: ") + s, pinfo);
     }
 
     // Individual commands
@@ -540,11 +540,7 @@ public:
     bool operator()() { return parse_commands(); }
 };
 
-// Entry point
-bool parse_commands(environment & env, io_state & ios, std::istream & strm, char const * fname, optional<std::string> const & base, bool use_exceptions) {
-    parser p(env, ios, strm, fname, base, use_exceptions);
-    return p();
-}
+// Setup and teardown
 
 void initialize_parser() {
     g_smt2_prefix = new name(name::mk_internal_unique_name());
@@ -610,6 +606,16 @@ void finalize_parser() {
 
     delete g_smt2_prefix;
     delete g_smt2_tactic;
+}
+
+// Entry point
+bool parse_commands(environment & env, io_state & ios, char const * fname, optional<std::string> const & base, bool use_exceptions) {
+    std::ifstream in(fname);
+    if (in.bad() || in.fail())
+        throw exception(sstream() << "failed to open file '" << fname << "'");
+
+    parser p(env, ios, in, fname, base, use_exceptions);
+    return p();
 }
 
 }}

@@ -79,6 +79,7 @@ void scanner::read_simple_symbol_core() {
         case char_kind::SIMPLE_SYMBOL:
         case char_kind::NUMBER:
             m_str_val += c;
+            next();
             break;
         default:
             return;
@@ -314,7 +315,6 @@ void scanner::next() {
         }
     }
     m_curr = m_curr_line[m_cpos];
-    m_cpos++;
 }
 
 
