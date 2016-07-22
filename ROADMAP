@@ -1,0 +1,49 @@
+Elab
+- tactic
+- begin ... end
+- coe
+inductive
+equation compiler
+---
+
+every inductive datatype must have a cases_on [not mutual]
+defining functions on [inductive Foo]: requires well-founded
+no-confusion -- constructors get idxs instead with no definitional
+
+---
+
+really important: performance (and correctness) test the simplifier
+
+---
+
+1. smt2 --
+a. write my own non-modular elaborator
+b. simple error handling okay
+c. flag for axioms vs locals
+
+2. arith
+a. have an arith_instance_manager, have it create infos for nat, int and real at initialization, create the other (lazy) ones and stick them in a thread local cache.
+b. sort instead of hash tables (messing up order okay)
+
+3. proof-generation
+a. figure out what lemmas I need for the arith-normalizer, with precision (to guide Avigad)
+
+4. map things in smt2 to the right theory stuff
+a. (Array => map)
+
+5. Follow-up with Sebastien
+
+6. Post to github -- leo and I both like the class/instance solution, with the current `attribute foo [simp] [intro]`, possibly with [simp, intro]
+
+7. Move simplifier to backwards lemma style
+a. see file for more details
+
+8. by simp [my_tag1, my_tag2]
+
+9. push small stuff to Lean3 more frequently
+
+10. mpq_macro only for int and real (easy to reconstruct proof)
+
+11. final macro for arith_normalizer stores copies of all arith_instance_info's that it needs (after calling .force() to generate the instances it will need)
+
+12. simplifier extensions only at outer applications
