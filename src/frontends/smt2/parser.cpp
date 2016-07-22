@@ -14,6 +14,7 @@ Author: Daniel Selsam
 #include "util/fresh_name.h"
 #include "util/lean_path.h"
 #include "kernel/environment.h"
+#include "kernel/abstract.h"
 #include "kernel/declaration.h"
 #include "kernel/type_checker.h"
 #include "kernel/expr_maps.h"
@@ -158,10 +159,9 @@ static char const * g_token_set_option            = "set-option";
 // Parser class
 class parser {
 private:
-    environment             m_env;
+    type_context &          m_tctx;
     io_state                m_ios;
     scanner                 m_scanner;
-    local_context           m_lctx;
 
     bool                    m_use_exceptions;
     unsigned                m_num_open_paren{0};
@@ -182,7 +182,7 @@ private:
 
     void register_hypothesis(name const & n, expr const & ty) {
         if (m_use_locals) {
-            m_lctx.mk_local_decl(n, ty);
+            m_tctx.push_local(n, ty);
         } else {
             declaration d = mk_axiom(n, list<name>(), ty);
             env() = env().add(check(env(), d));
@@ -192,7 +192,7 @@ private:
     void register_hypothesis(expr const & ty) {
         name n = mk_tagged_fresh_name(*g_smt2_prefix);
         if (m_use_locals) {
-            m_lctx.mk_local_decl(n, ty);
+            m_tctx.push_local(n, ty);
         } else {
             declaration d = mk_axiom(n, list<name>(), ty);
             env() = env().add(check(env(), d));
@@ -235,9 +235,8 @@ private:
         lean_unreachable();
     }
 
-    environment & env() { return m_env; }
+    environment const & env() { return m_tctx.env(); }
     io_state & ios() { return m_ios; }
-    local_context & lctx() { return m_lctx; }
 
     scanner::token_kind curr_kind() const { return m_curr_kind; }
     std::string const & curr_string() const { return m_scanner.get_str_val(); }
@@ -256,13 +255,37 @@ private:
 
     void next() { if (m_curr_kind != scanner::token_kind::END) scan(); }
 
-    void check_curr_kind(scanner::token_kind kind, char const * msg, pos_info p = pos_info()) {
+    void check_curr_kind(scanner::token_kind kind, char const * msg) {
         if (curr_kind() != kind)
-            throw_parser_exception(msg, p);
+            throw_parser_exception(msg);
+    }
+
+    void check_curr_kind(scanner::token_kind kind, std::string const & msg) {
+        if (curr_kind() != kind)
+            throw_parser_exception(msg);
     }
 
     // Parser helpers
     // Parsing sorts
+    void parse_sorted_var_list(buffer<expr> & bindings, char const * context) {
+        check_curr_kind(scanner::token_kind::LEFT_PAREN, std::string(context) + ": sorted-var list expected");
+        next();
+        while (curr_kind() == scanner::token_kind::LEFT_PAREN) {
+            next();
+            check_curr_kind(scanner::token_kind::SYMBOL, std::string(context) + ": invalid sorted-val list");
+            symbol sym = curr_symbol();
+            next();
+            expr ty = parse_expr(context);
+//            next();
+            bindings.push_back(m_tctx.push_local(sym, ty));
+            check_curr_kind(scanner::token_kind::RIGHT_PAREN, std::string(context) + ": invalid sorted-val list");
+            next();
+        }
+        check_curr_kind(scanner::token_kind::RIGHT_PAREN, std::string(context) + ": invalid sorted-val list");
+        next();
+    }
+
+
     expr parse_expr(char const * context) {
         // { LEFT_PAREN, RIGHT_PAREN, KEYWORD, SYMBOL, STRING, INT, FLOAT, BV };
         symbol sym;
@@ -278,7 +301,7 @@ private:
             it = g_theory_constant_symbols->find(sym);
             if (it != g_theory_constant_symbols->end())
                 return it->second;
-            else if (l = lctx().get_local_decl_from_user_name(sym))
+            else if (l = m_tctx.lctx().get_local_decl_from_user_name(sym))
                 return l->mk_ref();
             else
                 return mk_constant(sym);
@@ -306,31 +329,38 @@ private:
                 next();
                 parse_exprs(args, context);
                 return pre_elaborate_app(args);
-            } else if (curr_kind() == scanner::token_kind::SYMBOL && curr_symbol() == g_symbol_forall) {
+            } else if (curr_kind() == scanner::token_kind::SYMBOL && curr_symbol() == g_token_forall) {
                 next();
                 buffer<expr> bindings;
-                // TODO(dhs): write this
-                parse_sorted_var_list(context);
+                parse_sorted_var_list(bindings, context);
                 expr e = parse_expr(context);
+                expr pi = Pi(bindings, e);
+                for (expr const & binding : bindings)
+                    m_tctx.pop_local();
                 // TODO(dhs): confirm that we can use the Kernel's abstract even though our locals are in an lctx
-                return Pi(bindings, e);
-                //check_curr_kind(scanner::token_kind::LEFT_PAREN, "invalid forall, sorted-val list expected");
-                //next();
-            } else if (curr_kind() == scanner::token_kind::SYMBOL && curr_symbol() == g_symbol_exists) {
+                return pi;
+            } else if (curr_kind() == scanner::token_kind::SYMBOL && curr_symbol() == g_token_exists) {
+                throw_parser_exception("exists not accepted in expressions yet");
+                lean_unreachable();
+                /*
                 next();
                 buffer<expr> bindings;
                 parse_sorted_var_list(context);
                 expr e = parse_expr(context);
                 // TODO(dhs): write this
                 return Exists(bindings, e);
-            } else if (curr_kind() == scanner::token_kind::SYMBOL && curr_symbol() == g_symbol_let) {
+                */
+            } else if (curr_kind() == scanner::token_kind::SYMBOL && curr_symbol() == g_token_let) {
+                throw_parser_exception("let not accepted in expressions yet");
+                lean_unreachable();
+                /*
                 next();
                 buffer<expr> bindings;
                 // TODO(dhs): write this
                 parse_var_binding_list(context);
                 expr e = parse_expr(context);
                 // TODO(dhs): write this
-                return Let(bindings, e);
+                return Let(bindings, e);*/
             } else {
                 parse_exprs(args, context);
                 return pre_elaborate_app(args);
@@ -446,12 +476,13 @@ private:
         lean_assert(curr_symbol() == g_token_check_sat);
         next();
 
-        metavar_context mctx;
-        expr goal_mvar = mctx.mk_metavar_decl(lctx(), mk_constant(get_false_name()));
+        metavar_context mctx = m_tctx.mctx();
+        expr goal_mvar = mctx.mk_metavar_decl(m_tctx.lctx(), mk_constant(get_false_name()));
         vm_obj s = to_obj(tactic_state(env(), ios().get_options(), mctx, list<expr>(goal_mvar), goal_mvar));
         vm_obj result = get_tactic_vm_state(env()).invoke(*g_smt2_tactic, s);
         if (optional<tactic_state> s_new = is_tactic_success(result)) {
-            expr proof = mctx.instantiate_mvars(goal_mvar);
+            m_tctx.set_mctx(s_new->mctx());
+            expr proof = m_tctx.instantiate_mvars(goal_mvar);
             if (has_expr_metavar(proof)) {
                 ios().get_regular_stream() << "<tactic succeeded but left metavars>\n";
             } else {
@@ -571,22 +602,11 @@ private:
 public:
 
     // Constructor
-    parser(environment const & env, io_state & ios, std::istream & strm, char const * strm_name, bool use_exceptions):
-        m_env(env), m_ios(ios), m_scanner(strm, strm_name), m_use_exceptions(use_exceptions) { }
+    parser(type_context & tctx, io_state & ios, std::istream & strm, char const * strm_name, bool use_exceptions):
+        m_tctx(tctx), m_ios(ios), m_scanner(strm, strm_name), m_use_exceptions(use_exceptions) {}
 
     // Entry point
     bool operator()() {
-        buffer<module_name> olean_files;
-        std::string base = dirname(get_stream_name().c_str());
-        name f("init");
-        optional<unsigned> k;
-        olean_files.push_back(module_name(k, f));
-
-        unsigned num_threads = 0;
-        bool keep_imported_theorems = false;
-
-        m_env = import_modules(m_env, base, olean_files.size(), olean_files.data(), num_threads, keep_imported_theorems, m_ios);
-
         parse_commands();
         return true;
     }
@@ -668,7 +688,18 @@ bool parse_commands(environment & env, io_state & ios, char const * fname, bool 
     if (in.bad() || in.fail())
         throw exception(sstream() << "failed to open file '" << fname << "'");
 
-    parser p(env, ios, in, fname, use_exceptions);
+    buffer<module_name> olean_files;
+    std::string base = dirname(fname);
+    name f("init");
+    optional<unsigned> k;
+    olean_files.push_back(module_name(k, f));
+
+    unsigned num_threads = 0;
+    bool keep_imported_theorems = false;
+
+    environment new_env = import_modules(env, base, olean_files.size(), olean_files.data(), num_threads, keep_imported_theorems, ios);
+    aux_type_context aux_tctx(new_env, ios.get_options());
+    parser p(aux_tctx.get(), ios, in, fname, use_exceptions);
     return p();
 }
 
