@@ -117,15 +117,10 @@ static char const * g_token_use_locals      = ":use_locals";
 // Reserved words
 // (a) General
 static char const * g_token_as          = "as";
-static char const * g_token_binary      = "BINARY";
-static char const * g_token_decimal     = "DECIMAL";
 static char const * g_token_exists      = "exists";
-static char const * g_token_hexadecimal = "HEXADECIMAL";
 static char const * g_token_forall      = "forall";
 static char const * g_token_let         = "let";
-static char const * g_token_numeral     = "NUMERAL";
 static char const * g_token_par         = "par";
-static char const * g_token_string      = "STRING";
 
 // (b) Command names
 static char const * g_token_assert                = "assert";
@@ -173,6 +168,8 @@ private:
     scanner::token_kind     m_curr_kind{scanner::token_kind::BEGIN};
 
     bool                    m_use_locals{false};
+
+    type_context *          m_tctx_ptr{nullptr};
 
     // Util
     std::string const & get_stream_name() const { return m_scanner.get_stream_name(); }
@@ -248,71 +245,14 @@ private:
         return new_e;
     }
 
-    // TODO(dhs): just create a type context?
-    expr infer_constant(expr const & e) {
-        declaration d   = env().get(const_name(e));
-        auto const & ps = d.get_univ_params();
-        auto const & ls = const_levels(e);
-        lean_assert(length(ps) == length(ls));
-        return instantiate_type_univ_params(d, ls);
-    }
-
-    expr infer_macro(expr const & e) {
-        auto def = macro_def(e);
-        bool infer_only = true;
-        return def.check_type(e, *this, infer_only);
-    }
-
-    expr infer_let(expr const & e) {
-        buffer<expr> vs;
-        while (is_let(e)) {
-            expr v = instantiate_rev(let_value(e), vs.size(), vs.data());
-            vs.push_back(v);
-            e = let_body(e);
-        }
-        return infer_type(instantiate_rev(e, vs.size(), vs.data()));
-    }
-
-    expr infer_app(expr const & e) {
-        buffer<expr> args;
-        expr const & f = get_app_args(e, args);
-        expr f_type    = infer_type(f);
-        unsigned j     = 0;
-        unsigned nargs = args.size();
-        for (unsigned i = 0; i < nargs; i++) {
-            if (is_pi(f_type)) {
-                f_type = binding_body(f_type);
-            } else {
-                f_type = instantiate_rev(f_type, i-j, args.data()+j);
-                if (!is_pi(f_type))
-                    throw exception("infer type failed, Pi expected");
-                f_type = binding_body(f_type);
-                j = i;
-            }
-        }
-        return instantiate_rev(f_type, nargs-j, args.data()+j);
-    }
-
-    expr infer_type(expr const & e) {
-        switch (e.kind()) {
-        case expr_kind::Local:    return lctx().get_local_decl(e)->get_type();
-        case expr_kind::Constant: return infer_constant(e);
-        case expr_kind::Macro:    return infer_macro(e);
-        case expr_kind::Let:      return infer_let(e);
-        case expr_kind::App:      return infer_app(e);
-        case expr_kind::Meta:
-        case expr_kind::Var:
-        case expr_kind::Sort:
-        case expr_kind::Lambda:
-        case expr_kind::Pi:
-            lean_unreachable();  // LCOV_EXCL_LINE
-            break;
-        }
-    }
-
     // TODO(dhs): implement!
     // Note: Leo's elaborator will be called at the end
     expr elaborate_app(buffer<expr> & args) {
+        // We set the tctx_ptr whenever we are going to parse a term.
+        // Sorts do not require elaboration.
+        if (!m_tctx_ptr)
+            return mk_app(args);
+
         int num_args = args.size() - 1;
         lean_assert(num_args > 0);
 
@@ -336,7 +276,7 @@ private:
         // Exception: (_ extract i j)
         if (is_constant(args[0]) && args.size() > 1) {
             name n = const_name(args[0]);
-            expr ty = infer_type(args[1]);
+            expr ty = m_tctx_ptr->infer(args[1]);
 
             // (1) Core: =, distinct, ite
             // (2) Arith: +, *, -, <, <=, >, >=
@@ -348,7 +288,7 @@ private:
                 args[0] = mk_app(args[0], ty);
             } else if (n == get_ite_name()) {
                 // TODO(dhs): is Lean's ITE more general?
-                expr ty = infer_type(args[1]);
+                expr ty = m_tctx_ptr->infer(args[1]);
                 args[0] = mk_app(args[0], ty);
             } else if (n == get_add_name()) { // (2) arith
                 if (ty == mk_constant(get_int_name())) {
@@ -400,14 +340,14 @@ private:
                     args[0] = mk_app(args[0], mk_constant(get_real_name()), mk_constant(get_real_has_le_name()));
                 }
             } else if (n == get_map_lookup_name()) { // (3) arrays
-                expr ty2 = infer_type(args[2]);
-                expr ty3 = infer_type(args[3]);
+                expr ty2 = m_tctx_ptr->infer(args[2]);
+                expr ty3 = m_tctx_ptr->infer(args[3]);
                 args[0] = mk_app(args[0], ty2, ty3);
                 expr tmp1 = args[1];
                 args[1] = args[2]; args[2] = tmp1;
             } else if (n == get_map_insert_name()) {
-                expr ty2 = infer_type(args[2]);
-                expr ty3 = infer_type(args[3]);
+                expr ty2 = m_tctx_ptr->infer(args[2]);
+                expr ty3 = m_tctx_ptr->infer(args[3]);
                 args[0] = mk_app(args[0], ty2, ty3);
                 expr tmp1 = args[1];
                 args[1] = args[2]; args[2] = args[3]; args[3] = tmp1;
@@ -661,7 +601,12 @@ private:
         lean_assert(curr_symbol() == g_token_assert);
         next();
 
-        expr e = parse_expr("invalid assert command");
+        aux_type_context aux_tctx(m_env, m_ios.get_options(), m_lctx);
+        expr e;
+        {
+            flet<type_context *> parsing_a_term(m_tctx_ptr, &aux_tctx.get());
+            e = parse_expr("invalid assert command");
+        }
         register_hypothesis(e);
 
         check_curr_kind(scanner::token_kind::RIGHT_PAREN, "invalid constant declaration, ')' expected");
