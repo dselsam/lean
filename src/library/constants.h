@@ -44,6 +44,7 @@ name const & get_dite_name();
 name const & get_div_name();
 name const & get_empty_name();
 name const & get_empty_rec_name();
+name const & get_Exists_name();
 name const & get_eq_name();
 name const & get_eq_drec_name();
 name const & get_eq_elim_inv_inv_name();

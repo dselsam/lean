@@ -42,6 +42,7 @@ name const * g_dite = nullptr;
 name const * g_div = nullptr;
 name const * g_empty = nullptr;
 name const * g_empty_rec = nullptr;
+name const * g_Exists = nullptr;
 name const * g_eq = nullptr;
 name const * g_eq_drec = nullptr;
 name const * g_eq_elim_inv_inv = nullptr;
@@ -309,6 +310,7 @@ void initialize_constants() {
     g_div = new name{"div"};
     g_empty = new name{"empty"};
     g_empty_rec = new name{"empty", "rec"};
+    g_Exists = new name{"Exists"};
     g_eq = new name{"eq"};
     g_eq_drec = new name{"eq", "drec"};
     g_eq_elim_inv_inv = new name{"eq", "elim_inv_inv"};
@@ -577,6 +579,7 @@ void finalize_constants() {
     delete g_div;
     delete g_empty;
     delete g_empty_rec;
+    delete g_Exists;
     delete g_eq;
     delete g_eq_drec;
     delete g_eq_elim_inv_inv;
@@ -844,6 +847,7 @@ name const & get_dite_name() { return *g_dite; }
 name const & get_div_name() { return *g_div; }
 name const & get_empty_name() { return *g_empty; }
 name const & get_empty_rec_name() { return *g_empty_rec; }
+name const & get_Exists_name() { return *g_Exists; }
 name const & get_eq_name() { return *g_eq; }
 name const & get_eq_drec_name() { return *g_eq_drec; }
 name const & get_eq_elim_inv_inv_name() { return *g_eq_elim_inv_inv; }

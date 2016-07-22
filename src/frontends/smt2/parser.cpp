@@ -156,11 +156,15 @@ static char const * g_token_set_info              = "set-info";
 static char const * g_token_set_logic             = "set-logic";
 static char const * g_token_set_option            = "set-option";
 
+
 // Parser class
 class parser {
 private:
-    type_context &          m_tctx;
+    environment             m_env;
     io_state                m_ios;
+
+    local_context           m_lctx;
+
     scanner                 m_scanner;
 
     bool                    m_use_exceptions;
@@ -182,21 +186,65 @@ private:
 
     void register_hypothesis(name const & n, expr const & ty) {
         if (m_use_locals) {
-            m_tctx.push_local(n, ty);
+            lctx().mk_local_decl(n, ty);
         } else {
             declaration d = mk_axiom(n, list<name>(), ty);
-            env() = env().add(check(env(), d));
+            m_env = env().add(check(env(), d));
         }
     }
 
     void register_hypothesis(expr const & ty) {
         name n = mk_tagged_fresh_name(*g_smt2_prefix);
         if (m_use_locals) {
-            m_tctx.push_local(n, ty);
+            lctx().mk_local_decl(n, ty);
         } else {
             declaration d = mk_axiom(n, list<name>(), ty);
-            env() = env().add(check(env(), d));
+            m_env = env().add(check(env(), d));
         }
+    }
+
+    // Making bindings
+    enum class binding_type { FORALL, EXISTS, LET };
+
+    expr mk_binding(binding_type btype, buffer<expr> const & locals, expr const & e) { return mk_binding(btype, locals.size(), locals.data(), e); }
+
+    expr mk_binding(binding_type btype, unsigned num_locals, expr const * locals, expr const & e) {
+        buffer<local_decl>     decls;
+        buffer<expr>           types;
+        buffer<optional<expr>> values;
+        for (unsigned i = 0; i < num_locals; i++) {
+            local_decl const & decl = *lctx().get_local_decl(locals[i]);
+            decls.push_back(decl);
+            types.push_back(::lean::abstract_locals(decl.get_type(), i, locals));
+            if (auto v = decl.get_value())
+                values.push_back(some_expr(::lean::abstract_locals(*v, i, locals)));
+            else
+                values.push_back(none_expr());
+        }
+        expr new_e = ::lean::abstract_locals(e, num_locals, locals);
+        lean_assert(types.size() == values.size());
+        unsigned i = types.size();
+        while (i > 0) {
+            --i;
+            switch (btype) {
+            case binding_type::FORALL:
+                lean_assert(!values[i]);
+                new_e = ::lean::mk_pi(decls[i].get_pp_name(), types[i], new_e, decls[i].get_info());
+                break;
+            case binding_type::EXISTS:
+                lean_assert(!values[i]);
+                // @Exists.{l_1} ?A (λ (x : ?A), @eq.{l_1} ?A x x) : Prop
+                new_e = mk_app(mk_constant(get_Exists_name(), {mk_level_one()}),
+                               types[i],
+                               ::lean::mk_lambda(decls[i].get_pp_name(), types[i], new_e, decls[i].get_info()));
+                break;
+            case binding_type::LET:
+                lean_assert(values[i]);
+                new_e = mk_let(decls[i].get_pp_name(), types[i], *values[i], new_e);
+                break;
+            }
+        }
+        return new_e;
     }
 
     // TODO(dhs): implement!
@@ -235,8 +283,9 @@ private:
         lean_unreachable();
     }
 
-    environment const & env() { return m_tctx.env(); }
+    environment & env() { return m_env; }
     io_state & ios() { return m_ios; }
+    local_context & lctx() { return m_lctx; }
 
     scanner::token_kind curr_kind() const { return m_curr_kind; }
     std::string const & curr_string() const { return m_scanner.get_str_val(); }
@@ -276,8 +325,8 @@ private:
             symbol sym = curr_symbol();
             next();
             expr ty = parse_expr(context);
-//            next();
-            bindings.push_back(m_tctx.push_local(sym, ty));
+            expr l = lctx().mk_local_decl(sym, ty);
+            bindings.push_back(l);
             check_curr_kind(scanner::token_kind::RIGHT_PAREN, std::string(context) + ": invalid sorted-val list");
             next();
         }
@@ -301,7 +350,7 @@ private:
             it = g_theory_constant_symbols->find(sym);
             if (it != g_theory_constant_symbols->end())
                 return it->second;
-            else if (l = m_tctx.lctx().get_local_decl_from_user_name(sym))
+            else if (l = lctx().get_local_decl_from_user_name(sym))
                 return l->mk_ref();
             else
                 return mk_constant(sym);
@@ -334,10 +383,11 @@ private:
                 buffer<expr> bindings;
                 parse_sorted_var_list(bindings, context);
                 expr e = parse_expr(context);
-                expr pi = Pi(bindings, e);
+                expr pi = mk_binding(binding_type::FORALL, bindings, e);
                 for (expr const & binding : bindings)
-                    m_tctx.pop_local();
-                // TODO(dhs): confirm that we can use the Kernel's abstract even though our locals are in an lctx
+                    m_lctx.pop_local_decl();
+                check_curr_kind(scanner::token_kind::RIGHT_PAREN, "invalid constant declaration, ')' expected");
+                next();
                 return pi;
             } else if (curr_kind() == scanner::token_kind::SYMBOL && curr_symbol() == g_token_exists) {
                 throw_parser_exception("exists not accepted in expressions yet");
@@ -412,7 +462,7 @@ private:
                 case scanner::token_kind::END:
                     return true;
                 default:
-                    throw_parser_exception("invalid command, '(' expected", m_scanner.get_pos_info());
+                    throw_parser_exception("invalid command, '(' expected");
                     break;
                 }
             }
@@ -476,13 +526,13 @@ private:
         lean_assert(curr_symbol() == g_token_check_sat);
         next();
 
-        metavar_context mctx = m_tctx.mctx();
-        expr goal_mvar = mctx.mk_metavar_decl(m_tctx.lctx(), mk_constant(get_false_name()));
+        metavar_context mctx;
+        expr goal_mvar = mctx.mk_metavar_decl(lctx(), mk_constant(get_false_name()));
         vm_obj s = to_obj(tactic_state(env(), ios().get_options(), mctx, list<expr>(goal_mvar), goal_mvar));
         vm_obj result = get_tactic_vm_state(env()).invoke(*g_smt2_tactic, s);
         if (optional<tactic_state> s_new = is_tactic_success(result)) {
-            m_tctx.set_mctx(s_new->mctx());
-            expr proof = m_tctx.instantiate_mvars(goal_mvar);
+            mctx = s_new->mctx();
+            expr proof = mctx.instantiate_mvars(goal_mvar);
             if (has_expr_metavar(proof)) {
                 ios().get_regular_stream() << "<tactic succeeded but left metavars>\n";
             } else {
@@ -593,7 +643,7 @@ private:
             m_use_locals = true;
         } else {
             // TODO(dhs): just a warning?
-            throw_parser_exception("unsupported option");
+            throw_parser_exception(std::string("unsupported option: ") + sym);
         }
         check_curr_kind(scanner::token_kind::RIGHT_PAREN, "invalid set-option, ')' expected");
         next();
@@ -602,8 +652,8 @@ private:
 public:
 
     // Constructor
-    parser(type_context & tctx, io_state & ios, std::istream & strm, char const * strm_name, bool use_exceptions):
-        m_tctx(tctx), m_ios(ios), m_scanner(strm, strm_name), m_use_exceptions(use_exceptions) {}
+    parser(environment const & env, io_state & ios, std::istream & strm, char const * strm_name, bool use_exceptions):
+        m_env(env), m_ios(ios), m_scanner(strm, strm_name), m_use_exceptions(use_exceptions) {}
 
     // Entry point
     bool operator()() {
@@ -698,8 +748,7 @@ bool parse_commands(environment & env, io_state & ios, char const * fname, bool 
     bool keep_imported_theorems = false;
 
     environment new_env = import_modules(env, base, olean_files.size(), olean_files.data(), num_threads, keep_imported_theorems, ios);
-    aux_type_context aux_tctx(new_env, ios.get_options());
-    parser p(aux_tctx.get(), ios, in, fname, use_exceptions);
+    parser p(new_env, ios, in, fname, use_exceptions);
     return p();
 }
 

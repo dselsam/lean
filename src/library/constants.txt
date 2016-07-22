@@ -37,6 +37,7 @@ dite
 div
 empty
 empty.rec
+Exists
 eq
 eq.drec
 eq.elim_inv_inv
