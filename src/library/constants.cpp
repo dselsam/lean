@@ -30,6 +30,7 @@ name const * g_cast_heq = nullptr;
 name const * g_char = nullptr;
 name const * g_char_of_nat = nullptr;
 name const * g_classical = nullptr;
+name const * g_classical_prop_decidable = nullptr;
 name const * g_combinator_K = nullptr;
 name const * g_congr = nullptr;
 name const * g_congr_arg = nullptr;
@@ -105,8 +106,12 @@ name const * g_int_of_nat = nullptr;
 name const * g_int_has_add = nullptr;
 name const * g_int_has_mul = nullptr;
 name const * g_int_has_sub = nullptr;
+name const * g_int_has_div = nullptr;
 name const * g_int_has_le = nullptr;
 name const * g_int_has_lt = nullptr;
+name const * g_int_has_neg = nullptr;
+name const * g_int_has_mod = nullptr;
+name const * g_int_decidable_linear_ordered_comm_group = nullptr;
 name const * g_IO = nullptr;
 name const * g_is_trunc_is_prop = nullptr;
 name const * g_is_trunc_is_prop_elim = nullptr;
@@ -241,8 +246,10 @@ name const * g_real = nullptr;
 name const * g_real_has_add = nullptr;
 name const * g_real_has_mul = nullptr;
 name const * g_real_has_sub = nullptr;
+name const * g_real_has_div = nullptr;
 name const * g_real_has_le = nullptr;
 name const * g_real_has_lt = nullptr;
+name const * g_real_has_neg = nullptr;
 name const * g_real_is_int = nullptr;
 name const * g_real_of_rat = nullptr;
 name const * g_real_of_int = nullptr;
@@ -311,6 +318,7 @@ void initialize_constants() {
     g_char = new name{"char"};
     g_char_of_nat = new name{"char", "of_nat"};
     g_classical = new name{"classical"};
+    g_classical_prop_decidable = new name{"classical", "prop_decidable"};
     g_combinator_K = new name{"combinator", "K"};
     g_congr = new name{"congr"};
     g_congr_arg = new name{"congr_arg"};
@@ -383,11 +391,15 @@ void initialize_constants() {
     g_implies_resolve = new name{"implies", "resolve"};
     g_int = new name{"int"};
     g_int_of_nat = new name{"int", "of_nat"};
-    g_int_has_add = new name{"int", "has_add"};
-    g_int_has_mul = new name{"int", "has_mul"};
-    g_int_has_sub = new name{"int", "has_sub"};
-    g_int_has_le = new name{"int", "has_le"};
-    g_int_has_lt = new name{"int", "has_lt"};
+    g_int_has_add = new name{"int_has_add"};
+    g_int_has_mul = new name{"int_has_mul"};
+    g_int_has_sub = new name{"int_has_sub"};
+    g_int_has_div = new name{"int_has_div"};
+    g_int_has_le = new name{"int_has_le"};
+    g_int_has_lt = new name{"int_has_lt"};
+    g_int_has_neg = new name{"int_has_neg"};
+    g_int_has_mod = new name{"int_has_mod"};
+    g_int_decidable_linear_ordered_comm_group = new name{"int_decidable_linear_ordered_comm_group"};
     g_IO = new name{"IO"};
     g_is_trunc_is_prop = new name{"is_trunc", "is_prop"};
     g_is_trunc_is_prop_elim = new name{"is_trunc", "is_prop", "elim"};
@@ -519,11 +531,13 @@ void initialize_constants() {
     g_rat_of_num = new name{"rat", "of_num"};
     g_rat_of_int = new name{"rat", "of_int"};
     g_real = new name{"real"};
-    g_real_has_add = new name{"real", "has_add"};
-    g_real_has_mul = new name{"real", "has_mul"};
-    g_real_has_sub = new name{"real", "has_sub"};
-    g_real_has_le = new name{"real", "has_le"};
-    g_real_has_lt = new name{"real", "has_lt"};
+    g_real_has_add = new name{"real_has_add"};
+    g_real_has_mul = new name{"real_has_mul"};
+    g_real_has_sub = new name{"real_has_sub"};
+    g_real_has_div = new name{"real_has_div"};
+    g_real_has_le = new name{"real_has_le"};
+    g_real_has_lt = new name{"real_has_lt"};
+    g_real_has_neg = new name{"real_has_neg"};
     g_real_is_int = new name{"real", "is_int"};
     g_real_of_rat = new name{"real", "of_rat"};
     g_real_of_int = new name{"real", "of_int"};
@@ -593,6 +607,7 @@ void finalize_constants() {
     delete g_char;
     delete g_char_of_nat;
     delete g_classical;
+    delete g_classical_prop_decidable;
     delete g_combinator_K;
     delete g_congr;
     delete g_congr_arg;
@@ -668,8 +683,12 @@ void finalize_constants() {
     delete g_int_has_add;
     delete g_int_has_mul;
     delete g_int_has_sub;
+    delete g_int_has_div;
     delete g_int_has_le;
     delete g_int_has_lt;
+    delete g_int_has_neg;
+    delete g_int_has_mod;
+    delete g_int_decidable_linear_ordered_comm_group;
     delete g_IO;
     delete g_is_trunc_is_prop;
     delete g_is_trunc_is_prop_elim;
@@ -804,8 +823,10 @@ void finalize_constants() {
     delete g_real_has_add;
     delete g_real_has_mul;
     delete g_real_has_sub;
+    delete g_real_has_div;
     delete g_real_has_le;
     delete g_real_has_lt;
+    delete g_real_has_neg;
     delete g_real_is_int;
     delete g_real_of_rat;
     delete g_real_of_int;
@@ -874,6 +895,7 @@ name const & get_cast_heq_name() { return *g_cast_heq; }
 name const & get_char_name() { return *g_char; }
 name const & get_char_of_nat_name() { return *g_char_of_nat; }
 name const & get_classical_name() { return *g_classical; }
+name const & get_classical_prop_decidable_name() { return *g_classical_prop_decidable; }
 name const & get_combinator_K_name() { return *g_combinator_K; }
 name const & get_congr_name() { return *g_congr; }
 name const & get_congr_arg_name() { return *g_congr_arg; }
@@ -949,8 +971,12 @@ name const & get_int_of_nat_name() { return *g_int_of_nat; }
 name const & get_int_has_add_name() { return *g_int_has_add; }
 name const & get_int_has_mul_name() { return *g_int_has_mul; }
 name const & get_int_has_sub_name() { return *g_int_has_sub; }
+name const & get_int_has_div_name() { return *g_int_has_div; }
 name const & get_int_has_le_name() { return *g_int_has_le; }
 name const & get_int_has_lt_name() { return *g_int_has_lt; }
+name const & get_int_has_neg_name() { return *g_int_has_neg; }
+name const & get_int_has_mod_name() { return *g_int_has_mod; }
+name const & get_int_decidable_linear_ordered_comm_group_name() { return *g_int_decidable_linear_ordered_comm_group; }
 name const & get_IO_name() { return *g_IO; }
 name const & get_is_trunc_is_prop_name() { return *g_is_trunc_is_prop; }
 name const & get_is_trunc_is_prop_elim_name() { return *g_is_trunc_is_prop_elim; }
@@ -1085,8 +1111,10 @@ name const & get_real_name() { return *g_real; }
 name const & get_real_has_add_name() { return *g_real_has_add; }
 name const & get_real_has_mul_name() { return *g_real_has_mul; }
 name const & get_real_has_sub_name() { return *g_real_has_sub; }
+name const & get_real_has_div_name() { return *g_real_has_div; }
 name const & get_real_has_le_name() { return *g_real_has_le; }
 name const & get_real_has_lt_name() { return *g_real_has_lt; }
+name const & get_real_has_neg_name() { return *g_real_has_neg; }
 name const & get_real_is_int_name() { return *g_real_is_int; }
 name const & get_real_of_rat_name() { return *g_real_of_rat; }
 name const & get_real_of_int_name() { return *g_real_of_int; }

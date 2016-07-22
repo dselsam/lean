@@ -174,6 +174,8 @@ scanner::token_kind scanner::read_number() {
             } else {
                 break;
             }
+        } else {
+            break;
         }
         first = false;
     }

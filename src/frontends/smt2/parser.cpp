@@ -20,6 +20,7 @@ Author: Daniel Selsam
 #include "kernel/type_checker.h"
 #include "kernel/expr_maps.h"
 #include "kernel/pos_info_provider.h"
+#include "library/app_builder.h"
 #include "library/constants.h"
 #include "library/io_state.h"
 #include "library/io_state_stream.h"
@@ -37,7 +38,8 @@ namespace smt2 {
 static name * g_smt2_prefix;
 static name * g_smt2_tactic;
 
-enum class fun_attr { DEFAULT, LEFT_ASSOC, RIGHT_ASSOC, CHAINABLE, PAIRWISE };
+// Note: the standard has a :pairwise annotation, but it is only used for distinct, which we handle specially
+enum class fun_attr { DEFAULT, LEFT_ASSOC, RIGHT_ASSOC, CHAINABLE, DISTINCT };
 
 struct fun_decl {
     expr     m_e;
@@ -83,7 +85,25 @@ static expr mk_chainable_app(buffer<expr> const & args) {
 }
 
 // TODO(dhs): use a macro for this? It scales quadratically.
-static expr mk_pairwise_app(buffer<expr> const & args) { throw exception("NYI"); }
+
+// At this stage in elaboration: ["@distinct A", arg1, ... ,argN]
+static expr mk_distinct_app(buffer<expr> const & args) {
+    lean_assert(app_fn(args[0]) == mk_constant(get_distinct_name()));
+    unsigned num_args = args.size() - 1;
+    if (num_args == 1)
+        return mk_constant(get_true_name());
+    expr eq = mk_app(mk_constant(get_eq_name(), {mk_level_one()}), app_arg(args[0]));
+    if (num_args == 2)
+        return mk_app(mk_constant(get_not_name()), mk_app(eq, args[1], args[2]));
+    buffer<expr> new_args;
+    new_args.push_back(mk_constant(get_and_name()));
+    for (unsigned i = 0; i < num_args - 1; ++i) {
+        for (unsigned j = i + 1; j < num_args; ++j) {
+            new_args.push_back(mk_app(mk_constant(get_not_name()), mk_app(eq, args[1+i], args[1+j])));
+        }
+    }
+    return mk_left_assoc_app(new_args);
+}
 
 // Theory symbols
 // TODO(dhs): I may not actually do it this way, and instead just have a chain of IF statements.
@@ -245,6 +265,7 @@ private:
         return new_e;
     }
 
+    expr elaborate_ite(buffer<expr> args
     // TODO(dhs): implement!
     // Note: Leo's elaborator will be called at the end
     expr elaborate_app(buffer<expr> & args) {
@@ -271,6 +292,17 @@ private:
             }
         }
 
+        // The universe-polymorphic are the most complicated
+        if (is_constant(args[0]) && const_name(args[0]) == get_ite_name()) {
+            return elaborate_ite(args);
+        } else if (is_constant(args[0]) && const_name(args[0]) == get_distinct_name()) {
+            return elaborate_distinct(args);
+        } else if (is_constant(args[0]) && const_name(args[0]) == get_eq_name()) {
+            return elaborate_eq(args);
+        }
+
+
+
         // Step 2: add implicit arguments as needed
         // Almost everything that will need to be elaborated is a constant
         // Exception: (_ extract i j)
@@ -285,10 +317,6 @@ private:
             if (n == get_eq_name()) { // (1) bool
                 args[0] = mk_app(args[0], ty);
             } else if (n == get_distinct_name()) {
-                args[0] = mk_app(args[0], ty);
-            } else if (n == get_ite_name()) {
-                // TODO(dhs): is Lean's ITE more general?
-                expr ty = m_tctx_ptr->infer(args[1]);
                 args[0] = mk_app(args[0], ty);
             } else if (n == get_add_name()) { // (2) arith
                 if (ty == mk_constant(get_int_name())) {
@@ -311,6 +339,23 @@ private:
                     lean_assert(ty == mk_constant(get_real_name()));
                     args[0] = mk_app(args[0], mk_constant(get_real_name()), mk_constant(get_real_has_sub_name()));
                 }
+            } else if (n == get_neg_name()) {
+                if (ty == mk_constant(get_int_name())) {
+                    args[0] = mk_app(args[0], mk_constant(get_int_name()), mk_constant(get_int_has_neg_name()));
+                } else {
+                    lean_assert(ty == mk_constant(get_real_name()));
+                    args[0] = mk_app(args[0], mk_constant(get_real_name()), mk_constant(get_real_has_neg_name()));
+                }
+            } else if (n == get_div_name()) {
+                if (ty == mk_constant(get_int_name())) {
+                    args[0] = mk_app(args[0], mk_constant(get_int_name()), mk_constant(get_int_has_div_name()));
+                } else {
+                    lean_assert(ty == mk_constant(get_real_name()));
+                    args[0] = mk_app(args[0], mk_constant(get_real_name()), mk_constant(get_real_has_div_name()));
+                }
+            } else if (n == get_mod_name()) {
+                lean_assert(ty == mk_constant(get_int_name()));
+                args[0] = mk_app(args[0], mk_constant(get_int_name()), mk_constant(get_int_has_mod_name()));
             } else if (n == get_lt_name()) {
                 if (ty == mk_constant(get_int_name())) {
                     args[0] = mk_app(args[0], mk_constant(get_int_name()), mk_constant(get_int_has_lt_name()));
@@ -364,8 +409,8 @@ private:
             return mk_right_assoc_app(args);
         case fun_attr::CHAINABLE:
             return mk_chainable_app(args);
-        case fun_attr::PAIRWISE:
-            return mk_pairwise_app(args);
+        case fun_attr::DISTINCT:
+            return mk_distinct_app(args);
         }
         lean_unreachable();
     }
@@ -412,7 +457,7 @@ private:
             symbol sym = curr_symbol();
             next();
             expr ty = parse_expr(context);
-            expr l = lctx().mk_local_decl(sym, ty);
+            expr l = m_tctx_ptr->push_local(sym, ty);
             bindings.push_back(l);
             check_curr_kind(scanner::token_kind::RIGHT_PAREN, std::string(context) + ": invalid sorted-val list");
             next();
@@ -466,13 +511,14 @@ private:
                 parse_exprs(args, context);
                 return elaborate_app(args);
             } else if (curr_kind() == scanner::token_kind::SYMBOL && curr_symbol() == g_token_forall) {
+                lean_assert(m_tctx_ptr);
                 next();
                 buffer<expr> bindings;
                 parse_sorted_var_list(bindings, context);
                 expr e = parse_expr(context);
                 expr pi = mk_binding(binding_type::FORALL, bindings, e);
                 for (expr const & binding : bindings)
-                    m_lctx.pop_local_decl();
+                    m_tctx_ptr->pop_local();
                 check_curr_kind(scanner::token_kind::RIGHT_PAREN, "invalid constant declaration, ')' expected");
                 next();
                 return pi;
@@ -607,6 +653,7 @@ private:
             flet<type_context *> parsing_a_term(m_tctx_ptr, &aux_tctx.get());
             e = parse_expr("invalid assert command");
         }
+        ios().get_regular_stream() << "[assert] " << e << "\n";
         register_hypothesis(e);
 
         check_curr_kind(scanner::token_kind::RIGHT_PAREN, "invalid constant declaration, ')' expected");
@@ -646,6 +693,7 @@ private:
         name c_name = name(curr_symbol());
         next();
         expr ty = parse_expr("invalid constant declaration");
+        ios().get_regular_stream() << "[declare_const] " << c_name << " : " << ty << "\n";
         register_hypothesis(c_name, ty);
         check_curr_kind(scanner::token_kind::RIGHT_PAREN, "invalid constant declaration, ')' expected");
         next();
@@ -662,9 +710,10 @@ private:
         buffer<expr> parameter_sorts;
         parse_expr_list(parameter_sorts, "invalid function declaration");
         expr ty = parse_expr("invalid function declaration");
-        for (int i = parameter_sorts.size() - 1; i >= 0; ++i) {
+        for (int i = parameter_sorts.size() - 1; i >= 0; --i) {
             ty = mk_arrow(parameter_sorts[i], ty);
         }
+        ios().get_regular_stream() << "[declare_fun] " << fn_name << " : " << ty << "\n";
         register_hypothesis(fn_name, ty);
         check_curr_kind(scanner::token_kind::RIGHT_PAREN, "invalid function declaration, ')' expected");
         next();
@@ -697,6 +746,7 @@ private:
         for (unsigned i = 0; i < arity; ++i) {
             ty = mk_arrow(mk_Type(), ty);
         }
+        ios().get_regular_stream() << "[declare_sort] " << sort_name << " : " << ty << "\n";
         register_hypothesis(sort_name, ty);
         check_curr_kind(scanner::token_kind::RIGHT_PAREN, "invalid sort declaration, ')' expected");
         next();
@@ -759,7 +809,7 @@ public:
 void initialize_parser() {
     g_smt2_prefix = new name(name::mk_internal_unique_name());
     // TODO(dhs): write a theorem prover and call that instead
-    g_smt2_tactic = new name({"tactic", "trace_state"});
+    g_smt2_tactic = new name({"tactic", "smt2"});
 
     g_theory_constant_symbols = new std::unordered_map<std::string, expr>({
             // Sorts
@@ -801,8 +851,9 @@ void initialize_parser() {
 
             // II. Polymorphic
             // (a) Core
-            {"=", fun_decl(mk_constant(get_eq_name(), {mk_level_one()}), fun_attr::CHAINABLE)},
-            {"distinct", fun_decl(mk_constant(get_distinct_name()), fun_attr::PAIRWISE)},
+            // Note: we do not know the correct universe levels for these yet
+            {"=", fun_decl(mk_constant(get_eq_name()), fun_attr::CHAINABLE)},
+            {"distinct", fun_decl(mk_constant(get_distinct_name()), fun_attr::DISTINCT)},
             {"ite", fun_decl(mk_constant(get_ite_name()), fun_attr::DEFAULT)},
 
             // (b) Arithmetic
@@ -832,9 +883,10 @@ bool parse_commands(environment & env, io_state & ios, char const * fname, bool 
 
     buffer<module_name> olean_files;
     std::string base = dirname(fname);
-    name f("init");
     optional<unsigned> k;
-    olean_files.push_back(module_name(k, f));
+
+    olean_files.push_back(module_name(k, name("init")));
+    olean_files.push_back(module_name(k, name({"algebra","smt2"})));
 
     unsigned num_threads = 0;
     bool keep_imported_theorems = false;

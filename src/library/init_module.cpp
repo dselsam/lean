@@ -50,6 +50,7 @@ Author: Leonardo de Moura
 #include "library/lazy_abstraction.h"
 #include "library/app_builder.h"
 #include "library/fun_info.h"
+#include "library/mpq_macro.h"
 
 // #include "library/congr_lemma_manager.h"
 // #include "library/light_lt_manager.h"
@@ -128,9 +129,11 @@ void initialize_library_module() {
     initialize_unification_hint();
     initialize_type_context();
     initialize_lazy_abstraction();
+    initialize_mpq_macro();
 }
 
 void finalize_library_module() {
+    finalize_mpq_macro();
     finalize_lazy_abstraction();
     finalize_type_context();
     finalize_unification_hint();
