@@ -4,6 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 
 Author: Daniel Selsam
 */
+#include <string>
+#include <unordered_set>
 #include "util/name_hash_map.h"
 #include "kernel/environment.h"
 #include "kernel/abstract.h"
@@ -14,6 +16,8 @@ Author: Daniel Selsam
 
 namespace lean {
 namespace smt2 {
+
+static name * g_smt2_user_name_prefix;
 
 // Util
 static inline level l1() { return mk_level_one(); }
@@ -46,10 +50,15 @@ struct arith_app_info {
 
 static name_hash_map<arith_app_info> * g_arith_symbol_map  = nullptr;
 
-// (3) special operators that require custom procedures
+// (3) operators that do not have implicit arguments but that require e.g. left-assoc
+static name_hash_map<pair<expr, fun_attr>> * g_constant_fun_attr_map = nullptr;
+
+// (4) special operators that require custom procedures
 enum class special_app_kind { ITE, DISTINCT, EQ, SELECT, STORE };
 static name_hash_map<special_app_kind> * g_special_map               = nullptr;
 
+// (5) hash-set of all symbols in (2-4), so that the constant-elaborator knows to skip them
+static std::unordered_set<std::string> * g_skip_constant_map = nullptr;
 
 // Makers for functions with attributes
 static expr mk_left_assoc_app(buffer<expr> const & args) {
@@ -67,7 +76,7 @@ static expr mk_right_assoc_app(buffer<expr> const & args) {
     // f x1 x2 x3 ==> f x1 (f x2 x3)
     int k = args.size();
     expr e = mk_app(args[0], args[k - 2], args[k - 1]);
-    for (int i = k - 3; i >= 0; --i) {
+    for (int i = k - 3; i > 0; --i) {
         e = mk_app(args[0], args[i], e);
     }
     return e;
@@ -216,6 +225,12 @@ private:
             return elaborate_arith(args, info);
         }
 
+        auto it_fun_attr = g_constant_fun_attr_map->find(n);
+        if (it_fun_attr != g_constant_fun_attr_map->end()) {
+            args[0] = it_fun_attr->second.first;
+            return mk_app_attrs(args, it_fun_attr->second.second);
+        }
+
         auto it_arith = g_arith_symbol_map->find(n);
         if (it_arith != g_arith_symbol_map->end()) {
             return elaborate_arith(args, it_arith->second);
@@ -243,8 +258,13 @@ public:
 
 // Setup and teardown
 void initialize_elaborator() {
+    g_smt2_user_name_prefix = new name(name::mk_internal_unique_name());
+
     g_constant_map = new std::unordered_map<std::string, expr>({
             {"Bool", mk_Prop()},
+            {"true", mk_constant(get_true_name())},
+            {"false", mk_constant(get_false_name())},
+            {"not", mk_constant(get_not_name())},
             {"Int", mk_constant(get_int_name())},
             {"Real", mk_constant(get_real_name())},
             {"Array", mk_constant(get_array_name(), {l1(), l1()})},
@@ -252,6 +272,13 @@ void initialize_elaborator() {
             {"to_real", mk_constant(get_real_of_int_name())},
             {"to_int", mk_constant(get_real_to_int_name())},
             {"is_int", mk_constant(get_real_is_int_name())}
+        });
+
+    g_constant_fun_attr_map = new name_hash_map<pair<expr, fun_attr>>({
+            {"=>", mk_pair(mk_constant(get_implies_name()), fun_attr::RIGHT_ASSOC)},
+            {"and", mk_pair(mk_constant(get_and_name()), fun_attr::LEFT_ASSOC)},
+            {"or", mk_pair(mk_constant(get_or_name()), fun_attr::LEFT_ASSOC)},
+            {"xor", mk_pair(mk_constant(get_xor_name()), fun_attr::LEFT_ASSOC)}
         });
 
     g_arith_symbol_map = new name_hash_map<arith_app_info>({
@@ -281,22 +308,39 @@ void initialize_elaborator() {
             {"select", special_app_kind::SELECT},
             {"store", special_app_kind::STORE}
         });
+
+    g_skip_constant_map = new std::unordered_set<std::string>();
+    for (auto p : *g_constant_fun_attr_map) g_skip_constant_map->insert(p.first.get_string());
+    for (auto p : *g_arith_symbol_map) g_skip_constant_map->insert(p.first.get_string());
+    for (auto p : *g_special_map) g_skip_constant_map->insert(p.first.get_string());
 }
 
 void finalize_elaborator() {
-    delete g_arith_symbol_map;
+    delete g_smt2_user_name_prefix;
+
+    delete g_skip_constant_map;
     delete g_special_map;
+    delete g_arith_symbol_map;
+    delete g_constant_fun_attr_map;
     delete g_constant_map;
 }
 
 // Entry points
+name mk_user_name(std::string const & s) { return name(*g_smt2_user_name_prefix, s.c_str()); }
+
 expr elaborate_constant(std::string const & symbol) {
     // Note: true, false, and not do not need elaboration at the constant level nor the app level
     auto it = g_constant_map->find(symbol);
     if (it != g_constant_map->end()) {
         return it->second;
     }
-    return mk_constant(symbol);
+
+    auto it_skip = g_skip_constant_map->find(symbol);
+    if (it_skip != g_skip_constant_map->end()) {
+        return mk_constant(symbol);
+    }
+
+    return mk_constant(mk_user_name(symbol));
 }
 
 expr elaborate_app(type_context & tctx, buffer<expr> & args) {

@@ -40,7 +40,7 @@ Author: Daniel Selsam
 namespace lean {
 namespace smt2 {
 
-static name * g_smt2_prefix;
+static name * g_smt2_unique_prefix;
 static name * g_smt2_tactic;
 
 static char const * g_symbol_dependent_type = "_";
@@ -140,6 +140,8 @@ public:
     virtual pos_info get_some_pos() const override { return m_last_cmd_pos; }
 
 private:
+    struct exit_exception : public exception {};
+
     environment             m_env;
     io_state                m_ios;
 
@@ -176,7 +178,7 @@ private:
     }
 
     void register_hypothesis(expr const & ty) {
-        name n = mk_tagged_fresh_name(*g_smt2_prefix);
+        name n = mk_tagged_fresh_name(*g_smt2_unique_prefix);
         register_hypothesis(n, ty);
     }
 
@@ -394,9 +396,6 @@ private:
         while (curr_kind() != scanner::token_kind::RIGHT_PAREN) {
             es.push_back(parse_expr(context));
         }
-        if (es.empty()) {
-            throw_parser_exception(std::string(context) + ", () not a legal expression");
-        }
         next();
     }
 
@@ -514,7 +513,7 @@ private:
         lean_assert(curr_symbol() == g_token_declare_const);
         next();
         check_curr_kind(scanner::token_kind::SYMBOL, "invalid constant declaration, symbol expected");
-        name c_name = name(curr_symbol());
+        name c_name = mk_user_name(curr_symbol());
         next();
         expr ty = parse_expr("invalid constant declaration");
         ios().get_regular_stream() << "[declare_const] " << c_name << " : " << ty << "\n";
@@ -528,7 +527,7 @@ private:
         lean_assert(curr_symbol() == g_token_declare_fun);
         next();
         check_curr_kind(scanner::token_kind::SYMBOL, "invalid function declaration, symbol expected");
-        name fn_name = name(curr_symbol());
+        name fn_name = mk_user_name(curr_symbol());
         next();
 
         buffer<expr> parameter_sorts;
@@ -549,7 +548,7 @@ private:
         next();
 
         check_curr_kind(scanner::token_kind::SYMBOL, "invalid sort declaration, symbol expected");
-        name sort_name = name(curr_symbol());
+        name sort_name = mk_user_name(curr_symbol());
         next();
         // Note: the official standard requires the arity, but it seems to be convention to have no arity mean 0
         mpq arity;
@@ -581,7 +580,16 @@ private:
     void parse_define_funs_rec() { throw_parser_exception("define-funs-rec not yet supported"); }
     void parse_define_sort() { throw_parser_exception("define-sort not yet supported"); }
     void parse_echo() { throw_parser_exception("echo not yet supported"); }
-    void parse_exit() { throw_parser_exception("exit not yet supported"); }
+
+    void parse_exit() {
+        lean_assert(curr_kind() == scanner::token_kind::SYMBOL);
+        lean_assert(curr_symbol() == g_token_exit);
+        next();
+        check_curr_kind(scanner::token_kind::RIGHT_PAREN, "invalid exit, ')' expected");
+        next();
+        throw exit_exception();
+    }
+
     void parse_get_assertions() { throw_parser_exception("get-assertions not yet supported"); }
     void parse_get_assignment() { throw_parser_exception("get-assignment not yet supported"); }
     void parse_get_info() { throw_parser_exception("get-info not yet supported"); }
@@ -595,8 +603,26 @@ private:
     void parse_push() { throw_parser_exception("push not yet supported"); }
     void parse_reset() { throw_parser_exception("reset not yet supported"); }
     void parse_reset_assertions() { throw_parser_exception("reset-assertions not yet supported"); }
-    void parse_set_info() { throw_parser_exception("set_info not yet supported"); }
-    void parse_set_logic() { throw_parser_exception("set_logic not yet supported"); }
+    void parse_set_info() {
+        lean_assert(curr_kind() == scanner::token_kind::SYMBOL);
+        lean_assert(curr_symbol() == g_token_set_info);
+        next();
+        parse_attributes("set-info"); // only one attribute is okay
+        check_curr_kind(scanner::token_kind::RIGHT_PAREN, "invalid set-info, ')' expected");
+        next();
+    }
+
+    void parse_set_logic() {
+        // Currently ignored (we deduce the logic automatically)
+        lean_assert(curr_kind() == scanner::token_kind::SYMBOL);
+        lean_assert(curr_symbol() == g_token_set_logic);
+        next();
+        check_curr_kind(scanner::token_kind::SYMBOL, "invalid set-logic command, symbol expected");
+        symbol sym = curr_symbol();
+        next();
+        check_curr_kind(scanner::token_kind::RIGHT_PAREN, "invalid set-option, ')' expected");
+        next();
+    }
 
     void parse_set_option() {
         lean_assert(curr_kind() == scanner::token_kind::SYMBOL);
@@ -638,6 +664,8 @@ public:
         bool ok = true;
         try {
             parse_commands();
+        } catch (exit_exception const & ex) {
+            return ok;
         } catch (throwable const & ex) {
             ok = false;
             legacy_type_context tc(m_env, m_ios.get_options());
@@ -651,13 +679,13 @@ public:
 // Setup and teardown
 
 void initialize_parser() {
-    g_smt2_prefix = new name(name::mk_internal_unique_name());
+    g_smt2_unique_prefix = new name(name::mk_internal_unique_name());
     // TODO(dhs): write a theorem prover and call that instead
     g_smt2_tactic = new name({"tactic", "smt2"});
 }
 
 void finalize_parser() {
-    delete g_smt2_prefix;
+    delete g_smt2_unique_prefix;
     delete g_smt2_tactic;
 }
 

@@ -11,6 +11,7 @@ Author: Daniel Selsam
 namespace lean {
 namespace smt2 {
 
+name mk_user_name(std::string const & s);
 expr elaborate_constant(std::string const & symbol);
 expr elaborate_app(type_context & tctx, buffer<expr> & args);
 

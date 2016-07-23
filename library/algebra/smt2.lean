@@ -1,6 +1,10 @@
 import algebra.ordered_field
 import data.map
 
+namespace smt2
+-- For user declared sorts and constants
+end smt2
+
 -- Core
 constants (xor : Prop → Prop → Prop)
 --constants (distinct: Π {A : Type}, A → A → Prop) -- not actually used
