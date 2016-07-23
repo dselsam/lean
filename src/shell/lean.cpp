@@ -35,6 +35,7 @@ Author: Leonardo de Moura
 #include "library/declaration_index.h"
 #include "library/export.h"
 #include "library/error_handling.h"
+#include "library/scope_pos_info_provider.h"
 #include "frontends/lean/parser.h"
 #include "frontends/lean/pp.h"
 #include "frontends/lean/server.h"
@@ -433,10 +434,10 @@ int main(int argc, char ** argv) {
                 bool use_exceptions = true;
                 ok = ::lean::smt2::parse_commands(env, ios, argv[i], use_exceptions);
             } catch (lean::exception & ex) {
-                simple_pos_info_provider pp(argv[i]);
                 ok = false;
                 legacy_type_context tc(env, ios.get_options());
                 auto out = diagnostic(env, ios, tc);
+                simple_pos_info_provider pp(argv[i]);
                 lean::display_error(out, &pp, ex);
             }
         }

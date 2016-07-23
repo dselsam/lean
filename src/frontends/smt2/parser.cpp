@@ -31,6 +31,7 @@ Author: Daniel Selsam
 #include "library/module.h"
 #include "library/trace.h"
 #include "library/mpq_macro.h"
+#include "library/scope_pos_info_provider.h"
 #include "library/tactic/tactic_state.h"
 #include "frontends/smt2/scanner.h"
 #include "frontends/smt2/elaborator.h"
@@ -170,14 +171,7 @@ private:
             lctx().mk_local_decl(n, ty);
         } else {
             declaration d = mk_axiom(n, list<name>(), ty);
-//            m_env = env().add(check(env(), d));
-            try {
-                m_env = env().add(check(env(), d));
-            } catch (throwable const & ex) {
-                legacy_type_context tc(m_env, m_ios.get_options());
-                auto out = regular(m_env, m_ios, tc);
-                ::lean::display_error(out, this, ex);
-            }
+            m_env = env().add(check(env(), d));
         }
     }
 
@@ -347,33 +341,23 @@ private:
 
     // Outer loop
     bool parse_commands() {
-
-        try {
-            scan();
-        } catch (exception & e) {
-            // TODO(dhs): try to recover from scanner errors
-            throw e;
-        }
+        scan();
 
         // TODO(dhs): for now we will not recover from any errors
         // This is reasonable for new given our goals for the parser:
         // we will be parsing well-established benchmarks that are highly unlikely to have errors in them.
         m_num_open_paren = 0;
-        try {
-            while (true) {
-                switch (curr_kind()) {
-                case scanner::token_kind::LEFT_PAREN:
-                    parse_command();
-                    break;
-                case scanner::token_kind::END:
-                    return true;
-                default:
-                    throw_parser_exception("invalid command, '(' expected");
-                    break;
-                }
+        while (true) {
+            switch (curr_kind()) {
+            case scanner::token_kind::LEFT_PAREN:
+                parse_command();
+                break;
+            case scanner::token_kind::END:
+                return true;
+            default:
+                throw_parser_exception("invalid command, '(' expected");
+                break;
             }
-        } catch (exception & e) {
-            throw e;
         }
     }
 
@@ -572,8 +556,28 @@ public:
 
     // Entry point
     bool operator()() {
-        parse_commands();
-        return true;
+        buffer<module_name> olean_files;
+        std::string base = dirname(get_stream_name().c_str());
+        optional<unsigned> k;
+
+        olean_files.push_back(module_name(k, name("init")));
+        olean_files.push_back(module_name(k, name({"algebra","smt2"})));
+
+        unsigned num_threads = 0;
+        bool keep_imported_theorems = false;
+
+        m_env = import_modules(m_env, base, olean_files.size(), olean_files.data(), num_threads, keep_imported_theorems, m_ios);
+
+        bool ok = true;
+        try {
+            parse_commands();
+        } catch (throwable const & ex) {
+            ok = false;
+            legacy_type_context tc(m_env, m_ios.get_options());
+            auto out = regular(m_env, m_ios, tc);
+            ::lean::display_error(out, this, ex);
+        }
+        return ok;
     }
 };
 
@@ -596,18 +600,7 @@ bool parse_commands(environment & env, io_state & ios, char const * fname, bool 
     if (in.bad() || in.fail())
         throw exception(sstream() << "failed to open file '" << fname << "'");
 
-    buffer<module_name> olean_files;
-    std::string base = dirname(fname);
-    optional<unsigned> k;
-
-    olean_files.push_back(module_name(k, name("init")));
-    olean_files.push_back(module_name(k, name({"algebra","smt2"})));
-
-    unsigned num_threads = 0;
-    bool keep_imported_theorems = false;
-
-    environment new_env = import_modules(env, base, olean_files.size(), olean_files.data(), num_threads, keep_imported_theorems, ios);
-    parser p(new_env, ios, in, fname, use_exceptions);
+    parser p(env, ios, in, fname, use_exceptions);
     return p();
 }
 
