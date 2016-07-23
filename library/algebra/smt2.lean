@@ -21,7 +21,7 @@ attribute [instance] int_has_add int_has_mul int_has_sub int_has_div int_has_neg
 constants (real_has_add : has_add real)
 constants (real_has_mul : has_mul real)
 constants (real_has_sub : has_sub real)
-constants (real_has_neg : has_sub real)
+constants (real_has_neg : has_neg real)
 constants (real_has_div : has_div real)
 constants (real_has_lt : has_lt real)
 constants (real_has_le : has_le real)

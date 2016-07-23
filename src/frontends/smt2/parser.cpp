@@ -128,10 +128,7 @@ static optional<fun_decl> is_theory_function_symbol(std::string const & sym) {
     }
 }
 
-static char const * g_symbol_minus          = "-";
 static char const * g_symbol_dependent_type = "_";
-static char const * g_symbol_eq             = "=";
-
 static char const * g_token_use_locals      = ":use_locals";
 
 
@@ -292,7 +289,7 @@ private:
     }
 
     expr elaborate_eq(buffer<expr> & args) {
-        lean_assert(is_constant(args[0]) && const_name(args[0]) == g_symbol_eq);
+        lean_assert(is_constant(args[0]) && const_name(args[0]) == "=");
         lean_assert(m_tctx_ptr);
         expr ty = m_tctx_ptr->infer(args[1]);
         args[0] = mk_app(mk_constant(get_eq_name(), {mk_level_one()}), ty);
@@ -357,7 +354,7 @@ private:
             return elaborate_ite(args);
         } else if (is_constant(args[0]) && const_name(args[0]) == get_distinct_name()) {
             return elaborate_distinct(args);
-        } else if (is_constant(args[0]) && const_name(args[0]) == g_symbol_eq) {
+        } else if (is_constant(args[0]) && const_name(args[0]) == "=") {
             return elaborate_eq(args);
         }
 
@@ -368,129 +365,114 @@ private:
             return elaborate_store(args);
         }
 
-        // TODO(dhs): bit vectors!
-
-        // Step 1: resolve function symbols in the operator expression
-        // (constant symbols have already been resolved)
-        if (is_constant(args[0])) {
-            std::string op_str = const_name(args[0]).get_string();
-            // One special case: (-) can be `neg` or `sub`
-            if (op_str == std::string(g_symbol_minus) && num_args == 1) {
-                args[0] = mk_constant(get_neg_name(), {mk_level_one()});
-            } else if (auto fdecl = is_theory_function_symbol(op_str)) {
-                args[0] = fdecl->get_expr();
-                fattr = fdecl->get_fun_attr();
-            }
-        }
-
-        // Step 2: add implicit arguments as needed
-        // Almost everything that will need to be elaborated is a constant
-        // Exception: (_ extract i j)
+        // (3) Arithmetic
         if (is_constant(args[0]) && args.size() > 1) {
             name n = const_name(args[0]);
+            // Coercions
+            if (n == get_to_real_name()) {
+                args[0] = mk_constant(get_real_of_int_name());
+                return mk_app(args);
+            } else if (n == get_to_int_name()) {
+                args[0] = mk_constant(get_real_to_int_name());
+                return mk_app(args);
+            } else if (n == get_is_int_name()) {
+                args[0] = mk_constant(get_real_is_int_name());
+                return mk_app(args);
+            }
+
+            // Int-specific operators
+            if (n == get_mod_name()) {
+                args[0] = mk_app(mk_constant(get_mod_name(), {mk_level_one()}), mk_constant(get_int_name()), mk_constant(get_int_has_mod_name()));
+                return mk_app(args);
+            } else if (n == get_abs_name()) {
+                args[0] = mk_app(mk_constant(get_abs_name(), {mk_level_one()}), mk_constant(get_int_name()), mk_constant(get_int_decidable_linear_ordered_comm_group_name()));
+                return mk_app(args);
+            } else if (n == get_div_name()) {
+                args[0] = mk_app(mk_constant(get_div_name(), {mk_level_one()}), mk_constant(get_int_name()), mk_constant(get_int_has_div_name()));
+                return mk_left_assoc_app(args);
+            }
+
+            // Real-specific operators
+            if (n == "/") {
+                args[0] = mk_app(mk_constant(get_div_name(), {mk_level_one()}), mk_constant(get_real_name()), mk_constant(get_real_has_div_name()));
+                return mk_left_assoc_app(args);
+            }
+
             expr ty = m_tctx_ptr->infer(args[1]);
 
-            // (1) Arith: +, *, -, <, <=, >, >=
-            // (2) Arrays: select, store
-            // (3) TODO(dhs): bit vectors
-            if (n == get_add_name()) { // (2) arith
+            // Overloaded operators
+            // +, *, -, <, <=, >, >=
+            if (n == "+") {
                 if (ty == mk_constant(get_int_name())) {
-                    args[0] = mk_app(args[0], mk_constant(get_int_name()), mk_constant(get_int_has_add_name()));
+                    args[0] = mk_app(mk_constant(get_add_name(), {mk_level_one()}), mk_constant(get_int_name()), mk_constant(get_int_has_add_name()));
                 } else {
                     lean_assert(ty == mk_constant(get_real_name()));
-                    args[0] = mk_app(args[0], mk_constant(get_real_name()), mk_constant(get_real_has_add_name()));
+                    args[0] = mk_app(mk_constant(get_add_name(), {mk_level_one()}), mk_constant(get_real_name()), mk_constant(get_real_has_add_name()));
                 }
-            } else if (n == get_mul_name()) {
+                return mk_left_assoc_app(args);
+            } else if (n == "*") {
                 if (ty == mk_constant(get_int_name())) {
-                    args[0] = mk_app(args[0], mk_constant(get_int_name()), mk_constant(get_int_has_mul_name()));
+                    args[0] = mk_app(mk_constant(get_mul_name(), {mk_level_one()}), mk_constant(get_int_name()), mk_constant(get_int_has_mul_name()));
                 } else {
                     lean_assert(ty == mk_constant(get_real_name()));
-                    args[0] = mk_app(args[0], mk_constant(get_real_name()), mk_constant(get_real_has_mul_name()));
+                    args[0] = mk_app(mk_constant(get_mul_name(), {mk_level_one()}), mk_constant(get_real_name()), mk_constant(get_real_has_mul_name()));
                 }
-            } else if (n == get_sub_name()) {
+                return mk_left_assoc_app(args);
+            } else if (n == "-" && args.size() == 2) {
                 if (ty == mk_constant(get_int_name())) {
-                    args[0] = mk_app(args[0], mk_constant(get_int_name()), mk_constant(get_int_has_sub_name()));
+                    args[0] = mk_app(mk_constant(get_neg_name(), {mk_level_one()}), mk_constant(get_int_name()), mk_constant(get_int_has_neg_name()));
                 } else {
                     lean_assert(ty == mk_constant(get_real_name()));
-                    args[0] = mk_app(args[0], mk_constant(get_real_name()), mk_constant(get_real_has_sub_name()));
+                    args[0] = mk_app(mk_constant(get_neg_name(), {mk_level_one()}), mk_constant(get_real_name()), mk_constant(get_real_has_neg_name()));
                 }
-            } else if (n == get_neg_name()) {
+                return mk_app(args);
+            } else if (n == "-") {
+                lean_assert(args.size() > 2);
                 if (ty == mk_constant(get_int_name())) {
-                    args[0] = mk_app(args[0], mk_constant(get_int_name()), mk_constant(get_int_has_neg_name()));
+                    args[0] = mk_app(mk_constant(get_sub_name(), {mk_level_one()}), mk_constant(get_int_name()), mk_constant(get_int_has_sub_name()));
                 } else {
                     lean_assert(ty == mk_constant(get_real_name()));
-                    args[0] = mk_app(args[0], mk_constant(get_real_name()), mk_constant(get_real_has_neg_name()));
+                    args[0] = mk_app(mk_constant(get_sub_name(), {mk_level_one()}), mk_constant(get_real_name()), mk_constant(get_real_has_sub_name()));
                 }
-            } else if (n == get_div_name()) {
+                return mk_left_assoc_app(args);
+            } else if (n == "<") {
                 if (ty == mk_constant(get_int_name())) {
-                    args[0] = mk_app(args[0], mk_constant(get_int_name()), mk_constant(get_int_has_div_name()));
+                    args[0] = mk_app(mk_constant(get_lt_name(), {mk_level_one()}), mk_constant(get_int_name()), mk_constant(get_int_has_lt_name()));
                 } else {
                     lean_assert(ty == mk_constant(get_real_name()));
-                    args[0] = mk_app(args[0], mk_constant(get_real_name()), mk_constant(get_real_has_div_name()));
+                    args[0] = mk_app(mk_constant(get_lt_name(), {mk_level_one()}), mk_constant(get_real_name()), mk_constant(get_real_has_lt_name()));
                 }
-            } else if (n == get_mod_name()) {
-                lean_assert(ty == mk_constant(get_int_name()));
-                args[0] = mk_app(args[0], mk_constant(get_int_name()), mk_constant(get_int_has_mod_name()));
-            } else if (n == get_abs_name()) {
-                lean_assert(ty == mk_constant(get_int_name()));
-                args[0] = mk_app(args[0], mk_constant(get_int_name()), mk_constant(get_int_decidable_linear_ordered_comm_group_name()));
-            } else if (n == get_lt_name()) {
+                return mk_chainable_app(args);
+            } else if (n == "<=") {
                 if (ty == mk_constant(get_int_name())) {
-                    args[0] = mk_app(args[0], mk_constant(get_int_name()), mk_constant(get_int_has_lt_name()));
+                    args[0] = mk_app(mk_constant(get_le_name(), {mk_level_one()}), mk_constant(get_int_name()), mk_constant(get_int_has_le_name()));
                 } else {
                     lean_assert(ty == mk_constant(get_real_name()));
-                    args[0] = mk_app(args[0], mk_constant(get_real_name()), mk_constant(get_real_has_lt_name()));
+                    args[0] = mk_app(mk_constant(get_le_name(), {mk_level_one()}), mk_constant(get_real_name()), mk_constant(get_real_has_le_name()));
                 }
-            } else if (n == get_le_name()) {
+                return mk_chainable_app(args);
+            } else if (n == ">") {
                 if (ty == mk_constant(get_int_name())) {
-                    args[0] = mk_app(args[0], mk_constant(get_int_name()), mk_constant(get_int_has_le_name()));
+                    args[0] = mk_app(mk_constant(get_gt_name(), {mk_level_one()}), mk_constant(get_int_name()), mk_constant(get_int_has_lt_name()));
                 } else {
                     lean_assert(ty == mk_constant(get_real_name()));
-                    args[0] = mk_app(args[0], mk_constant(get_real_name()), mk_constant(get_real_has_le_name()));
+                    args[0] = mk_app(mk_constant(get_gt_name(), {mk_level_one()}), mk_constant(get_real_name()), mk_constant(get_real_has_lt_name()));
                 }
-            } else if (n == get_gt_name()) {
+                return mk_chainable_app(args);
+            } else if (n == ">=") {
                 if (ty == mk_constant(get_int_name())) {
-                    args[0] = mk_app(args[0], mk_constant(get_int_name()), mk_constant(get_int_has_lt_name()));
+                    args[0] = mk_app(mk_constant(get_ge_name(), {mk_level_one()}), mk_constant(get_int_name()), mk_constant(get_int_has_le_name()));
                 } else {
                     lean_assert(ty == mk_constant(get_real_name()));
-                    args[0] = mk_app(args[0], mk_constant(get_real_name()), mk_constant(get_real_has_lt_name()));
+                    args[0] = mk_app(mk_constant(get_ge_name(), {mk_level_one()}), mk_constant(get_real_name()), mk_constant(get_real_has_le_name()));
                 }
-            } else if (n == get_ge_name()) {
-                if (ty == mk_constant(get_int_name())) {
-                    args[0] = mk_app(args[0], mk_constant(get_int_name()), mk_constant(get_int_has_le_name()));
-                } else {
-                    lean_assert(ty == mk_constant(get_real_name()));
-                    args[0] = mk_app(args[0], mk_constant(get_real_name()), mk_constant(get_real_has_le_name()));
-                }
-            } else if (n == get_map_lookup_name()) { // (3) arrays
-                expr ty2 = m_tctx_ptr->infer(args[2]);
-                expr ty3 = m_tctx_ptr->infer(args[3]);
-                args[0] = mk_app(args[0], ty2, ty3);
-                expr tmp1 = args[1];
-                args[1] = args[2]; args[2] = tmp1;
-            } else if (n == get_map_insert_name()) {
-                expr ty2 = m_tctx_ptr->infer(args[2]);
-                expr ty3 = m_tctx_ptr->infer(args[3]);
-                args[0] = mk_app(args[0], ty2, ty3);
-                expr tmp1 = args[1];
-                args[1] = args[2]; args[2] = args[3]; args[3] = tmp1;
+                return mk_chainable_app(args);
             }
         }
 
-        switch (fattr) {
-        case fun_attr::DEFAULT:
-            return mk_app(args);
-        case fun_attr::LEFT_ASSOC:
-            return mk_left_assoc_app(args);
-        case fun_attr::RIGHT_ASSOC:
-            return mk_right_assoc_app(args);
-        case fun_attr::CHAINABLE:
-            return mk_chainable_app(args);
-        case fun_attr::PAIRWISE:
-            // We already dispatched for [distinct]
-            lean_unreachable();
-        }
-        lean_unreachable();
+        // TODO(dhs): bit vectors!
+        return mk_app(args);
+
     }
 
     environment & env() { return m_env; }
@@ -902,8 +884,7 @@ void initialize_parser() {
                 });
 
     g_theory_function_symbols = new std::unordered_map<std::string, fun_decl>({
-            // TODO(dhs): other universe levels
-            // Sorts
+            // TODO(dhs): need to elaborate BitVec even though it is a sort
             {"BitVec", fun_decl(mk_constant(get_bv_name()), fun_attr::DEFAULT)},
 
             // I. Non-polymorphic
@@ -913,31 +894,6 @@ void initialize_parser() {
             {"and", fun_decl(mk_constant(get_and_name()), fun_attr::LEFT_ASSOC)},
             {"or", fun_decl(mk_constant(get_or_name()), fun_attr::LEFT_ASSOC)},
             {"xor", fun_decl(mk_constant(get_xor_name()), fun_attr::LEFT_ASSOC)},
-
-            // (b) Arithmetic
-            {"div", fun_decl(mk_constant(get_div_name(), {mk_level_one()}), fun_attr::LEFT_ASSOC)},
-            {"mod", fun_decl(mk_constant(get_mod_name(), {mk_level_one()}), fun_attr::DEFAULT)},
-            {"abs", fun_decl(mk_constant(get_abs_name(), {mk_level_one()}), fun_attr::DEFAULT)},
-            {"/", fun_decl(mk_constant(get_div_name(), {mk_level_one()}), fun_attr::LEFT_ASSOC)},
-            {"to_real", fun_decl(mk_constant(get_real_of_int_name()), fun_attr::DEFAULT)},
-            {"to_int", fun_decl(mk_constant(get_real_to_int_name()), fun_attr::DEFAULT)},
-            {"is_int", fun_decl(mk_constant(get_real_is_int_name()), fun_attr::DEFAULT)},
-
-            // II. Polymorphic
-            // (a) Core
-            // Note: we do not know the correct universe levels for these yet
-            {"=", fun_decl(mk_constant(get_eq_name()), fun_attr::CHAINABLE)},
-            {"distinct", fun_decl(mk_constant(get_distinct_name()), fun_attr::PAIRWISE)},
-            {"ite", fun_decl(mk_constant(get_ite_name()), fun_attr::DEFAULT)},
-
-            // (b) Arithmetic
-            {"+", fun_decl(mk_constant(get_add_name(), {mk_level_one()}), fun_attr::LEFT_ASSOC)},
-            {"-", fun_decl(mk_constant(get_sub_name(), {mk_level_one()}), fun_attr::LEFT_ASSOC)}, // note: if 1 arg, then neg instead
-            {"*", fun_decl(mk_constant(get_mul_name(), {mk_level_one()}), fun_attr::LEFT_ASSOC)},
-            {"<", fun_decl(mk_constant(get_lt_name(), {mk_level_one()}), fun_attr::CHAINABLE)},
-            {"<=", fun_decl(mk_constant(get_le_name(), {mk_level_one()}), fun_attr::CHAINABLE)},
-            {">", fun_decl(mk_constant(get_gt_name(), {mk_level_one()}), fun_attr::CHAINABLE)},
-            {">=", fun_decl(mk_constant(get_ge_name(), {mk_level_one()}), fun_attr::CHAINABLE)}
         });
 }
 

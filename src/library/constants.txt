@@ -109,6 +109,7 @@ int_has_neg
 int_has_mod
 int_decidable_linear_ordered_comm_group
 IO
+is_int
 is_trunc.is_prop
 is_trunc.is_prop.elim
 is_trunc.is_set
@@ -271,6 +272,8 @@ subtype.elt_of
 subtype.rec
 tactic
 to_string
+to_int
+to_real
 trans_rel_left
 trans_rel_right
 true

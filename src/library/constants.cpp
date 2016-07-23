@@ -114,6 +114,7 @@ name const * g_int_has_neg = nullptr;
 name const * g_int_has_mod = nullptr;
 name const * g_int_decidable_linear_ordered_comm_group = nullptr;
 name const * g_IO = nullptr;
+name const * g_is_int = nullptr;
 name const * g_is_trunc_is_prop = nullptr;
 name const * g_is_trunc_is_prop_elim = nullptr;
 name const * g_is_trunc_is_set = nullptr;
@@ -276,6 +277,8 @@ name const * g_subtype_elt_of = nullptr;
 name const * g_subtype_rec = nullptr;
 name const * g_tactic = nullptr;
 name const * g_to_string = nullptr;
+name const * g_to_int = nullptr;
+name const * g_to_real = nullptr;
 name const * g_trans_rel_left = nullptr;
 name const * g_trans_rel_right = nullptr;
 name const * g_true = nullptr;
@@ -405,6 +408,7 @@ void initialize_constants() {
     g_int_has_mod = new name{"int_has_mod"};
     g_int_decidable_linear_ordered_comm_group = new name{"int_decidable_linear_ordered_comm_group"};
     g_IO = new name{"IO"};
+    g_is_int = new name{"is_int"};
     g_is_trunc_is_prop = new name{"is_trunc", "is_prop"};
     g_is_trunc_is_prop_elim = new name{"is_trunc", "is_prop", "elim"};
     g_is_trunc_is_set = new name{"is_trunc", "is_set"};
@@ -567,6 +571,8 @@ void initialize_constants() {
     g_subtype_rec = new name{"subtype", "rec"};
     g_tactic = new name{"tactic"};
     g_to_string = new name{"to_string"};
+    g_to_int = new name{"to_int"};
+    g_to_real = new name{"to_real"};
     g_trans_rel_left = new name{"trans_rel_left"};
     g_trans_rel_right = new name{"trans_rel_right"};
     g_true = new name{"true"};
@@ -697,6 +703,7 @@ void finalize_constants() {
     delete g_int_has_mod;
     delete g_int_decidable_linear_ordered_comm_group;
     delete g_IO;
+    delete g_is_int;
     delete g_is_trunc_is_prop;
     delete g_is_trunc_is_prop_elim;
     delete g_is_trunc_is_set;
@@ -859,6 +866,8 @@ void finalize_constants() {
     delete g_subtype_rec;
     delete g_tactic;
     delete g_to_string;
+    delete g_to_int;
+    delete g_to_real;
     delete g_trans_rel_left;
     delete g_trans_rel_right;
     delete g_true;
@@ -988,6 +997,7 @@ name const & get_int_has_neg_name() { return *g_int_has_neg; }
 name const & get_int_has_mod_name() { return *g_int_has_mod; }
 name const & get_int_decidable_linear_ordered_comm_group_name() { return *g_int_decidable_linear_ordered_comm_group; }
 name const & get_IO_name() { return *g_IO; }
+name const & get_is_int_name() { return *g_is_int; }
 name const & get_is_trunc_is_prop_name() { return *g_is_trunc_is_prop; }
 name const & get_is_trunc_is_prop_elim_name() { return *g_is_trunc_is_prop_elim; }
 name const & get_is_trunc_is_set_name() { return *g_is_trunc_is_set; }
@@ -1150,6 +1160,8 @@ name const & get_subtype_elt_of_name() { return *g_subtype_elt_of; }
 name const & get_subtype_rec_name() { return *g_subtype_rec; }
 name const & get_tactic_name() { return *g_tactic; }
 name const & get_to_string_name() { return *g_to_string; }
+name const & get_to_int_name() { return *g_to_int; }
+name const & get_to_real_name() { return *g_to_real; }
 name const & get_trans_rel_left_name() { return *g_trans_rel_left; }
 name const & get_trans_rel_right_name() { return *g_trans_rel_right; }
 name const & get_true_name() { return *g_true; }
