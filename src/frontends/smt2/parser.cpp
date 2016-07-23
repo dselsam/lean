@@ -286,16 +286,17 @@ private:
                 next();
                 return pi;
             } else if (curr_kind() == scanner::token_kind::SYMBOL && curr_symbol() == g_token_exists) {
-                throw_parser_exception("exists not accepted in expressions yet");
-                lean_unreachable();
-                /*
+                lean_assert(m_tctx_ptr);
                 next();
                 buffer<expr> bindings;
-                parse_sorted_var_list(context);
+                parse_sorted_var_list(bindings, context);
                 expr e = parse_expr(context);
-                // TODO(dhs): write this
-                return Exists(bindings, e);
-                */
+                expr exists = mk_binding(m_tctx_ptr->lctx(), binding_type::EXISTS, bindings, e);
+                for (expr const & binding : bindings)
+                    m_tctx_ptr->pop_local();
+                check_curr_kind(scanner::token_kind::RIGHT_PAREN, "invalid constant declaration, ')' expected");
+                next();
+                return exists;
             } else if (curr_kind() == scanner::token_kind::SYMBOL && curr_symbol() == g_token_let) {
                 throw_parser_exception("let not accepted in expressions yet");
                 lean_unreachable();
