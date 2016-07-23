@@ -252,6 +252,40 @@ private:
         next();
     }
 
+    void parse_attributes(char const * context) {
+        // TODO(dhs): currently ignores all attributes
+        check_curr_kind(scanner::token_kind::KEYWORD, std::string(context) + ": invalid attributes");
+        while (curr_kind() == scanner::token_kind::KEYWORD) {
+            next();
+            bool still_in_attribute = true;
+            int num_open_paren = 0;
+            while (still_in_attribute) {
+                switch (curr_kind()) {
+                case scanner::token_kind::SYMBOL:
+                case scanner::token_kind::STRING:
+                case scanner::token_kind::INT:
+                case scanner::token_kind::FLOAT:
+                case scanner::token_kind::BV:
+                    next();
+                    break;
+                case scanner::token_kind::LEFT_PAREN:
+                    num_open_paren++;
+                    next();
+                    break;
+                case scanner::token_kind::RIGHT_PAREN:
+                    if (--num_open_paren < 1)
+                        still_in_attribute = false;
+                    if (num_open_paren >= 0)
+                        next();
+                    break;
+                default:
+                    still_in_attribute = false;
+                    break;
+                }
+            }
+        }
+    }
+
     expr parse_expr(char const * context) {
         // { LEFT_PAREN, RIGHT_PAREN, KEYWORD, SYMBOL, STRING, INT, FLOAT, BV };
         symbol sym;
@@ -288,11 +322,22 @@ private:
             break;
         case scanner::token_kind::LEFT_PAREN:
             next();
-            if (curr_kind() == scanner::token_kind::SYMBOL && curr_symbol() == g_symbol_dependent_type) {
+            if (curr_kind() == scanner::token_kind::SYMBOL && curr_symbol() == "_") {
+                // dependent types
                 next();
                 parse_exprs(args, context);
+                check_curr_kind(scanner::token_kind::RIGHT_PAREN, "invalid constant declaration, ')' expected");
+                next();
                 // Note: there are no dependent applications that require elaboration on their own
                 return mk_app(args);
+            } else if (curr_kind() == scanner::token_kind::SYMBOL && curr_symbol() == "!") {
+                // annotated terms
+                next();
+                expr e = parse_expr(context);
+                parse_attributes(context);
+                check_curr_kind(scanner::token_kind::RIGHT_PAREN, "invalid constant declaration, ')' expected");
+                next();
+                return e;
             } else if (curr_kind() == scanner::token_kind::SYMBOL && curr_symbol() == g_token_forall) {
                 lean_assert(m_tctx_ptr);
                 next();

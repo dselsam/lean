@@ -359,7 +359,7 @@ static void initialize_g_char_to_kind() {
 
     // (9) Number
     lean_assert('0' < '9');
-    for (char ch = '1'; ch <= '9'; ++ch) {
+    for (char ch = '0'; ch <= '9'; ++ch) {
         g_char_to_kind[to_uchar(ch)] = scanner::char_kind::NUMBER;
     }
 
