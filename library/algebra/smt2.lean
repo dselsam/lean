@@ -1,4 +1,5 @@
 import algebra.ordered_field
+import data.map
 
 -- Core
 constants (xor : Prop → Prop → Prop)
@@ -33,12 +34,11 @@ constants (real.of_int : int → real) (real.to_int : real → int) (real.is_int
 -- Arrays
 -- Note: we don't use map yet because of the [option] in the return type
 -- Need: inhabited instances
-constant (array : Type → Type → Type)
+universe variables l₁ l₂
+constant (array : Type.{l₁} → Type.{l₂} → Type.{max 1 l₁ l₂})
 namespace array
 constant (select : Π (A B : Type), A → array A B → B)
-
-universe variables l₁ l₂ l₃
-constant (store : Π (A : Type.{l₁}) (B : Type.{l₂}), A → B → array.{l₁ l₂ l₃} A B → array.{l₁ l₂ l₃} A B)
+constant (store : Π (A : Type.{l₁}) (B : Type.{l₂}), A → B → array.{l₁ l₂} A B → array.{l₁ l₂} A B)
 end array
 
 namespace tactic

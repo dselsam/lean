@@ -154,13 +154,13 @@ private:
     expr elaborate_select(buffer<expr> & args) {
         lean_assert(is_constant(args[0]) && const_name(args[0]) == get_select_name());
         // Have: select <A : Array X Y> <x : X>
-        // Want: map.select.{l1 l2 l3} X Y x A
+        // Want: array.select.{1 1} X Y x A
         expr ty = m_tctx.infer(args[1]);
         buffer<expr> array_args;
         expr array = get_app_args(ty, array_args);
-        lean_assert(is_constant(array) && const_name(array) == get_map_name());
+        lean_assert(is_constant(array) && const_name(array) == get_array_name());
         buffer<expr> new_args;
-        new_args.push_back(mk_constant(get_map_select_name(), {l1(), l1(), l1()}));
+        new_args.push_back(mk_constant(get_array_select_name(), {l1(), l1()}));
         new_args.push_back(array_args[0]);
         new_args.push_back(array_args[1]);
         new_args.push_back(args[2]);
@@ -171,13 +171,13 @@ private:
     expr elaborate_store(buffer<expr> & args) {
         lean_assert(is_constant(args[0]) && const_name(args[0]) == get_store_name());
         // Have: store <A : Array X Y> <x : X> <y : Y>
-        // Want: map.insert.{l1 l2 l3} X Y x y A
+        // Want: array.store.{1 1} X Y x y A
         expr ty = m_tctx.infer(args[1]);
         buffer<expr> array_args;
         expr array = get_app_args(ty, array_args);
-        lean_assert(is_constant(array) && const_name(array) == get_map_name());
+        lean_assert(is_constant(array) && const_name(array) == get_array_name());
         buffer<expr> new_args;
-        new_args.push_back(mk_constant(get_map_insert_name(), {l1(), l1(), l1()}));
+        new_args.push_back(mk_constant(get_array_store_name(), {l1(), l1()}));
         new_args.push_back(array_args[0]);
         new_args.push_back(array_args[1]);
         new_args.push_back(args[2]);
@@ -211,7 +211,7 @@ private:
 
         // Special case
         // (the map store "-" ==> sub)
-        if (n == "-" && args.size() == 1) {
+        if (n == "-" && args.size() == 2) {
             arith_app_info info(get_neg_name(), get_int_has_neg_name(), get_real_has_neg_name());
             return elaborate_arith(args, info);
         }
@@ -247,7 +247,7 @@ void initialize_elaborator() {
             {"Bool", mk_Prop()},
             {"Int", mk_constant(get_int_name())},
             {"Real", mk_constant(get_real_name())},
-            {"Array", mk_constant(get_map_name(), {l1(), l1(), l1()})},
+            {"Array", mk_constant(get_array_name(), {l1(), l1()})},
             {"BitVec", mk_constant(get_bv_name())},
             {"to_real", mk_constant(get_real_of_int_name())},
             {"to_int", mk_constant(get_real_to_int_name())},
@@ -277,7 +277,7 @@ void initialize_elaborator() {
     g_special_map = new name_hash_map<special_app_kind>({
             {"ite", special_app_kind::ITE},
             {"distinct", special_app_kind::DISTINCT},
-            {"eq", special_app_kind::EQ},
+            {"=", special_app_kind::EQ},
             {"select", special_app_kind::SELECT},
             {"store", special_app_kind::STORE}
         });

@@ -96,7 +96,7 @@ static void display_help(std::ostream & out) {
     std::cout << "  --hlean           use parser for Lean default input format \n";
     std::cout << "                    and use HoTT compatible kernel for files, with unknown extension\n";
     std::cout << "  --server-trace    use lean server trace parser for files with unknown extension\n";
-    std::cout << "  --smt2            use lean as an smt-solver on a single .smt2 file\n";
+    std::cout << "  --smt2            use lean as an smt-solver, interpreting all files as smt2 files\n";
     std::cout << "Miscellaneous:\n";
     std::cout << "  --help -h         display this message\n";
     std::cout << "  --version -v      display version number\n";
@@ -428,15 +428,17 @@ int main(int argc, char ** argv) {
         environment env = mk_environment(trust_lvl);
         io_state ios(opts, lean::mk_pretty_formatter_factory());
         bool ok = true;
-        try {
-            bool use_exceptions = true;
-            ok = ::lean::smt2::parse_commands(env, ios, argv[optind], use_exceptions);
-        } catch (lean::exception & ex) {
-            simple_pos_info_provider pp(argv[optind]);
-            ok = false;
-            legacy_type_context tc(env, ios.get_options());
-            auto out = diagnostic(env, ios, tc);
-            lean::display_error(out, &pp, ex);
+        for (int i = optind; i < argc; i++) {
+            try {
+                bool use_exceptions = true;
+                ok = ::lean::smt2::parse_commands(env, ios, argv[i], use_exceptions);
+            } catch (lean::exception & ex) {
+                simple_pos_info_provider pp(argv[optind]);
+                ok = false;
+                legacy_type_context tc(env, ios.get_options());
+                auto out = diagnostic(env, ios, tc);
+                lean::display_error(out, &pp, ex);
+            }
         }
         return ok ? 0 : 1;
     }

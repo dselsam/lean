@@ -10,6 +10,9 @@ and
 and.elim_left
 and.elim_right
 and.intro
+array
+array.select
+array.store
 bit0
 bit1
 bool

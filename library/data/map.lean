@@ -15,6 +15,12 @@ definition empty : map A B :=
 definition lookup (k : A) (m : map A B) : option B :=
 m k
 
+definition select [inhabited B] (k : A) (m : map A B) : B :=
+match lookup k m with
+| (some v) := v
+| none := default B
+end
+
 theorem ext (m₁ m₂ : map A B) : (∀ a, lookup a m₁ = lookup a m₂) → m₁ = m₂ :=
 funext
 
