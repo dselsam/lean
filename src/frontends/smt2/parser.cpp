@@ -270,10 +270,10 @@ private:
         lean_assert(is_constant(args[0]) && const_name(args[0]) == get_ite_name());
         // Have: ite.{} <P:Prop> <x:A> <y:A>
         // Want: ite.{1} P (classical.prop_decidable P) A x y
-        expr ty = m_tctx_ptr->infer(args[2]);
         lean_assert(m_tctx_ptr);
+        expr ty = m_tctx_ptr->infer(args[2]);
         buffer<expr> new_args;
-        new_args.push_back(mk_constant(get_ite_name(), {get_level(*m_tctx_ptr, ty)}));
+        new_args.push_back(mk_constant(get_ite_name(), {mk_level_one()}));
         new_args.push_back(args[1]);
         new_args.push_back(mk_app(mk_constant(get_classical_prop_decidable_name()), args[1]));
         new_args.push_back(ty);
@@ -284,24 +284,24 @@ private:
 
     expr elaborate_distinct(buffer<expr> & args) {
         lean_assert(is_constant(args[0]) && const_name(args[0]) == get_distinct_name());
+        lean_assert(m_tctx_ptr);
         expr ty = m_tctx_ptr->infer(args[1]);
         lean_assert(m_tctx_ptr);
-        args[0] = mk_app(mk_constant(get_distinct_name(), {get_level(*m_tctx_ptr, ty)}), ty);
+        args[0] = mk_app(mk_constant(get_distinct_name(), {mk_level_one()}), ty);
         return mk_distinct_app(args);
     }
 
     expr elaborate_eq(buffer<expr> & args) {
         lean_assert(is_constant(args[0]) && const_name(args[0]) == g_symbol_eq);
-        expr ty = m_tctx_ptr->infer(args[1]);
         lean_assert(m_tctx_ptr);
-        args[0] = mk_app(mk_constant(get_eq_name(), {get_level(*m_tctx_ptr, ty)}), ty);
+        expr ty = m_tctx_ptr->infer(args[1]);
+        args[0] = mk_app(mk_constant(get_eq_name(), {mk_level_one()}), ty);
         return mk_chainable_app(args);
     }
 
     expr elaborate_Array(buffer<expr> & args) {
         lean_assert(is_constant(args[0]) && const_name(args[0]) == get_Array_name());
-        lean_assert(m_tctx_ptr);
-        args[0] = mk_constant(get_array_name(), {get_level(*m_tctx_ptr, args[1]), get_level(*m_tctx_ptr, args[2])});
+        args[0] = mk_constant(get_array_name(), {mk_level_one(), mk_level_one()});
         return mk_app(args);
     }
 
@@ -315,7 +315,7 @@ private:
         expr array = get_app_args(ty, array_args);
         lean_assert(is_constant(array) && const_name(array) == get_array_name());
         buffer<expr> new_args;
-        new_args.push_back(mk_constant(get_array_select_name(), {get_level(*m_tctx_ptr, array_args[0]), get_level(*m_tctx_ptr, array_args[1])}));
+        new_args.push_back(mk_constant(get_array_select_name(), {mk_level_one(), mk_level_one()}));
         new_args.push_back(array_args[0]);
         new_args.push_back(array_args[1]);
         new_args.push_back(args[2]);
@@ -333,7 +333,7 @@ private:
         expr array = get_app_args(ty, array_args);
         lean_assert(is_constant(array) && const_name(array) == get_array_name());
         buffer<expr> new_args;
-        new_args.push_back(mk_constant(get_array_store_name(), {get_level(*m_tctx_ptr, array_args[0]), get_level(*m_tctx_ptr, array_args[1])}));
+        new_args.push_back(mk_constant(get_array_store_name(), {mk_level_one(), mk_level_one()}));
         new_args.push_back(array_args[0]);
         new_args.push_back(array_args[1]);
         new_args.push_back(args[2]);
