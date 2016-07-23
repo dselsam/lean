@@ -45,7 +45,7 @@ universe variables l₁ l₂
 constant (array : Type.{l₁} → Type.{l₂} → Type.{max 1 l₁ l₂})
 namespace array
 constant (select : Π (A B : Type), A → array A B → B)
-constant (store : Π (A : Type.{l₁}) (B : Type.{l₂}), A → B → array.{l₁ l₂} A B → array.{l₁ l₂} A B)
+constant (store : Π (A : Type) (B : Type), A → B → array A B → array A B)
 end array
 
 namespace tactic
