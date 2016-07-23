@@ -330,9 +330,8 @@ private:
                 // dependent types
                 next();
                 parse_exprs(args, context);
-                check_curr_kind(scanner::token_kind::RIGHT_PAREN, "invalid constant declaration, ')' expected");
-                next();
                 // Note: there are no dependent applications that require elaboration on their own
+                lean_assert(args.size() > 1);
                 return mk_app(args);
             } else if (curr_kind() == scanner::token_kind::SYMBOL && curr_symbol() == "!") {
                 // annotated terms

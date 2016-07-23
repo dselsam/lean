@@ -268,7 +268,6 @@ void initialize_elaborator() {
             {"Int", mk_constant(get_int_name())},
             {"Real", mk_constant(get_real_name())},
             {"Array", mk_constant(get_array_name(), {l1(), l1()})},
-            {"BitVec", mk_constant(get_bv_name())},
             {"to_real", mk_constant(get_real_of_int_name())},
             {"to_int", mk_constant(get_real_to_int_name())},
             {"is_int", mk_constant(get_real_is_int_name())}
