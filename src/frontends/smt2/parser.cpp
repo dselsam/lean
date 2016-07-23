@@ -14,6 +14,7 @@ Author: Daniel Selsam
 #include "util/fresh_name.h"
 #include "util/lean_path.h"
 #include "kernel/environment.h"
+#include "kernel/kernel_exception.h"
 #include "kernel/abstract.h"
 #include "kernel/instantiate.h"
 #include "kernel/declaration.h"
@@ -25,6 +26,8 @@ Author: Daniel Selsam
 #include "library/io_state.h"
 #include "library/io_state_stream.h"
 #include "library/local_context.h"
+#include "library/legacy_type_context.h"
+#include "library/error_handling.h"
 #include "library/module.h"
 #include "library/trace.h"
 #include "library/mpq_macro.h"
@@ -127,7 +130,14 @@ expr mk_binding(local_context const & lctx, binding_type btype, buffer<expr> con
 }
 
 // Parser class
-class parser {
+class parser : public pos_info_provider {
+
+public:
+    // pos_info_provider interface
+    virtual optional<pos_info> get_pos_info(expr const & e) const override { return optional<pos_info>(); }
+    virtual char const * get_file_name() const override { return m_scanner.get_stream_name().c_str(); }
+    virtual pos_info get_some_pos() const override { return m_last_cmd_pos; }
+
 private:
     environment             m_env;
     io_state                m_ios;
@@ -136,7 +146,8 @@ private:
 
     scanner                 m_scanner;
 
-    bool                    m_use_exceptions;
+    pos_info                m_last_cmd_pos;
+    bool                    m_use_exceptions; // TODO(dhs): ignored for now
     unsigned                m_num_open_paren{0};
     scanner::token_kind     m_curr_kind{scanner::token_kind::BEGIN};
 
@@ -151,27 +162,28 @@ private:
         throw parser_exception(msg, get_stream_name().c_str(), p.first, p.second);
     }
 
-    void throw_parser_exception(std::string const & msg, pos_info p) { throw_parser_exception(msg.c_str(), p); }
-    void throw_parser_exception(std::string const & msg) { throw_parser_exception(msg.c_str(), m_scanner.get_pos_info()); }
-    void throw_parser_exception(char const * msg) { throw_parser_exception(msg, m_scanner.get_pos_info()); }
+    [[ noreturn ]] void throw_parser_exception(std::string const & msg) { throw_parser_exception(msg.c_str(), m_last_cmd_pos); }
+    [[ noreturn ]] void throw_parser_exception(char const * msg) { throw_parser_exception(msg, m_last_cmd_pos); }
 
     void register_hypothesis(name const & n, expr const & ty) {
         if (m_use_locals) {
             lctx().mk_local_decl(n, ty);
         } else {
             declaration d = mk_axiom(n, list<name>(), ty);
-            m_env = env().add(check(env(), d));
+//            m_env = env().add(check(env(), d));
+            try {
+                m_env = env().add(check(env(), d));
+            } catch (throwable const & ex) {
+                legacy_type_context tc(m_env, m_ios.get_options());
+                auto out = regular(m_env, m_ios, tc);
+                ::lean::display_error(out, this, ex);
+            }
         }
     }
 
     void register_hypothesis(expr const & ty) {
         name n = mk_tagged_fresh_name(*g_smt2_prefix);
-        if (m_use_locals) {
-            lctx().mk_local_decl(n, ty);
-        } else {
-            declaration d = mk_axiom(n, list<name>(), ty);
-            m_env = env().add(check(env(), d));
-        }
+        register_hypothesis(n, ty);
     }
 
     environment & env() { return m_env; }
@@ -367,7 +379,7 @@ private:
 
     void parse_command() {
         lean_assert(curr_kind() == scanner::token_kind::LEFT_PAREN);
-        pos_info pinfo = m_scanner.get_pos_info();
+        m_last_cmd_pos = m_scanner.get_pos_info();
         next();
         check_curr_kind(scanner::token_kind::SYMBOL, "invalid command, symbol expected");
         std::string const & s = m_scanner.get_str_val();
@@ -399,7 +411,7 @@ private:
         else if (s == g_token_set_info)              parse_set_info();
         else if (s == g_token_set_logic)             parse_set_logic();
         else if (s == g_token_set_option)            parse_set_option();
-        else throw_parser_exception(std::string("unknown command: ") + s, pinfo);
+        else throw_parser_exception(std::string("unknown command: ") + s);
     }
 
     // Individual commands

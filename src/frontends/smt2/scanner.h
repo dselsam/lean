@@ -31,12 +31,12 @@ private:
     bool                m_last_line{1};
 
     char                m_curr;     // current char;
-    int                 m_cpos{0};  // position of the char
     int                 m_cline{0}; // line of the char
+    int                 m_cpos{0};  // position of the char
 
     token_kind          m_token_kind; // current token;
-    int                 m_tpos;       // start position of the token
     int                 m_tline;      // line of the token
+    int                 m_tpos;       // start position of the token
 
     std::string         m_str_val;
     name                m_name_val; // TODO(dhs): string here?
@@ -67,9 +67,7 @@ private:
 public:
     scanner(std::istream & strm, char const * strm_name);
 
-    int get_line() const { return m_cline; }
-    int get_pos() const { return m_cpos; }
-    pos_info get_pos_info() const { return pos_info(get_line(), get_pos()); }
+    pos_info get_pos_info() const { return pos_info(m_cline + 1, m_cpos); }
     token_kind scan();
 
     mpq const & get_num_val() const { return m_num_val; }
