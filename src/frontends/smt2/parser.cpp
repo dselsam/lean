@@ -168,7 +168,7 @@ private:
 
     void register_hypothesis(name const & n, expr const & ty) {
         if (m_use_locals) {
-            lctx().mk_local_decl(n, ty);
+            m_lctx.mk_local_decl(n, ty);
         } else {
             declaration d = mk_axiom(n, list<name>(), ty);
             m_env = env().add(check(env(), d));
@@ -182,7 +182,7 @@ private:
 
     environment & env() { return m_env; }
     io_state & ios() { return m_ios; }
-    local_context & lctx() { return m_lctx; }
+    local_context const & lctx() { return m_tctx_ptr ? m_tctx_ptr->lctx() : m_lctx; }
 
     scanner::token_kind curr_kind() const { return m_curr_kind; }
     std::string const & curr_string() const { return m_scanner.get_str_val(); }
