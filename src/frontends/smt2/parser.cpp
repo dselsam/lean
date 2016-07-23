@@ -30,6 +30,7 @@ Author: Daniel Selsam
 #include "library/mpq_macro.h"
 #include "library/tactic/tactic_state.h"
 #include "frontends/smt2/scanner.h"
+#include "frontends/smt2/elaborator.h"
 #include "frontends/smt2/parser.h"
 
 namespace lean {
@@ -38,99 +39,8 @@ namespace smt2 {
 static name * g_smt2_prefix;
 static name * g_smt2_tactic;
 
-// Note: the standard has a :pairwise annotation, but it is only used for distinct, which we handle specially
-enum class fun_attr { DEFAULT, LEFT_ASSOC, RIGHT_ASSOC, CHAINABLE, PAIRWISE };
-
-struct fun_decl {
-    expr     m_e;
-    fun_attr m_fun_attr;
-    fun_decl(expr const & e, fun_attr fattr): m_e(e), m_fun_attr(fattr) {}
-    expr const & get_expr() const { return m_e; }
-    fun_attr get_fun_attr() const { return m_fun_attr; }
-};
-
-static expr mk_left_assoc_app(buffer<expr> const & args) {
-    lean_assert(args.size() >= 2);
-    // f x1 x2 x3 ==> f (f x1 x2) x3
-    expr e = mk_app(args[0], args[1], args[2]);
-    for (unsigned i = 3; i < args.size(); ++i) {
-        e = mk_app(args[0], e, args[i]);
-    }
-    return e;
-}
-
-static expr mk_right_assoc_app(buffer<expr> const & args) {
-    lean_assert(args.size() >= 3);
-    // f x1 x2 x3 ==> f x1 (f x2 x3)
-    int k = args.size();
-    expr e = mk_app(args[0], args[k - 2], args[k - 1]);
-    for (int i = k - 3; i >= 0; --i) {
-        e = mk_app(args[0], args[i], e);
-    }
-    return e;
-}
-
-static expr mk_chainable_app(buffer<expr> const & args) {
-    // f x1 x2 x3 ==> and (f x1 x2) (f x2 x3)
-    if (args.size() == 3) {
-        return mk_app(args);
-    }
-    lean_assert(args.size() >= 3);
-    buffer<expr> args_to_and;
-    args_to_and.push_back(mk_constant(get_and_name()));
-    for (unsigned i = 1; i < args.size() - 1; ++i) {
-        args_to_and.push_back(mk_app(args[0], args[i], args[i+1]));
-    }
-    return mk_left_assoc_app(args_to_and);
-}
-
-// TODO(dhs): use a macro for this? It scales quadratically.
-
-// At this stage in elaboration: ["@distinct A", arg1, ... ,argN]
-static expr mk_distinct_app(buffer<expr> const & args) {
-    lean_assert(is_constant(app_fn(args[0])) && const_name(app_fn(args[0])) == get_distinct_name());
-    unsigned num_args = args.size() - 1;
-    if (num_args == 1)
-        return mk_constant(get_true_name());
-    expr eq = mk_app(mk_constant(get_eq_name(), {mk_level_one()}), app_arg(args[0]));
-    if (num_args == 2)
-        return mk_app(mk_constant(get_not_name()), mk_app(eq, args[1], args[2]));
-    buffer<expr> new_args;
-    new_args.push_back(mk_constant(get_and_name()));
-    for (unsigned i = 0; i < num_args - 1; ++i) {
-        for (unsigned j = i + 1; j < num_args; ++j) {
-            new_args.push_back(mk_app(mk_constant(get_not_name()), mk_app(eq, args[1+i], args[1+j])));
-        }
-    }
-    return mk_left_assoc_app(new_args);
-}
-
-// Theory symbols
-// TODO(dhs): I may not actually do it this way, and instead just have a chain of IF statements.
-static std::unordered_map<std::string, expr>     * g_theory_constant_symbols    = nullptr;
-static std::unordered_map<std::string, fun_decl> * g_theory_function_symbols    = nullptr;
-
-static optional<expr> is_theory_constant_symbol(std::string const & sym) {
-    auto it = g_theory_constant_symbols->find(sym);
-    if (it == g_theory_constant_symbols->end()) {
-        return none_expr();
-    } else {
-        return some_expr(it->second);
-    }
-}
-
-static optional<fun_decl> is_theory_function_symbol(std::string const & sym) {
-    auto it = g_theory_function_symbols->find(sym);
-    if (it == g_theory_function_symbols->end()) {
-        return optional<fun_decl>();
-    } else {
-        return optional<fun_decl>(it->second);
-    }
-}
-
 static char const * g_symbol_dependent_type = "_";
 static char const * g_token_use_locals      = ":use_locals";
-
 
 // Reserved words
 // (a) General
@@ -170,6 +80,51 @@ static char const * g_token_set_info              = "set-info";
 static char const * g_token_set_logic             = "set-logic";
 static char const * g_token_set_option            = "set-option";
 
+// Making bindings
+enum class binding_type { FORALL, EXISTS, LET };
+
+expr mk_binding(local_context const & lctx, binding_type btype, unsigned num_locals, expr const * locals, expr const & e) {
+    buffer<local_decl>     decls;
+    buffer<expr>           types;
+    buffer<optional<expr>> values;
+    for (unsigned i = 0; i < num_locals; i++) {
+        local_decl const & decl = *lctx.get_local_decl(locals[i]);
+        decls.push_back(decl);
+        types.push_back(::lean::abstract_locals(decl.get_type(), i, locals));
+        if (auto v = decl.get_value())
+            values.push_back(some_expr(::lean::abstract_locals(*v, i, locals)));
+        else
+            values.push_back(none_expr());
+    }
+    expr new_e = ::lean::abstract_locals(e, num_locals, locals);
+    lean_assert(types.size() == values.size());
+    unsigned i = types.size();
+    while (i > 0) {
+        --i;
+        switch (btype) {
+        case binding_type::FORALL:
+            lean_assert(!values[i]);
+            new_e = ::lean::mk_pi(decls[i].get_pp_name(), types[i], new_e, decls[i].get_info());
+            break;
+        case binding_type::EXISTS:
+            lean_assert(!values[i]);
+            // @Exists.{l_1} ?A (λ (x : ?A), @eq.{l_1} ?A x x) : Prop
+            new_e = mk_app(mk_constant(get_Exists_name(), {mk_level_one()}),
+                           types[i],
+                           ::lean::mk_lambda(decls[i].get_pp_name(), types[i], new_e, decls[i].get_info()));
+            break;
+        case binding_type::LET:
+            lean_assert(values[i]);
+            new_e = mk_let(decls[i].get_pp_name(), types[i], *values[i], new_e);
+            break;
+        }
+    }
+    return new_e;
+}
+
+expr mk_binding(local_context const & lctx, binding_type btype, buffer<expr> const & locals, expr const & e) {
+    return mk_binding(lctx, btype, locals.size(), locals.data(), e);
+}
 
 // Parser class
 class parser {
@@ -217,262 +172,6 @@ private:
             declaration d = mk_axiom(n, list<name>(), ty);
             m_env = env().add(check(env(), d));
         }
-    }
-
-    // Making bindings
-    enum class binding_type { FORALL, EXISTS, LET };
-
-    expr mk_binding(binding_type btype, buffer<expr> const & locals, expr const & e) { return mk_binding(btype, locals.size(), locals.data(), e); }
-
-    expr mk_binding(binding_type btype, unsigned num_locals, expr const * locals, expr const & e) {
-        buffer<local_decl>     decls;
-        buffer<expr>           types;
-        buffer<optional<expr>> values;
-        for (unsigned i = 0; i < num_locals; i++) {
-            local_decl const & decl = *lctx().get_local_decl(locals[i]);
-            decls.push_back(decl);
-            types.push_back(::lean::abstract_locals(decl.get_type(), i, locals));
-            if (auto v = decl.get_value())
-                values.push_back(some_expr(::lean::abstract_locals(*v, i, locals)));
-            else
-                values.push_back(none_expr());
-        }
-        expr new_e = ::lean::abstract_locals(e, num_locals, locals);
-        lean_assert(types.size() == values.size());
-        unsigned i = types.size();
-        while (i > 0) {
-            --i;
-            switch (btype) {
-            case binding_type::FORALL:
-                lean_assert(!values[i]);
-                new_e = ::lean::mk_pi(decls[i].get_pp_name(), types[i], new_e, decls[i].get_info());
-                break;
-            case binding_type::EXISTS:
-                lean_assert(!values[i]);
-                // @Exists.{l_1} ?A (λ (x : ?A), @eq.{l_1} ?A x x) : Prop
-                new_e = mk_app(mk_constant(get_Exists_name(), {mk_level_one()}),
-                               types[i],
-                               ::lean::mk_lambda(decls[i].get_pp_name(), types[i], new_e, decls[i].get_info()));
-                break;
-            case binding_type::LET:
-                lean_assert(values[i]);
-                new_e = mk_let(decls[i].get_pp_name(), types[i], *values[i], new_e);
-                break;
-            }
-        }
-        return new_e;
-    }
-
-    expr elaborate_ite(buffer<expr> & args) {
-        lean_assert(is_constant(args[0]) && const_name(args[0]) == get_ite_name());
-        // Have: ite.{} <P:Prop> <x:A> <y:A>
-        // Want: ite.{1} P (classical.prop_decidable P) A x y
-        lean_assert(m_tctx_ptr);
-        expr ty = m_tctx_ptr->infer(args[2]);
-        buffer<expr> new_args;
-        new_args.push_back(mk_constant(get_ite_name(), {mk_level_one()}));
-        new_args.push_back(args[1]);
-        new_args.push_back(mk_app(mk_constant(get_classical_prop_decidable_name()), args[1]));
-        new_args.push_back(ty);
-        new_args.push_back(args[2]);
-        new_args.push_back(args[3]);
-        return mk_app(new_args);
-    }
-
-    expr elaborate_distinct(buffer<expr> & args) {
-        lean_assert(is_constant(args[0]) && const_name(args[0]) == get_distinct_name());
-        lean_assert(m_tctx_ptr);
-        expr ty = m_tctx_ptr->infer(args[1]);
-        lean_assert(m_tctx_ptr);
-        args[0] = mk_app(mk_constant(get_distinct_name(), {mk_level_one()}), ty);
-        return mk_distinct_app(args);
-    }
-
-    expr elaborate_eq(buffer<expr> & args) {
-        lean_assert(is_constant(args[0]) && const_name(args[0]) == "=");
-        lean_assert(m_tctx_ptr);
-        expr ty = m_tctx_ptr->infer(args[1]);
-        args[0] = mk_app(mk_constant(get_eq_name(), {mk_level_one()}), ty);
-        return mk_chainable_app(args);
-    }
-
-    expr elaborate_select(buffer<expr> & args) {
-        lean_assert(is_constant(args[0]) && const_name(args[0]) == get_select_name());
-        // Have: select <A : Array X Y> <x : X>
-        // Want: select.{l1, l2} X Y x A
-        lean_assert(m_tctx_ptr);
-        expr ty = m_tctx_ptr->infer(args[1]);
-        buffer<expr> array_args;
-        expr array = get_app_args(ty, array_args);
-        lean_assert(is_constant(array) && const_name(array) == get_array_name());
-        buffer<expr> new_args;
-        new_args.push_back(mk_constant(get_array_select_name(), {mk_level_one(), mk_level_one(), mk_level_one()}));
-        new_args.push_back(array_args[0]);
-        new_args.push_back(array_args[1]);
-        new_args.push_back(args[2]);
-        new_args.push_back(args[1]);
-        return mk_app(new_args);
-    }
-
-    expr elaborate_store(buffer<expr> & args) {
-        lean_assert(is_constant(args[0]) && const_name(args[0]) == get_store_name());
-        // Have: store <A : Array X Y> <x : X> <y : Y>
-        // Want: store.{l1, l2} X Y x y A
-        lean_assert(m_tctx_ptr);
-        expr ty = m_tctx_ptr->infer(args[1]);
-        buffer<expr> array_args;
-        expr array = get_app_args(ty, array_args);
-        lean_assert(is_constant(array) && const_name(array) == get_array_name());
-        buffer<expr> new_args;
-        new_args.push_back(mk_constant(get_array_store_name(), {mk_level_one(), mk_level_one(), mk_level_one()}));
-        new_args.push_back(array_args[0]);
-        new_args.push_back(array_args[1]);
-        new_args.push_back(args[2]);
-        new_args.push_back(args[3]);
-        new_args.push_back(args[1]);
-        return mk_app(new_args);
-    }
-
-    // TODO(dhs): implement!
-    // Note: Leo's elaborator will be called at the end
-    expr elaborate_app(buffer<expr> & args) {
-        // We set the tctx_ptr whenever we are going to parse a term.
-        // Sorts do not require elaboration.
-        if (!m_tctx_ptr)
-            return mk_app(args);
-
-        int num_args = args.size() - 1;
-        lean_assert(num_args > 0);
-
-        fun_attr fattr = fun_attr::DEFAULT;
-
-        // The universe-polymorphic are the most complicated, so we handle them specially
-        // These are not even in the [is_theory_function_symbol] map
-
-        // (1) Core
-        if (is_constant(args[0]) && const_name(args[0]) == get_ite_name()) {
-            return elaborate_ite(args);
-        } else if (is_constant(args[0]) && const_name(args[0]) == get_distinct_name()) {
-            return elaborate_distinct(args);
-        } else if (is_constant(args[0]) && const_name(args[0]) == "=") {
-            return elaborate_eq(args);
-        }
-
-        // (2) Arrays
-        if (is_constant(args[0]) && const_name(args[0]) == get_select_name()) {
-            return elaborate_select(args);
-        } else if (is_constant(args[0]) && const_name(args[0]) == get_store_name()) {
-            return elaborate_store(args);
-        }
-
-        // (3) Arithmetic
-        if (is_constant(args[0]) && args.size() > 1) {
-            name n = const_name(args[0]);
-            // Coercions
-            if (n == get_to_real_name()) {
-                args[0] = mk_constant(get_real_of_int_name());
-                return mk_app(args);
-            } else if (n == get_to_int_name()) {
-                args[0] = mk_constant(get_real_to_int_name());
-                return mk_app(args);
-            } else if (n == get_is_int_name()) {
-                args[0] = mk_constant(get_real_is_int_name());
-                return mk_app(args);
-            }
-
-            // Int-specific operators
-            if (n == get_mod_name()) {
-                args[0] = mk_app(mk_constant(get_mod_name(), {mk_level_one()}), mk_constant(get_int_name()), mk_constant(get_int_has_mod_name()));
-                return mk_app(args);
-            } else if (n == get_abs_name()) {
-                args[0] = mk_app(mk_constant(get_abs_name(), {mk_level_one()}), mk_constant(get_int_name()), mk_constant(get_int_decidable_linear_ordered_comm_group_name()));
-                return mk_app(args);
-            } else if (n == get_div_name()) {
-                args[0] = mk_app(mk_constant(get_div_name(), {mk_level_one()}), mk_constant(get_int_name()), mk_constant(get_int_has_div_name()));
-                return mk_left_assoc_app(args);
-            }
-
-            // Real-specific operators
-            if (n == "/") {
-                args[0] = mk_app(mk_constant(get_div_name(), {mk_level_one()}), mk_constant(get_real_name()), mk_constant(get_real_has_div_name()));
-                return mk_left_assoc_app(args);
-            }
-
-            expr ty = m_tctx_ptr->infer(args[1]);
-
-            // Overloaded operators
-            // +, *, -, <, <=, >, >=
-            if (n == "+") {
-                if (ty == mk_constant(get_int_name())) {
-                    args[0] = mk_app(mk_constant(get_add_name(), {mk_level_one()}), mk_constant(get_int_name()), mk_constant(get_int_has_add_name()));
-                } else {
-                    lean_assert(ty == mk_constant(get_real_name()));
-                    args[0] = mk_app(mk_constant(get_add_name(), {mk_level_one()}), mk_constant(get_real_name()), mk_constant(get_real_has_add_name()));
-                }
-                return mk_left_assoc_app(args);
-            } else if (n == "*") {
-                if (ty == mk_constant(get_int_name())) {
-                    args[0] = mk_app(mk_constant(get_mul_name(), {mk_level_one()}), mk_constant(get_int_name()), mk_constant(get_int_has_mul_name()));
-                } else {
-                    lean_assert(ty == mk_constant(get_real_name()));
-                    args[0] = mk_app(mk_constant(get_mul_name(), {mk_level_one()}), mk_constant(get_real_name()), mk_constant(get_real_has_mul_name()));
-                }
-                return mk_left_assoc_app(args);
-            } else if (n == "-" && args.size() == 2) {
-                if (ty == mk_constant(get_int_name())) {
-                    args[0] = mk_app(mk_constant(get_neg_name(), {mk_level_one()}), mk_constant(get_int_name()), mk_constant(get_int_has_neg_name()));
-                } else {
-                    lean_assert(ty == mk_constant(get_real_name()));
-                    args[0] = mk_app(mk_constant(get_neg_name(), {mk_level_one()}), mk_constant(get_real_name()), mk_constant(get_real_has_neg_name()));
-                }
-                return mk_app(args);
-            } else if (n == "-") {
-                lean_assert(args.size() > 2);
-                if (ty == mk_constant(get_int_name())) {
-                    args[0] = mk_app(mk_constant(get_sub_name(), {mk_level_one()}), mk_constant(get_int_name()), mk_constant(get_int_has_sub_name()));
-                } else {
-                    lean_assert(ty == mk_constant(get_real_name()));
-                    args[0] = mk_app(mk_constant(get_sub_name(), {mk_level_one()}), mk_constant(get_real_name()), mk_constant(get_real_has_sub_name()));
-                }
-                return mk_left_assoc_app(args);
-            } else if (n == "<") {
-                if (ty == mk_constant(get_int_name())) {
-                    args[0] = mk_app(mk_constant(get_lt_name(), {mk_level_one()}), mk_constant(get_int_name()), mk_constant(get_int_has_lt_name()));
-                } else {
-                    lean_assert(ty == mk_constant(get_real_name()));
-                    args[0] = mk_app(mk_constant(get_lt_name(), {mk_level_one()}), mk_constant(get_real_name()), mk_constant(get_real_has_lt_name()));
-                }
-                return mk_chainable_app(args);
-            } else if (n == "<=") {
-                if (ty == mk_constant(get_int_name())) {
-                    args[0] = mk_app(mk_constant(get_le_name(), {mk_level_one()}), mk_constant(get_int_name()), mk_constant(get_int_has_le_name()));
-                } else {
-                    lean_assert(ty == mk_constant(get_real_name()));
-                    args[0] = mk_app(mk_constant(get_le_name(), {mk_level_one()}), mk_constant(get_real_name()), mk_constant(get_real_has_le_name()));
-                }
-                return mk_chainable_app(args);
-            } else if (n == ">") {
-                if (ty == mk_constant(get_int_name())) {
-                    args[0] = mk_app(mk_constant(get_gt_name(), {mk_level_one()}), mk_constant(get_int_name()), mk_constant(get_int_has_lt_name()));
-                } else {
-                    lean_assert(ty == mk_constant(get_real_name()));
-                    args[0] = mk_app(mk_constant(get_gt_name(), {mk_level_one()}), mk_constant(get_real_name()), mk_constant(get_real_has_lt_name()));
-                }
-                return mk_chainable_app(args);
-            } else if (n == ">=") {
-                if (ty == mk_constant(get_int_name())) {
-                    args[0] = mk_app(mk_constant(get_ge_name(), {mk_level_one()}), mk_constant(get_int_name()), mk_constant(get_int_has_le_name()));
-                } else {
-                    lean_assert(ty == mk_constant(get_real_name()));
-                    args[0] = mk_app(mk_constant(get_ge_name(), {mk_level_one()}), mk_constant(get_real_name()), mk_constant(get_real_has_le_name()));
-                }
-                return mk_chainable_app(args);
-            }
-        }
-
-        // TODO(dhs): bit vectors!
-        return mk_app(args);
-
     }
 
     environment & env() { return m_env; }
@@ -539,13 +238,10 @@ private:
         case scanner::token_kind::SYMBOL:
             sym = curr_symbol();
             next();
-            it = g_theory_constant_symbols->find(sym);
-            if (it != g_theory_constant_symbols->end())
-                return it->second;
-            else if (l = lctx().get_local_decl_from_user_name(sym))
+            if (l = lctx().get_local_decl_from_user_name(sym))
                 return l->mk_ref();
             else
-                return mk_constant(sym);
+                return elaborate_constant(sym);
             lean_unreachable();
             break;
         case scanner::token_kind::STRING:
@@ -569,14 +265,15 @@ private:
             if (curr_kind() == scanner::token_kind::SYMBOL && curr_symbol() == g_symbol_dependent_type) {
                 next();
                 parse_exprs(args, context);
-                return elaborate_app(args);
+                // Note: there are no dependent applications that require elaboration on their own
+                return mk_app(args);
             } else if (curr_kind() == scanner::token_kind::SYMBOL && curr_symbol() == g_token_forall) {
                 lean_assert(m_tctx_ptr);
                 next();
                 buffer<expr> bindings;
                 parse_sorted_var_list(bindings, context);
                 expr e = parse_expr(context);
-                expr pi = mk_binding(binding_type::FORALL, bindings, e);
+                expr pi = mk_binding(m_tctx_ptr->lctx(), binding_type::FORALL, bindings, e);
                 for (expr const & binding : bindings)
                     m_tctx_ptr->pop_local();
                 check_curr_kind(scanner::token_kind::RIGHT_PAREN, "invalid constant declaration, ')' expected");
@@ -606,7 +303,11 @@ private:
                 return Let(bindings, e);*/
             } else {
                 parse_exprs(args, context);
-                return elaborate_app(args);
+                // When parsing sorts, we don't bother elaborating applications
+                if (m_tctx_ptr)
+                    return elaborate_app(*m_tctx_ptr, args);
+                else
+                    return mk_app(args);
             }
         default:
             throw_parser_exception((std::string(context) + ", invalid sort").c_str());
@@ -870,37 +571,9 @@ void initialize_parser() {
     g_smt2_prefix = new name(name::mk_internal_unique_name());
     // TODO(dhs): write a theorem prover and call that instead
     g_smt2_tactic = new name({"tactic", "smt2"});
-
-    g_theory_constant_symbols = new std::unordered_map<std::string, expr>({
-            // Sorts
-            {"Bool", mk_Prop()},
-            {"Int", mk_constant(get_int_name())},
-            {"Real", mk_constant(get_real_name())},
-            {"Array", mk_constant(get_array_name(), {mk_level_one(), mk_level_one(), mk_level_one()})},
-
-            // (a) Core
-            {"true", mk_constant(get_true_name())},
-            {"false", mk_constant(get_false_name())},
-                });
-
-    g_theory_function_symbols = new std::unordered_map<std::string, fun_decl>({
-            // TODO(dhs): need to elaborate BitVec even though it is a sort
-            {"BitVec", fun_decl(mk_constant(get_bv_name()), fun_attr::DEFAULT)},
-
-            // I. Non-polymorphic
-            // (a) Core
-            {"not", fun_decl(mk_constant(get_not_name()), fun_attr::DEFAULT)},
-            {"=>", fun_decl(mk_constant(get_implies_name()), fun_attr::RIGHT_ASSOC)},
-            {"and", fun_decl(mk_constant(get_and_name()), fun_attr::LEFT_ASSOC)},
-            {"or", fun_decl(mk_constant(get_or_name()), fun_attr::LEFT_ASSOC)},
-            {"xor", fun_decl(mk_constant(get_xor_name()), fun_attr::LEFT_ASSOC)},
-        });
 }
 
 void finalize_parser() {
-    delete g_theory_constant_symbols;
-    delete g_theory_function_symbols;
-
     delete g_smt2_prefix;
     delete g_smt2_tactic;
 }

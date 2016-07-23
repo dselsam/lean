@@ -15,10 +15,6 @@ name const * g_and = nullptr;
 name const * g_and_elim_left = nullptr;
 name const * g_and_elim_right = nullptr;
 name const * g_and_intro = nullptr;
-name const * g_Array = nullptr;
-name const * g_array = nullptr;
-name const * g_array_select = nullptr;
-name const * g_array_store = nullptr;
 name const * g_bit0 = nullptr;
 name const * g_bit1 = nullptr;
 name const * g_bool = nullptr;
@@ -134,6 +130,8 @@ name const * g_lt = nullptr;
 name const * g_map = nullptr;
 name const * g_map_insert = nullptr;
 name const * g_map_lookup = nullptr;
+name const * g_map_select = nullptr;
+name const * g_map_store = nullptr;
 name const * g_mod = nullptr;
 name const * g_monad = nullptr;
 name const * g_monad_map = nullptr;
@@ -309,10 +307,6 @@ void initialize_constants() {
     g_and_elim_left = new name{"and", "elim_left"};
     g_and_elim_right = new name{"and", "elim_right"};
     g_and_intro = new name{"and", "intro"};
-    g_Array = new name{"Array"};
-    g_array = new name{"array"};
-    g_array_select = new name{"array", "select"};
-    g_array_store = new name{"array", "store"};
     g_bit0 = new name{"bit0"};
     g_bit1 = new name{"bit1"};
     g_bool = new name{"bool"};
@@ -428,6 +422,8 @@ void initialize_constants() {
     g_map = new name{"map"};
     g_map_insert = new name{"map", "insert"};
     g_map_lookup = new name{"map", "lookup"};
+    g_map_select = new name{"map", "select"};
+    g_map_store = new name{"map", "store"};
     g_mod = new name{"mod"};
     g_monad = new name{"monad"};
     g_monad_map = new name{"monad", "map"};
@@ -604,10 +600,6 @@ void finalize_constants() {
     delete g_and_elim_left;
     delete g_and_elim_right;
     delete g_and_intro;
-    delete g_Array;
-    delete g_array;
-    delete g_array_select;
-    delete g_array_store;
     delete g_bit0;
     delete g_bit1;
     delete g_bool;
@@ -723,6 +715,8 @@ void finalize_constants() {
     delete g_map;
     delete g_map_insert;
     delete g_map_lookup;
+    delete g_map_select;
+    delete g_map_store;
     delete g_mod;
     delete g_monad;
     delete g_monad_map;
@@ -898,10 +892,6 @@ name const & get_and_name() { return *g_and; }
 name const & get_and_elim_left_name() { return *g_and_elim_left; }
 name const & get_and_elim_right_name() { return *g_and_elim_right; }
 name const & get_and_intro_name() { return *g_and_intro; }
-name const & get_Array_name() { return *g_Array; }
-name const & get_array_name() { return *g_array; }
-name const & get_array_select_name() { return *g_array_select; }
-name const & get_array_store_name() { return *g_array_store; }
 name const & get_bit0_name() { return *g_bit0; }
 name const & get_bit1_name() { return *g_bit1; }
 name const & get_bool_name() { return *g_bool; }
@@ -1017,6 +1007,8 @@ name const & get_lt_name() { return *g_lt; }
 name const & get_map_name() { return *g_map; }
 name const & get_map_insert_name() { return *g_map_insert; }
 name const & get_map_lookup_name() { return *g_map_lookup; }
+name const & get_map_select_name() { return *g_map_select; }
+name const & get_map_store_name() { return *g_map_store; }
 name const & get_mod_name() { return *g_mod; }
 name const & get_monad_name() { return *g_monad; }
 name const & get_monad_map_name() { return *g_monad_map; }
