@@ -339,7 +339,6 @@ private:
     optional<expr> unfold_definition(expr const & e);
     optional<expr> try_unfold_definition(expr const & e);
     bool should_unfold_macro(expr const & e);
-    optional<expr> expand_macro(expr const & e);
     expr whnf_core(expr const & e);
     optional<declaration> is_transparent(transparency_mode m, name const & n);
     optional<declaration> is_transparent(name const & n);
@@ -364,6 +363,8 @@ private:
        and in regular mode they access m_mctx.
        ------------ */
 public:
+    optional<expr> expand_macro(expr const & e);
+
     bool is_mvar(level const & l) const;
     bool is_mvar(expr const & e) const;
     bool is_assigned(level const & l) const;

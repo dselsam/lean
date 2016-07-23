@@ -407,7 +407,7 @@ void initialize_concrete_arith_instance_infos() {
     g_nat_instance_info->m_has_cyclic_numerals                 = optional<bool>(false);
 
     g_nat_instance_info->m_zero    = mk_app({mk_constant(get_zero_name(), {mk_level_one()}), nat, mk_constant(get_nat_has_zero_name())});
-    g_nat_instance_info->m_one     = mk_app({mk_constant(get_one_name(), {mk_level_one()}), nat, mk_constant(get_nat_has_one_name())});
+    g_nat_instance_info->m_one     = mk_app({mk_constant(get_one_name(), {mk_level_one()}),  nat, mk_constant(get_nat_has_one_name())});
     g_nat_instance_info->m_bit0    = mk_app({mk_constant(get_bit0_name(), {mk_level_one()}), nat, mk_constant(get_nat_has_add_name())});
     g_nat_instance_info->m_bit1    = mk_app({mk_constant(get_bit1_name(), {mk_level_one()}), nat, mk_constant(get_nat_has_one_name()), mk_constant(get_nat_has_add_name())});
 
@@ -434,7 +434,7 @@ void initialize_concrete_arith_instance_infos() {
     g_int_instance_info->m_has_cyclic_numerals                 = optional<bool>(false);
 
     g_int_instance_info->m_zero    = mk_app({mk_constant(get_zero_name(), {mk_level_one()}), z, mk_constant(get_int_has_zero_name())});
-    g_int_instance_info->m_one     = mk_app({mk_constant(get_one_name(), {mk_level_one()}), z, mk_constant(get_int_has_one_name())});
+    g_int_instance_info->m_one     = mk_app({mk_constant(get_one_name(), {mk_level_one()}),  z, mk_constant(get_int_has_one_name())});
     g_int_instance_info->m_bit0    = mk_app({mk_constant(get_bit0_name(), {mk_level_one()}), z, mk_constant(get_int_has_add_name())});
     g_int_instance_info->m_bit1    = mk_app({mk_constant(get_bit1_name(), {mk_level_one()}), z, mk_constant(get_int_has_one_name()), mk_constant(get_int_has_add_name())});
 
@@ -460,19 +460,19 @@ void initialize_concrete_arith_instance_infos() {
 
     g_real_instance_info->m_has_cyclic_numerals                 = optional<bool>(false);
 
-    g_real_instance_info->m_zero    = mk_app({mk_constant(get_zero_name(), {mk_level_one()}), z, mk_constant(get_real_has_zero_name())});
-    g_real_instance_info->m_one     = mk_app({mk_constant(get_one_name(), {mk_level_one()}),  z, mk_constant(get_real_has_one_name())});
-    g_real_instance_info->m_bit0    = mk_app({mk_constant(get_bit0_name(), {mk_level_one()}), z, mk_constant(get_real_has_add_name())});
-    g_real_instance_info->m_bit1    = mk_app({mk_constant(get_bit1_name(), {mk_level_one()}), z, mk_constant(get_real_has_one_name()), mk_constant(get_real_has_add_name())});
+    g_real_instance_info->m_zero    = mk_app({mk_constant(get_zero_name(), {mk_level_one()}), real, mk_constant(get_real_has_zero_name())});
+    g_real_instance_info->m_one     = mk_app({mk_constant(get_one_name(), {mk_level_one()}),  real, mk_constant(get_real_has_one_name())});
+    g_real_instance_info->m_bit0    = mk_app({mk_constant(get_bit0_name(), {mk_level_one()}), real, mk_constant(get_real_has_add_name())});
+    g_real_instance_info->m_bit1    = mk_app({mk_constant(get_bit1_name(), {mk_level_one()}), real, mk_constant(get_real_has_one_name()), mk_constant(get_real_has_add_name())});
 
-    g_real_instance_info->m_add     = mk_app({mk_constant(get_add_name(), {mk_level_one()}), z, mk_constant(get_real_has_add_name())});
-    g_real_instance_info->m_mul     = mk_app({mk_constant(get_mul_name(), {mk_level_one()}), z, mk_constant(get_real_has_mul_name())});
-    g_real_instance_info->m_div     = mk_app({mk_constant(get_div_name(), {mk_level_one()}), z, mk_constant(get_real_has_div_name())});
-    g_real_instance_info->m_sub     = mk_app({mk_constant(get_sub_name(), {mk_level_one()}), z, mk_constant(get_real_has_sub_name())});
-    g_real_instance_info->m_neg     = mk_app({mk_constant(get_neg_name(), {mk_level_one()}), z, mk_constant(get_real_has_neg_name())});
+    g_real_instance_info->m_add     = mk_app({mk_constant(get_add_name(), {mk_level_one()}), real, mk_constant(get_real_has_add_name())});
+    g_real_instance_info->m_mul     = mk_app({mk_constant(get_mul_name(), {mk_level_one()}), real, mk_constant(get_real_has_mul_name())});
+    g_real_instance_info->m_div     = mk_app({mk_constant(get_div_name(), {mk_level_one()}), real, mk_constant(get_real_has_div_name())});
+    g_real_instance_info->m_sub     = mk_app({mk_constant(get_sub_name(), {mk_level_one()}), real, mk_constant(get_real_has_sub_name())});
+    g_real_instance_info->m_neg     = mk_app({mk_constant(get_neg_name(), {mk_level_one()}), real, mk_constant(get_real_has_neg_name())});
 
-    g_real_instance_info->m_lt      = mk_app({mk_constant(get_lt_name(), {mk_level_one()}), z, mk_constant(get_real_has_lt_name())});
-    g_real_instance_info->m_le      = mk_app({mk_constant(get_le_name(), {mk_level_one()}), z, mk_constant(get_real_has_le_name())});
+    g_real_instance_info->m_lt      = mk_app({mk_constant(get_lt_name(), {mk_level_one()}), real, mk_constant(get_real_has_lt_name())});
+    g_real_instance_info->m_le      = mk_app({mk_constant(get_le_name(), {mk_level_one()}), real, mk_constant(get_real_has_le_name())});
 }
 
 void finalize_concrete_arith_instance_infos() {

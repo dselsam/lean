@@ -298,6 +298,9 @@ private:
         optional<local_decl> l;
         //optional<local_decl>
 
+        expr tmp;
+        optional<expr> otmp;
+
         switch (curr_kind()) {
         case scanner::token_kind::SYMBOL:
             sym = curr_symbol();
@@ -315,9 +318,13 @@ private:
             break;
         case scanner::token_kind::INT:
             // TODO(dhs): Lean's bv may want a Nat instead of an Int
-            return mk_mpq_macro(curr_numeral_next(), mk_constant(get_int_name()));
+            tmp = mk_mpq_macro(curr_numeral_next(), mk_constant(get_int_name()));
+            otmp = m_tctx_ptr->expand_macro(tmp);
+            return *otmp;
         case scanner::token_kind::FLOAT:
-            return mk_mpq_macro(curr_numeral_next(), mk_constant(get_real_name()));
+            tmp = mk_mpq_macro(curr_numeral_next(), mk_constant(get_real_name()));
+            otmp = m_tctx_ptr->expand_macro(tmp);
+            return *otmp;
         case scanner::token_kind::BV:
             // TODO(dhs): bit vectors
             // (Already getting the value in the scanner, just don't have a good Lean target yet)
