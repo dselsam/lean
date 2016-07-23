@@ -299,12 +299,6 @@ private:
         return mk_chainable_app(args);
     }
 
-    expr elaborate_Array(buffer<expr> & args) {
-        lean_assert(is_constant(args[0]) && const_name(args[0]) == get_Array_name());
-        args[0] = mk_constant(get_array_name(), {mk_level_one(), mk_level_one()});
-        return mk_app(args);
-    }
-
     expr elaborate_select(buffer<expr> & args) {
         lean_assert(is_constant(args[0]) && const_name(args[0]) == get_select_name());
         // Have: select <A : Array X Y> <x : X>
@@ -315,12 +309,12 @@ private:
         expr array = get_app_args(ty, array_args);
         lean_assert(is_constant(array) && const_name(array) == get_array_name());
         buffer<expr> new_args;
-        new_args.push_back(mk_constant(get_array_select_name(), {mk_level_one(), mk_level_one()}));
+        new_args.push_back(mk_constant(get_array_select_name(), {mk_level_one(), mk_level_one(), mk_level_one()}));
         new_args.push_back(array_args[0]);
         new_args.push_back(array_args[1]);
         new_args.push_back(args[2]);
         new_args.push_back(args[1]);
-        return mk_app(args);
+        return mk_app(new_args);
     }
 
     expr elaborate_store(buffer<expr> & args) {
@@ -333,13 +327,13 @@ private:
         expr array = get_app_args(ty, array_args);
         lean_assert(is_constant(array) && const_name(array) == get_array_name());
         buffer<expr> new_args;
-        new_args.push_back(mk_constant(get_array_store_name(), {mk_level_one(), mk_level_one()}));
+        new_args.push_back(mk_constant(get_array_store_name(), {mk_level_one(), mk_level_one(), mk_level_one()}));
         new_args.push_back(array_args[0]);
         new_args.push_back(array_args[1]);
         new_args.push_back(args[2]);
         new_args.push_back(args[3]);
         new_args.push_back(args[1]);
-        return mk_app(args);
+        return mk_app(new_args);
     }
 
     // TODO(dhs): implement!
@@ -368,9 +362,7 @@ private:
         }
 
         // (2) Arrays
-        if (is_constant(args[0]) && const_name(args[0]) == get_Array_name()) {
-            return elaborate_Array(args);
-        } else if (is_constant(args[0]) && const_name(args[0]) == get_select_name()) {
+        if (is_constant(args[0]) && const_name(args[0]) == get_select_name()) {
             return elaborate_select(args);
         } else if (is_constant(args[0]) && const_name(args[0]) == get_store_name()) {
             return elaborate_store(args);
@@ -383,8 +375,8 @@ private:
         if (is_constant(args[0])) {
             std::string op_str = const_name(args[0]).get_string();
             // One special case: (-) can be `neg` or `sub`
-            if (op_str.c_str() == g_symbol_minus && num_args == 1) {
-                args[0] = mk_constant(get_neg_name());
+            if (op_str == std::string(g_symbol_minus) && num_args == 1) {
+                args[0] = mk_constant(get_neg_name(), {mk_level_one()});
             } else if (auto fdecl = is_theory_function_symbol(op_str)) {
                 args[0] = fdecl->get_expr();
                 fattr = fdecl->get_fun_attr();
@@ -439,6 +431,9 @@ private:
             } else if (n == get_mod_name()) {
                 lean_assert(ty == mk_constant(get_int_name()));
                 args[0] = mk_app(args[0], mk_constant(get_int_name()), mk_constant(get_int_has_mod_name()));
+            } else if (n == get_abs_name()) {
+                lean_assert(ty == mk_constant(get_int_name()));
+                args[0] = mk_app(args[0], mk_constant(get_int_name()), mk_constant(get_int_decidable_linear_ordered_comm_group_name()));
             } else if (n == get_lt_name()) {
                 if (ty == mk_constant(get_int_name())) {
                     args[0] = mk_app(args[0], mk_constant(get_int_name()), mk_constant(get_int_has_lt_name()));
@@ -899,7 +894,7 @@ void initialize_parser() {
             {"Bool", mk_Prop()},
             {"Int", mk_constant(get_int_name())},
             {"Real", mk_constant(get_real_name())},
-            {"Array", mk_constant(get_array_name())},
+            {"Array", mk_constant(get_array_name(), {mk_level_one(), mk_level_one(), mk_level_one()})},
 
             // (a) Core
             {"true", mk_constant(get_true_name())},
@@ -921,16 +916,12 @@ void initialize_parser() {
 
             // (b) Arithmetic
             {"div", fun_decl(mk_constant(get_div_name(), {mk_level_one()}), fun_attr::LEFT_ASSOC)},
-            {"mod", fun_decl(mk_constant(get_mod_name()), fun_attr::DEFAULT)},
-            {"abs", fun_decl(mk_constant(get_abs_name()), fun_attr::DEFAULT)},
+            {"mod", fun_decl(mk_constant(get_mod_name(), {mk_level_one()}), fun_attr::DEFAULT)},
+            {"abs", fun_decl(mk_constant(get_abs_name(), {mk_level_one()}), fun_attr::DEFAULT)},
             {"/", fun_decl(mk_constant(get_div_name(), {mk_level_one()}), fun_attr::LEFT_ASSOC)},
             {"to_real", fun_decl(mk_constant(get_real_of_int_name()), fun_attr::DEFAULT)},
             {"to_int", fun_decl(mk_constant(get_real_to_int_name()), fun_attr::DEFAULT)},
             {"is_int", fun_decl(mk_constant(get_real_is_int_name()), fun_attr::DEFAULT)},
-
-             // (c) Arrays
-            {"select", fun_decl(mk_constant(get_array_select_name()), fun_attr::DEFAULT)}, // TODO(dhs): may not exist yet
-            {"store", fun_decl(mk_constant(get_array_store_name()), fun_attr::DEFAULT)}, // TODO(dhs): may not exist yet
 
             // II. Polymorphic
             // (a) Core
