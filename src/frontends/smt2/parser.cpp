@@ -214,6 +214,7 @@ private:
     // Parser helpers
     // Parsing sorts
     void parse_sorted_var_list(buffer<expr> & bindings, char const * context) {
+        lean_assert(m_tctx_ptr);
         check_curr_kind(scanner::token_kind::LEFT_PAREN, std::string(context) + ": sorted-var list expected");
         next();
         while (curr_kind() == scanner::token_kind::LEFT_PAREN) {
@@ -231,6 +232,25 @@ private:
         next();
     }
 
+    void parse_var_binding_list(buffer<expr> & bindings, char const * context) {
+        lean_assert(m_tctx_ptr);
+        check_curr_kind(scanner::token_kind::LEFT_PAREN, std::string(context) + ": var-binding list expected");
+        next();
+        while (curr_kind() == scanner::token_kind::LEFT_PAREN) {
+            next();
+            check_curr_kind(scanner::token_kind::SYMBOL, std::string(context) + ": invalid var-binding list");
+            symbol sym = curr_symbol();
+            next();
+            expr val = parse_expr(context);
+            expr ty = m_tctx_ptr->infer(val);
+            expr l = m_tctx_ptr->push_let(sym, ty, val);
+            bindings.push_back(l);
+            check_curr_kind(scanner::token_kind::RIGHT_PAREN, std::string(context) + ": invalid var-binding list");
+            next();
+        }
+        check_curr_kind(scanner::token_kind::RIGHT_PAREN, std::string(context) + ": invalid var-binding list");
+        next();
+    }
 
     expr parse_expr(char const * context) {
         // { LEFT_PAREN, RIGHT_PAREN, KEYWORD, SYMBOL, STRING, INT, FLOAT, BV };
@@ -298,16 +318,17 @@ private:
                 next();
                 return exists;
             } else if (curr_kind() == scanner::token_kind::SYMBOL && curr_symbol() == g_token_let) {
-                throw_parser_exception("let not accepted in expressions yet");
-                lean_unreachable();
-                /*
+                lean_assert(m_tctx_ptr);
                 next();
                 buffer<expr> bindings;
-                // TODO(dhs): write this
-                parse_var_binding_list(context);
+                parse_var_binding_list(bindings, context);
                 expr e = parse_expr(context);
-                // TODO(dhs): write this
-                return Let(bindings, e);*/
+                expr let = mk_binding(m_tctx_ptr->lctx(), binding_type::LET, bindings, e);
+                for (expr const & binding : bindings)
+                    m_tctx_ptr->pop_local();
+                check_curr_kind(scanner::token_kind::RIGHT_PAREN, "invalid constant declaration, ')' expected");
+                next();
+                return let;
             } else {
                 parse_exprs(args, context);
                 // When parsing sorts, we don't bother elaborating applications
