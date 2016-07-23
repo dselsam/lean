@@ -27,11 +27,16 @@ char.of_nat
 classical
 classical.prop_decidable
 combinator.K
+comm_ring
+comm_semiring
 congr
 congr_arg
 congr_fun
+cyclic_numerals
+cyclic_numerals.bound
 decidable
 decidable.by_contradiction
+discrete_field
 distinct
 distrib
 dite
@@ -69,6 +74,8 @@ gt
 has_add
 has_div
 has_mul
+has_le
+has_lt
 has_neg
 has_one
 has_one.one
@@ -98,6 +105,8 @@ implies_of_if_pos
 implies.resolve
 int
 int.of_nat
+int_has_zero
+int_has_one
 int_has_add
 int_has_mul
 int_has_sub
@@ -119,6 +128,7 @@ le.refl
 lift
 lift.down
 lift.up
+linear_ordered_comm_ring
 linear_ordered_ring
 linear_ordered_semiring
 list
@@ -148,6 +158,12 @@ nat.zero
 nat_has_zero
 nat_has_one
 nat_has_add
+nat_has_mul
+nat_has_div
+nat_has_sub
+nat_has_neg
+nat_has_lt
+nat_has_le
 nat.add
 nat.no_confusion
 nat.cases_on
@@ -241,6 +257,8 @@ rat.divide
 rat.of_num
 rat.of_int
 real
+real_has_zero
+real_has_one
 real_has_add
 real_has_mul
 real_has_sub
