@@ -17,6 +17,7 @@ Author: Daniel Selsam
 #include "kernel/kernel_exception.h"
 #include "kernel/abstract.h"
 #include "kernel/instantiate.h"
+#include "kernel/error_msgs.h"
 #include "kernel/declaration.h"
 #include "kernel/type_checker.h"
 #include "kernel/expr_maps.h"
@@ -28,6 +29,7 @@ Author: Daniel Selsam
 #include "library/local_context.h"
 #include "library/legacy_type_context.h"
 #include "library/error_handling.h"
+#include "library/pp_options.h"
 #include "library/module.h"
 #include "library/trace.h"
 #include "library/mpq_macro.h"
@@ -649,6 +651,9 @@ public:
 
     // Entry point
     bool operator()() {
+        scoped_expr_caching disable(false);
+        scoped_set_distinguishing_pp_options set(get_distinguishing_pp_options());
+
         buffer<module_name> olean_files;
         std::string base = dirname(get_stream_name().c_str());
         optional<unsigned> k;
