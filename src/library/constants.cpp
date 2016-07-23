@@ -15,6 +15,7 @@ name const * g_and = nullptr;
 name const * g_and_elim_left = nullptr;
 name const * g_and_elim_right = nullptr;
 name const * g_and_intro = nullptr;
+name const * g_Array = nullptr;
 name const * g_array = nullptr;
 name const * g_array_select = nullptr;
 name const * g_array_store = nullptr;
@@ -257,10 +258,12 @@ name const * g_real_to_int = nullptr;
 name const * g_rfl = nullptr;
 name const * g_right_distrib = nullptr;
 name const * g_ring = nullptr;
+name const * g_select = nullptr;
 name const * g_semiring = nullptr;
 name const * g_sigma = nullptr;
 name const * g_sigma_mk = nullptr;
 name const * g_sorry = nullptr;
+name const * g_store = nullptr;
 name const * g_string = nullptr;
 name const * g_string_empty = nullptr;
 name const * g_string_str = nullptr;
@@ -303,6 +306,7 @@ void initialize_constants() {
     g_and_elim_left = new name{"and", "elim_left"};
     g_and_elim_right = new name{"and", "elim_right"};
     g_and_intro = new name{"and", "intro"};
+    g_Array = new name{"Array"};
     g_array = new name{"array"};
     g_array_select = new name{"array", "select"};
     g_array_store = new name{"array", "store"};
@@ -545,10 +549,12 @@ void initialize_constants() {
     g_rfl = new name{"rfl"};
     g_right_distrib = new name{"right_distrib"};
     g_ring = new name{"ring"};
+    g_select = new name{"select"};
     g_semiring = new name{"semiring"};
     g_sigma = new name{"sigma"};
     g_sigma_mk = new name{"sigma", "mk"};
     g_sorry = new name{"sorry"};
+    g_store = new name{"store"};
     g_string = new name{"string"};
     g_string_empty = new name{"string", "empty"};
     g_string_str = new name{"string", "str"};
@@ -592,6 +598,7 @@ void finalize_constants() {
     delete g_and_elim_left;
     delete g_and_elim_right;
     delete g_and_intro;
+    delete g_Array;
     delete g_array;
     delete g_array_select;
     delete g_array_store;
@@ -834,10 +841,12 @@ void finalize_constants() {
     delete g_rfl;
     delete g_right_distrib;
     delete g_ring;
+    delete g_select;
     delete g_semiring;
     delete g_sigma;
     delete g_sigma_mk;
     delete g_sorry;
+    delete g_store;
     delete g_string;
     delete g_string_empty;
     delete g_string_str;
@@ -880,6 +889,7 @@ name const & get_and_name() { return *g_and; }
 name const & get_and_elim_left_name() { return *g_and_elim_left; }
 name const & get_and_elim_right_name() { return *g_and_elim_right; }
 name const & get_and_intro_name() { return *g_and_intro; }
+name const & get_Array_name() { return *g_Array; }
 name const & get_array_name() { return *g_array; }
 name const & get_array_select_name() { return *g_array_select; }
 name const & get_array_store_name() { return *g_array_store; }
@@ -1122,10 +1132,12 @@ name const & get_real_to_int_name() { return *g_real_to_int; }
 name const & get_rfl_name() { return *g_rfl; }
 name const & get_right_distrib_name() { return *g_right_distrib; }
 name const & get_ring_name() { return *g_ring; }
+name const & get_select_name() { return *g_select; }
 name const & get_semiring_name() { return *g_semiring; }
 name const & get_sigma_name() { return *g_sigma; }
 name const & get_sigma_mk_name() { return *g_sigma_mk; }
 name const & get_sorry_name() { return *g_sorry; }
+name const & get_store_name() { return *g_store; }
 name const & get_string_name() { return *g_string; }
 name const & get_string_empty_name() { return *g_string_empty; }
 name const & get_string_str_name() { return *g_string_str; }

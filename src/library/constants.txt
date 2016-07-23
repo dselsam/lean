@@ -10,6 +10,7 @@ and
 and.elim_left
 and.elim_right
 and.intro
+Array
 array
 array.select
 array.store
@@ -252,10 +253,12 @@ real.to_int
 rfl
 right_distrib
 ring
+select
 semiring
 sigma
 sigma.mk
 sorry
+store
 string
 string.empty
 string.str

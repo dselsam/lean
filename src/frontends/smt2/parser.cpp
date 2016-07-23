@@ -39,7 +39,7 @@ static name * g_smt2_prefix;
 static name * g_smt2_tactic;
 
 // Note: the standard has a :pairwise annotation, but it is only used for distinct, which we handle specially
-enum class fun_attr { DEFAULT, LEFT_ASSOC, RIGHT_ASSOC, CHAINABLE, DISTINCT };
+enum class fun_attr { DEFAULT, LEFT_ASSOC, RIGHT_ASSOC, CHAINABLE, PAIRWISE };
 
 struct fun_decl {
     expr     m_e;
@@ -88,7 +88,7 @@ static expr mk_chainable_app(buffer<expr> const & args) {
 
 // At this stage in elaboration: ["@distinct A", arg1, ... ,argN]
 static expr mk_distinct_app(buffer<expr> const & args) {
-    lean_assert(app_fn(args[0]) == mk_constant(get_distinct_name()));
+    lean_assert(is_constant(app_fn(args[0])) && const_name(app_fn(args[0])) == get_distinct_name());
     unsigned num_args = args.size() - 1;
     if (num_args == 1)
         return mk_constant(get_true_name());
@@ -130,6 +130,7 @@ static optional<fun_decl> is_theory_function_symbol(std::string const & sym) {
 
 static char const * g_symbol_minus          = "-";
 static char const * g_symbol_dependent_type = "_";
+static char const * g_symbol_eq             = "=";
 
 static char const * g_token_use_locals      = ":use_locals";
 
@@ -265,7 +266,82 @@ private:
         return new_e;
     }
 
-    expr elaborate_ite(buffer<expr> args
+    expr elaborate_ite(buffer<expr> & args) {
+        lean_assert(is_constant(args[0]) && const_name(args[0]) == get_ite_name());
+        // Have: ite.{} <P:Prop> <x:A> <y:A>
+        // Want: ite.{1} P (classical.prop_decidable P) A x y
+        expr ty = m_tctx_ptr->infer(args[2]);
+        lean_assert(m_tctx_ptr);
+        buffer<expr> new_args;
+        new_args.push_back(mk_constant(get_ite_name(), {get_level(*m_tctx_ptr, ty)}));
+        new_args.push_back(args[1]);
+        new_args.push_back(mk_app(mk_constant(get_classical_prop_decidable_name()), args[1]));
+        new_args.push_back(ty);
+        new_args.push_back(args[2]);
+        new_args.push_back(args[3]);
+        return mk_app(new_args);
+    }
+
+    expr elaborate_distinct(buffer<expr> & args) {
+        lean_assert(is_constant(args[0]) && const_name(args[0]) == get_distinct_name());
+        expr ty = m_tctx_ptr->infer(args[1]);
+        lean_assert(m_tctx_ptr);
+        args[0] = mk_app(mk_constant(get_distinct_name(), {get_level(*m_tctx_ptr, ty)}), ty);
+        return mk_distinct_app(args);
+    }
+
+    expr elaborate_eq(buffer<expr> & args) {
+        lean_assert(is_constant(args[0]) && const_name(args[0]) == g_symbol_eq);
+        expr ty = m_tctx_ptr->infer(args[1]);
+        lean_assert(m_tctx_ptr);
+        args[0] = mk_app(mk_constant(get_eq_name(), {get_level(*m_tctx_ptr, ty)}), ty);
+        return mk_chainable_app(args);
+    }
+
+    expr elaborate_Array(buffer<expr> & args) {
+        lean_assert(is_constant(args[0]) && const_name(args[0]) == get_Array_name());
+        lean_assert(m_tctx_ptr);
+        args[0] = mk_constant(get_array_name(), {get_level(*m_tctx_ptr, args[1]), get_level(*m_tctx_ptr, args[2])});
+        return mk_app(args);
+    }
+
+    expr elaborate_select(buffer<expr> & args) {
+        lean_assert(is_constant(args[0]) && const_name(args[0]) == get_select_name());
+        // Have: select <A : Array X Y> <x : X>
+        // Want: select.{l1, l2} X Y x A
+        lean_assert(m_tctx_ptr);
+        expr ty = m_tctx_ptr->infer(args[1]);
+        buffer<expr> array_args;
+        expr array = get_app_args(ty, array_args);
+        lean_assert(is_constant(array) && const_name(array) == get_array_name());
+        buffer<expr> new_args;
+        new_args.push_back(mk_constant(get_array_select_name(), {get_level(*m_tctx_ptr, array_args[0]), get_level(*m_tctx_ptr, array_args[1])}));
+        new_args.push_back(array_args[0]);
+        new_args.push_back(array_args[1]);
+        new_args.push_back(args[2]);
+        new_args.push_back(args[1]);
+        return mk_app(args);
+    }
+
+    expr elaborate_store(buffer<expr> & args) {
+        lean_assert(is_constant(args[0]) && const_name(args[0]) == get_store_name());
+        // Have: store <A : Array X Y> <x : X> <y : Y>
+        // Want: store.{l1, l2} X Y x y A
+        lean_assert(m_tctx_ptr);
+        expr ty = m_tctx_ptr->infer(args[1]);
+        buffer<expr> array_args;
+        expr array = get_app_args(ty, array_args);
+        lean_assert(is_constant(array) && const_name(array) == get_array_name());
+        buffer<expr> new_args;
+        new_args.push_back(mk_constant(get_array_store_name(), {get_level(*m_tctx_ptr, array_args[0]), get_level(*m_tctx_ptr, array_args[1])}));
+        new_args.push_back(array_args[0]);
+        new_args.push_back(array_args[1]);
+        new_args.push_back(args[2]);
+        new_args.push_back(args[3]);
+        new_args.push_back(args[1]);
+        return mk_app(args);
+    }
+
     // TODO(dhs): implement!
     // Note: Leo's elaborator will be called at the end
     expr elaborate_app(buffer<expr> & args) {
@@ -278,6 +354,29 @@ private:
         lean_assert(num_args > 0);
 
         fun_attr fattr = fun_attr::DEFAULT;
+
+        // The universe-polymorphic are the most complicated, so we handle them specially
+        // These are not even in the [is_theory_function_symbol] map
+
+        // (1) Core
+        if (is_constant(args[0]) && const_name(args[0]) == get_ite_name()) {
+            return elaborate_ite(args);
+        } else if (is_constant(args[0]) && const_name(args[0]) == get_distinct_name()) {
+            return elaborate_distinct(args);
+        } else if (is_constant(args[0]) && const_name(args[0]) == g_symbol_eq) {
+            return elaborate_eq(args);
+        }
+
+        // (2) Arrays
+        if (is_constant(args[0]) && const_name(args[0]) == get_Array_name()) {
+            return elaborate_Array(args);
+        } else if (is_constant(args[0]) && const_name(args[0]) == get_select_name()) {
+            return elaborate_select(args);
+        } else if (is_constant(args[0]) && const_name(args[0]) == get_store_name()) {
+            return elaborate_store(args);
+        }
+
+        // TODO(dhs): bit vectors!
 
         // Step 1: resolve function symbols in the operator expression
         // (constant symbols have already been resolved)
@@ -292,17 +391,6 @@ private:
             }
         }
 
-        // The universe-polymorphic are the most complicated
-        if (is_constant(args[0]) && const_name(args[0]) == get_ite_name()) {
-            return elaborate_ite(args);
-        } else if (is_constant(args[0]) && const_name(args[0]) == get_distinct_name()) {
-            return elaborate_distinct(args);
-        } else if (is_constant(args[0]) && const_name(args[0]) == get_eq_name()) {
-            return elaborate_eq(args);
-        }
-
-
-
         // Step 2: add implicit arguments as needed
         // Almost everything that will need to be elaborated is a constant
         // Exception: (_ extract i j)
@@ -310,15 +398,10 @@ private:
             name n = const_name(args[0]);
             expr ty = m_tctx_ptr->infer(args[1]);
 
-            // (1) Core: =, distinct, ite
-            // (2) Arith: +, *, -, <, <=, >, >=
-            // (3) Arrays: select, store
-            // (4) TODO(dhs): bit vectors
-            if (n == get_eq_name()) { // (1) bool
-                args[0] = mk_app(args[0], ty);
-            } else if (n == get_distinct_name()) {
-                args[0] = mk_app(args[0], ty);
-            } else if (n == get_add_name()) { // (2) arith
+            // (1) Arith: +, *, -, <, <=, >, >=
+            // (2) Arrays: select, store
+            // (3) TODO(dhs): bit vectors
+            if (n == get_add_name()) { // (2) arith
                 if (ty == mk_constant(get_int_name())) {
                     args[0] = mk_app(args[0], mk_constant(get_int_name()), mk_constant(get_int_has_add_name()));
                 } else {
@@ -397,7 +480,6 @@ private:
                 expr tmp1 = args[1];
                 args[1] = args[2]; args[2] = args[3]; args[3] = tmp1;
             }
-            // TODO(dhs): bit vectors!
         }
 
         switch (fattr) {
@@ -409,8 +491,9 @@ private:
             return mk_right_assoc_app(args);
         case fun_attr::CHAINABLE:
             return mk_chainable_app(args);
-        case fun_attr::DISTINCT:
-            return mk_distinct_app(args);
+        case fun_attr::PAIRWISE:
+            // We already dispatched for [distinct]
+            lean_unreachable();
         }
         lean_unreachable();
     }
@@ -853,7 +936,7 @@ void initialize_parser() {
             // (a) Core
             // Note: we do not know the correct universe levels for these yet
             {"=", fun_decl(mk_constant(get_eq_name()), fun_attr::CHAINABLE)},
-            {"distinct", fun_decl(mk_constant(get_distinct_name()), fun_attr::DISTINCT)},
+            {"distinct", fun_decl(mk_constant(get_distinct_name()), fun_attr::PAIRWISE)},
             {"ite", fun_decl(mk_constant(get_ite_name()), fun_attr::DEFAULT)},
 
             // (b) Arithmetic
