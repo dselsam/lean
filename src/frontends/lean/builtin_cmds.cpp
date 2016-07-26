@@ -31,12 +31,14 @@ Author: Leonardo de Moura
 #include "library/legacy_type_context.h"
 #include "library/reducible.h"
 #include "library/vm/vm.h"
+#include "library/vm/vm_expr.h"
 #include "library/vm/vm_string.h"
 #include "library/compiler/vm_compiler.h"
 #include "library/tactic/kabstract.h"
 #include "library/tactic/defeq_simplifier/defeq_simp_lemmas.h"
 #include "library/tactic/defeq_simplifier/defeq_simplifier.h"
 #include "library/tactic/simplifier/simp_extensions.h"
+#include "library/tactic/simplifier/simplifier.h"
 #include "library/tactic/tactic_state.h"
 #include "frontends/lean/util.h"
 #include "frontends/lean/parser.h"
@@ -513,6 +515,45 @@ static environment register_simp_ext_cmd(parser & p) {
     return env;
 }
 
+static environment simplify_cmd(parser & p) {
+    expr prove_fn; level_param_names prove_fn_ls;
+    std::tie(prove_fn, prove_fn_ls) = parse_local_expr(p);
+
+    name rel = p.check_constant_next("invalid #simplify command, constant expected");
+
+    expr lemmas; level_param_names lemmas_ls;
+    std::tie(lemmas, lemmas_ls) = parse_local_expr(p);
+
+    unsigned o = p.parse_small_nat();
+
+    expr e; level_param_names ls;
+    std::tie(e, ls) = parse_local_expr(p);
+
+    aux_type_context aux_tctx(p.env(), p.ios().get_options());
+    simp_result r = simplify(aux_tctx.get(), rel, lemmas, to_obj(prove_fn), e);
+
+    auto out = regular(p.env(), p.ios(), aux_tctx.get());
+
+    flycheck_information info(p.ios());
+    if (info.enabled()) {
+        p.display_information_pos(p.cmd_pos());
+        out << "simplify result:\n";
+    }
+
+    if (!r.has_proof()) {
+        out << "(refl): " << r.get_new() << endl;
+    } else {
+        auto tc = mk_type_checker(p.env());
+        expr pf_type = tc->check(r.get_proof(), ls).first;
+
+        if (o == 0) out << r.get_new() << endl;
+        else if (o == 1) out << r.get_proof() << endl;
+        else out << pf_type << endl;
+    }
+
+    return p.env();
+}
+
 static environment normalizer_cmd(parser & p) {
 /*
     environment const & env = p.env();
@@ -724,6 +765,7 @@ void init_cmd_table(cmd_table & r) {
     add_cmd(r, cmd_info("#unify",            "(for debugging purposes)", unify_cmd));
     add_cmd(r, cmd_info("#compile",          "(for debugging purposes)", compile_cmd));
     add_cmd(r, cmd_info("#elab",             "(for debugging purposes)", elab_cmd));
+    add_cmd(r, cmd_info("#simplify",         "(for debugging purposes)", simplify_cmd));
 
     register_decl_cmds(r);
     register_inductive_cmd(r);
