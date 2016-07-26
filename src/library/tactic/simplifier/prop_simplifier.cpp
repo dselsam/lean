@@ -36,16 +36,18 @@ bool is_lt_light_not(expr const & e1, expr const & e2) {
 }
 
 // Fast simplification
-expr fast_simplify_and(buffer<expr> & args) {
+optional<expr> fast_simplify_and(type_context &, buffer<expr> & args) {
     std::sort(args.begin(), args.end(), is_lt_light_not);
     buffer<expr> new_args;
     expr last_lit, curr_lit;
     bool last_lit_pos, curr_lit_pos;
 
+    bool simplified = false;
     for (unsigned i = 0; i < args.size(); ++i) {
         if (is_false(args[i])) {
-            return mk_false();
+            return some_expr(mk_false());
         } else if (is_true(args[i])) {
+            simplified = true;
             continue;
         }
 
@@ -59,8 +61,9 @@ expr fast_simplify_and(buffer<expr> & args) {
         if (curr_lit == last_lit) {
             if (last_lit_pos != curr_lit_pos) {
                 lean_assert(last_lit_pos);
-                return mk_false();
+                return some_expr(mk_false());
             } else {
+                simplified = true;
                 continue;
             }
         }
@@ -71,23 +74,29 @@ expr fast_simplify_and(buffer<expr> & args) {
     }
 
     switch (new_args.size()) {
-    case 0: return mk_true();
-    case 1: return new_args[0];
-    default: return mk_left_assoc_app(mk_constant(get_and_name()), new_args);
+    case 0: return some_expr(mk_true());
+    case 1: return some_expr(new_args[0]);
+    default:
+        if (simplified)
+            return some_expr(mk_left_assoc_app(mk_constant(get_and_name()), new_args));
+        else
+            return none_expr();
     }
     lean_unreachable();
 }
 
-expr fast_simplify_or(buffer<expr> & args) {
+optional<expr> fast_simplify_or(type_context &, buffer<expr> & args) {
     std::sort(args.begin(), args.end(), is_lt_light_not);
     buffer<expr> new_args;
     expr last_lit, curr_lit;
     bool last_lit_pos, curr_lit_pos;
 
+    bool simplified = false;
     for (unsigned i = 0; i < args.size(); ++i) {
         if (is_true(args[i])) {
-            return mk_true();
+            return some_expr(mk_true());
         } else if (is_false(args[i])) {
+            simplified = true;
             continue;
         }
 
@@ -101,8 +110,9 @@ expr fast_simplify_or(buffer<expr> & args) {
         if (curr_lit == last_lit) {
             if (last_lit_pos != curr_lit_pos) {
                 lean_assert(last_lit_pos);
-                return mk_true();
+                return some_expr(mk_true());
             } else {
+                simplified = true;
                 continue;
             }
         }
@@ -113,12 +123,37 @@ expr fast_simplify_or(buffer<expr> & args) {
     }
 
     switch (new_args.size()) {
-    case 0: return mk_true();
-    case 1: return new_args[0];
-    default: return mk_left_assoc_app(mk_constant(get_or_name()), new_args);
+    case 0: return some_expr(mk_true());
+    case 1: return some_expr(new_args[0]);
+    default:
+        if (simplified)
+            return some_expr(mk_left_assoc_app(mk_constant(get_or_name()), new_args));
+        else
+            return none_expr();
     }
     lean_unreachable();
 }
+
+optional<expr> fast_simplify_not(type_context & tctx, buffer<expr> & args) {
+    lean_assert(args.size() == 1);
+    expr e = args[0];
+    expr arg;
+    if (is_explicit_not(e, arg)) {
+        return some_expr(arg);
+    } else if (is_true(e)) {
+        return some_expr(mk_false());
+    } else if (is_false(e)) {
+        return some_expr(mk_true());
+    }
+
+    args.clear();
+    expr fn = get_app_args(e, args);
+    if (is_constant(fn) && const_name(fn) == get_eq_name() && args.size() == 3 && tctx.whnf(args[0]) == mk_Prop()) {
+        return some_expr(mk_app(fn, mk_Prop(), mk_app(mk_constant(get_not_name()), args[1]), args[2]));
+    }
+    return none_expr();
+}
+
 
 // Macro for trusting the fast prop simplifier
 static name * g_prop_simplifier_macro_name    = nullptr;
