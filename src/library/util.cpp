@@ -770,6 +770,17 @@ bool is_or(expr const & e, expr & A, expr & B) {
     }
 }
 
+bool is_explicit_not(expr const & e, expr & A) {
+    buffer<expr> args;
+    expr const & fn = get_app_args(e, args);
+    if (is_constant(fn) && const_name(fn) == get_not_name() && args.size() == 1) {
+        A = args[0];
+        return true;
+    } else {
+        return false;
+    }
+}
+
 bool is_not(environment const & env, expr const & e, expr & a) {
     if (is_app(e)) {
         expr const & f = app_fn(e);
@@ -819,6 +830,16 @@ expr mk_absurd(abstract_type_context & ctx, expr const & t, expr const & e, expr
         level e_lvl = get_level(ctx, e_type);
         return mk_app(mk_constant(get_absurd_name(), {e_lvl, t_lvl}), e_type, t, e, not_e);
     }
+}
+
+expr mk_left_assoc_app(expr const & fn, buffer<expr> const & args) {
+    lean_assert(args.size() >= 2);
+    // f x1 x2 x3 ==> f (f x1 x2) x3
+    expr e = mk_app(fn, args[0], args[1]);
+    for (unsigned i = 2; i < args.size(); ++i) {
+        e = mk_app(fn, e, args[i]);
+    }
+    return e;
 }
 
 optional<expr> lift_down_if_hott(abstract_type_context & ctx, expr const & v) {

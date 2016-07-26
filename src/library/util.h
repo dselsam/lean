@@ -217,12 +217,16 @@ bool is_or(expr const & e, expr & A, expr & B);
 
 /** \brief Return true if \c e is of the form <tt>(not arg)</tt>, and store \c arg in \c a.
      Return false otherwise */
+bool is_explicit_not(expr const & e, expr & A);
 bool is_not(environment const & env, expr const & e, expr & a);
 bool is_not(environment const & env, expr const & e);
 expr mk_not(abstract_type_context & ctx, expr const & e);
 
 /** \brief Create the term <tt>absurd e not_e : t</tt>. */
 expr mk_absurd(abstract_type_context & ctx, expr const & t, expr const & e, expr const & not_e);
+
+/** \brief Create the n-ary application (f ... (f (f args[0] args[1]) args[2]) ...) */
+expr mk_left_assoc_app(expr const & fn, buffer<expr> const & args);
 
 expr try_eta(expr const & e);
 expr beta_reduce(expr t);

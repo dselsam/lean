@@ -17,9 +17,8 @@ namespace lean {
 
 
 
-
-
-
+expr fast_simplify_and(buffer<expr> & args);
+expr fast_simplify_or(buffer<expr> & args);
 
 void initialize_prop_simplifier();
 void finalize_prop_simplifier();
