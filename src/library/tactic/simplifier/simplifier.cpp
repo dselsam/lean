@@ -64,7 +64,9 @@ Author: Daniel Selsam
 namespace lean {
 
 /* Options */
-static name_hash_map<pair<simplify_fn, bool>> * g_simplify_fn_table;
+// For now, 0 means n-ary
+typedef std::tuple<simplify_fn, bool, unsigned> simplify_fn_entry;
+static name_hash_map<simplify_fn_entry> * g_simplify_fn_table;
 
 //typedef std::function<optional<expr>(type_context &, buffer<expr> &)> simplify_fn;
 //void register_simplify_fn(name const & op, simplify_fn const & simp_fn, bool nary);
@@ -315,6 +317,17 @@ expr simplifier::whnf_eta(expr const & e) {
 }
 
 /* Simplification */
+void get_flattened_nary_args(name const & op_name, expr const & e, buffer<expr> & nary_args) {
+    buffer<expr> bin_args;
+    expr op = get_app_args(e, bin_args);
+    if (bin_args.size() >= 2 && is_constant(op) && const_name(op) == op_name) {
+        unsigned first_idx = bin_args.size() - 2;
+        get_flattened_nary_args(op_name, bin_args[first_idx], nary_args);
+        get_flattened_nary_args(op_name, bin_args[first_idx + 1], nary_args);
+    } else {
+        nary_args.push_back(e);
+    }
+}
 
 simp_result simplifier::simplify(expr const & e) {
     m_num_steps++;
@@ -372,6 +385,39 @@ simp_result simplifier::simplify(expr const & e) {
     if (!m_top_down) {
         r = join(r, simplify_extensions(whnf_eta(r.get_new())));
         r = join(r, rewrite(whnf_eta(r.get_new())));
+    }
+
+    // TODO(dhs): this is just an experiment
+    // No idea yet how to structure this
+    buffer<expr> args;
+    expr fn = get_app_args(r.get_new(), args);
+
+    if (is_constant(fn)) {
+        auto it_simp_fn = g_simplify_fn_table->find(const_name(fn));
+        if (it_simp_fn != g_simplify_fn_table->end()) {
+            simplify_fn & simp_fn = std::get<0>(it_simp_fn->second);
+            bool nary = std::get<1>(it_simp_fn->second);
+            unsigned num_args = std::get<2>(it_simp_fn->second);
+            if (nary && num_args == args.size()) {
+                buffer<expr> nary_args;
+                lean_assert(args.size() >= 2);
+                unsigned first_idx = args.size() - 2;
+                get_flattened_nary_args(const_name(fn), args[first_idx], nary_args);
+                get_flattened_nary_args(const_name(fn), args[first_idx + 1], nary_args);
+                optional<simp_result> result = simp_fn(m_tctx, r.get_new(), nary_args);
+                if (result) {
+                    lean_trace(name({"simplifier", "theory"}), tout() << r.get_new() << " ==> " << result->get_new() << "\n";);
+                    r = join(r, *result);
+                }
+                lean_trace(name({"simplifier", "theory"}), tout() << r.get_new() << " ==> " << "\n";);
+            } else if (num_args == args.size()) {
+                optional<simp_result> result = simp_fn(m_tctx, r.get_new(), args);
+                if (result) {
+                    lean_trace(name({"simplifier", "theory"}), tout() << r.get_new() << " ==> " << result->get_new() << "\n";);
+                    r = join(r, *result);
+                }
+            }
+        }
     }
 
     if (r.get_new() == e && !using_eq()) {
@@ -931,6 +977,12 @@ vm_obj tactic_simp_core(vm_obj const & rules, vm_obj const & prove_fn, vm_obj co
     }
 }
 
+/* (C++) simplifier extensions */
+void register_simplify_fn(name const & op, simplify_fn const & simp_fn, bool nary, unsigned num_args) {
+    lean_assert(!g_simplify_fn_table->count(op));
+    g_simplify_fn_table->insert({op, simplify_fn_entry(simp_fn, nary, num_args)});
+}
+
 /* Setup and teardown */
 void initialize_simplifier() {
     register_trace_class("simplifier");
@@ -942,6 +994,7 @@ void initialize_simplifier() {
     register_trace_class(name({"simplifier", "try_rewrite"}));
     register_trace_class(name({"simplifier", "canonize"}));
     register_trace_class(name({"simplifier", "prove"}));
+    register_trace_class(name({"simplifier", "theory"}));
 
     g_simplify_max_steps           = new name{"simplify", "max_steps"};
     g_simplify_top_down            = new name{"simplify", "top_down"};
@@ -966,7 +1019,7 @@ void initialize_simplifier() {
     register_bool_option(*g_simplify_canonize_proofs, LEAN_DEFAULT_SIMPLIFY_CANONIZE_PROOFS,
                          "(simplify) canonize_proofs");
 
-    g_simplify_fn_table = new name_hash_map<pair<simplify_fn, bool>>();
+    g_simplify_fn_table = new name_hash_map<simplify_fn_entry>();
 
     DECLARE_VM_BUILTIN(name({"tactic", "simplify_core"}), tactic_simp_core);
 }

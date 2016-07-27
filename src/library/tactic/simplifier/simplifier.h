@@ -34,8 +34,8 @@ public:
 
 simp_result simplify(type_context & ctx, name const & rel, simp_lemmas const & simp_lemmas, vm_obj const & prove_fn, expr const & e);
 
-typedef std::function<optional<expr>(type_context &, buffer<expr> &)> simplify_fn;
-void register_simplify_fn(name const & op, simplify_fn const & simp_fn, bool nary);
+typedef std::function<optional<simp_result>(type_context &, expr const &, buffer<expr> &)> simplify_fn;
+void register_simplify_fn(name const & op, simplify_fn const & simp_fn, bool nary, unsigned num_args);
 
 void initialize_simplifier();
 void finalize_simplifier();
