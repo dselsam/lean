@@ -35,7 +35,83 @@ bool is_lt_light_not(expr const & e1, expr const & e2) {
     }
 }
 
+optional<expr> fast_simplify_eq_core(type_context &, expr const &, expr &, expr &);
+optional<expr> fast_simplify_not_core(type_context &, expr const &);
+optional<expr> fast_simplify_and_core(type_context &, buffer<expr> &);
+optional<expr> fast_simplify_or_core(type_context &, expr const &);
+
 // Fast simplification
+optional<expr> fast_simplify_eq_core(type_context & tctx, expr const & type, expr & lhs, expr & rhs) {
+    if (tctx.is_def_eq(lhs, rhs))
+        return some_expr(mk_true());
+
+    if (type != mk_Prop())
+        return none_expr();
+
+    bool simplified = false;
+    expr new_lhs, new_rhs;
+    if (is_explicit_not(lhs, new_lhs) && is_explicit_not(rhs, new_rhs)) {
+        lhs = new_lhs;
+        rhs = new_rhs;
+        simplified = true;
+    }
+
+    if (is_true(lhs))
+        return some_expr(rhs);
+
+    if (is_false(lhs)) {
+        auto r = fast_simplify_not_core(tctx, rhs);
+        return r ? r : some_expr(mk_app(mk_constant(get_not_name()), rhs));
+    }
+
+    if (is_true(rhs))
+        return some_expr(lhs);
+
+    if (is_false(rhs)) {
+        auto r = fast_simplify_not_core(tctx, lhs);
+        return r ? r : some_expr(mk_app(mk_constant(get_not_name()), lhs));
+    }
+
+    // TODO(dhs): definitional-equality here? Doing structural now for performance reasons.
+    if (is_explicit_not(lhs, new_lhs) && new_lhs == rhs)
+        return some_expr(mk_false());
+
+    if (is_explicit_not(rhs, new_rhs) && new_rhs == lhs)
+        return some_expr(mk_false());
+
+    if (simplified)
+        return some_expr(mk_app(mk_constant(get_eq_name()), type, lhs, rhs));
+
+    return none_expr();
+}
+
+optional<expr> fast_simplify_eq(type_context & tctx, buffer<expr> & args) {
+    lean_assert(args.size() == 3);
+    return fast_simplify_eq_core(tctx, args[0], args[1], args[2]);
+}
+
+optional<expr> fast_simplify_not_core(type_context & tctx, expr const & e) {
+    expr arg;
+    if (is_explicit_not(e, arg)) {
+        return some_expr(arg);
+    } else if (is_true(e)) {
+        return some_expr(mk_false());
+    } else if (is_false(e)) {
+        return some_expr(mk_true());
+    }
+    buffer<expr> args;
+    expr fn = get_app_args(e, args);
+    if (is_constant(fn) && const_name(fn) == get_eq_name() && args.size() == 3 && tctx.whnf(args[0]) == mk_Prop()) {
+        return some_expr(mk_app(fn, mk_Prop(), mk_app(mk_constant(get_not_name()), args[1]), args[2]));
+    }
+    return none_expr();
+}
+
+optional<expr> fast_simplify_not(type_context & tctx, buffer<expr> & args) {
+    lean_assert(args.size() == 1);
+    return fast_simplify_not_core(tctx, args[0]);
+}
+
 optional<expr> fast_simplify_and(type_context &, buffer<expr> & args) {
     std::sort(args.begin(), args.end(), is_lt_light_not);
     buffer<expr> new_args;
@@ -134,25 +210,6 @@ optional<expr> fast_simplify_or(type_context &, buffer<expr> & args) {
     lean_unreachable();
 }
 
-optional<expr> fast_simplify_not(type_context & tctx, buffer<expr> & args) {
-    lean_assert(args.size() == 1);
-    expr e = args[0];
-    expr arg;
-    if (is_explicit_not(e, arg)) {
-        return some_expr(arg);
-    } else if (is_true(e)) {
-        return some_expr(mk_false());
-    } else if (is_false(e)) {
-        return some_expr(mk_true());
-    }
-
-    args.clear();
-    expr fn = get_app_args(e, args);
-    if (is_constant(fn) && const_name(fn) == get_eq_name() && args.size() == 3 && tctx.whnf(args[0]) == mk_Prop()) {
-        return some_expr(mk_app(fn, mk_Prop(), mk_app(mk_constant(get_not_name()), args[1]), args[2]));
-    }
-    return none_expr();
-}
 
 
 // Macro for trusting the fast prop simplifier

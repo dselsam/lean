@@ -10,6 +10,7 @@ Author: Daniel Selsam
 #include "util/pair.h"
 #include "util/optional.h"
 #include "util/interrupt.h"
+#include "util/name_hash_map.h"
 #include "util/sexpr/option_declarations.h"
 #include "kernel/abstract.h"
 #include "kernel/expr_maps.h"
@@ -63,6 +64,11 @@ Author: Daniel Selsam
 namespace lean {
 
 /* Options */
+static name_hash_map<pair<simplify_fn, bool>> * g_simplify_fn_table;
+
+//typedef std::function<optional<expr>(type_context &, buffer<expr> &)> simplify_fn;
+//void register_simplify_fn(name const & op, simplify_fn const & simp_fn, bool nary);
+
 
 static name * g_simplify_max_steps            = nullptr;
 static name * g_simplify_top_down             = nullptr;
@@ -960,10 +966,14 @@ void initialize_simplifier() {
     register_bool_option(*g_simplify_canonize_proofs, LEAN_DEFAULT_SIMPLIFY_CANONIZE_PROOFS,
                          "(simplify) canonize_proofs");
 
+    g_simplify_fn_table = new name_hash_map<pair<simplify_fn, bool>>();
+
     DECLARE_VM_BUILTIN(name({"tactic", "simplify_core"}), tactic_simp_core);
 }
 
 void finalize_simplifier() {
+    delete g_simplify_fn_table;
+
     delete g_simplify_canonize_proofs;
     delete g_simplify_numerals;
     delete g_simplify_contextual;
