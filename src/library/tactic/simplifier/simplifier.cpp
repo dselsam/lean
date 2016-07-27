@@ -389,6 +389,8 @@ simp_result simplifier::simplify(expr const & e) {
 
     // TODO(dhs): this is just an experiment
     // No idea yet how to structure this
+    // Issue: n-ary
+    // Issue: ownership
     buffer<expr> args;
     expr fn = get_app_args(r.get_new(), args);
 

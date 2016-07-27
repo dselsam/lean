@@ -162,12 +162,16 @@ optional<expr> fast_simplify_not_core(type_context & tctx, expr const & e) {
 }
 
 optional<expr> fast_simplify_and_core(type_context &, buffer<expr> & args) {
-    std::sort(args.begin(), args.end(), is_lt_light_not);
+    bool simplified = false;
+    if (!std::is_sorted(args.begin(), args.end(), is_lt_light_not)) {
+        std::sort(args.begin(), args.end(), is_lt_light_not);
+        simplified = true;
+    }
+
     buffer<expr> new_args;
     expr last_lit, curr_lit;
     bool last_lit_pos, curr_lit_pos;
 
-    bool simplified = false;
     for (unsigned i = 0; i < args.size(); ++i) {
         if (is_false(args[i])) {
             return some_expr(mk_false());
@@ -211,12 +215,16 @@ optional<expr> fast_simplify_and_core(type_context &, buffer<expr> & args) {
 }
 
 optional<expr> fast_simplify_or_core(type_context &, buffer<expr> & args) {
-    std::sort(args.begin(), args.end(), is_lt_light_not);
+    bool simplified = false;
+    if (!std::is_sorted(args.begin(), args.end(), is_lt_light_not)) {
+        std::sort(args.begin(), args.end(), is_lt_light_not);
+        simplified = true;
+    }
+
     buffer<expr> new_args;
     expr last_lit, curr_lit;
     bool last_lit_pos, curr_lit_pos;
 
-    bool simplified = false;
     for (unsigned i = 0; i < args.size(); ++i) {
         if (is_true(args[i])) {
             return some_expr(mk_true());
