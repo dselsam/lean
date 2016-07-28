@@ -20,9 +20,8 @@ meta_constant simplify_core : list expr → tactic unit → expr → tactic (exp
 meta_definition simp_core (rules : list expr) (prove_fn : tactic unit) : tactic unit :=
 do (new_target, Heq) ← target >>= simplify_core rules prove_fn,
    assert "Htarget" new_target, swap,
-   ns ← return (if expr.is_eq Heq ≠ none then "eq" else "iff" : name),
    Ht ← get_local "Htarget",
-   mk_app (ns <.> "mpr") [Heq, Ht] >>= exact
+   mk_app ("eq" <.> "mpr") [Heq, Ht] >>= exact
 
 meta_definition simp : tactic unit :=
 simp_core [] failed >> try triv

@@ -349,11 +349,6 @@ simp_result simplifier::simplify(expr const & e) {
 
     simp_result r(e);
 
-    if (m_top_down) {
-        r = join(r, simplify_extensions(whnf_eta(r.get_new())));
-        r = join(r, rewrite(whnf_eta(r.get_new())));
-    }
-
     r.update(whnf_eta(r.get_new()));
 
     switch (r.get_new().kind()) {
@@ -380,11 +375,6 @@ simp_result simplifier::simplify(expr const & e) {
     case expr_kind::Let:
         // whnf unfolds let-expressions
         lean_unreachable();
-    }
-
-    if (!m_top_down) {
-        r = join(r, simplify_extensions(whnf_eta(r.get_new())));
-        r = join(r, rewrite(whnf_eta(r.get_new())));
     }
 
     // TODO(dhs): this is just an experiment
@@ -421,7 +411,12 @@ simp_result simplifier::simplify(expr const & e) {
             }
         }
     }
-
+/*
+    if (!m_top_down) {
+        r = join(r, simplify_extensions(whnf_eta(r.get_new())));
+        r = join(r, rewrite(whnf_eta(r.get_new())));
+    }
+*/
     if (r.get_new() == e && !using_eq()) {
         simp_result r_eq;
         {
@@ -955,7 +950,7 @@ vm_obj tactic_simp_core(vm_obj const & rules, vm_obj const & prove_fn, vm_obj co
         simp_lemmas lemmas         = get_simp_lemmas(s.env());
         metavar_decl g             = *s.get_main_goal_decl();
         expr target                = g.get_type();
-        name rel                   = (is_standard(s.env()) && tctx.is_prop(target)) ? get_iff_name() : get_eq_name();
+        name rel                   = get_eq_name();
 
         // Extra rules
         list<expr> extra_rules     = to_list_expr(rules);

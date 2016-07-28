@@ -275,7 +275,7 @@ optional<simp_result> fast_simplify_eq(type_context & tctx, expr const & e_full,
     else
         return no_simp_result();
 }
-
+/*
 optional<simp_result> fast_simplify_iff(type_context & tctx, expr const & e_full, buffer<expr> & args) {
     lean_assert(args.size() == 2);
     if (auto r = fast_simplify_eq_core(tctx, mk_Prop(), args[0], args[1]))
@@ -283,7 +283,7 @@ optional<simp_result> fast_simplify_iff(type_context & tctx, expr const & e_full
     else
         return mk_simp_result(e_full, mk_app(mk_constant(get_eq_name()), mk_Prop(), args[0], args[1]));
 }
-
+*/
 optional<simp_result> fast_simplify_not(type_context & tctx, expr const & e_full, buffer<expr> & args) {
     lean_assert(args.size() == 1);
     if (auto r = fast_simplify_not_core(tctx, args[0]))
@@ -327,7 +327,8 @@ void initialize_prop_simplifier() {
                                     return mk_prop_simplifier_macro(args[0], args[1]);
                                 });
 
-    register_simplify_fn(get_iff_name(), fast_simplify_iff, false, 2);
+//    register_simplify_fn(get_iff_name(), fast_simplify_iff, false, 2);
+    register_simplify_fn(get_eq_name(), fast_simplify_eq, false, 3);
     register_simplify_fn(get_not_name(), fast_simplify_not, false, 1);
     register_simplify_fn(get_and_name(), fast_simplify_and, true, 2);
     register_simplify_fn(get_or_name(), fast_simplify_or, true, 2);
