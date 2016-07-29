@@ -56,6 +56,9 @@ Author: Daniel Selsam
 #ifndef LEAN_DEFAULT_SIMPLIFY_NUMERALS
 #define LEAN_DEFAULT_SIMPLIFY_NUMERALS false
 #endif
+#ifndef LEAN_DEFAULT_SIMPLIFY_LIFT_EQ
+#define LEAN_DEFAULT_SIMPLIFY_LIFT_EQ false
+#endif
 #ifndef LEAN_DEFAULT_DEFEQ_SIMPLIFY_CANONIZE_PROOFS
 #define LEAN_DEFAULT_DEFEQ_SIMPLIFY_CANONIZE_PROOFS false
 #endif
@@ -70,6 +73,7 @@ static name * g_simplify_exhaustive           = nullptr;
 static name * g_simplify_memoize              = nullptr;
 static name * g_simplify_contextual           = nullptr;
 static name * g_simplify_numerals             = nullptr;
+static name * g_simplify_lift_eq              = nullptr;
 static name * g_simplify_canonize_proofs      = nullptr;
 
 static unsigned get_simplify_max_steps(options const & o) {
@@ -94,6 +98,10 @@ static bool get_simplify_contextual(options const & o) {
 
 static bool get_simplify_numerals(options const & o) {
     return o.get_bool(*g_simplify_numerals, LEAN_DEFAULT_SIMPLIFY_NUMERALS);
+}
+
+static bool get_simplify_lift_eq(options const & o) {
+    return o.get_bool(*g_simplify_lift_eq, LEAN_DEFAULT_SIMPLIFY_LIFT_EQ);
 }
 
 static bool get_simplify_canonize_proofs(options const & o) {
@@ -125,6 +133,7 @@ class simplifier {
     bool                      m_memoize;
     bool                      m_contextual;
     bool                      m_numerals;
+    bool                      m_lift_eq;
     bool                      m_canonize_proofs;
 
     /* Cache */
@@ -236,6 +245,7 @@ public:
         m_memoize(get_simplify_memoize(tctx.get_options())),
         m_contextual(get_simplify_contextual(tctx.get_options())),
         m_numerals(get_simplify_numerals(tctx.get_options())),
+        m_lift_eq(get_simplify_lift_eq(tctx.get_options())),
         m_canonize_proofs(get_simplify_canonize_proofs(tctx.get_options()))
         { }
 
@@ -368,7 +378,7 @@ simp_result simplifier::simplify(expr const & e) {
         r = join(r, rewrite(whnf_eta(r.get_new())));
     }
 
-    if (r.get_new() == e && !using_eq()) {
+    if (m_lift_eq && !using_eq() && r.get_new() == e) {
         simp_result r_eq;
         {
             flet<name> use_eq(m_rel, get_eq_name());
@@ -935,6 +945,7 @@ void initialize_simplifier() {
     g_simplify_memoize             = new name{"simplify", "memoize"};
     g_simplify_contextual          = new name{"simplify", "contextual"};
     g_simplify_numerals            = new name{"simplify", "numerals"};
+    g_simplify_lift_eq             = new name{"simplify", "lift_eq"};
     g_simplify_canonize_proofs     = new name{"simplify", "canonize_proofs"};
 
     register_unsigned_option(*g_simplify_max_steps, LEAN_DEFAULT_SIMPLIFY_MAX_STEPS,
@@ -949,6 +960,8 @@ void initialize_simplifier() {
                          "(simplify) use contextual simplification");
     register_bool_option(*g_simplify_numerals, LEAN_DEFAULT_SIMPLIFY_NUMERALS,
                          "(simplify) simplify (+, *, -, /) over numerals");
+    register_bool_option(*g_simplify_lift_eq, LEAN_DEFAULT_SIMPLIFY_LIFT_EQ,
+                         "(simplify) try simplifying with equality when no progress over other relation");
     register_bool_option(*g_simplify_canonize_proofs, LEAN_DEFAULT_SIMPLIFY_CANONIZE_PROOFS,
                          "(simplify) canonize_proofs");
 
@@ -957,6 +970,7 @@ void initialize_simplifier() {
 
 void finalize_simplifier() {
     delete g_simplify_canonize_proofs;
+    delete g_simplify_lift_eq;
     delete g_simplify_numerals;
     delete g_simplify_contextual;
     delete g_simplify_memoize;
