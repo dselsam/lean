@@ -40,8 +40,9 @@ public:
 
     theory_simplifier(type_context & tctx);
 
-    optional<dispatch_info> understands_head(name const & head);
-    optional<simp_result>   simplify(dispatch_id did, expr const & prefix, buffer<expr> const & args);
+    bool        owns(expr const & e);
+    simp_result simplify_nary(expr const & op, buffer<expr> & args);
+    simp_result simplify(expr const & e);
 };
 
 void initialize_theory_simplifier();
