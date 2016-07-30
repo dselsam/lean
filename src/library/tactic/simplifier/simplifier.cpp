@@ -38,6 +38,7 @@ Author: Daniel Selsam
 #include "library/tactic/simplifier/simp_extensions.h"
 #include "library/tactic/simplifier/theory_simplifier.h"
 #include "library/tactic/simplifier/ceqv.h"
+#include "library/tactic/simplifier/util.h"
 
 #ifndef LEAN_DEFAULT_SIMPLIFY_MAX_STEPS
 #define LEAN_DEFAULT_SIMPLIFY_MAX_STEPS 1000
