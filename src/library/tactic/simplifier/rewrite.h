@@ -5,12 +5,14 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Author: Daniel Selsam
 */
 #pragma once
-#include "kernel/expr.h"
+#include "library/type_context.h"
 #include "library/tactic/simp_result.h"
+#include "library/tactic/simplifier/simp_lemmas.h"
 
 namespace lean {
 
-void initialize_simp_util();
-void finalize_simp_util();
+simp_result rewrite(type_context & tctx, simp_lemmas const & lemmas, expr const & e);
 
+void initialize_simp_rewrite();
+void finalize_simp_rewrite();
 }
