@@ -115,6 +115,10 @@ int_has_neg
 int_has_mod
 int_decidable_linear_ordered_comm_group
 IO
+is_commutative
+is_commutative.mk
+is_associative
+is_associative.mk
 is_int
 is_trunc.is_prop
 is_trunc.is_prop.elim

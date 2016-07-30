@@ -85,3 +85,8 @@ namespace binary
     {A B : Type} (f : A → A → A) (g : B → A) (lcomm : left_commutative f) : left_commutative (comp_left f g) :=
   λ a b₁ b₂, lcomm _ _ _
 end binary
+
+open binary
+
+structure is_associative [class] {A : Type} (op : A → A → A) := (op_assoc : associative op)
+structure is_commutative [class] {A : Type} (op : A → A → A) := (op_comm : commutative op)
