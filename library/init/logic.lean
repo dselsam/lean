@@ -105,6 +105,10 @@ eq.subst H (eq.refl (f a))
 theorem congr_arg {A B : Type} {a₁ a₂ : A} (f : A → B) : a₁ = a₂ → f a₁ = f a₂ :=
 congr rfl
 
+theorem congr_arg2 {A B C : Type} {a₁ a₂ : A} {b₁ b₂ : B} (f : A → B → C) : a₁ = a₂ → b₁ = b₂ → f a₁ b₁ = f a₂ b₂ := sorry
+theorem congr_arg2a {A B C : Type} {a₁ a₂ : A} {b : B} (f : A → B → C) : a₁ = a₂ → f a₁ b = f a₂ b := sorry
+
+
 section
   variables {A : Type} {a b c: A}
   open eq.ops

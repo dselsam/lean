@@ -121,6 +121,8 @@ expr mk_eq_of_heq(type_context & ctx, expr const & H);
 expr mk_heq_of_eq(type_context & ctx, expr const & H);
 
 expr mk_congr_arg(type_context & ctx, expr const & f, expr const & H);
+expr mk_congr_arg2(type_context & ctx, expr const & f, expr const & H1, expr const & H2);
+expr mk_congr_arg2a(type_context & ctx, expr const & f, expr const & H1);
 expr mk_congr_fun(type_context & ctx, expr const & H, expr const & a);
 expr mk_congr(type_context & ctx, expr const & H1, expr const & H2);
 

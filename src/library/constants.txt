@@ -29,6 +29,8 @@ comm_ring
 comm_semiring
 congr
 congr_arg
+congr_arg2
+congr_arg2a
 congr_fun
 cyclic_numerals
 cyclic_numerals.bound
