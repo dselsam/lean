@@ -125,6 +125,10 @@ name const * g_int_has_neg = nullptr;
 name const * g_int_has_mod = nullptr;
 name const * g_int_decidable_linear_ordered_comm_group = nullptr;
 name const * g_IO = nullptr;
+name const * g_is_commutative = nullptr;
+name const * g_is_commutative_mk = nullptr;
+name const * g_is_associative = nullptr;
+name const * g_is_associative_mk = nullptr;
 name const * g_is_int = nullptr;
 name const * g_is_trunc_is_prop = nullptr;
 name const * g_is_trunc_is_prop_elim = nullptr;
@@ -448,6 +452,10 @@ void initialize_constants() {
     g_int_has_mod = new name{"int_has_mod"};
     g_int_decidable_linear_ordered_comm_group = new name{"int_decidable_linear_ordered_comm_group"};
     g_IO = new name{"IO"};
+    g_is_commutative = new name{"is_commutative"};
+    g_is_commutative_mk = new name{"is_commutative", "mk"};
+    g_is_associative = new name{"is_associative"};
+    g_is_associative_mk = new name{"is_associative", "mk"};
     g_is_int = new name{"is_int"};
     g_is_trunc_is_prop = new name{"is_trunc", "is_prop"};
     g_is_trunc_is_prop_elim = new name{"is_trunc", "is_prop", "elim"};
@@ -772,6 +780,10 @@ void finalize_constants() {
     delete g_int_has_mod;
     delete g_int_decidable_linear_ordered_comm_group;
     delete g_IO;
+    delete g_is_commutative;
+    delete g_is_commutative_mk;
+    delete g_is_associative;
+    delete g_is_associative_mk;
     delete g_is_int;
     delete g_is_trunc_is_prop;
     delete g_is_trunc_is_prop_elim;
@@ -1095,6 +1107,10 @@ name const & get_int_has_neg_name() { return *g_int_has_neg; }
 name const & get_int_has_mod_name() { return *g_int_has_mod; }
 name const & get_int_decidable_linear_ordered_comm_group_name() { return *g_int_decidable_linear_ordered_comm_group; }
 name const & get_IO_name() { return *g_IO; }
+name const & get_is_commutative_name() { return *g_is_commutative; }
+name const & get_is_commutative_mk_name() { return *g_is_commutative_mk; }
+name const & get_is_associative_name() { return *g_is_associative; }
+name const & get_is_associative_mk_name() { return *g_is_associative_mk; }
 name const & get_is_int_name() { return *g_is_int; }
 name const & get_is_trunc_is_prop_name() { return *g_is_trunc_is_prop; }
 name const & get_is_trunc_is_prop_elim_name() { return *g_is_trunc_is_prop_elim; }
