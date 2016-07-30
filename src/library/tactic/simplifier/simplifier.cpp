@@ -193,10 +193,12 @@ class simplifier {
 
     /* Simplification */
     simp_result simplify(expr const & e);
-    simp_result simplify_lambda(expr const & e);
-    simp_result simplify_pi(expr const & e);
-    simp_result simplify_app(expr const & e);
-    simp_result simplify_fun(expr const & e);
+
+    /* Simplying the necessary subterms */
+    simp_result simplify_subterms_lambda(expr const & e);
+    simp_result simplify_subterms_pi(expr const & e);
+    simp_result simplify_subterms_app(expr const & e);
+    simp_result simplify_operator(expr const & e);
 
     /* Extenisons */
     simp_result simplify_extensions(expr const & e);
@@ -343,20 +345,20 @@ simp_result simplifier::simplify(expr const & e) {
     case expr_kind::Macro:
         break;
     case expr_kind::Lambda:
-        if (using_eq()) r = join(r, simplify_lambda(r.get_new()));
+        if (using_eq()) r = join(r, simplify_subterms_lambda(r.get_new()));
         break;
     case expr_kind::Pi:
-        r = join(r, simplify_pi(r.get_new()));
+        r = join(r, simplify_subterms_pi(r.get_new()));
         break;
     case expr_kind::App:
         check_system("simplifier");
-        // [1] simplify_app will be responsible for:
+        // [1] simplify_subterms_app will be responsible for:
         // (a) checking if the application is assoc or not.
         // (b) if it is assoc: simplify all n-ary children,
         //                     construct n-ary macro with op and args
         //                     construct macro proof with buffer of results
         // (c) if it is not assoc: do the normal path
-        r = join(r, simplify_app(r.get_new()));
+        r = join(r, simplify_subterms_app(r.get_new()));
 
         // [2] theory_simplify will be responsible for:
         //     (a) calling the theory-simplifier on the resulting expression (which may be a macro)
@@ -387,7 +389,7 @@ simp_result simplifier::simplify(expr const & e) {
         // Let's say for simplicity for now: users need to mark simp-extensions as n-ary, and they will return (expr, list<expr>).
         // I will write the add-group fuser in Lean to test this out.
 
-        // Better naming convention: instead of simplify_lambda, simplify_app: simplify_lambda_subterms, simplify_app_subterms
+        // Better naming convention: instead of simplify_subterms_lambda, simplify_subterms_app: simplify_subterms_lambda_subterms, simplify_subterms_app_subterms
         break;
     case expr_kind::Let:
         // whnf unfolds let-expressions
@@ -424,7 +426,7 @@ simp_result simplifier::simplify(expr const & e) {
     return r;
 }
 
-simp_result simplifier::simplify_lambda(expr const & e) {
+simp_result simplifier::simplify_subterms_lambda(expr const & e) {
     lean_assert(is_lambda(e));
     expr t = e;
 
@@ -445,7 +447,7 @@ simp_result simplifier::simplify_lambda(expr const & e) {
     }
 }
 
-simp_result simplifier::simplify_pi(expr const & e) {
+simp_result simplifier::simplify_subterms_pi(expr const & e) {
     lean_assert(is_pi(e));
     return try_congrs(e);
 }
@@ -512,7 +514,7 @@ void simplifier::simplify_nary_args(expr const & op, expr const & e, buffer<expr
     }
 }
 
-simp_result simplifier::simplify_app(expr const & _e) {
+simp_result simplifier::simplify_subterms_app(expr const & _e) {
     lean_assert(is_app(_e));
     expr e = canonize_args(_e);
 
@@ -545,7 +547,7 @@ simp_result simplifier::simplify_app(expr const & _e) {
     // (1) Try user-defined congruences
     simp_result r_user = try_congrs(e);
     if (r_user.has_proof()) {
-        if (using_eq()) return join(r_user, simplify_fun(r_user.get_new()));
+        if (using_eq()) return join(r_user, simplify_operator(r_user.get_new()));
         else return r_user;
     }
 
@@ -554,7 +556,7 @@ simp_result simplifier::simplify_app(expr const & _e) {
         optional<simp_result> r_args = synth_congr(e, [&](expr const & e) {
                 return simplify(e);
             });
-        if (r_args) return join(*r_args, simplify_fun(r_args->get_new()));
+        if (r_args) return join(*r_args, simplify_operator(r_args->get_new()));
     }
     // (3) Fall back on generic binary congruence
     if (using_eq()) {
@@ -574,7 +576,7 @@ simp_result simplifier::simplify_app(expr const & _e) {
     return simp_result(e);
 }
 
-simp_result simplifier::simplify_fun(expr const & e) {
+simp_result simplifier::simplify_operator(expr const & e) {
     lean_assert(is_app(e));
     buffer<expr> args;
     expr const & f = get_app_args(e, args);
