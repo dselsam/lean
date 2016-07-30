@@ -5,6 +5,7 @@ Author: Daniel Selsam
 */
 #include "library/tactic/simplifier/util.h"
 #include "library/tactic/simplifier/simp_lemmas.h"
+#include "library/tactic/simplifier/rewrite.h"
 #include "library/tactic/simplifier/simp_extensions.h"
 #include "library/tactic/simplifier/simplifier.h"
 
@@ -13,6 +14,7 @@ namespace lean {
 void initialize_simplifier_module() {
     initialize_simp_util();
     initialize_simp_lemmas();
+    initialize_simp_rewrite();
     initialize_simp_extensions();
     initialize_simplifier();
 }
@@ -20,6 +22,7 @@ void initialize_simplifier_module() {
 void finalize_simplifier_module() {
     finalize_simplifier();
     finalize_simp_extensions();
+    finalize_simp_rewrite();
     finalize_simp_lemmas();
     finalize_simp_util();
 }

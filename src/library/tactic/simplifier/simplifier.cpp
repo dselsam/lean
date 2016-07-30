@@ -32,7 +32,9 @@ Author: Daniel Selsam
 #include "library/vm/vm_list.h"
 #include "library/vm/vm_name.h"
 #include "library/tactic/tactic_state.h"
+#include "library/tactic/ac_tactics.h"
 #include "library/tactic/app_builder_tactics.h"
+#include "library/tactic/simplifier/rewrite.h"
 #include "library/tactic/simplifier/simplifier.h"
 #include "library/tactic/simplifier/simp_lemmas.h"
 #include "library/tactic/simplifier/simp_extensions.h"
@@ -202,7 +204,12 @@ class simplifier {
     simp_result simplify_subterms_lambda(expr const & e);
     simp_result simplify_subterms_pi(expr const & e);
     simp_result simplify_subterms_app(expr const & e);
+
+    /* Called from simplify_subterms_app */
     simp_result simplify_operator_of_app(expr const & e);
+    simp_result simplify_subterms_app_nary(expr const & assoc, expr const & e);
+    simp_result simplify_each_nary_arg(expr const & op, expr const & e);
+
 
     /* Extenisons */
     simp_result simplify_user_extensions(expr const & e);
@@ -211,10 +218,11 @@ class simplifier {
     optional<expr> prove(expr const & thm);
 
     /* Rewriting */
+    /*
     simp_result rewrite(expr const & e);
     simp_result rewrite(expr const & e, simp_lemmas const & slss);
     simp_result rewrite(expr const & e, simp_lemma const & sr);
-
+    */
     /* Canonicalize */
     expr canonize_args(expr const & e);
 
@@ -335,8 +343,9 @@ simp_result simplifier::simplify(expr const & e) {
         if (auto it = cache_lookup(e)) return *it;
     }
 
-    simp_result r(whnf_eta(r.get_new()));
+    simp_result r(whnf_eta(e));
 
+    // [1] Simplify subterms using congruence
     switch (r.get_new().kind()) {
     case expr_kind::Local:
     case expr_kind::Meta:
@@ -362,33 +371,54 @@ simp_result simplifier::simplify(expr const & e) {
         lean_unreachable();
     }
 
-    // TODO(dhs): we may want to put this explicitly in each of the case statements.
-    // One issue is that for binary applications, we have simp_results, and for n-ary applications,
-    // we have ops and buffer<expr> and buffer<simp_result>. The cleanest solution is to
-    // _internally_ use a macro for n-ary, and wrap a macro for the assoc proof.
-    // Then we can rewrite here with the same interface for all of the paths (and dispatch to A/AC/default inside rewrite).
-    r = join(r, rewrite(whnf_eta(r.get_new())));
+    // [2] Simplify with the theory simplifier
+    if (is_app(r.get_new())) {
+        r.update(whnf_eta(r.get_new()));
+        if (using_eq()) {
+            simp_result r_theory = m_theory_simplifier.simplify(r.get_new());
+            r = join(r, r_theory);
+        }
+    }
 
-    if (m_lift_eq && !using_eq() && r.get_new() == e) {
+    // Note: the theory simplifier guarantees that no new subterms are introduced that need to be simplified.
+    // Thus we never need to repeat unless something is simplified downstream of here.
+
+    // [3] user simplifier extensions
+    if (is_app(r.get_new())) {
+        r.update(whnf_eta(r.get_new()));
+        simp_result r_user = simplify_user_extensions(r.get_new());
+        if (r_user.get_new() != r.get_new()) {
+            r = join(r, r_user);
+            if (using_eq()) {
+                // only need to repeat here if the theory simplifier might trigger
+                r = join(r, simplify(r.get_new()));
+            }
+        }
+    }
+
+    // [4] rewriting
+    r.update(whnf_eta(r.get_new()));
+    simp_result r_rewrite = rewrite(m_tctx, ::lean::join(m_slss, m_ctx_slss), r.get_new());
+    if (r_rewrite.get_new() != r.get_new()) {
+        r = join(r, r_rewrite);
+        r = join(r, simplify(r.get_new()));
+    }
+
+    // [5] lifting
+    r.update(whnf_eta(r.get_new()));
+    if (m_lift_eq && !using_eq()) {
         simp_result r_eq;
         {
             flet<name> use_eq(m_rel, get_eq_name());
             r_eq = simplify(r.get_new());
         }
-        r = join(r, lift_from_eq(r.get_new(), r_eq));
+        if (r_eq.get_new() != r.get_new()) {
+            r = join(r, lift_from_eq(r.get_new(), r_eq));
+            r = join(r, simplify(r.get_new()));
+        }
     }
 
-    // Note: right now we recurse even if the simplification has yielded a new term
-    // definitionally equal to the original expression, as long as it is not structurally equal.
-    // Given the current functionality of the simplifier, this is not strictly necessary. However,
-    // it may lead to confusing incompleteness in the future if other sources of definitional reductions
-    // are added, such as [defeq-simp] rules. We may revisit this decision in the future if it becomes a
-    // performance concern. Note: if we only recurse here when there is proof, we need to change the
-    // condition accordingly for considering recursing with `eq` above.
-    if (m_exhaustive && r.get_new() != e) r = join(r, simplify(r.get_new()));
-
     if (m_memoize) cache_save(e, r);
-
     return r;
 }
 
@@ -464,12 +494,12 @@ optional<expr> simplifier::is_assoc(expr const & e) {
         return none_expr();
 }
 
-simp_result simplifier::simplify_each_nary_args(expr const & op, expr const & e) {
+simp_result simplifier::simplify_each_nary_arg(expr const & op, expr const & e) {
     expr arg1, arg2;
     if (is_binary_app_of(e, op, arg1, arg2)) {
-        simp_result r1 = simplify_nary_args(op, arg1);
-        simp_result r2 = simplify_nary_args(op, arg2);
-        expr new_e = mk_app(op, r1.get_new(), r2.get_new()),
+        simp_result r1 = simplify_each_nary_arg(op, arg1);
+        simp_result r2 = simplify_each_nary_arg(op, arg2);
+        expr new_e = mk_app(op, r1.get_new(), r2.get_new());
         if (r1.has_proof() && r2.has_proof()) {
             return simp_result(new_e, mk_congr_arg2(m_tctx, op, r1.get_proof(), r2.get_proof()));
         } else if (r1.has_proof()) {
@@ -503,7 +533,7 @@ simp_result simplifier::simplify_subterms_app(expr const & _e) {
     // (1) Try user-defined congruences
     simp_result r_user = try_congrs(e);
     if (r_user.has_proof()) {
-        if (using_eq()) return join(r_user, simplify_operator(r_user.get_new()));
+        if (using_eq()) return join(r_user, simplify_operator_of_app(r_user.get_new()));
         else return r_user;
     }
 
@@ -512,7 +542,7 @@ simp_result simplifier::simplify_subterms_app(expr const & _e) {
         optional<simp_result> r_args = synth_congr(e, [&](expr const & e) {
                 return simplify(e);
             });
-        if (r_args) return join(*r_args, simplify_operator(r_args->get_new()));
+        if (r_args) return join(*r_args, simplify_operator_of_app(r_args->get_new()));
     }
     // (3) Fall back on generic binary congruence
     if (using_eq()) {
@@ -598,6 +628,7 @@ optional<expr> simplifier::prove(expr const & goal) {
 
 /* Rewriting */
 
+/*
 simp_result simplifier::rewrite(expr const & e) {
     simp_result r(e);
     while (true) {
@@ -666,6 +697,7 @@ simp_result simplifier::rewrite(expr const & e, simp_lemma const & sl) {
     expr pf = tmp_tctx.instantiate_mvars(sl.get_proof());
     return simp_result(new_rhs, pf);
 }
+*/
 
 /* Congruence */
 
