@@ -194,19 +194,15 @@ class simplifier {
     /* N-ary */
     optional<expr> is_assoc(expr const & op);
     void simplify_nary_args(expr const & op, expr const & arg, buffer<expr> & nary_args, buffer<simp_result> & nary_results, bool has_simplified = false);
-    simp_result simplify_subterms_and_theory_nary(expr const & assoc, expr const & e);
 
     /* Simplification */
     simp_result simplify(expr const & e);
-
-    simp_result simplify_app(expr const & e);
-    simp_result simplify_subterms_and_theory(expr const & e);
-    simp_result simplify_operator(expr const & e);
 
     /* Simplying the necessary subterms */
     simp_result simplify_subterms_lambda(expr const & e);
     simp_result simplify_subterms_pi(expr const & e);
     simp_result simplify_subterms_app(expr const & e);
+    simp_result simplify_operator_of_app(expr const & e);
 
     /* Extenisons */
     simp_result simplify_user_extensions(expr const & e);
@@ -359,53 +355,8 @@ simp_result simplifier::simplify(expr const & e) {
         r = join(r, simplify_subterms_pi(r.get_new()));
         break;
     case expr_kind::App:
-        // simplify_app is responsible for simplifying subterms, theory extensions, user extensions, and rewriting
-        r = join(r, simplify_app(r.get_new()));
+        r = join(r, simplify_subterms_app(r.get_new()));
         break;
-
-        // r.get_new() may be an n-ary macro
-
-
-
-        // [1] simplify_subterms_app will be responsible for:
-        // (a) checking if the application is assoc or not.
-        // (b) if it is assoc: simplify all n-ary children,
-        //                     construct n-ary macro with op and args
-        //                     construct macro proof with buffer of results
-        // (c) if it is not assoc: do the normal path
-
-
-
-        // [2] theory_simplify will be responsible for:
-        //     (a) calling the theory-simplifier on the resulting expression (which may be a macro)
-        //         (note: possibly some repeated expr-destruction in the binary case, but very reasonable)
-
-        // [3] user-extension-simplify will be responsible for:
-        //     (a) calling the n-ary user extensions for the head symbol if it is n-ary, or else
-        //         calling the binary user extensions for the head symbol if it is binary.
-        //         (note: I am back to thinking we should keep these separate for now, as long as `add` and `mul` might not be associative)
-        //         (retracted: the tactic can fail if e.g. the prefix is not an application)
-
-        // [4] alternating (3) and (4) on successes.
-        // A note on recursion: we will alternate these two exhaustively, so we only need to recurse at the end if the `rewriting` pass changed something.
-//        r = join(r, simplify_user_extensions(whnf_eta(r.get_new())));
-
-        // DESIGN awkwardness: why can't [2] and [3] be right above rewrite, in a single loop? Failures to try to simplify via
-        // theory extension (not enough args or whatever) or user extension need not take that long.
-        // And we won't actually even try to simplify `add` or any of the other prefixes anyway.
-        // On the other hand: I think it is fine to commit to no theory-simplification nor user-simp-extensions for non-applications.
-        // We could put all three in the loop for app, and put `rewrite` again separately for non-apps.
-
-        // if (!is_app(e)) { rewrite } at the end
-
-        // DESIGN awkwardness: the theory simplifier can guarantee that its return value is simplified.
-        // But what if there is a user extension and a theory extension that can both fire?
-        // Even more pressingly, the rewrite rules want the n-ary representation, not the reconstructed expression.
-        // To compound things, the user simp extensions won't be able to return macros. Or, they could return (expr, list<expr>).
-        // Let's say for simplicity for now: users need to mark simp-extensions as n-ary, and they will return (expr, list<expr>).
-        // I will write the add-group fuser in Lean to test this out.
-
-        // Better naming convention: instead of simplify_subterms_lambda, simplify_subterms_app: simplify_subterms_lambda_subterms, simplify_subterms_app_subterms
     case expr_kind::Let:
         // whnf unfolds let-expressions
         lean_unreachable();
@@ -494,7 +445,7 @@ expr simplifier::canonize_args(expr const & e) {
             return mk_app(f, args);
 }
 
-simp_result simplifier::simplify_operator(expr const & e) {
+simp_result simplifier::simplify_operator_of_app(expr const & e) {
     lean_assert(is_app(e));
     buffer<expr> args;
     expr const & f = get_app_args(e, args);
@@ -513,46 +464,42 @@ optional<expr> simplifier::is_assoc(expr const & e) {
         return none_expr();
 }
 
-/* Suppose [nary_args] and [nary_results] start empty, [e] is [op a (op b c)] and [a ==> a', b ==> op b1 b2, c ==> c'].
-   Then this procedure will populate:
-   [nary_args]    = [a', b1, b2, c']
-   [nary_results] = [r(a, a'), r(b, b1 + b2), r(c, c')] */
-void simplifier::simplify_nary_args(expr const & op, expr const & e, buffer<expr> & nary_args, buffer<simp_result> & nary_results, bool has_simplified) {
+simp_result simplifier::simplify_each_nary_args(expr const & op, expr const & e) {
     expr arg1, arg2;
     if (is_binary_app_of(e, op, arg1, arg2)) {
-        simplify_nary_args(op, arg1, nary_args, nary_results, has_simplified);
-        simplify_nary_args(op, arg2, nary_args, nary_results, has_simplified);
-    } else if (!has_simplified) {
-        simp_result r = simplify(e);
-        nary_results.push_back(r);
-        if (is_binary_app_of(r.get_new(), op, arg1, arg2)) {
-            simplify_nary_args(op, arg1, nary_args, nary_results, true);
-            simplify_nary_args(op, arg2, nary_args, nary_results, true);
+        simp_result r1 = simplify_nary_args(op, arg1);
+        simp_result r2 = simplify_nary_args(op, arg2);
+        expr new_e = mk_app(op, r1.get_new(), r2.get_new()),
+        if (r1.has_proof() && r2.has_proof()) {
+            return simp_result(new_e, mk_congr_arg2(m_tctx, op, r1.get_proof(), r2.get_proof()));
+        } else if (r1.has_proof()) {
+            return simp_result(new_e, mk_congr_arg2a(m_tctx, op, r1.get_proof()));
+        } else if (r2.has_proof()) {
+            return simp_result(new_e, mk_congr_arg(m_tctx, mk_app(op, r1.get_new()), r2.get_proof()));
         } else {
-            nary_args.push_back(r.get_new());
+            return simp_result(new_e);
         }
     } else {
-        nary_args.push_back(e);
+        return simp_result(e);
     }
 }
 
-simp_result simplifier::simplify_subterms_and_theory_nary(expr const & assoc, expr const & e) {
-    buffer<expr> args;
-    buffer<simp_result> results;
-
+simp_result simplifier::simplify_subterms_app_nary(expr const & assoc, expr const & e) {
     expr op = app_fn(app_fn(e));
-
-    // (1) Simplify subterms
-    simplify_nary_args(op, app_arg(app_fn(e)), args, results);
-    simplify_nary_args(op, app_arg(e), args, results);
-
-    // (2) Apply theory extension
-    simp_result r_theory = m_theory_simplifier.simplify_nary(op, args);
-    expr pf = mk_flat_congr_simp_macro(assoc, e, results, r_theory);
-    return simp_result(r_theory.get_new(), pf);
+    simp_result r = simplify_each_nary_arg(op, e);
+    return join(r, simp_result(flat_assoc(m_tctx, op, assoc, r.get_new())));
 }
 
-simp_result simplifier::simplify_subterms_app(expr const & e) {
+simp_result simplifier::simplify_subterms_app(expr const & _e) {
+    lean_assert(is_app(_e));
+    if (m_theory_simplifier.owns(_e))
+        return simp_result(_e);
+
+    expr e = canonize_args(_e);
+
+    if (optional<expr> assoc = is_assoc(e))
+        return simplify_subterms_app_nary(*assoc, e);
+
     // (1) Try user-defined congruences
     simp_result r_user = try_congrs(e);
     if (r_user.has_proof()) {
@@ -583,29 +530,6 @@ simp_result simplifier::simplify_subterms_app(expr const & e) {
         }
     }
     return simp_result(e);
-}
-
-simp_result simplifier::simplify_subterms_and_theory(expr const & e) {
-    // We use this for numerals, so we don't waste time doing congruence on all subterms
-    if (m_theory_simplifier.owns(e))
-        return m_theory_simplifier.simplify(e);
-
-    if (optional<expr> assoc = is_assoc(e))
-        return simplify_subterms_and_theory_nary(*assoc, e);
-
-    simp_result r_subterms = simplify_subterms_app(e);
-    return join(r_subterms, m_theory_simplifier.simplify(r_subterms.get_new()));
-}
-
-simp_result simplifier::simplify_app(expr const & _e) {
-    lean_assert(is_app(_e));
-    expr e = canonize_args(_e);
-
-    simp_result r = simplify_subterms_and_theory(e);
-    // TODO(dhs): gradually re-introduce these features
-//    r = join(r, simplify_user_extensions(r.get_new()));
-//    r = join(r, rewrite(r.get_new()));
-    return r;
 }
 
 /* Extensions */

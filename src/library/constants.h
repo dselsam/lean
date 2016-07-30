@@ -40,6 +40,8 @@ name const & get_comm_ring_name();
 name const & get_comm_semiring_name();
 name const & get_congr_name();
 name const & get_congr_arg_name();
+name const & get_congr_arg2_name();
+name const & get_congr_arg2a_name();
 name const & get_congr_fun_name();
 name const & get_cyclic_numerals_name();
 name const & get_cyclic_numerals_bound_name();

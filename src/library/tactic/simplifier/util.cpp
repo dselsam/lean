@@ -8,18 +8,15 @@ Author: Daniel Selsam
 #include "library/tactic/simplifier/util.h"
 
 namespace lean {
-/*
+
 static name * g_flat_congr_simp_macro_name    = nullptr;
 static std::string * g_flat_congr_simp_opcode = nullptr;
 
 class flat_congr_simp_macro_definition_cell : public macro_definition_cell {
     void check_macro(expr const & m) const {
+        // Note: not exhaustive test
         if (!is_macro(m) || macro_num_args(m) < 2)
-            throw exception(sstream() << "invalid 'flat_congr_simp' macro, incorrect number of arguments");
-        expr const & type = macro_arg(m, 0);
-        bool ok_type = type == mk_constant(get_nat_name()) || type == mk_constant(get_int_name()) || type == mk_constant(get_real_name());
-        if (!ok_type)
-            throw exception(sstream() << "invalid 'flat_congr_simp' macro, only nat, int, and real accepted");
+            throw exception(sstream() << "invalid 'flat_congr_simp' macro, not enough arguments");
     }
 
 public:
@@ -95,6 +92,7 @@ void finalize_simp_util() {
 
 expr mk_flat_congr_simp_macro(expr const & assoc, expr const & e_orig, buffer<simp_result> const & results, simp_result const & r_simp) {
     throw exception("NYI");
+
     return e_orig;
 //    macro_definition m(new flat_congr_simp_macro_definition_cell(q));
 //    return mk_macro(m, 1, &type);

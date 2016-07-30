@@ -755,6 +755,16 @@ public:
         level lvl_2  = get_level(B);
         return ::lean::mk_app({mk_constant(get_congr_arg_name(), {lvl_1, lvl_2}), A, B, lhs, rhs, f, H});
     }
+
+    expr mk_congr_arg2(expr const & f, expr const & H1, expr const & H2) {
+        // TODO(dhs): efficient version
+        return mk_app(get_congr_arg2_name(), f, H1, H2);
+    }
+
+    expr mk_congr_arg2a(expr const & f, expr const & H1) {
+        // TODO(dhs): efficient version
+        return mk_app(get_congr_arg2a_name(), f, H1);
+    }
 };
 
 level get_level(type_context & ctx, expr const & A) {
@@ -855,6 +865,14 @@ expr mk_heq_of_eq(type_context & ctx, expr const & H) {
 
 expr mk_congr_arg(type_context & ctx, expr const & f, expr const & H) {
     return app_builder(ctx).mk_congr_arg(f, H);
+}
+
+expr mk_congr_arg2(type_context & ctx, expr const & f, expr const & H1, expr const & H2) {
+    return app_builder(ctx).mk_congr_arg2(f, H1, H2);
+}
+
+expr mk_congr_arg2a(type_context & ctx, expr const & f, expr const & H1) {
+    return app_builder(ctx).mk_congr_arg2a(f, H1);
 }
 
 expr mk_congr_fun(type_context & ctx, expr const & H, expr const & a) {
