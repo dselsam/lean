@@ -821,17 +821,25 @@ expr mk_absurd(abstract_type_context & ctx, expr const & t, expr const & e, expr
     }
 }
 
-optional<expr> get_binary_op(expr const & e, expr & arg1, expr & arg2) {
+optional<expr> get_binary_op(expr const & e) {
     if (!is_app(e) || !is_app(app_fn(e)))
         return none_expr();
-    arg1 = app_arg(app_fn(e));
-    arg2 = app_arg(e);
     return some_expr(app_fn(app_fn(e)));
+}
+
+optional<expr> get_binary_op(expr const & e, expr & arg1, expr & arg2) {
+    if (auto op = get_binary_op(e)) {
+        arg1 = app_arg(app_fn(e));
+        arg2 = app_arg(e);
+        return some_expr(*op);
+    } else {
+        return none_expr();
+    }
 }
 
 bool is_binary_app_of(expr const & e, expr const & op, expr & arg1, expr & arg2) {
     if (auto e_op = get_binary_op(e, arg1, arg2))
-        return e_op == op;
+        return *e_op == op;
     else
         return false;
 }

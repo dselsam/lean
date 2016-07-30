@@ -6,6 +6,8 @@ Author: Daniel Selsam
 */
 #include "util/name_hash_map.h"
 #include "library/constants.h"
+#include "library/util.h"
+#include "library/num.h"
 #include "library/tactic/simplifier/theory_simplifier.h"
 
 #ifndef LEAN_DEFAULT_THEORY_SIMPLIFIER_DISTRIBUTE_MUL
@@ -27,25 +29,19 @@ static name_hash_map<theory_simplifier::dispatch_info> * g_dispatch_info_table;
 // Theory simplifier
 theory_simplifier::theory_simplifier(type_context & tctx): m_tctx(tctx), m_prop_simplifier(tctx), m_arith_simplifier(tctx) {}
 
-
-optional<theory_simplifier::dispatch_info> theory_simplifier::understands_head(name const & head) {
-    auto it = g_dispatch_info_table->find(head);
-    if (it != g_dispatch_info_table->end()) {
-        return optional<dispatch_info>(it->second);
-    } else {
-        return optional<dispatch_info>();
-    }
+bool theory_simplifier::owns(expr const & e) {
+    return static_cast<bool>(to_num(e));
 }
 
-optional<simp_result> theory_simplifier::simplify(theory_simplifier::dispatch_id did, expr const & prefix, buffer<expr> const & args) {
+simp_result theory_simplifier::simplify_nary(expr const & e, buffer<expr> & args) {
     throw exception("NYI");
-    switch (did) {
-    case theory_simplifier::dispatch_id::EQ:   return simplify_eq(prefix, args);
-    default:                return optional<simp_result>();
-    }
-    lean_unreachable();
+    return simp_result(e);
 }
 
+simp_result theory_simplifier::simplify(expr const & e) {
+    throw exception("NYI");
+    return simp_result(e);
+}
 
 /*
 class theory_simplifier {
