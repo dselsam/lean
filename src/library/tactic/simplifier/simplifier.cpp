@@ -535,22 +535,15 @@ void simplifier::simplify_nary_args(expr const & op, expr const & e, buffer<expr
     }
 }
 
-simp_result simplifier::simplify_subterms_app_nary(expr const & assoc, expr const & e) {
+simp_result simplifier::simplify_subterms_and_theory_nary(expr const & assoc, expr const & e) {
     buffer<expr> args;
     buffer<simp_result> results;
+
     expr op = app_fn(app_fn(e));
 
     // (1) Simplify subterms
-    simp_result r_congr = simplify_subterms_apnary_args(op, app_arg(app_fn(e)), args, results);
+    simplify_nary_args(op, app_arg(app_fn(e)), args, results);
     simplify_nary_args(op, app_arg(e), args, results);
-
-
-
-    simp_result r_flat = simp_result(flat_assoc(m_tctx, op, assoc, e));
-
-
-
-
 
     // (2) Apply theory extension
     simp_result r_theory = m_theory_simplifier.simplify_nary(op, args);
@@ -558,16 +551,7 @@ simp_result simplifier::simplify_subterms_app_nary(expr const & assoc, expr cons
     return simp_result(r_theory.get_new(), pf);
 }
 
-
-simp_result simplifier::simplify_subterms_app(expr const & _e) {
-    lean_assert(is_app(_e));
-    expr e = canonize_args(_e);
-
-    if (m_theory_simplifier.owns(e))
-        return simp_result(e);
-    if (optional<expr> assoc = is_assoc(e))
-        return simplify_subterms_app_nary(*assoc, e);
-
+simp_result simplifier::simplify_subterms_app(expr const & e) {
     // (1) Try user-defined congruences
     simp_result r_user = try_congrs(e);
     if (r_user.has_proof()) {
@@ -600,10 +584,21 @@ simp_result simplifier::simplify_subterms_app(expr const & _e) {
     return simp_result(e);
 }
 
+simp_result simplifier::simplify_subterms_and_theory(expr const & e) {
+    // We use this for numerals, so we don't waste time doing congruence on all subterms
+    if (m_theory_simplifier.owns(e))
+        return m_theory_simplifier.simplify(e);
 
+    if (optional<expr> assoc = is_assoc(e))
+        return simplify_subterms_and_theory_nary(*assoc, e);
 
+    simp_result r_subterms = simplify_subterms_app(e);
+    return join(r_subterms, m_theory_simplifier.simplify(r_subterms.get_new()));
+}
 
-    simp_result r = simplify_app_subterms(
+simp_result simplifier::simplify_app(expr const & _e) {
+    lean_assert(is_app(_e));
+    expr e = canonize_args(_e);
 
     simp_result r = simplify_subterms_and_theory(e);
     // TODO(dhs): gradually re-introduce these features
