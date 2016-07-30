@@ -38,8 +38,8 @@ Author: Daniel Selsam
 #include "library/tactic/simplifier/simp_extensions.h"
 #include "library/tactic/simplifier/ceqv.h"
 
-#ifndef LEAN_DEFAULT_SIMPLIFY_MAX_DEPTH
-#define LEAN_DEFAULT_SIMPLIFY_MAX_DEPTH 1000
+#ifndef LEAN_DEFAULT_SIMPLIFY_MAX_STEPS
+#define LEAN_DEFAULT_SIMPLIFY_MAX_STEPS 1000
 #endif
 #ifndef LEAN_DEFAULT_SIMPLIFY_MAX_REWRITES
 #define LEAN_DEFAULT_SIMPLIFY_MAX_REWRITES 5000
@@ -53,9 +53,6 @@ Author: Daniel Selsam
 #ifndef LEAN_DEFAULT_SIMPLIFY_CONTEXTUAL
 #define LEAN_DEFAULT_SIMPLIFY_CONTEXTUAL true
 #endif
-#ifndef LEAN_DEFAULT_SIMPLIFY_NUMERALS
-#define LEAN_DEFAULT_SIMPLIFY_NUMERALS false
-#endif
 #ifndef LEAN_DEFAULT_SIMPLIFY_LIFT_EQ
 #define LEAN_DEFAULT_SIMPLIFY_LIFT_EQ false
 #endif
@@ -67,17 +64,16 @@ namespace lean {
 
 /* Options */
 
-static name * g_simplify_max_depth            = nullptr;
-static name * g_simplify_max_rewrites             = nullptr;
+static name * g_simplify_max_steps            = nullptr;
+static name * g_simplify_max_rewrites         = nullptr;
 static name * g_simplify_exhaustive           = nullptr;
 static name * g_simplify_memoize              = nullptr;
 static name * g_simplify_contextual           = nullptr;
-static name * g_simplify_numerals             = nullptr;
 static name * g_simplify_lift_eq              = nullptr;
 static name * g_simplify_canonize_proofs      = nullptr;
 
-static unsigned get_simplify_max_depth(options const & o) {
-    return o.get_unsigned(*g_simplify_max_depth, LEAN_DEFAULT_SIMPLIFY_MAX_DEPTH);
+static unsigned get_simplify_max_steps(options const & o) {
+    return o.get_unsigned(*g_simplify_max_steps, LEAN_DEFAULT_SIMPLIFY_MAX_STEPS);
 }
 
 static unsigned get_simplify_max_rewrites(options const & o) {
@@ -96,10 +92,6 @@ static bool get_simplify_contextual(options const & o) {
     return o.get_bool(*g_simplify_contextual, LEAN_DEFAULT_SIMPLIFY_CONTEXTUAL);
 }
 
-static bool get_simplify_numerals(options const & o) {
-    return o.get_bool(*g_simplify_numerals, LEAN_DEFAULT_SIMPLIFY_NUMERALS);
-}
-
 static bool get_simplify_lift_eq(options const & o) {
     return o.get_bool(*g_simplify_lift_eq, LEAN_DEFAULT_SIMPLIFY_LIFT_EQ);
 }
@@ -109,6 +101,9 @@ static bool get_simplify_canonize_proofs(options const & o) {
 }
 
 #define lean_simp_trace(tctx, n, code) lean_trace(n, scope_trace_env _scope1(tctx.env(), tctx); code)
+
+/* Util (move to util.h?) */
+
 
 /* Main simplifier class */
 
@@ -123,16 +118,16 @@ class simplifier {
 
     /* Logging */
     unsigned                  m_num_steps{0};
+    unsigned                  m_num_rewrites{0};
 
     bool                      m_need_restart{false};
 
     /* Options */
-    unsigned                  m_max_depth;
-    bool                      m_max_rewrites;
+    unsigned                  m_max_steps;
+    unsigned                  m_max_rewrites;
     bool                      m_exhaustive;
     bool                      m_memoize;
     bool                      m_contextual;
-    bool                      m_numerals;
     bool                      m_lift_eq;
     bool                      m_canonize_proofs;
 
@@ -192,13 +187,16 @@ class simplifier {
     simp_result join(simp_result const & r1, simp_result const & r2);
     simp_result finalize(simp_result const & r);
 
+    /* N-ary */
+    optional<expr> is_assoc(expr const & op);
+    void simplify_nary_args(expr const & op, expr const & arg, buffer<expr> & nary_args, buffer<simp_result> & nary_results, bool has_simplified = false);
+
     /* Simplification */
     simp_result simplify(expr const & e);
     simp_result simplify_lambda(expr const & e);
     simp_result simplify_pi(expr const & e);
     simp_result simplify_app(expr const & e);
     simp_result simplify_fun(expr const & e);
-    optional<simp_result> simplify_numeral(expr const & e);
 
     /* Extenisons */
     simp_result simplify_extensions(expr const & e);
@@ -239,12 +237,11 @@ public:
     simplifier(type_context & tctx, name const & rel, simp_lemmas const & slss, vm_obj const & prove_fn):
         m_tctx(tctx), m_rel(rel), m_slss(slss), m_prove_fn(prove_fn),
         /* Options */
-        m_max_depth(get_simplify_max_depth(tctx.get_options())),
+        m_max_steps(get_simplify_max_steps(tctx.get_options())),
         m_max_rewrites(get_simplify_max_rewrites(tctx.get_options())),
         m_exhaustive(get_simplify_exhaustive(tctx.get_options())),
         m_memoize(get_simplify_memoize(tctx.get_options())),
         m_contextual(get_simplify_contextual(tctx.get_options())),
-        m_numerals(get_simplify_numerals(tctx.get_options())),
         m_lift_eq(get_simplify_lift_eq(tctx.get_options())),
         m_canonize_proofs(get_simplify_canonize_proofs(tctx.get_options()))
         { }
@@ -325,7 +322,7 @@ simp_result simplifier::simplify(expr const & e) {
     lean_trace_inc_depth("simplifier");
     lean_trace_d("simplifier", tout() << m_rel << ": " << e << "\n";);
 
-    if (m_num_steps > m_max_depth)
+    if (m_num_steps > m_max_steps)
         throw exception("simplifier failed, maximum number of steps exceeded");
 
     if (m_memoize) {
@@ -333,15 +330,6 @@ simp_result simplifier::simplify(expr const & e) {
     }
 
     simp_result r(whnf_eta(r.get_new()));
-
-    buffer<expr> args;
-    expr op = get_app_args(r.get_new());
-
-
-
-    if (auto assoc = m_tctx.mk_class_instance(
-
-
 
     switch (r.get_new().kind()) {
     case expr_kind::Local:
@@ -362,17 +350,56 @@ simp_result simplifier::simplify(expr const & e) {
         break;
     case expr_kind::App:
         check_system("simplifier");
+        // [1] simplify_app will be responsible for:
+        // (a) checking if the application is assoc or not.
+        // (b) if it is assoc: simplify all n-ary children,
+        //                     construct n-ary macro with op and args
+        //                     construct macro proof with buffer of results
+        // (c) if it is not assoc: do the normal path
         r = join(r, simplify_app(r.get_new()));
+
+        // [2] theory_simplify will be responsible for:
+        //     (a) calling the theory-simplifier on the resulting expression (which may be a macro)
+        //         (note: possibly some repeated expr-destruction in the binary case, but very reasonable)
+
+        // [3] user-extension-simplify will be responsible for:
+        //     (a) calling the n-ary user extensions for the head symbol if it is n-ary, or else
+        //         calling the binary user extensions for the head symbol if it is binary.
+        //         (note: I am back to thinking we should keep these separate for now, as long as `add` and `mul` might not be associative)
+        //         (retracted: the tactic can fail if e.g. the prefix is not an application)
+
+        // [4] alternating (3) and (4) on successes.
+        // A note on recursion: we will alternate these two exhaustively, so we only need to recurse at the end if the `rewriting` pass changed something.
+//        r = join(r, simplify_extensions(whnf_eta(r.get_new())));
+
+        // DESIGN awkwardness: why can't [2] and [3] be right above rewrite, in a single loop? Failures to try to simplify via
+        // theory extension (not enough args or whatever) or user extension need not take that long.
+        // And we won't actually even try to simplify `add` or any of the other prefixes anyway.
+        // On the other hand: I think it is fine to commit to no theory-simplification nor user-simp-extensions for non-applications.
+        // We could put all three in the loop for app, and put `rewrite` again separately for non-apps.
+
+        // if (!is_app(e)) { rewrite } at the end
+
+        // DESIGN awkwardness: the theory simplifier can guarantee that its return value is simplified.
+        // But what if there is a user extension and a theory extension that can both fire?
+        // Even more pressingly, the rewrite rules want the n-ary representation, not the reconstructed expression.
+        // To compound things, the user simp extensions won't be able to return macros. Or, they could return (expr, list<expr>).
+        // Let's say for simplicity for now: users need to mark simp-extensions as n-ary, and they will return (expr, list<expr>).
+        // I will write the add-group fuser in Lean to test this out.
+
+        // Better naming convention: instead of simplify_lambda, simplify_app: simplify_lambda_subterms, simplify_app_subterms
         break;
     case expr_kind::Let:
         // whnf unfolds let-expressions
         lean_unreachable();
     }
 
-    if (!m_max_rewrites) {
-        r = join(r, simplify_extensions(whnf_eta(r.get_new())));
-        r = join(r, rewrite(whnf_eta(r.get_new())));
-    }
+    // TODO(dhs): we may want to put this explicitly in each of the case statements.
+    // One issue is that for binary applications, we have simp_results, and for n-ary applications,
+    // we have ops and buffer<expr> and buffer<simp_result>. The cleanest solution is to
+    // _internally_ use a macro for n-ary, and wrap a macro for the assoc proof.
+    // Then we can rewrite here with the same interface for all of the paths (and dispatch to A/AC/default inside rewrite).
+    r = join(r, rewrite(whnf_eta(r.get_new())));
 
     if (m_lift_eq && !using_eq() && r.get_new() == e) {
         simp_result r_eq;
@@ -450,9 +477,70 @@ expr simplifier::canonize_args(expr const & e) {
             return mk_app(f, args);
 }
 
+
+optional<expr> simplifier::is_assoc(expr const & e) {
+    auto op = get_binary_op(e);
+    if (!op)
+        return none_expr();
+    expr assoc_class = mk_app(m_tctx, get_is_associative_name(), e);
+    if (auto assoc_inst = m_tctx.mk_class_instance(assoc_class))
+        return some_expr(mk_app(m_tctx, get_is_associative_op_assoc_name(), *assoc_inst));
+    else
+        return none_expr();
+}
+
+/* Suppose [nary_args] and [nary_results] start empty, [e] is [op a (op b c)] and [a ==> a', b ==> op b1 b2, c ==> c'].
+   Then this procedure will populate:
+   [nary_args]    = [a', b1, b2, c']
+   [nary_results] = [r(a, a'), r(b, b1 + b2), r(c, c')] */
+void simplifier::simplify_nary_args(expr const & op, expr const & e, buffer<expr> & nary_args, buffer<simp_result> & nary_results, bool has_simplified = false) {
+    expr arg1, arg2;
+    if (is_binary_app_of(e, op, arg1, arg2)) {
+        simplify_nary_args(op, arg1, nary_args, nary_results, has_simplified);
+        simplify_nary_args(op, arg2, nary_args, nary_results, has_simplified);
+    } else if (!has_simplified) {
+        simp_result r = simplify(e);
+        nary_results.push_back(r);
+        if (is_binary_app_of(r.get_new(), op, arg1, arg2)) {
+            simplify_nary_args(op, arg1, nary_args, nary_results, true);
+            simplify_nary_args(op, arg2, nary_args, nary_results, true);
+        } else {
+            nary_args.push_back(r.get_new());
+        }
+    } else {
+        nary_args.push_back(e);
+    }
+}
+
 simp_result simplifier::simplify_app(expr const & _e) {
     lean_assert(is_app(_e));
     expr e = canonize_args(_e);
+
+    buffer<expr> args;
+    buffer<simp_result> results;
+    expr op;
+
+    // First we determine if the operator is associative and thus should be considered as an n-ary application
+    optional<expr> assoc = is_assoc(e);
+    if (assoc) {
+        op = app_fn(app_fn(e));
+        simplify_nary_args(op, app_arg(app_fn(e)), args, results);
+        simplify_nary_args(op, app_arg(e), args, results);
+    } else {
+        op = get_app_args(e, args);
+    }
+
+
+
+
+    buffer<expr> new_args;
+    if (assoc) {
+
+    } else {
+        new_args
+    }
+
+
 
     // (1) Try user-defined congruences
     simp_result r_user = try_congrs(e);
@@ -492,16 +580,6 @@ simp_result simplifier::simplify_fun(expr const & e) {
     expr const & f = get_app_args(e, args);
     simp_result r_f = simplify(f);
     return congr_funs(r_f, args);
-}
-
-optional<simp_result> simplifier::simplify_numeral(expr const & e) {
-    if (is_num(e)) { return optional<simp_result>(simp_result(e)); }
-    try {
-        expr_pair r = mk_norm_num(m_tctx, e);
-        return optional<simp_result>(simp_result(r.first, r.second));
-    } catch (exception e) {
-        return optional<simp_result>();
-    }
 }
 
 /* Extensions */
@@ -596,6 +674,9 @@ simp_result simplifier::rewrite(expr const & e, simp_lemmas const & slss) {
     for (simp_lemma const & sr : *srs) {
         simp_result r_new = rewrite(r.get_new(), sr);
         if (r_new.has_proof()) {
+            m_num_rewrites++;
+            if (m_num_rewrites > m_max_rewrites)
+                throw exception("simplifier failed, maximum number of rewrites exceeded");
             r = join(r, r_new);
         }
     }
@@ -935,17 +1016,16 @@ void initialize_simplifier() {
     register_trace_class(name({"simplifier", "canonize"}));
     register_trace_class(name({"simplifier", "prove"}));
 
-    g_simplify_max_depth           = new name{"simplify", "max_depth"};
+    g_simplify_max_steps           = new name{"simplify", "max_steps"};
     g_simplify_max_rewrites        = new name{"simplify", "max_rewrites"};
     g_simplify_exhaustive          = new name{"simplify", "exhaustive"};
     g_simplify_memoize             = new name{"simplify", "memoize"};
     g_simplify_contextual          = new name{"simplify", "contextual"};
-    g_simplify_numerals            = new name{"simplify", "numerals"};
     g_simplify_lift_eq             = new name{"simplify", "lift_eq"};
     g_simplify_canonize_proofs     = new name{"simplify", "canonize_proofs"};
 
-    register_unsigned_option(*g_simplify_max_depth, LEAN_DEFAULT_SIMPLIFY_MAX_DEPTH,
-                             "(simplify) max allowed recursion depth in simplification");
+    register_unsigned_option(*g_simplify_max_steps, LEAN_DEFAULT_SIMPLIFY_MAX_STEPS,
+                             "(simplify) max number of (large) steps in simplification");
     register_unsigned_option(*g_simplify_max_rewrites, LEAN_DEFAULT_SIMPLIFY_MAX_REWRITES,
                              "(simplify) max number of rewrites in simplification");
     register_bool_option(*g_simplify_exhaustive, LEAN_DEFAULT_SIMPLIFY_EXHAUSTIVE,
@@ -954,8 +1034,6 @@ void initialize_simplifier() {
                          "(simplify) memoize simplifications");
     register_bool_option(*g_simplify_contextual, LEAN_DEFAULT_SIMPLIFY_CONTEXTUAL,
                          "(simplify) use contextual simplification");
-    register_bool_option(*g_simplify_numerals, LEAN_DEFAULT_SIMPLIFY_NUMERALS,
-                         "(simplify) simplify (+, *, -, /) over numerals");
     register_bool_option(*g_simplify_lift_eq, LEAN_DEFAULT_SIMPLIFY_LIFT_EQ,
                          "(simplify) try simplifying with equality when no progress over other relation");
     register_bool_option(*g_simplify_canonize_proofs, LEAN_DEFAULT_SIMPLIFY_CANONIZE_PROOFS,
@@ -967,12 +1045,11 @@ void initialize_simplifier() {
 void finalize_simplifier() {
     delete g_simplify_canonize_proofs;
     delete g_simplify_lift_eq;
-    delete g_simplify_numerals;
     delete g_simplify_contextual;
     delete g_simplify_memoize;
     delete g_simplify_exhaustive;
     delete g_simplify_max_rewrites;
-    delete g_simplify_max_depth;
+    delete g_simplify_max_steps;
 }
 
 /* Entry point */
