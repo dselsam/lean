@@ -165,6 +165,8 @@ class simplifier {
     /* Basic helpers */
     environment const & env() const { return m_tctx.env(); }
 
+    simp_result join(simp_result const & r1, simp_result const & r2) { return ::lean::join(m_tctx, m_rel, r1, r2); }
+
     bool using_eq() { return m_rel == get_eq_name(); }
 
     bool is_dependent_fn(expr const & f) {
@@ -190,11 +192,8 @@ class simplifier {
 
     /* Simp_Results */
     simp_result lift_from_eq(expr const & e_old, simp_result const & r_eq);
-    simp_result join(simp_result const & r1, simp_result const & r2);
-    simp_result finalize(simp_result const & r);
 
     /* N-ary */
-    optional<expr> is_assoc(expr const & op);
     void simplify_nary_args(expr const & op, expr const & arg, buffer<expr> & nary_args, buffer<simp_result> & nary_results, bool has_simplified = false);
 
     /* Simplification */
@@ -218,11 +217,16 @@ class simplifier {
     optional<expr> prove(expr const & thm);
 
     /* Rewriting */
-    /*
-    simp_result rewrite(expr const & e);
     simp_result rewrite(expr const & e, simp_lemmas const & slss);
-    simp_result rewrite(expr const & e, simp_lemma const & sr);
-    */
+
+    simp_result rewrite_a(expr const & assoc, expr const & e, list<simp_lemma> const & lemmas);
+    simp_result rewrite_ac(expr const & assoc, expr const & comm, expr const & e, list<simp_lemma> const & lemmas);
+    simp_result rewrite(expr const & e, list<simp_lemma> const & lemmas);
+
+    simp_result rewrite_a(expr const & e, simp_lemma const & lemma);
+    simp_result rewrite_ac(expr const & e, simp_lemma const & lemma);
+    simp_result rewrite(expr const & e, simp_lemma const & lemma);
+
     /* Canonicalize */
     expr canonize_args(expr const & e);
 
@@ -303,27 +307,6 @@ simp_result simplifier::lift_from_eq(expr const & e_old, simp_result const & r_e
     return simp_result(r_eq.get_new(), pf);
 }
 
-simp_result simplifier::join(simp_result const & r1, simp_result const & r2) {
-    /* Assumes that both simp_results are with respect to the same relation */
-    if (!r1.has_proof()) {
-        return r2;
-    } else if (!r2.has_proof()) {
-        lean_assert(r1.has_proof());
-        return simp_result(r2.get_new(), r1.get_proof());
-    } else {
-        /* If they both have proofs, we need to glue them together with transitivity. */
-        lean_assert(r1.has_proof() && r2.has_proof());
-        lean_trace(name({"simplifier"}),
-                   expr pf1_type = m_tctx.infer(r1.get_proof());
-                   expr pf2_type = m_tctx.infer(r2.get_proof());
-                   tout() << "JOIN(" << r1.get_proof() << " : " << pf1_type
-                   << ", " << r2.get_proof() << " : " << pf2_type << ")\n";);
-
-        expr trans = mk_trans(m_tctx, m_rel, r1.get_proof(), r2.get_proof());
-        return simp_result(r2.get_new(), trans);
-    }
-}
-
 /* Whnf + Eta */
 expr simplifier::whnf_eta(expr const & e) {
     return try_eta(m_tctx.whnf(e));
@@ -398,7 +381,8 @@ simp_result simplifier::simplify(expr const & e) {
 
     // [4] rewriting
     r.update(whnf_eta(r.get_new()));
-    simp_result r_rewrite = rewrite(m_tctx, ::lean::join(m_slss, m_ctx_slss), r.get_new());
+    simp_lemmas all_slss = ::lean::join(m_slss, m_ctx_slss);
+    simp_result r_rewrite = rewrite(r.get_new());
     if (r_rewrite.get_new() != r.get_new()) {
         r = join(r, r_rewrite);
         r = join(r, simplify(r.get_new()));
@@ -483,17 +467,6 @@ simp_result simplifier::simplify_operator_of_app(expr const & e) {
     return congr_funs(r_f, args);
 }
 
-optional<expr> simplifier::is_assoc(expr const & e) {
-    auto op = get_binary_op(e);
-    if (!op)
-        return none_expr();
-    expr assoc_class = mk_app(m_tctx, get_is_associative_name(), e);
-    if (auto assoc_inst = m_tctx.mk_class_instance(assoc_class))
-        return some_expr(mk_app(m_tctx, get_is_associative_op_assoc_name(), *assoc_inst));
-    else
-        return none_expr();
-}
-
 simp_result simplifier::simplify_each_nary_arg(expr const & op, expr const & e) {
     expr arg1, arg2;
     if (is_binary_app_of(e, op, arg1, arg2)) {
@@ -527,7 +500,7 @@ simp_result simplifier::simplify_subterms_app(expr const & _e) {
 
     expr e = canonize_args(_e);
 
-    if (optional<expr> assoc = is_assoc(e))
+    if (optional<expr> assoc = is_assoc(m_tctx, e))
         return simplify_subterms_app_nary(*assoc, e);
 
     // (1) Try user-defined congruences
@@ -602,12 +575,6 @@ simp_result simplifier::simplify_user_extensions(expr const & _e) {
 
 /* Proving */
 
-simp_result simplifier::finalize(simp_result const & r) {
-    if (r.has_proof()) return r;
-    expr pf = mk_refl(m_tctx, m_rel, r.get_new());
-    return simp_result(r.get_new(), pf);
-}
-
 optional<expr> simplifier::prove(expr const & goal) {
     metavar_context mctx = m_tctx.mctx();
     expr goal_mvar = mctx.mk_metavar_decl(m_tctx.lctx(), goal);
@@ -627,41 +594,63 @@ optional<expr> simplifier::prove(expr const & goal) {
 }
 
 /* Rewriting */
-
-/*
-simp_result simplifier::rewrite(expr const & e) {
-    simp_result r(e);
-    while (true) {
-        simp_result r_ctx = rewrite(r.get_new(), m_ctx_slss);
-        simp_result r_new = rewrite(r_ctx.get_new(), m_slss);
-        if (!r_ctx.has_proof() && !r_new.has_proof()) break;
-        r = join(join(r, r_ctx), r_new);
-    }
-    return r;
-}
-
 simp_result simplifier::rewrite(expr const & e, simp_lemmas const & slss) {
-    simp_result r(e);
-
     simp_lemmas_for const * sr = slss.find(m_rel);
     if (!sr) return r;
 
     list<simp_lemma> const * srs = sr->find_simp(e);
     if (!srs) {
         lean_trace(name({"simplifier", "try_rewrite"}), tout() << "no simp lemmas for: " << e << "\n";);
-        return r;
+        return simp_result(e);
     }
 
-    for (simp_lemma const & sr : *srs) {
-        simp_result r_new = rewrite(r.get_new(), sr);
-        if (r_new.has_proof()) {
-            m_num_rewrites++;
-            if (m_num_rewrites > m_max_rewrites)
-                throw exception("simplifier failed, maximum number of rewrites exceeded");
-            r = join(r, r_new);
-        }
+    if (!using_eq()) {
+        return rewrite(e, *srs);
+    } else if (auto assoc = is_assoc(m_tctx, e)) {
+        if (auto comm = is_comm(m_tctx, e))
+            return rewrite_ac(*assoc, *comm, e, *srs);
+        else
+            return rewrite_a(*assoc, e, *srs);
+    } else {
+        return rewrite(e, *srs);
     }
-    return r;
+}
+
+simp_result simplifier::rewrite(expr const & e, list<simp_lemma> const & lemmas) {
+    for (simp_lemma const & lemma : lemmas) {
+        simp_result r_new = rewrite(r.get_new(), lemma);
+        if (r_new.has_proof())
+            return r_new;
+    }
+    return simp_result(e);
+}
+
+simp_result simplifier::rewrite_a(expr const & assoc, expr const & e, list<simp_lemma> const & lemmas) {
+    for (simp_lemma const & lemma : lemmas) {
+        simp_result r_new = rewrite_a(assoc, r.get_new(), lemma);
+        if (r_new.has_proof())
+            return r_new;
+    }
+    return simp_result(e);
+}
+
+simp_result simplifier::rewrite_ac(expr const & assoc, expr const & comm, expr const & e, list<simp_lemma> const & lemmas) {
+    for (simp_lemma const & lemma : lemmas) {
+        simp_result r_new = rewrite_ac(assoc, comm, r.get_new(), lemma);
+        if (r_new.has_proof())
+            return r_new;
+    }
+    return simp_result(e);
+}
+
+simp_result simplifier::rewrite_a(expr const & assoc, expr const & e, simp_lemma const & sl) {
+    throw exception("NYI");
+    return simp_result(e);
+}
+
+simp_result simplifier::rewrite_ac(expr const & assoc, expr const & comm, expr const & e, simp_lemma const & sl) {
+    throw exception("NYI");
+    return simp_result(e);
 }
 
 simp_result simplifier::rewrite(expr const & e, simp_lemma const & sl) {
@@ -697,7 +686,6 @@ simp_result simplifier::rewrite(expr const & e, simp_lemma const & sl) {
     expr pf = tmp_tctx.instantiate_mvars(sl.get_proof());
     return simp_result(new_rhs, pf);
 }
-*/
 
 /* Congruence */
 
@@ -806,8 +794,8 @@ simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cl) {
             }
 
             if (r_congr_hyp.has_proof()) simplified = true;
-            r_congr_hyp = finalize(r_congr_hyp);
-            expr hyp = finalize(r_congr_hyp).get_proof();
+            r_congr_hyp = finalize(m_tctx, m_rel, r_congr_hyp);
+            expr hyp = finalize(m_tctx, m_rel, r_congr_hyp).get_proof();
 
             if (!tmp_tctx.is_def_eq(m, local_factory.mk_lambda(hyp))) {
                     failed = true;
@@ -909,7 +897,7 @@ optional<simp_result> simplifier::synth_congr(expr const & e, F && simp) {
             {
                 simp_result r_arg = simp(args[i]);
                 if (r_arg.has_proof()) has_proof = true;
-                r_arg = finalize(r_arg);
+                r_arg = finalize(m_tctx, m_rel, r_arg);
                 proof = mk_app(proof, r_arg.get_new(), r_arg.get_proof());
                 subst.push_back(r_arg.get_new());
                 subst.push_back(r_arg.get_proof());
@@ -988,15 +976,14 @@ vm_obj tactic_simplify_core(vm_obj const & prove_fn, vm_obj const & rel, vm_obj 
 
 /* Setup and teardown */
 void initialize_simplifier() {
-    register_trace_class("simplifier");
-    register_trace_class(name({"simplifier", "rewrite"}));
     register_trace_class(name({"simplifier", "congruence"}));
     register_trace_class(name({"simplifier", "extensions"}));
     register_trace_class(name({"simplifier", "failure"}));
     register_trace_class(name({"simplifier", "perm"}));
-    register_trace_class(name({"simplifier", "try_rewrite"}));
     register_trace_class(name({"simplifier", "canonize"}));
     register_trace_class(name({"simplifier", "prove"}));
+    register_trace_class(name({"simplifier", "rewrite"}));
+    register_trace_class(name({"simplifier", "try_rewrite"}));
 
     g_simplify_max_steps           = new name{"simplify", "max_steps"};
     g_simplify_max_rewrites        = new name{"simplify", "max_rewrites"};

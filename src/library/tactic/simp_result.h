@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Author: Daniel Selsam
 */
 #pragma once
-#include "kernel/expr_pair.h"
+#include "library/type_context.h"
 
 namespace lean {
 
@@ -29,5 +29,8 @@ public:
     /* The following assumes that [e] and [m_new] are definitionally equal */
     void update(expr const & e) { m_new = e; }
 };
+
+simp_result join(type_context & tctx, name const & rel, simp_result const & r1, simp_result const & r2);
+simp_result finalize(type_context & tctx, name const & rel, simp_result const & r);
 
 }

@@ -6,9 +6,13 @@ Author: Daniel Selsam
 */
 #pragma once
 #include "kernel/expr.h"
+#include "library/type_context.h"
 #include "library/tactic/simp_result.h"
 
 namespace lean {
+
+optional<expr> is_assoc(type_context & tctx, expr const & op);
+optional<expr> is_comm(type_context & tctx, expr const & op);
 
 void initialize_simp_util();
 void finalize_simp_util();
