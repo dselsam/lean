@@ -38,11 +38,11 @@ Author: Daniel Selsam
 #include "library/tactic/simplifier/simp_extensions.h"
 #include "library/tactic/simplifier/ceqv.h"
 
-#ifndef LEAN_DEFAULT_SIMPLIFY_MAX_STEPS
-#define LEAN_DEFAULT_SIMPLIFY_MAX_STEPS 1000
+#ifndef LEAN_DEFAULT_SIMPLIFY_MAX_DEPTH
+#define LEAN_DEFAULT_SIMPLIFY_MAX_DEPTH 1000
 #endif
-#ifndef LEAN_DEFAULT_SIMPLIFY_TOP_DOWN
-#define LEAN_DEFAULT_SIMPLIFY_TOP_DOWN false
+#ifndef LEAN_DEFAULT_SIMPLIFY_MAX_REWRITES
+#define LEAN_DEFAULT_SIMPLIFY_MAX_REWRITES 5000
 #endif
 #ifndef LEAN_DEFAULT_SIMPLIFY_EXHAUSTIVE
 #define LEAN_DEFAULT_SIMPLIFY_EXHAUSTIVE true
@@ -67,8 +67,8 @@ namespace lean {
 
 /* Options */
 
-static name * g_simplify_max_steps            = nullptr;
-static name * g_simplify_top_down             = nullptr;
+static name * g_simplify_max_depth            = nullptr;
+static name * g_simplify_max_rewrites             = nullptr;
 static name * g_simplify_exhaustive           = nullptr;
 static name * g_simplify_memoize              = nullptr;
 static name * g_simplify_contextual           = nullptr;
@@ -76,12 +76,12 @@ static name * g_simplify_numerals             = nullptr;
 static name * g_simplify_lift_eq              = nullptr;
 static name * g_simplify_canonize_proofs      = nullptr;
 
-static unsigned get_simplify_max_steps(options const & o) {
-    return o.get_unsigned(*g_simplify_max_steps, LEAN_DEFAULT_SIMPLIFY_MAX_STEPS);
+static unsigned get_simplify_max_depth(options const & o) {
+    return o.get_unsigned(*g_simplify_max_depth, LEAN_DEFAULT_SIMPLIFY_MAX_DEPTH);
 }
 
-static bool get_simplify_top_down(options const & o) {
-    return o.get_bool(*g_simplify_top_down, LEAN_DEFAULT_SIMPLIFY_TOP_DOWN);
+static unsigned get_simplify_max_rewrites(options const & o) {
+    return o.get_unsigned(*g_simplify_max_rewrites, LEAN_DEFAULT_SIMPLIFY_MAX_REWRITES);
 }
 
 static bool get_simplify_exhaustive(options const & o) {
@@ -127,8 +127,8 @@ class simplifier {
     bool                      m_need_restart{false};
 
     /* Options */
-    unsigned                  m_max_steps;
-    bool                      m_top_down;
+    unsigned                  m_max_depth;
+    bool                      m_max_rewrites;
     bool                      m_exhaustive;
     bool                      m_memoize;
     bool                      m_contextual;
@@ -239,8 +239,8 @@ public:
     simplifier(type_context & tctx, name const & rel, simp_lemmas const & slss, vm_obj const & prove_fn):
         m_tctx(tctx), m_rel(rel), m_slss(slss), m_prove_fn(prove_fn),
         /* Options */
-        m_max_steps(get_simplify_max_steps(tctx.get_options())),
-        m_top_down(get_simplify_top_down(tctx.get_options())),
+        m_max_depth(get_simplify_max_depth(tctx.get_options())),
+        m_max_rewrites(get_simplify_max_rewrites(tctx.get_options())),
         m_exhaustive(get_simplify_exhaustive(tctx.get_options())),
         m_memoize(get_simplify_memoize(tctx.get_options())),
         m_contextual(get_simplify_contextual(tctx.get_options())),
@@ -325,27 +325,23 @@ simp_result simplifier::simplify(expr const & e) {
     lean_trace_inc_depth("simplifier");
     lean_trace_d("simplifier", tout() << m_rel << ": " << e << "\n";);
 
-    if (m_num_steps > m_max_steps)
+    if (m_num_steps > m_max_depth)
         throw exception("simplifier failed, maximum number of steps exceeded");
 
     if (m_memoize) {
         if (auto it = cache_lookup(e)) return *it;
     }
 
-    if (m_numerals && using_eq()) {
-        if (auto r = simplify_numeral(e)) {
-            return *r;
-        }
-    }
+    simp_result r(whnf_eta(r.get_new()));
 
-    simp_result r(e);
+    buffer<expr> args;
+    expr op = get_app_args(r.get_new());
 
-    if (m_top_down) {
-        r = join(r, simplify_extensions(whnf_eta(r.get_new())));
-        r = join(r, rewrite(whnf_eta(r.get_new())));
-    }
 
-    r.update(whnf_eta(r.get_new()));
+
+    if (auto assoc = m_tctx.mk_class_instance(
+
+
 
     switch (r.get_new().kind()) {
     case expr_kind::Local:
@@ -373,7 +369,7 @@ simp_result simplifier::simplify(expr const & e) {
         lean_unreachable();
     }
 
-    if (!m_top_down) {
+    if (!m_max_rewrites) {
         r = join(r, simplify_extensions(whnf_eta(r.get_new())));
         r = join(r, rewrite(whnf_eta(r.get_new())));
     }
@@ -939,8 +935,8 @@ void initialize_simplifier() {
     register_trace_class(name({"simplifier", "canonize"}));
     register_trace_class(name({"simplifier", "prove"}));
 
-    g_simplify_max_steps           = new name{"simplify", "max_steps"};
-    g_simplify_top_down            = new name{"simplify", "top_down"};
+    g_simplify_max_depth           = new name{"simplify", "max_depth"};
+    g_simplify_max_rewrites        = new name{"simplify", "max_rewrites"};
     g_simplify_exhaustive          = new name{"simplify", "exhaustive"};
     g_simplify_memoize             = new name{"simplify", "memoize"};
     g_simplify_contextual          = new name{"simplify", "contextual"};
@@ -948,10 +944,10 @@ void initialize_simplifier() {
     g_simplify_lift_eq             = new name{"simplify", "lift_eq"};
     g_simplify_canonize_proofs     = new name{"simplify", "canonize_proofs"};
 
-    register_unsigned_option(*g_simplify_max_steps, LEAN_DEFAULT_SIMPLIFY_MAX_STEPS,
-                             "(simplify) max allowed steps in simplification");
-    register_bool_option(*g_simplify_top_down, LEAN_DEFAULT_SIMPLIFY_TOP_DOWN,
-                         "(simplify) use top-down rewriting instead of bottom-up");
+    register_unsigned_option(*g_simplify_max_depth, LEAN_DEFAULT_SIMPLIFY_MAX_DEPTH,
+                             "(simplify) max allowed recursion depth in simplification");
+    register_unsigned_option(*g_simplify_max_rewrites, LEAN_DEFAULT_SIMPLIFY_MAX_REWRITES,
+                             "(simplify) max number of rewrites in simplification");
     register_bool_option(*g_simplify_exhaustive, LEAN_DEFAULT_SIMPLIFY_EXHAUSTIVE,
                          "(simplify) rewrite exhaustively");
     register_bool_option(*g_simplify_memoize, LEAN_DEFAULT_SIMPLIFY_MEMOIZE,
@@ -975,8 +971,8 @@ void finalize_simplifier() {
     delete g_simplify_contextual;
     delete g_simplify_memoize;
     delete g_simplify_exhaustive;
-    delete g_simplify_top_down;
-    delete g_simplify_max_steps;
+    delete g_simplify_max_rewrites;
+    delete g_simplify_max_depth;
 }
 
 /* Entry point */
