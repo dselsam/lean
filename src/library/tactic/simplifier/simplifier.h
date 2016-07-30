@@ -7,7 +7,7 @@ Author: Daniel Selsam
 #include "kernel/expr_pair.h"
 #include "library/type_context.h"
 #include "library/vm/vm.h"
-#include "library/tactic/simplifier/simp_result.h"
+#include "library/tactic/simp_result.h"
 #include "library/tactic/simplifier/simp_lemmas.h"
 
 namespace lean {
