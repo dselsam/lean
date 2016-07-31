@@ -863,7 +863,10 @@ bool is_binary_app_of(expr const & e, expr const & op, expr & arg1, expr & arg2)
 
 static void get_app_nary_args_core(expr const & op, expr const & e, buffer<expr> & nary_args) {
     auto op2 = get_binary_op(e);
-    if (op2 && *op2 == op) {
+    // Note: this assumes that the implicit arguments match in nested applications.
+    // It may lead to a kernel type-checking error later on if this is not the case.
+    // If this ever happens, we can take a type_context and switch this to the more expensive `is_def_eq`.
+    if (op2 && get_app_fn(*op2) == get_app_fn(op)) {
         get_app_nary_args_core(op, app_arg(app_fn(e)), nary_args);
         get_app_nary_args_core(op, app_arg(e), nary_args);
     } else {
@@ -883,11 +886,14 @@ optional<expr> get_app_nary_args(expr const & e, buffer<expr> & nary_args) {
 }
 
 expr mk_nary_app(expr const & op, buffer<expr> const & nary_args) {
-    lean_assert(nary_args.size() >= 2);
+    return mk_nary_app(op, nary_args.size(), nary_args.data());
+}
+
+expr mk_nary_app(expr const & op, unsigned num_nary_args, expr const * nary_args) {
+    lean_assert(num_nary_args >= 2);
     // f x1 x2 x3 ==> f x1 (f x2 x3)
-    int k = nary_args.size();
-    expr e = mk_app(op, nary_args[k - 2], nary_args[k - 1]);
-    for (int i = k - 3; i >= 0; --i) {
+    expr e = mk_app(op, nary_args[num_nary_args - 2], nary_args[num_nary_args - 1]);
+    for (int i = num_nary_args - 3; i >= 0; --i) {
         e = mk_app(op, nary_args[i], e);
     }
     return e;

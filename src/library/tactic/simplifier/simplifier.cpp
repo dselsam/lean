@@ -219,12 +219,11 @@ class simplifier {
 
     /* Rewriting */
     simp_result rewrite(expr const & e, simp_lemmas const & slss);
-
-    simp_result rewrite_a(expr const & assoc, expr const & e, list<simp_lemma> const & lemmas);
-    simp_result rewrite_ac(expr const & assoc, expr const & comm, expr const & e, list<simp_lemma> const & lemmas);
     simp_result rewrite(expr const & e, list<simp_lemma> const & lemmas);
 
     simp_result rewrite_a(expr const & assoc, expr const & e, simp_lemma const & lemma);
+    optional<simp_result> rewrite_a(buffer<expr> const & nary_args, buffer<expr> const & nary_pattern_args, unsigned offset, simp_lemma const & sl);
+
     simp_result rewrite_ac(expr const & assoc, expr const & comm, expr const & e, simp_lemma const & lemma);
     simp_result rewrite(expr const & e, simp_lemma const & lemma);
 
@@ -618,39 +617,21 @@ simp_result simplifier::rewrite(expr const & e, simp_lemmas const & slss) {
         return simp_result(e);
     }
 
-    if (!using_eq()) {
-        return rewrite(e, *srs);
-    } else if (auto assoc = is_assoc(m_tctx, e)) {
-        if (auto comm = is_comm(m_tctx, e))
-            return rewrite_ac(*assoc, *comm, e, *srs);
-        else
-            return rewrite_a(*assoc, e, *srs);
-    } else {
-        return rewrite(e, *srs);
-    }
+    return rewrite(e, *srs);
 }
 
 simp_result simplifier::rewrite(expr const & e, list<simp_lemma> const & lemmas) {
-    for (simp_lemma const & lemma : lemmas) {
-        simp_result r = rewrite(e, lemma);
-        if (r.has_proof())
-            return r;
-    }
-    return simp_result(e);
-}
+    auto assoc = !using_eq() ? none_expr() : is_assoc(m_tctx, e);
+    auto comm  = !using_eq() ? none_expr() : is_comm(m_tctx, e);
 
-simp_result simplifier::rewrite_a(expr const & assoc, expr const & e, list<simp_lemma> const & lemmas) {
     for (simp_lemma const & lemma : lemmas) {
-        simp_result r = rewrite_a(assoc, e, lemma);
-        if (r.has_proof())
-            return r;
-    }
-    return simp_result(e);
-}
-
-simp_result simplifier::rewrite_ac(expr const & assoc, expr const & comm, expr const & e, list<simp_lemma> const & lemmas) {
-    for (simp_lemma const & lemma : lemmas) {
-        simp_result r = rewrite_ac(assoc, comm, e, lemma);
+        simp_result r;
+        if (assoc && comm)
+            r = rewrite_ac(*assoc, *comm, e, lemma);
+        else if (assoc)
+            r = rewrite_a(*assoc, e, lemma);
+        else
+            r = rewrite(e, lemma);
         if (r.has_proof())
             return r;
     }
@@ -658,8 +639,66 @@ simp_result simplifier::rewrite_ac(expr const & assoc, expr const & comm, expr c
 }
 
 simp_result simplifier::rewrite_a(expr const & assoc, expr const & e, simp_lemma const & sl) {
-    throw exception("NYI");
+    // TODO(dhs): right now, we depend on the LHS of the simp lemma being flattened
+    // Once the semantics and behavior stabilizes, we will figure out the best place to do
+    // this pre-processing. Alternatively, we will just traverse the arguments manually.
+    buffer<expr> nary_args;
+    optional<expr> nary_op = get_app_nary_args(e, nary_args);
+    lean_assert(nary_op);
+
+    buffer<expr> nary_pattern_args;
+    optional<expr> nary_pattern_op = get_app_nary_args(sl.get_lhs(), nary_pattern_args);
+    lean_assert(nary_pattern_op);
+    lean_assert(m_tctx.is_def_eq(*nary_op, *nary_pattern_op));
+
+    unsigned num_patterns = nary_pattern_args.size();
+
+    if (nary_args.size() < num_patterns)
+        return simp_result(e);
+
+    for (unsigned i = 0; i <= nary_args.size() - num_patterns; ++i) {
+        if (optional<simp_result> r = rewrite_a(nary_args, nary_pattern_args, i, sl)) {
+            lean_assert(r->has_proof());
+            unsigned j = nary_args.size() - 1;
+            expr e_new = (j >= i + num_patterns) ? nary_args[j] : r->get_new();
+            j = (j >= i + num_patterns) ? (j - 1) : (j - num_patterns);
+            while (j + 1 > 0) {
+                if (j >= i + num_patterns || j < i) {
+                    e_new = mk_app(*nary_op, nary_args[j], e_new);
+                    j -= 1;
+                } else {
+                    e_new = mk_app(*nary_op, r->get_new(), e_new);
+                    j -= num_patterns;
+                }
+            }
+            lean_trace(name({"simplifier", "rewrite", "assoc"}), tout() << e << " ==> " << e_new << "\n";);
+            return simp_result(e_new, mk_rewrite_assoc_macro(assoc, mk_eq(m_tctx, e, e_new), r->get_proof()));
+        }
+    }
     return simp_result(e);
+}
+
+optional<simp_result> simplifier::rewrite_a(buffer<expr> const & nary_args, buffer<expr> const & nary_pattern_args, unsigned offset, simp_lemma const & sl) {
+    unsigned num_patterns = nary_pattern_args.size();
+    tmp_type_context tmp_tctx(m_tctx, sl.get_num_umeta(), sl.get_num_emeta());
+    for (unsigned i = 0; i < num_patterns; ++i) {
+        if (!m_tctx.is_def_eq(nary_args[offset+i], nary_pattern_args[i]))
+            return optional<simp_result>();
+    }
+
+    if (!instantiate_emetas(tmp_tctx, sl.get_num_emeta(), sl.get_emetas(), sl.get_instances()))
+        return optional<simp_result>();
+
+    for (unsigned i = 0; i < sl.get_num_umeta(); i++) {
+        if (!tmp_tctx.is_uassigned(i))
+            return optional<simp_result>();
+    }
+
+    expr new_lhs = tmp_tctx.instantiate_mvars(sl.get_lhs());
+    expr new_rhs = tmp_tctx.instantiate_mvars(sl.get_rhs());
+
+    expr pf = tmp_tctx.instantiate_mvars(sl.get_proof());
+    return optional<simp_result>(simp_result(new_rhs, pf));
 }
 
 simp_result simplifier::rewrite_ac(expr const & assoc, expr const & comm, expr const & e, simp_lemma const & sl) {
@@ -679,7 +718,8 @@ simp_result simplifier::rewrite(expr const & e, simp_lemma const & sl) {
                     tout() << "(" << sl.get_id() << ") "
                     << "[" << new_lhs << " --> " << new_rhs << "]\n";);
 
-    if (!instantiate_emetas(tmp_tctx, sl.get_num_emeta(), sl.get_emetas(), sl.get_instances())) return simp_result(e);
+    if (!instantiate_emetas(tmp_tctx, sl.get_num_emeta(), sl.get_emetas(), sl.get_instances()))
+        return simp_result(e);
 
     for (unsigned i = 0; i < sl.get_num_umeta(); i++) {
         if (!tmp_tctx.is_uassigned(i)) return simp_result(e);
@@ -998,8 +1038,11 @@ void initialize_simplifier() {
     register_trace_class(name({"simplifier", "canonize"}));
     register_trace_class(name({"simplifier", "prove"}));
     register_trace_class(name({"simplifier", "rewrite"}));
+    register_trace_class(name({"simplifier", "rewrite", "assoc"}));
+    register_trace_class(name({"simplifier", "rewrite", "ac"}));
     register_trace_class(name({"simplifier", "theory"}));
     register_trace_class(name({"debug", "simplifier", "try_rewrite"}));
+    register_trace_class(name({"debug", "simplifier", "try_rewrite", "assoc"}));
 
     g_simplify_max_steps           = new name{"simplify", "max_steps"};
     g_simplify_max_rewrites        = new name{"simplify", "max_rewrites"};
