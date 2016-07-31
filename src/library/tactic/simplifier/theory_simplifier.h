@@ -41,7 +41,6 @@ public:
     theory_simplifier(type_context & tctx);
 
     bool        owns(expr const & e);
-    simp_result simplify_nary(expr const & op, buffer<expr> & args);
     simp_result simplify(expr const & e);
 };
 

@@ -756,14 +756,14 @@ public:
         return ::lean::mk_app({mk_constant(get_congr_arg_name(), {lvl_1, lvl_2}), A, B, lhs, rhs, f, H});
     }
 
-    expr mk_congr_arg2(expr const & f, expr const & H1, expr const & H2) {
+    expr mk_congr_arg_bin(expr const & f, expr const & H1, expr const & H2) {
         // TODO(dhs): efficient version
-        return mk_app(get_congr_arg2_name(), f, H1, H2);
+        return mk_app(get_congr_arg_bin_name(), f, H1, H2);
     }
 
-    expr mk_congr_arg2a(expr const & f, expr const & H1) {
+    expr mk_congr_arg_bin_fst(expr const & f, expr const & H1, expr const & b) {
         // TODO(dhs): efficient version
-        return mk_app(get_congr_arg2a_name(), f, H1);
+        return mk_app(get_congr_arg_bin_fst_name(), f, H1, b);
     }
 };
 
@@ -867,12 +867,12 @@ expr mk_congr_arg(type_context & ctx, expr const & f, expr const & H) {
     return app_builder(ctx).mk_congr_arg(f, H);
 }
 
-expr mk_congr_arg2(type_context & ctx, expr const & f, expr const & H1, expr const & H2) {
-    return app_builder(ctx).mk_congr_arg2(f, H1, H2);
+expr mk_congr_arg_bin(type_context & ctx, expr const & f, expr const & H1, expr const & H2) {
+    return app_builder(ctx).mk_congr_arg_bin(f, H1, H2);
 }
 
-expr mk_congr_arg2a(type_context & ctx, expr const & f, expr const & H1) {
-    return app_builder(ctx).mk_congr_arg2a(f, H1);
+expr mk_congr_arg_bin_fst(type_context & ctx, expr const & f, expr const & H1, expr const & b) {
+    return app_builder(ctx).mk_congr_arg_bin_fst(f, H1, b);
 }
 
 expr mk_congr_fun(type_context & ctx, expr const & H, expr const & a) {

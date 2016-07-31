@@ -40,8 +40,8 @@ section
   variables {A B C D E F : Type}
   variables {a a' : A} {b b' : B} {c c' : C} {d d' : D} {e e' : E}
 
---  theorem congr_arg2 (f : A → B → C) (Ha : a = a') (Hb : b = b') : f a b = f a' b' :=
---  sorry -- by substvars
+  theorem congr_arg2 (f : A → B → C) (Ha : a = a') (Hb : b = b') : f a b = f a' b' :=
+  sorry -- by substvars
 
   theorem congr_arg3 (f : A → B → C → D) (Ha : a = a') (Hb : b = b') (Hc : c = c')
       : f a b c = f a' b' c' :=

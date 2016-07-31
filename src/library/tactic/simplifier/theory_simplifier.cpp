@@ -7,6 +7,7 @@ Author: Daniel Selsam
 #include "util/name_hash_map.h"
 #include "library/constants.h"
 #include "library/util.h"
+#include "library/trace.h"
 #include "library/num.h"
 #include "library/tactic/simplifier/theory_simplifier.h"
 
@@ -15,10 +16,6 @@ Author: Daniel Selsam
 #endif
 
 namespace lean {
-
-//using theory_simplifier::dispatch_id;
-//using theory_simplifier::dispatch_kind;
-//using theory_simplifier::dispatch_info;
 
 // Dispatch infos
 static name_hash_map<theory_simplifier::dispatch_info> * g_dispatch_info_table;
@@ -33,14 +30,30 @@ bool theory_simplifier::owns(expr const & e) {
     return static_cast<bool>(to_num(e));
 }
 
-simp_result theory_simplifier::simplify_nary(expr const & e, buffer<expr> & args) {
-    throw exception("NYI");
-    return simp_result(e);
-}
-
 simp_result theory_simplifier::simplify(expr const & e) {
-    throw exception("NYI");
-    return simp_result(e);
+    expr head = get_app_fn(e);
+    if (!is_constant(head))
+        return simp_result(e);
+
+    name id = const_name(head);
+    // TODO(dhs): very incomplete
+    if (id == get_eq_name()) {
+        // TODO(dhs): run arith_simplifier here too
+        // result r_arith = m_arith_simplifier.simplify_eq(e);
+        // result r_prop = m_prop_simplifier.simplify_eq(r_arith.get_new());
+        // return join(r_arith, r_prop);
+        return m_prop_simplifier.simplify_eq(e);
+    } else if (id == get_iff_name()) {
+        return m_prop_simplifier.simplify_iff(e);
+    } else if (id == get_not_name()) {
+        return m_prop_simplifier.simplify_not(e);
+    } else if (id == get_and_name()) {
+        return m_prop_simplifier.simplify_and(e);
+    } else if (id == get_or_name()) {
+        return m_prop_simplifier.simplify_or(e);
+    } else {
+        return simp_result(e);
+    }
 }
 
 /*
@@ -74,9 +87,11 @@ public:
 void initialize_theory_simplifier() {
     // Dispatch
     // TODO(dhs): add others
+    /*
     g_dispatch_info_table = new name_hash_map<theory_simplifier::dispatch_info>({
             {get_eq_name(), theory_simplifier::dispatch_info(theory_simplifier::dispatch_id::EQ, theory_simplifier::dispatch_kind::NARY_ASSOC, 3)}
         });
+    */
 }
 
 void finalize_theory_simplifier() {

@@ -19,7 +19,7 @@ public:
     simp_result(expr const & e): m_new(e) {}
     simp_result(expr const & e, expr const & proof): m_new(e), m_proof(proof) {}
     simp_result(expr const & e, optional<expr> const & proof): m_new(e), m_proof(proof) {}
-    simp_result(pair<expr, optional<expr>> const & r) { simp_result(r.first, r.second); }
+    simp_result(pair<expr, optional<expr>> const & r): m_new(r.first), m_proof(r.second) {}
 
     bool has_proof() const { return static_cast<bool>(m_proof); }
 

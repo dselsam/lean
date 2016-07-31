@@ -34,7 +34,6 @@ Author: Daniel Selsam
 #include "library/tactic/tactic_state.h"
 #include "library/tactic/ac_tactics.h"
 #include "library/tactic/app_builder_tactics.h"
-#include "library/tactic/simplifier/rewrite.h"
 #include "library/tactic/simplifier/simplifier.h"
 #include "library/tactic/simplifier/simp_lemmas.h"
 #include "library/tactic/simplifier/simp_extensions.h"
@@ -223,8 +222,8 @@ class simplifier {
     simp_result rewrite_ac(expr const & assoc, expr const & comm, expr const & e, list<simp_lemma> const & lemmas);
     simp_result rewrite(expr const & e, list<simp_lemma> const & lemmas);
 
-    simp_result rewrite_a(expr const & e, simp_lemma const & lemma);
-    simp_result rewrite_ac(expr const & e, simp_lemma const & lemma);
+    simp_result rewrite_a(expr const & assoc, expr const & e, simp_lemma const & lemma);
+    simp_result rewrite_ac(expr const & assoc, expr const & comm, expr const & e, simp_lemma const & lemma);
     simp_result rewrite(expr const & e, simp_lemma const & lemma);
 
     /* Canonicalize */
@@ -354,12 +353,15 @@ simp_result simplifier::simplify(expr const & e) {
         lean_unreachable();
     }
 
+    r.update(whnf_eta(r.get_new()));
+
     // [2] Simplify with the theory simplifier
     if (is_app(r.get_new())) {
-        r.update(whnf_eta(r.get_new()));
         if (using_eq()) {
             simp_result r_theory = m_theory_simplifier.simplify(r.get_new());
+            lean_trace_d(name({"simplifier", "theory"}), tout() << r.get_new() << " ==> " << r_theory.get_new() << "\n";);
             r = join(r, r_theory);
+            r.update(whnf_eta(r.get_new()));
         }
     }
 
@@ -375,21 +377,21 @@ simp_result simplifier::simplify(expr const & e) {
             if (using_eq()) {
                 // only need to repeat here if the theory simplifier might trigger
                 r = join(r, simplify(r.get_new()));
+                r.update(whnf_eta(r.get_new()));
             }
         }
     }
 
     // [4] rewriting
-    r.update(whnf_eta(r.get_new()));
     simp_lemmas all_slss = ::lean::join(m_slss, m_ctx_slss);
-    simp_result r_rewrite = rewrite(r.get_new());
+    simp_result r_rewrite = rewrite(r.get_new(), all_slss);
     if (r_rewrite.get_new() != r.get_new()) {
         r = join(r, r_rewrite);
         r = join(r, simplify(r.get_new()));
+        r.update(whnf_eta(r.get_new()));
     }
 
     // [5] lifting
-    r.update(whnf_eta(r.get_new()));
     if (m_lift_eq && !using_eq()) {
         simp_result r_eq;
         {
@@ -474,23 +476,24 @@ simp_result simplifier::simplify_each_nary_arg(expr const & op, expr const & e) 
         simp_result r2 = simplify_each_nary_arg(op, arg2);
         expr new_e = mk_app(op, r1.get_new(), r2.get_new());
         if (r1.has_proof() && r2.has_proof()) {
-            return simp_result(new_e, mk_congr_arg2(m_tctx, op, r1.get_proof(), r2.get_proof()));
+            return simp_result(new_e, mk_congr_arg_bin(m_tctx, op, r1.get_proof(), r2.get_proof()));
         } else if (r1.has_proof()) {
-            return simp_result(new_e, mk_congr_arg2a(m_tctx, op, r1.get_proof()));
+            return simp_result(new_e, mk_congr_arg_bin_fst(m_tctx, op, r1.get_proof(), r2.get_new()));
         } else if (r2.has_proof()) {
             return simp_result(new_e, mk_congr_arg(m_tctx, mk_app(op, r1.get_new()), r2.get_proof()));
         } else {
             return simp_result(new_e);
         }
     } else {
-        return simp_result(e);
+        return simplify(e);
     }
 }
 
 simp_result simplifier::simplify_subterms_app_nary(expr const & assoc, expr const & e) {
     expr op = app_fn(app_fn(e));
-    simp_result r = simplify_each_nary_arg(op, e);
-    return join(r, simp_result(flat_assoc(m_tctx, op, assoc, r.get_new())));
+    simp_result r_congr = simplify_each_nary_arg(op, e);
+    simp_result r_flat  = simp_result(flat_assoc(m_tctx, op, assoc, r_congr.get_new()));
+    return join(r_congr, r_flat);
 }
 
 simp_result simplifier::simplify_subterms_app(expr const & _e) {
@@ -596,11 +599,11 @@ optional<expr> simplifier::prove(expr const & goal) {
 /* Rewriting */
 simp_result simplifier::rewrite(expr const & e, simp_lemmas const & slss) {
     simp_lemmas_for const * sr = slss.find(m_rel);
-    if (!sr) return r;
+    if (!sr) return simp_result(e);
 
     list<simp_lemma> const * srs = sr->find_simp(e);
     if (!srs) {
-        lean_trace(name({"simplifier", "try_rewrite"}), tout() << "no simp lemmas for: " << e << "\n";);
+        lean_trace(name({"debug", "simplifier", "try_rewrite"}), tout() << "no simp lemmas for: " << e << "\n";);
         return simp_result(e);
     }
 
@@ -618,27 +621,27 @@ simp_result simplifier::rewrite(expr const & e, simp_lemmas const & slss) {
 
 simp_result simplifier::rewrite(expr const & e, list<simp_lemma> const & lemmas) {
     for (simp_lemma const & lemma : lemmas) {
-        simp_result r_new = rewrite(r.get_new(), lemma);
-        if (r_new.has_proof())
-            return r_new;
+        simp_result r = rewrite(e, lemma);
+        if (r.has_proof())
+            return r;
     }
     return simp_result(e);
 }
 
 simp_result simplifier::rewrite_a(expr const & assoc, expr const & e, list<simp_lemma> const & lemmas) {
     for (simp_lemma const & lemma : lemmas) {
-        simp_result r_new = rewrite_a(assoc, r.get_new(), lemma);
-        if (r_new.has_proof())
-            return r_new;
+        simp_result r = rewrite_a(assoc, e, lemma);
+        if (r.has_proof())
+            return r;
     }
     return simp_result(e);
 }
 
 simp_result simplifier::rewrite_ac(expr const & assoc, expr const & comm, expr const & e, list<simp_lemma> const & lemmas) {
     for (simp_lemma const & lemma : lemmas) {
-        simp_result r_new = rewrite_ac(assoc, comm, r.get_new(), lemma);
-        if (r_new.has_proof())
-            return r_new;
+        simp_result r = rewrite_ac(assoc, comm, e, lemma);
+        if (r.has_proof())
+            return r;
     }
     return simp_result(e);
 }
@@ -655,7 +658,7 @@ simp_result simplifier::rewrite_ac(expr const & assoc, expr const & comm, expr c
 
 simp_result simplifier::rewrite(expr const & e, simp_lemma const & sl) {
     tmp_type_context tmp_tctx(m_tctx, sl.get_num_umeta(), sl.get_num_emeta());
-    lean_simp_trace(tmp_tctx, name({"simplifier", "try_rewrite"}), tout() << e << " =?= " << sl.get_lhs() << "\n";);
+    lean_simp_trace(tmp_tctx, name({"debug", "simplifier", "try_rewrite"}), tout() << e << " =?= " << sl.get_lhs() << "\n";);
 
     if (!tmp_tctx.is_def_eq(e, sl.get_lhs())) return simp_result(e);
 
@@ -793,10 +796,10 @@ simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cl) {
                 r_congr_hyp = simplify(h_lhs);
             }
 
-            if (r_congr_hyp.has_proof()) simplified = true;
-            r_congr_hyp = finalize(m_tctx, m_rel, r_congr_hyp);
-            expr hyp = finalize(m_tctx, m_rel, r_congr_hyp).get_proof();
+            if (r_congr_hyp.has_proof())
+                simplified = true;
 
+            expr hyp = finalize(m_tctx, m_rel, r_congr_hyp).get_proof();
             if (!tmp_tctx.is_def_eq(m, local_factory.mk_lambda(hyp))) {
                     failed = true;
                     break;
@@ -896,7 +899,8 @@ optional<simp_result> simplifier::synth_congr(expr const & e, F && simp) {
             type = binding_body(type);
             {
                 simp_result r_arg = simp(args[i]);
-                if (r_arg.has_proof()) has_proof = true;
+                if (r_arg.has_proof())
+                    has_proof = true;
                 r_arg = finalize(m_tctx, m_rel, r_arg);
                 proof = mk_app(proof, r_arg.get_new(), r_arg.get_proof());
                 subst.push_back(r_arg.get_new());
@@ -983,7 +987,8 @@ void initialize_simplifier() {
     register_trace_class(name({"simplifier", "canonize"}));
     register_trace_class(name({"simplifier", "prove"}));
     register_trace_class(name({"simplifier", "rewrite"}));
-    register_trace_class(name({"simplifier", "try_rewrite"}));
+    register_trace_class(name({"simplifier", "theory"}));
+    register_trace_class(name({"debug", "simplifier", "try_rewrite"}));
 
     g_simplify_max_steps           = new name{"simplify", "max_steps"};
     g_simplify_max_rewrites        = new name{"simplify", "max_rewrites"};
