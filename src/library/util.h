@@ -232,6 +232,7 @@ optional<expr> get_app_nary_args(expr const & e, buffer<expr> & nary_args);
 
 /** \brief Makes n-ary (right-associative) application. */
 expr mk_nary_app(expr const & op, buffer<expr> const & nary_args);
+expr mk_nary_app(expr const & op, unsigned num_nary_args, expr const * nary_args);
 
 expr try_eta(expr const & e);
 expr beta_reduce(expr t);
