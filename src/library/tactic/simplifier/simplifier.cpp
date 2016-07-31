@@ -314,6 +314,13 @@ expr simplifier::whnf_eta(expr const & e) {
 /* Simplification */
 
 simp_result simplifier::simplify(expr const & e) {
+    // TODO(dhs): We should consider a "simplifying an argument of an n-ary function `op`" flet,
+    // to avoid the following repeated work:
+    // start: (a * d)
+    // rewrite: a ==> b * c
+    // simplify: b * c
+    // simplify: b * c * d
+
     m_num_steps++;
     lean_trace_inc_depth("simplifier");
     lean_trace_d("simplifier", tout() << m_rel << ": " << e << "\n";);
