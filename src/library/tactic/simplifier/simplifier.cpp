@@ -119,6 +119,8 @@ class simplifier {
     simp_lemmas               m_slss;
     simp_lemmas               m_ctx_slss;
 
+    optional<expr>            m_curr_nary_op;
+
     vm_obj const &            m_prove_fn;
 
     /* Logging */
@@ -314,13 +316,6 @@ expr simplifier::whnf_eta(expr const & e) {
 /* Simplification */
 
 simp_result simplifier::simplify(expr const & e) {
-    // TODO(dhs): We should consider a "simplifying an argument of an n-ary function `op`" flet,
-    // to avoid the following repeated work:
-    // start: (a * d)
-    // rewrite: a ==> b * c
-    // simplify: b * c
-    // simplify: b * c * d
-
     m_num_steps++;
     lean_trace_inc_depth("simplifier");
     lean_trace_d("simplifier", tout() << m_rel << ": " << e << "\n";);
@@ -361,6 +356,13 @@ simp_result simplifier::simplify(expr const & e) {
     }
 
     r.update(whnf_eta(r.get_new()));
+
+    // Suppose we start with: [(a + d)] and [a] ==> [b + c]
+    // We want to simplify the arguments [b] and [c], but we do not want to trigger any of the n-ary processing to come.
+    // We also do not want to cache the result, since [b + c] ==> [b' + c'] might not always be correct, depending on [b'] and [c'].
+    // So we return here without caching.
+    if (using_eq() && m_curr_nary_op && m_curr_nary_op == get_binary_op(r.get_new()))
+        return r;
 
     // [2] Simplify with the theory simplifier
     if (is_app(r.get_new())) {
@@ -498,6 +500,7 @@ simp_result simplifier::simplify_each_nary_arg(expr const & op, expr const & e) 
 
 simp_result simplifier::simplify_subterms_app_nary(expr const & assoc, expr const & e) {
     expr op = app_fn(app_fn(e));
+    flet<optional<expr>> with_nary_assoc(m_curr_nary_op, some_expr(op));
     simp_result r_congr = simplify_each_nary_arg(op, e);
     simp_result r_flat  = simp_result(flat_assoc(m_tctx, op, assoc, r_congr.get_new()));
     return join(r_congr, r_flat);
