@@ -30,7 +30,8 @@ comm_semiring
 congr
 congr_arg
 congr_arg2
-congr_arg2a
+congr_arg_bin
+congr_arg_bin_fst
 congr_fun
 cyclic_numerals
 cyclic_numerals.bound
@@ -51,6 +52,7 @@ eq.intro
 eq.mp
 eq.mpr
 eq.nrec
+eq.of_iff
 eq.rec
 eq_rec_eq
 eq.refl
@@ -98,6 +100,7 @@ iff.mpr
 iff.refl
 iff.symm
 iff.trans
+iff_eq_eq
 iff_true_intro
 implies
 implies_of_if_neg

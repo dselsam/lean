@@ -16,9 +16,9 @@ optional<expr> is_assoc(type_context & tctx, expr const & e) {
     auto op = get_binary_op(e);
     if (!op)
         return none_expr();
-    expr assoc_class = mk_app(tctx, get_is_associative_name(), e);
+    expr assoc_class = mk_app(tctx, get_is_associative_name(), *op);
     if (auto assoc_inst = tctx.mk_class_instance(assoc_class))
-        return some_expr(mk_app(tctx, get_is_associative_op_assoc_name(), *assoc_inst));
+        return some_expr(mk_app(tctx, get_is_associative_op_assoc_name(), 3, *assoc_inst));
     else
         return none_expr();
 }
@@ -27,9 +27,9 @@ optional<expr> is_comm(type_context & tctx, expr const & e) {
     auto op = get_binary_op(e);
     if (!op)
         return none_expr();
-    expr comm_class = mk_app(tctx, get_is_commutative_name(), e);
+    expr comm_class = mk_app(tctx, get_is_commutative_name(), *op);
     if (auto comm_inst = tctx.mk_class_instance(comm_class))
-        return some_expr(mk_app(tctx, get_is_commutative_op_comm_name(), *comm_inst));
+        return some_expr(mk_app(tctx, get_is_commutative_op_comm_name(), 3, *comm_inst));
     else
         return none_expr();
 }

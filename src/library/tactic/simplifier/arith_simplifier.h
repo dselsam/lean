@@ -46,9 +46,12 @@ public:
     optional<simp_result>   simplify_rat_of_int(expr const & prefix, buffer<expr> const & args);
     optional<simp_result>   simplify_real_of_rat(expr const & prefix, buffer<expr> const & args);
 
+    // New interface
+//    simp_result simplify_
+
     arith_simplifier(type_context & tctx): m_tctx_ptr(&tctx), m_options(tctx.get_options()) {}
 };
 
-void initialize_theory_simplifier();
-void finalize_theory_simplifier();
+void initialize_arith_simplifier();
+void finalize_arith_simplifier();
 }
