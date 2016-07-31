@@ -639,9 +639,6 @@ simp_result simplifier::rewrite(expr const & e, list<simp_lemma> const & lemmas)
 }
 
 simp_result simplifier::rewrite_a(expr const & assoc, expr const & e, simp_lemma const & sl) {
-    // TODO(dhs): right now, we depend on the LHS of the simp lemma being flattened
-    // Once the semantics and behavior stabilizes, we will figure out the best place to do
-    // this pre-processing. Alternatively, we will just traverse the arguments manually.
     buffer<expr> nary_args;
     optional<expr> nary_op = get_app_nary_args(e, nary_args);
     lean_assert(nary_op);
@@ -702,7 +699,21 @@ optional<simp_result> simplifier::rewrite_a(buffer<expr> const & nary_args, buff
 }
 
 simp_result simplifier::rewrite_ac(expr const & assoc, expr const & comm, expr const & e, simp_lemma const & sl) {
-    throw exception("NYI");
+    buffer<expr> nary_args;
+    optional<expr> nary_op = get_app_nary_args(e, nary_args);
+    lean_assert(nary_op);
+
+    buffer<expr> nary_pattern_args;
+    optional<expr> nary_pattern_op = get_app_nary_args(sl.get_lhs(), nary_pattern_args);
+    lean_assert(nary_pattern_op);
+    lean_assert(m_tctx.is_def_eq(*nary_op, *nary_pattern_op));
+
+    unsigned num_patterns = nary_pattern_args.size();
+
+    if (nary_args.size() < num_patterns)
+        return simp_result(e);
+
+    lean_trace(name({"simplifier", "rewrite", "ac"}), tout() << "(not yet implemented)" << "\n";);
     return simp_result(e);
 }
 
