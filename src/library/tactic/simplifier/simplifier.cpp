@@ -365,6 +365,7 @@ simp_result simplifier::simplify(expr const & e) {
         return r;
 
     // [2] Simplify with the theory simplifier
+    // TODO(dhs): should the theory simplifier be last?
     if (is_app(r.get_new())) {
         if (using_eq()) {
             simp_result r_theory = m_theory_simplifier.simplify(r.get_new());
@@ -571,8 +572,8 @@ simp_result simplifier::simplify_user_extensions(expr const & _e) {
             m_tctx.set_mctx(s_new->mctx());
             expr result = m_tctx.instantiate_mvars(result_mvar);
             expr proof = m_tctx.instantiate_mvars(goal_mvar);
-            lean_trace(name({"simplifier", "extensions"}),
-                       tout() << proof << " : " << e << " " << m_rel << " " << result << "\n";);
+            lean_trace(name({"simplifier", "user_extensions"}),
+                       tout() << proof << " : " << e << " [" << m_rel << "] " << result << "\n";);
             if (is_app_of(proof, get_eq_refl_name(), 2) || is_app_of(proof, get_rfl_name(), 2)) {
                 r.update(result);
             } else {
@@ -991,7 +992,7 @@ vm_obj tactic_simplify_core(vm_obj const & prove_fn, vm_obj const & rel, vm_obj 
 /* Setup and teardown */
 void initialize_simplifier() {
     register_trace_class(name({"simplifier", "congruence"}));
-    register_trace_class(name({"simplifier", "extensions"}));
+    register_trace_class(name({"simplifier", "user_extensions"}));
     register_trace_class(name({"simplifier", "failure"}));
     register_trace_class(name({"simplifier", "perm"}));
     register_trace_class(name({"simplifier", "canonize"}));

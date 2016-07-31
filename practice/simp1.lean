@@ -13,8 +13,14 @@ set_option trace.app_builder true
 set_option trace.simplifier true
 --set_option trace.debug.simplifier.try_rewrite true
 
-print congr_arg_bin_fst
+--example : (a ∧ d) = (b ∧ d ∧ c) := by simp
 
-print is_associative.op_assoc
+constants (f : Prop → Prop) (Hf : ∀ x, f x = x)
 
-example : (a ∧ d) = (b ∧ d ∧ c) := by simp
+meta_definition simp_fx_to_x : tactic unit := mk_eq_simp_ext $
+  λ e, do pf ← mk_app `Hf [expr.app_arg e],
+          return (expr.app_arg e, pf)
+
+register_simp_ext f simp_fx_to_x
+
+example : (f a ∧ d) = (b ∧ d ∧ c) := by simp
