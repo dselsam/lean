@@ -101,6 +101,65 @@ expr mk_rewrite_assoc_macro(expr const & assoc, expr const & thm, expr const & p
     return mk_macro(m, 3, margs);
 }
 
+// Rewrite-ac macro
+static name * g_rewrite_ac_macro_name    = nullptr;
+static std::string * g_rewrite_ac_opcode = nullptr;
+
+class rewrite_ac_macro_definition_cell : public macro_definition_cell {
+    void check_macro(expr const & m) const {
+        if (!is_macro(m) || macro_num_args(m) != 4)
+            throw exception(sstream() << "invalid 'rewrite_ac' macro, incorrect number of arguments");
+    }
+
+public:
+    rewrite_ac_macro_definition_cell() {}
+
+    virtual name get_name() const { return *g_rewrite_ac_macro_name; }
+    virtual expr check_type(expr const & m, abstract_type_context &, bool) const {
+        check_macro(m);
+        return macro_arg(m, 2);
+    }
+
+    virtual optional<expr> expand(expr const & m, abstract_type_context &) const {
+        check_macro(m);
+        // TODO(dhs): expand rewrite-ac macro
+        return none_expr();
+    }
+
+    virtual void write(serializer & s) const {
+        s.write_string(*g_rewrite_ac_opcode);
+    }
+
+    virtual bool operator==(macro_definition_cell const & other) const {
+        if (auto other_ptr = dynamic_cast<rewrite_ac_macro_definition_cell const *>(&other)) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    virtual unsigned hash() const {
+        return get_name().hash();
+    }
+};
+
+expr mk_rewrite_ac_macro(unsigned num_args, expr const * args) {
+    lean_assert(num_args == 4);
+    macro_definition m(new rewrite_ac_macro_definition_cell());
+    return mk_macro(m, 4, args);
+}
+
+expr mk_rewrite_ac_macro(expr const & assoc, expr const & comm, expr const & thm, expr const & pf_of_step) {
+    expr margs[4];
+    margs[0] = assoc;
+    margs[1] = comm;
+    margs[2] = thm;
+    margs[3] = pf_of_step;
+    macro_definition m(new rewrite_ac_macro_definition_cell());
+    return mk_macro(m, 4, margs);
+}
+
+// Setup and teardown
 void initialize_simp_util() {
     // rewrite_assoc macro
     g_rewrite_assoc_macro_name = new name("rewrite_assoc");
@@ -111,9 +170,23 @@ void initialize_simp_util() {
                                         throw corrupted_stream_exception();
                                     return mk_rewrite_assoc_macro(num, args);
                                 });
+
+    // rewrite_ac macro
+    g_rewrite_ac_macro_name = new name("rewrite_ac");
+    g_rewrite_ac_opcode     = new std::string("REWRITE_AC");
+    register_macro_deserializer(*g_rewrite_ac_opcode,
+                                [](deserializer & d, unsigned num, expr const * args) {
+                                    if (num != 4)
+                                        throw corrupted_stream_exception();
+                                    return mk_rewrite_ac_macro(num, args);
+                                });
 }
 
 void finalize_simp_util() {
+    // rewrite_ac macro
+    delete g_rewrite_ac_macro_name;
+    delete g_rewrite_ac_opcode;
+
     // rewrite_assoc macro
     delete g_rewrite_assoc_macro_name;
     delete g_rewrite_assoc_opcode;
