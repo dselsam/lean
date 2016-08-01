@@ -15,6 +15,7 @@ optional<expr> is_assoc(type_context & tctx, expr const & op);
 optional<expr> is_comm(type_context & tctx, expr const & op);
 
 expr mk_rewrite_assoc_macro(expr const & assoc, expr const & thm, expr const & pf_of_step);
+expr mk_rewrite_ac_macro(expr const & assoc, expr const & comm, expr const & thm, expr const & pf_of_step);
 
 void initialize_simp_util();
 void finalize_simp_util();
