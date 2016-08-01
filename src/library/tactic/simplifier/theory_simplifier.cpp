@@ -9,6 +9,8 @@ Author: Daniel Selsam
 #include "library/util.h"
 #include "library/trace.h"
 #include "library/num.h"
+#include "library/tactic/ac_tactics.h"
+#include "library/tactic/simplifier/util.h"
 #include "library/tactic/simplifier/theory_simplifier.h"
 
 #ifndef LEAN_DEFAULT_THEORY_SIMPLIFIER_DISTRIBUTE_MUL
@@ -52,6 +54,21 @@ simp_result theory_simplifier::simplify(expr const & e) {
     } else if (id == get_or_name()) {
         return m_prop_simplifier.simplify_or(e);
     } else {
+        auto assoc = is_assoc(m_tctx, e);
+        if (!assoc)
+            return simp_result(e);
+        auto comm = is_comm(m_tctx, e);
+        if (!comm)
+            return simp_result(e);
+        buffer<expr> nary_args;
+        auto nary_op = get_app_nary_args(e, nary_args);
+        lean_assert(nary_op);
+        if (!std::is_sorted(nary_args.begin(), nary_args.end())) {
+            std::sort(nary_args.begin(), nary_args.end());
+            expr e_new = mk_nary_app(*nary_op, nary_args);
+            expr pf = perm_ac(m_tctx, *nary_op, *assoc, *comm, e, e_new);
+            return simp_result(e_new, pf);
+        }
         return simp_result(e);
     }
 }
