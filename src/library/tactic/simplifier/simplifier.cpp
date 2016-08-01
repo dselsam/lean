@@ -367,21 +367,7 @@ simp_result simplifier::simplify(expr const & e) {
     if (using_eq() && m_curr_nary_op && m_curr_nary_op == get_binary_op(r.get_new()))
         return r;
 
-    // [2] Simplify with the theory simplifier
-    // TODO(dhs): should the theory simplifier be last?
-    if (is_app(r.get_new())) {
-        if (using_eq()) {
-            simp_result r_theory = m_theory_simplifier.simplify(r.get_new());
-            lean_trace_d(name({"simplifier", "theory"}), tout() << r.get_new() << " ==> " << r_theory.get_new() << "\n";);
-            r = join(r, r_theory);
-            r.update(whnf_eta(r.get_new()));
-        }
-    }
-
-    // Note: the theory simplifier guarantees that no new subterms are introduced that need to be simplified.
-    // Thus we never need to repeat unless something is simplified downstream of here.
-
-    // [3] user simplifier extensions
+    // [2] user simplifier extensions
     if (is_app(r.get_new())) {
         r.update(whnf_eta(r.get_new()));
         simp_result r_user = simplify_user_extensions(r.get_new());
@@ -395,7 +381,7 @@ simp_result simplifier::simplify(expr const & e) {
         }
     }
 
-    // [4] rewriting
+    // [3] rewriting
     simp_lemmas all_slss = ::lean::join(m_slss, m_ctx_slss);
     simp_result r_rewrite = rewrite(r.get_new(), all_slss);
     if (r_rewrite.get_new() != r.get_new()) {
@@ -404,7 +390,7 @@ simp_result simplifier::simplify(expr const & e) {
         r.update(whnf_eta(r.get_new()));
     }
 
-    // [5] lifting
+    // [4] lifting
     if (m_lift_eq && !using_eq()) {
         simp_result r_eq;
         {
@@ -417,7 +403,21 @@ simp_result simplifier::simplify(expr const & e) {
         }
     }
 
-    if (m_memoize) cache_save(e, r);
+    // [5] Simplify with the theory simplifier
+    // Note: the theory simplifier guarantees that no new subterms are introduced that need to be simplified.
+    // Thus we never need to repeat unless something is simplified downstream of here.
+    if (using_eq()) {
+        simp_result r_theory = m_theory_simplifier.simplify(r.get_new());
+        if (r_theory.has_proof()) {
+            lean_trace_d(name({"simplifier", "theory"}), tout() << r.get_new() << " ==> " << r_theory.get_new() << "\n";);
+            r = join(r, r_theory);
+            r.update(whnf_eta(r.get_new()));
+        }
+    }
+
+    if (m_memoize)
+        cache_save(e, r);
+
     return r;
 }
 
