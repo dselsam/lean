@@ -317,8 +317,10 @@ expr simplifier::whnf_eta(expr const & e) {
 }
 
 /* Simplification */
-
 simp_result simplifier::simplify(expr const & e) {
+    // TODO(dhs): we may decide to make user extensions, rewriting, and theory all be n-ary/assoc aware
+    // and not produce the intermediate expression after doing congruence and simplifying.
+    // We would also need a macro-creater that takes an array of simp_results and a new simp_result.
     m_num_steps++;
     lean_trace_inc_depth("simplifier");
     lean_trace_d("simplifier", tout() << m_rel << ": " << e << "\n";);
@@ -705,7 +707,7 @@ optional<simp_result> simplifier::rewrite_a(buffer<expr> const & nary_args, buff
 }
 
 simp_result simplifier::process_success_ac(expr const & assoc, expr const & comm, expr const & e_old, expr const & nary_op,
-                                           buffer<expr> const & nary_args, unsigned i, unsigned j, simp_result const & r_step) {
+                                           buffer<expr> const & nary_args, buffer<unsigned> const & indices, simp_result const & r_step) {
     lean_assert(r_step.has_proof());
     expr e_new = r_step.get_new();
     for (unsigned k = nary_args.size() - 1; k + 1 > 0; --k) {
@@ -718,17 +720,14 @@ simp_result simplifier::process_success_ac(expr const & assoc, expr const & comm
 }
 
 // TODO(dhs): clean up, three methods are all almost identical
-optional<simp_result> simplifier::rewrite_ac(buffer<expr> const & nary_args, buffer<expr> const & nary_pattern_args, unsigned i, unsigned j, simp_lemma const & sl) {
+optional<simp_result> simplifier::rewrite_ac(buffer<expr> const & nary_args, buffer<expr> const & nary_pattern_args, buffer<unsigned> const & indices, simp_lemma const & sl) {
     unsigned num_patterns = nary_pattern_args.size();
     tmp_type_context tmp_tctx(m_tctx, sl.get_num_umeta(), sl.get_num_emeta());
-    if (!m_tctx.is_def_eq(nary_args[i], nary_pattern_args[0]))
-            return optional<simp_result>();
 
-    if (!m_tctx.is_def_eq(nary_args[j], nary_pattern_args[1]))
+    for (unsigned i = 0; i < indices.size(); ++i) {
+        if (!m_tctx.is_def_eq(nary_args[indices[i]], nary_pattern_args[i]))
             return optional<simp_result>();
-
-    if (!instantiate_emetas(tmp_tctx, sl.get_num_emeta(), sl.get_emetas(), sl.get_instances()))
-        return optional<simp_result>();
+    }
 
     for (unsigned i = 0; i < sl.get_num_umeta(); i++) {
         if (!tmp_tctx.is_uassigned(i))
@@ -759,10 +758,29 @@ simp_result simplifier::rewrite_ac(expr const & assoc, expr const & comm, expr c
     if (nary_args.size() < num_patterns)
         return simp_result(e);
 
-    if (nary_pattern_args.size() > 2) {
-        lean_trace(name({"simplifier", "rewrite", "ac"}), tout() << "(not yet implemented for > 2 patterns)" << "\n";);
-        return rewrite_a(assoc, e, sl);
+    // Example:
+    // sizes = [3, 3, 3]
+    // iter = [0, 0, 0]
+    buffer<unsigned> sizes;
+    buffer<unsigned> iter;
+    for (unsigned i = 0; i < num_patterns; ++i) {
+        sizes.push_back(nary_args.size());
+        iter.push_back(0);
     }
+
+    do {
+        buffer<expr> indices = iter;
+        std::set<unsigned> indices_so_far;
+        for (unsigned i = 0;
+
+        bool has_repeat = false;
+
+
+    } while (product_iterator_next(sizes, iter));
+
+
+
+
 
     // TODO(dhs): hardcoded for numPatterns = 2 for now
     for (unsigned i = 0; i < nary_args.size() - 1; ++i) {
