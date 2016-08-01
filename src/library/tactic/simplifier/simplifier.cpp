@@ -332,6 +332,14 @@ simp_result simplifier::simplify(expr const & e) {
 
     simp_result r(whnf_eta(e));
 
+    expr op = get_app_fn(r.get_new());
+    if (is_constant(op)) {
+        name n = const_name(op);
+        if (n.get_prefix() == "smt") {
+            unsigned i = 0;
+        }
+    }
+
     // [1] Simplify subterms using congruence
     switch (r.get_new().kind()) {
     case expr_kind::Local:
@@ -406,6 +414,7 @@ simp_result simplifier::simplify(expr const & e) {
     // [5] Simplify with the theory simplifier
     // Note: the theory simplifier guarantees that no new subterms are introduced that need to be simplified.
     // Thus we never need to repeat unless something is simplified downstream of here.
+    /*
     if (using_eq()) {
         simp_result r_theory = m_theory_simplifier.simplify(r.get_new());
         if (r_theory.has_proof()) {
@@ -414,7 +423,7 @@ simp_result simplifier::simplify(expr const & e) {
             r.update(whnf_eta(r.get_new()));
         }
     }
-
+    */
     if (m_memoize)
         cache_save(e, r);
 
@@ -616,6 +625,7 @@ simp_result simplifier::rewrite(expr const & e, simp_lemmas const & slss) {
     if (!sr) return simp_result(e);
 
     list<simp_lemma> const * srs = sr->find_simp(e);
+
     if (!srs) {
         lean_trace(name({"debug", "simplifier", "try_rewrite"}), tout() << "no simp lemmas for: " << e << "\n";);
         return simp_result(e);

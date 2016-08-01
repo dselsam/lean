@@ -145,7 +145,7 @@ private:
     scanner                 m_scanner;
     scanner::token_kind     m_curr_kind{scanner::token_kind::BEGIN};
 
-    bool                    m_use_locals{false};
+    bool                    m_use_locals{true};
     bool                    m_verbose{false};
 
     type_context *          m_tctx_ptr{nullptr};

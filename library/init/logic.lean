@@ -360,7 +360,7 @@ iff.intro
   (λ (Hl : ¬¬¬a) (Ha : a), Hl (non_contradictory_intro Ha))
   absurd
 
-theorem imp_congr [congr] (H1 : a ↔ c) (H2 : b ↔ d) : (a → b) ↔ (c → d) :=
+theorem imp_congr (H1 : a ↔ c) (H2 : b ↔ d) : (a → b) ↔ (c → d) :=
 iff.intro
   (λHab Hc, iff.mp H2 (Hab (iff.mpr H1 Hc)))
   (λHcd Ha, iff.mpr H2 (Hcd (iff.mp H1 Ha)))
@@ -382,8 +382,12 @@ iff_false_intro (not_not_intro trivial)
 theorem not_false_iff : (¬ false) ↔ true :=
 iff_true_intro not_false
 
-theorem not_congr [congr] (H : a ↔ b) : ¬a ↔ ¬b :=
+theorem not_congr (H : a ↔ b) : ¬a ↔ ¬b :=
 iff.intro (λ H₁ H₂, H₁ (iff.mpr H H₂)) (λ H₁ H₂, H₁ (iff.mp H H₂))
+
+theorem not_congr_eq [congr] (H : a = b) : (¬a) = (¬b)
+ :=
+sorry
 
 theorem ne_self_iff_false {A : Type} (a : A) : (not (a = a)) ↔ false :=
 iff.intro false_of_ne false.elim
@@ -417,7 +421,7 @@ assume H, iff.mp H trivial
 theorem and.imp (H₂ : a → c) (H₃ : b → d) : a ∧ b → c ∧ d :=
 and.rec (λHa Hb, and.intro (H₂ Ha) (H₃ Hb))
 
-theorem and_congr [congr] (H1 : a ↔ c) (H2 : b ↔ d) : (a ∧ b) ↔ (c ∧ d) :=
+theorem and_congr (H1 : a ↔ c) (H2 : b ↔ d) : (a ∧ b) ↔ (c ∧ d) :=
 iff.intro (and.imp (iff.mp H1) (iff.mp H2)) (and.imp (iff.mpr H1) (iff.mpr H2))
 
 theorem and_congr_right (H : a → (b ↔ c)) : (a ∧ b) ↔ (a ∧ c) :=
@@ -474,7 +478,7 @@ or.imp H id
 theorem or.imp_right (H : a → b) : c ∨ a → c ∨ b :=
 or.imp id H
 
-theorem or_congr [congr] (H1 : a ↔ c) (H2 : b ↔ d) : (a ∨ b) ↔ (c ∨ d) :=
+theorem or_congr (H1 : a ↔ c) (H2 : b ↔ d) : (a ∨ b) ↔ (c ∨ d) :=
 iff.intro (or.imp (iff.mp H1) (iff.mp H2)) (or.imp (iff.mpr H1) (iff.mpr H2))
 
 theorem or.comm : a ∨ b ↔ b ∨ a := iff.intro or.swap or.swap
@@ -533,7 +537,7 @@ iff.trans iff.comm (iff_false a)
 theorem iff_self (a : Prop) : (a ↔ a) ↔ true :=
 iff_true_intro iff.rfl
 
-theorem iff_congr [congr] (H1 : a ↔ c) (H2 : b ↔ d) : (a ↔ b) ↔ (c ↔ d) :=
+theorem iff_congr (H1 : a ↔ c) (H2 : b ↔ d) : (a ↔ b) ↔ (c ↔ d) :=
 and_congr (imp_congr H1 H2) (imp_congr H2 H1)
 
 /- exists -/
@@ -587,8 +591,14 @@ exists_unique.elim H
 section
 variables {A : Type} {p₁ p₂ : A → Prop}
 
-theorem forall_congr [congr] {A : Type} {P Q : A → Prop} (H : ∀a, (P a ↔ Q a)) : (∀a, P a) ↔ ∀a, Q a :=
+theorem forall_congr {A : Type} {P Q : A → Prop} (H : ∀a, (P a ↔ Q a)) : (∀a, P a) ↔ ∀a, Q a :=
 iff.intro (λp a, iff.mp (H a) (p a)) (λq a, iff.mpr (H a) (q a))
+
+theorem forall_congr_eq [congr] [priority 0] {A : Type} {P Q : A → Prop} (H : ∀a, (P a = Q a)) : (∀a, P a) = ∀a, Q a :=
+sorry
+
+theorem imp_congr_eq [congr] [priority std.priority.default+1] (H1 : a = c) (H2 : b = d) : (a → b) = (c → d) :=
+sorry
 
 theorem exists_imp_exists {A : Type} {P Q : A → Prop} (H : ∀a, (P a → Q a)) (p : ∃a, P a) : ∃a, Q a :=
 exists.elim p (λa Hp, exists.intro a (H a Hp))
@@ -598,7 +608,10 @@ iff.intro
   (exists_imp_exists (λa, iff.mp (H a)))
   (exists_imp_exists (λa, iff.mpr (H a)))
 
-theorem exists_unique_congr [congr] (H : ∀ x, p₁ x ↔ p₂ x) : (∃! x, p₁ x) ↔ (∃! x, p₂ x) :=
+theorem exists_congr_eq [congr] {A : Type} {P Q : A → Prop} (H : ∀a, (P a = Q a)) : (∃a, P a) = ∃a, Q a :=
+sorry
+
+theorem exists_unique_congr (H : ∀ x, p₁ x ↔ p₂ x) : (∃! x, p₁ x) ↔ (∃! x, p₂ x) :=
 exists_congr (λx, and_congr (H x) (forall_congr (λy, imp_congr (H y) iff.rfl)))
 end
 
@@ -852,7 +865,7 @@ decidable.rec_on dec_b
          ...  = u           : h_t (iff.mp h_c hp)
          ...  = ite c u v   : eq.subst (if_pos (iff.mp h_c hp)) (eq.refl (ite c u v)))
 
-theorem if_congr [congr] {A : Type} {b c : Prop} [dec_b : decidable b] [dec_c : decidable c]
+theorem if_congr {A : Type} {b c : Prop} [dec_b : decidable b] [dec_c : decidable c]
                  {x y u v : A}
                  (h_c : b ↔ c) (h_t : x = u) (h_e : y = v) :
         ite b x y = ite c u v :=
@@ -863,7 +876,7 @@ theorem if_ctx_simp_congr {A : Type} {b c : Prop} [dec_b : decidable b] {x y u v
         ite b x y = (@ite c (decidable_of_decidable_of_iff dec_b h_c) A u v) :=
 @if_ctx_congr A b c dec_b (decidable_of_decidable_of_iff dec_b h_c) x y u v h_c h_t h_e
 
-theorem if_simp_congr [congr] {A : Type} {b c : Prop} [dec_b : decidable b] {x y u v : A}
+theorem if_simp_congr {A : Type} {b c : Prop} [dec_b : decidable b] {x y u v : A}
                  (h_c : b ↔ c) (h_t : x = u) (h_e : y = v) :
         ite b x y = (@ite c (decidable_of_decidable_of_iff dec_b h_c) A u v) :=
 @if_ctx_simp_congr A b c dec_b x y u v h_c (λ h, h_t) (λ h, h_e)
@@ -887,7 +900,7 @@ decidable.rec_on dec_b
          ...  ↔ u         : h_t (iff.mp h_c hp)
          ...  ↔ ite c u v : eq.subst (if_pos (iff.mp h_c hp)) (iff.refl (ite c u v)))
 
-theorem if_congr_prop [congr] {b c x y u v : Prop} [dec_b : decidable b] [dec_c : decidable c]
+theorem if_congr_prop {b c x y u v : Prop} [dec_b : decidable b] [dec_c : decidable c]
                       (h_c : b ↔ c) (h_t : x ↔ u) (h_e : y ↔ v) :
         ite b x y ↔ ite c u v :=
 if_ctx_congr_prop h_c (λ h, h_t) (λ h, h_e)
@@ -897,7 +910,7 @@ theorem if_ctx_simp_congr_prop {b c x y u v : Prop} [dec_b : decidable b]
         ite b x y ↔ (@ite c (decidable_of_decidable_of_iff dec_b h_c) Prop u v) :=
 @if_ctx_congr_prop b c x y u v dec_b (decidable_of_decidable_of_iff dec_b h_c) h_c h_t h_e
 
-theorem if_simp_congr_prop [congr] {b c x y u v : Prop} [dec_b : decidable b]
+theorem if_simp_congr_prop {b c x y u v : Prop} [dec_b : decidable b]
                            (h_c : b ↔ c) (h_t : x ↔ u) (h_e : y ↔ v) :
         ite b x y ↔ (@ite c (decidable_of_decidable_of_iff dec_b h_c) Prop u v) :=
 @if_ctx_simp_congr_prop b c x y u v dec_b h_c (λ h, h_t) (λ h, h_e)
@@ -970,7 +983,7 @@ attribute and or not iff ite dite eq ne heq [no_pattern]
 
 -- namespace used to collect congruence rules for "contextual simplification"
 namespace contextual
-  attribute if_ctx_simp_congr      [congr]
-  attribute if_ctx_simp_congr_prop [congr]
-  attribute dif_ctx_simp_congr     [congr]
+  attribute if_ctx_simp_congr
+  attribute if_ctx_simp_congr_prop
+  attribute dif_ctx_simp_congr
 end contextual
