@@ -145,7 +145,7 @@ private:
     scanner                 m_scanner;
     scanner::token_kind     m_curr_kind{scanner::token_kind::BEGIN};
 
-    bool                    m_use_locals{false};
+    bool                    m_use_locals{true};
     bool                    m_verbose{false};
 
     type_context *          m_tctx_ptr{nullptr};
@@ -639,11 +639,30 @@ private:
                 m_verbose = false;
             else
                 throw_parser_exception("invalid set-option command, option ':verbose' requires argument 'true' or 'false'");
-        } else {
-            // TODO(dhs): just a warning?
-            throw_parser_exception(std::string("unsupported option: ") + sym);
-        }
-        check_curr_kind(scanner::token_kind::RIGHT_PAREN, "invalid set-option, ')' expected");
+        } else if (sym == ":lbool") {
+            check_curr_kind(scanner::token_kind::SYMBOL, "invalid set-option, 'true' or 'false' expected");
+            symbol tf = curr_symbol();
+            next();
+            bool status;
+            if (tf == "true")
+                status = true;
+            else if (tf == "false")
+                status = false;
+            else
+                throw_parser_exception("invalid set-option command, option ':lbool' requires next argument 'true' or 'false'");
+            name n;
+            while (curr_kind() == scanner::token_kind::SYMBOL) {
+                symbol sym = curr_symbol();
+                next();
+                n = name(n, sym.c_str());
+            }
+            lean_assert(!n.is_anonymous());
+            m_ios.set_option(n, status);
+    } else {
+        // TODO(dhs): just a warning?
+        throw_parser_exception(std::string("unsupported option: ") + sym);
+    }
+    check_curr_kind(scanner::token_kind::RIGHT_PAREN, "invalid set-option, ')' expected");
         next();
     }
 
