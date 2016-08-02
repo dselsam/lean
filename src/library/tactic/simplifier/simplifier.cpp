@@ -265,7 +265,7 @@ public:
         { }
 
     simp_result operator()(expr const & e)  {
-        scope_trace_env scope(env(), m_tctx);
+        scope_trace_env scope(env(), m_tctx.get_options(), m_tctx);
         simp_result r(e);
         while (true) {
             m_need_restart = false;
