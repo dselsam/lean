@@ -27,8 +27,8 @@ structure mul_zero_class [class] (A : Type) extends has_mul A, has_zero A :=
 (zero_mul : ∀a, mul zero a = zero)
 (mul_zero : ∀a, mul a zero = zero)
 
-theorem zero_mul [simp] [mul_zero_class A] (a : A) : 0 * a = 0 := mul_zero_class.zero_mul a
-theorem mul_zero [simp] [mul_zero_class A] (a : A) : a * 0 = 0 := mul_zero_class.mul_zero a
+theorem zero_mul [mul_zero_class A] (a : A) : 0 * a = 0 := mul_zero_class.zero_mul a
+theorem mul_zero [mul_zero_class A] (a : A) : a * 0 = 0 := mul_zero_class.mul_zero a
 
 structure zero_ne_one_class [class] (A : Type) extends has_zero A, has_one A :=
 (zero_ne_one : zero ≠ one)
@@ -105,7 +105,7 @@ section comm_semiring
   theorem dvd.elim_left {P : Prop} {a b : A} (H₁ : a ∣ b) (H₂ : ∀c, b = c * a → P) : P :=
   exists.elim (exists_eq_mul_left_of_dvd H₁) (take c, assume H₃ : b = c * a, H₂ c H₃)
 
-  theorem dvd.refl [simp] : a ∣ a :=
+  theorem dvd.refl : a ∣ a :=
   dvd.intro (mul_one a)
 
   theorem dvd.trans {a b c : A} (H₁ : a ∣ b) (H₂ : b ∣ c) : a ∣ c :=
@@ -122,13 +122,13 @@ section comm_semiring
   theorem eq_zero_of_zero_dvd {a : A} (H : 0 ∣ a) : a = 0 :=
     dvd.elim H (take c, assume H' : a = 0 * c, H' ⬝ zero_mul c)
 
-  theorem dvd_zero [simp] : a ∣ 0 := dvd.intro (mul_zero a)
+  theorem dvd_zero : a ∣ 0 := dvd.intro (mul_zero a)
 
-  theorem one_dvd [simp] : 1 ∣ a := dvd.intro (one_mul a)
+  theorem one_dvd : 1 ∣ a := dvd.intro (one_mul a)
 
-  theorem dvd_mul_right [simp] : a ∣ a * b := dvd.intro rfl
+  theorem dvd_mul_right : a ∣ a * b := dvd.intro rfl
 
-  theorem dvd_mul_left [simp] : a ∣ b * a :=
+  theorem dvd_mul_left : a ∣ b * a :=
   sorry -- by simp
 
   theorem dvd_mul_of_dvd_left {a b : A} (H : a ∣ b) (c : A) : a ∣ b * c :=
@@ -178,7 +178,7 @@ end comm_semiring
 
 structure ring [class] (A : Type) extends add_comm_group A, monoid A, distrib A
 
-theorem ring.mul_zero [simp] [ring A] (a : A) : a * 0 = 0 :=
+theorem ring.mul_zero [ring A] (a : A) : a * 0 = 0 :=
 sorry
 /-
 have a * 0 + 0 = a * 0 + a * 0, from calc
@@ -187,7 +187,7 @@ have a * 0 + 0 = a * 0 + a * 0, from calc
 show a * 0 = 0, from (add.left_cancel this)⁻¹
 -/
 
-theorem ring.zero_mul [simp] [ring A] (a : A) : 0 * a = 0 :=
+theorem ring.zero_mul [ring A] (a : A) : 0 * a = 0 :=
 sorry
 /-
 have 0 * a + 0 = 0 * a + 0 * a, from calc
@@ -223,8 +223,8 @@ section
      end
   -/
 
-  theorem neg_mul_eq_neg_mul_symm [simp] : - a * b = - (a * b) := eq.symm (neg_mul_eq_neg_mul a b)
-  theorem mul_neg_eq_neg_mul_symm [simp] : a * - b = - (a * b) := eq.symm (neg_mul_eq_mul_neg a b)
+  theorem neg_mul_eq_neg_mul_symm : - a * b = - (a * b) := eq.symm (neg_mul_eq_neg_mul a b)
+  theorem mul_neg_eq_neg_mul_symm : a * - b = - (a * b) := eq.symm (neg_mul_eq_mul_neg a b)
 
   theorem neg_mul_neg : -a * -b = a * b :=
   sorry -- by simp
@@ -552,7 +552,7 @@ theorem pos_mul_neg_helper [ring A] (a b c : A) (H : a * b = c) : a * (-b) = -c 
 sorry -- by simp
 
 end norm_num
-
+/-
 attribute [simp]
   zero_mul mul_zero
 
@@ -561,3 +561,4 @@ attribute [simp]
 
 attribute [simp]
   left_distrib right_distrib
+-/

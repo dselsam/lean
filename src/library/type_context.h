@@ -525,6 +525,7 @@ public:
     virtual bool is_def_eq(expr const & e1, expr const & e2) override;
 
     level mk_tmp_univ_mvar();
+    options const & get_options() const { return m_tctx.get_options(); }
     expr mk_tmp_mvar(expr const & type);
     bool is_uassigned(unsigned i) const;
     bool is_eassigned(unsigned i) const;

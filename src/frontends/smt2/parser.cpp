@@ -145,7 +145,7 @@ private:
     scanner                 m_scanner;
     scanner::token_kind     m_curr_kind{scanner::token_kind::BEGIN};
 
-    bool                    m_use_locals{false};
+    bool                    m_use_locals{true};
     bool                    m_verbose{false};
 
     type_context *          m_tctx_ptr{nullptr};
@@ -474,10 +474,11 @@ private:
         lean_assert(curr_kind() == scanner::token_kind::SYMBOL);
         lean_assert(curr_symbol() == g_token_check_sat);
         next();
+        scope_trace_env my_scope(m_ios.get_options());
 
         metavar_context mctx;
         expr goal_mvar = mctx.mk_metavar_decl(lctx(), mk_constant(get_false_name()));
-        vm_obj s = to_obj(tactic_state(env(), ios().get_options(), mctx, list<expr>(goal_mvar), goal_mvar));
+        vm_obj s = to_obj(tactic_state(env(), m_ios.get_options(), mctx, list<expr>(goal_mvar), goal_mvar));
         vm_obj result = get_tactic_vm_state(env()).invoke(get_smt_prove_name(), s);
         if (optional<tactic_state> s_new = is_tactic_success(result)) {
             mctx = s_new->mctx();
@@ -639,8 +640,20 @@ private:
                 m_verbose = false;
             else
                 throw_parser_exception("invalid set-option command, option ':verbose' requires argument 'true' or 'false'");
-        } else {
-            // TODO(dhs): just a warning?
+        } else if (sym == ":lbool") {
+            check_curr_kind(scanner::token_kind::SYMBOL, "invalid set-option, 'true' or 'false' expected");
+            symbol tf = curr_symbol();
+            next();
+            bool status = (tf == "true" ? true : false);
+            name n;
+            while (curr_kind() == scanner::token_kind::SYMBOL) {
+                symbol sym = curr_symbol();
+                next();
+                n = name(n, sym.c_str());
+            }
+            lean_assert(!n.is_anonymous());
+            m_ios.set_option(n, status);
+        } else {           // TODO(dhs): just a warning?
             throw_parser_exception(std::string("unsupported option: ") + sym);
         }
         check_curr_kind(scanner::token_kind::RIGHT_PAREN, "invalid set-option, ')' expected");

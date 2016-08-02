@@ -1,3 +1,4 @@
+(set-option :verbose true)
 (assert (forall ((x Int)) (= x x)))
 (assert (forall ((x Int) (y Int)) (= x y)))
 (assert (forall ((x Int) (y Int) (z Int)) (= x y z)))

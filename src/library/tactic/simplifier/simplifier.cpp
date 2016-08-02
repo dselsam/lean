@@ -103,10 +103,7 @@ static bool get_simplify_canonize_proofs(options const & o) {
     return o.get_bool(*g_simplify_canonize_proofs, LEAN_DEFAULT_DEFEQ_SIMPLIFY_CANONIZE_PROOFS);
 }
 
-#define lean_simp_trace(tctx, n, code) lean_trace(n, scope_trace_env _scope1(tctx.env(), tctx); code)
-
-/* Util (move to util.h?) */
-
+#define lean_simp_trace(tctx, n, code) lean_trace(n, scope_trace_env _scope1(tctx.env(), tctx.get_options(), tctx); code)
 
 /* Main simplifier class */
 
@@ -269,8 +266,8 @@ public:
         { }
 
     simp_result operator()(expr const & e)  {
-        scope_trace_env scope(env(), m_tctx);
         simp_result r(e);
+//        scope_trace_env(m_tctx.env(), m_tctx.get_options(), m_tctx);
         while (true) {
             m_need_restart = false;
             r = join(r, simplify(r.get_new()));
@@ -627,6 +624,10 @@ simp_result simplifier::rewrite(expr const & e, simp_lemmas const & slss) {
 simp_result simplifier::rewrite(expr const & e, list<simp_lemma> const & lemmas) {
     auto assoc = !using_eq() ? none_expr() : is_assoc(m_tctx, e);
     auto comm  = !using_eq() ? none_expr() : is_comm(m_tctx, e);
+
+    if (is_constant(get_app_fn(e)) & const_name(get_app_fn(e)).get_prefix() == "smt") {
+        unsigned z = 1;
+    }
 
     for (simp_lemma const & lemma : lemmas) {
         simp_result r;
