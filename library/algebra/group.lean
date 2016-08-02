@@ -23,7 +23,7 @@ structure semigroup [class] (A : Type) extends has_mul A :=
 
 -- We add pattern hints to the following lemma because we want it to be used in both directions
 -- at inst_simp strategy.
-theorem mul.assoc [simp] [semigroup A] (a b c : A) : a * b * c = a * (b * c) :=
+theorem mul.assoc [semigroup A] (a b c : A) : a * b * c = a * (b * c) :=
 semigroup.mul_assoc a b c
 
 theorem semigroup_mul_is_associative [instance] (A : Type) [semigroup A] : is_associative (@mul A _) :=
@@ -33,13 +33,13 @@ set_option pp.all true
 structure comm_semigroup [class] (A : Type) extends semigroup A :=
 (mul_comm : ∀a b : A, a * b = b * a)
 
-theorem mul.comm [simp] [comm_semigroup A] (a b : A) : a * b = b * a :=
+theorem mul.comm [comm_semigroup A] (a b : A) : a * b = b * a :=
 comm_semigroup.mul_comm a b
 
 theorem comm_semigroup_mul_is_commutative [instance] (A : Type) [comm_semigroup A] : is_commutative (@mul A _) :=
 is_commutative.mk mul.comm
 
-theorem mul.left_comm [simp] [comm_semigroup A] (a b c : A) : a * (b * c) = b * (a * c) :=
+theorem mul.left_comm [comm_semigroup A] (a b c : A) : a * (b * c) = b * (a * c) :=
 binary.left_comm (@mul.comm A _) (@mul.assoc A _) a b c
 
 theorem mul.right_comm [comm_semigroup A] (a b c : A) : (a * b) * c = (a * c) * b :=
@@ -66,7 +66,7 @@ abbreviation eq_of_mul_eq_mul_right' := @mul.right_cancel
 structure add_semigroup [class] (A : Type) extends has_add A :=
 (add_assoc : ∀a b c : A, a + b + c = a + (b + c))
 
-theorem add.assoc [simp] [add_semigroup A] (a b c : A) : a + b + c = a + (b + c) :=
+theorem add.assoc [add_semigroup A] (a b c : A) : a + b + c = a + (b + c) :=
 add_semigroup.add_assoc a b c
 
 theorem comm_semigroup_add_is_associative [instance] (A : Type) [add_semigroup A] : is_associative (@add A _) :=
@@ -75,13 +75,13 @@ is_associative.mk add.assoc
 structure add_comm_semigroup [class] (A : Type) extends add_semigroup A :=
 (add_comm : ∀a b : A, a + b = b + a)
 
-theorem add.comm [simp] [add_comm_semigroup A] (a b : A) : a + b = b + a :=
+theorem add.comm [add_comm_semigroup A] (a b : A) : a + b = b + a :=
 add_comm_semigroup.add_comm a b
 
 theorem comm_semigroup_add_is_commutative [instance] (A : Type) [add_comm_semigroup A] : is_commutative (@add A _) :=
 is_commutative.mk add.comm
 
-theorem add.left_comm [simp] [add_comm_semigroup A] (a b c : A) : a + (b + c) = b + (a + c) :=
+theorem add.left_comm [add_comm_semigroup A] (a b c : A) : a + (b + c) = b + (a + c) :=
 binary.left_comm (@add.comm A _) (@add.assoc A _) a b c
 
 theorem add.right_comm [add_comm_semigroup A] (a b c : A) : (a + b) + c = (a + c) + b :=
@@ -108,9 +108,9 @@ abbreviation eq_of_add_eq_add_right := @add.right_cancel
 structure monoid [class] (A : Type) extends semigroup A, has_one A :=
 (one_mul : ∀a : A, 1 * a = a) (mul_one : ∀a : A, a * 1 = a)
 
-theorem one_mul [simp] [monoid A] (a : A) : 1 * a = a := monoid.one_mul a
+theorem one_mul [monoid A] (a : A) : 1 * a = a := monoid.one_mul a
 
-theorem mul_one [simp] [monoid A] (a : A) : a * 1 = a := monoid.mul_one a
+theorem mul_one [monoid A] (a : A) : a * 1 = a := monoid.mul_one a
 
 structure comm_monoid [class] (A : Type) extends monoid A, comm_semigroup A
 
@@ -119,9 +119,9 @@ structure comm_monoid [class] (A : Type) extends monoid A, comm_semigroup A
 structure add_monoid [class] (A : Type) extends add_semigroup A, has_zero A :=
 (zero_add : ∀a : A, 0 + a = a) (add_zero : ∀a : A, a + 0 = a)
 
-theorem zero_add [simp] [add_monoid A] (a : A) : 0 + a = a := add_monoid.zero_add a
+theorem zero_add [add_monoid A] (a : A) : 0 + a = a := add_monoid.zero_add a
 
-theorem add_zero [simp] [add_monoid A] (a : A) : a + 0 = a := add_monoid.add_zero a
+theorem add_zero [add_monoid A] (a : A) : a + 0 = a := add_monoid.add_zero a
 
 structure add_comm_monoid [class] (A : Type) extends add_monoid A, add_comm_semigroup A
 
@@ -160,12 +160,12 @@ structure group [class] (A : Type) extends monoid A, has_inv A :=
 section group
   variable [group A]
 
-  theorem mul.left_inv [simp] (a : A) : a⁻¹ * a = 1 := group.mul_left_inv a
+  theorem mul.left_inv (a : A) : a⁻¹ * a = 1 := group.mul_left_inv a
 
-  theorem inv_mul_cancel_left [simp] (a b : A) : a⁻¹ * (a * b) = b :=
+  theorem inv_mul_cancel_left (a b : A) : a⁻¹ * (a * b) = b :=
   sorry -- by rewrite [-mul.assoc, mul.left_inv, one_mul]
 
-  theorem inv_mul_cancel_right [simp] (a b : A) : a * b⁻¹ * b = a :=
+  theorem inv_mul_cancel_right (a b : A) : a * b⁻¹ * b = a :=
   sorry -- by simp
 
   theorem inv_eq_of_mul_eq_one {a b : A} (H : a * b = 1) : a⁻¹ = b :=
@@ -175,10 +175,10 @@ section group
   by inst_simp
   -/
 
-  theorem one_inv [simp] : 1⁻¹ = (1 : A) :=
+  theorem one_inv : 1⁻¹ = (1 : A) :=
   inv_eq_of_mul_eq_one (one_mul 1)
 
-  theorem inv_inv [simp] (a : A) : (a⁻¹)⁻¹ = a :=
+  theorem inv_inv (a : A) : (a⁻¹)⁻¹ = a :=
   inv_eq_of_mul_eq_one (mul.left_inv a)
 
   variable (A)
@@ -219,20 +219,20 @@ section group
   by inst_simp
   -/
 
-  theorem mul.right_inv [simp] (a : A) : a * a⁻¹ = 1 :=
+  theorem mul.right_inv (a : A) : a * a⁻¹ = 1 :=
   sorry
   /-
   have a = a⁻¹⁻¹, by simp,
   by inst_simp
   -/
 
-  theorem mul_inv_cancel_left [simp] (a b : A) : a * (a⁻¹ * b) = b :=
+  theorem mul_inv_cancel_left (a b : A) : a * (a⁻¹ * b) = b :=
   sorry -- by inst_simp
 
-  theorem mul_inv_cancel_right [simp] (a b : A) : a * b * b⁻¹ = a :=
+  theorem mul_inv_cancel_right (a b : A) : a * b * b⁻¹ = a :=
   sorry -- by inst_simp
 
-  theorem mul_inv [simp] (a b : A) : (a * b)⁻¹ = b⁻¹ * a⁻¹ :=
+  theorem mul_inv (a b : A) : (a * b)⁻¹ = b⁻¹ * a⁻¹ :=
   sorry -- inv_eq_of_mul_eq_one (by inst_simp)
 
   theorem eq_of_mul_inv_eq_one {a b : A} (H : a * b⁻¹ = 1) : a = b :=
@@ -300,19 +300,19 @@ section group
 
   local attribute conj_by [reducible]
 
-  lemma conj_compose [simp] (f g a : A) : f ∘c g ∘c a = f*g ∘c a :=
+  lemma conj_compose (f g a : A) : f ∘c g ∘c a = f*g ∘c a :=
   sorry -- by inst_simp
 
-  lemma conj_id [simp] (a : A) : 1 ∘c a = a :=
+  lemma conj_id (a : A) : 1 ∘c a = a :=
   sorry -- by inst_simp
 
-  lemma conj_one [simp] (g : A) : g ∘c 1 = 1 :=
+  lemma conj_one (g : A) : g ∘c 1 = 1 :=
   sorry -- by inst_simp
 
-  lemma conj_inv_cancel [simp] (g : A) : ∀ a, g⁻¹ ∘c g ∘c a = a :=
+  lemma conj_inv_cancel (g : A) : ∀ a, g⁻¹ ∘c g ∘c a = a :=
   sorry -- by inst_simp
 
-  lemma conj_inv [simp] (g : A) : ∀ a, (g ∘c a)⁻¹ = g ∘c a⁻¹ :=
+  lemma conj_inv (g : A) : ∀ a, (g ∘c a)⁻¹ = g ∘c a⁻¹ :=
   sorry -- by inst_simp
 
   lemma is_conj.refl (a : A) : a ~ a := exists.intro 1 (conj_id a)
@@ -362,13 +362,13 @@ section add_group
   variables [s : add_group A]
   include s
 
-  theorem add.left_inv [simp] (a : A) : -a + a = 0 := add_group.add_left_inv a
+  theorem add.left_inv (a : A) : -a + a = 0 := add_group.add_left_inv a
 
-  theorem neg_add_cancel_left [simp] (a b : A) : -a + (a + b) = b :=
+  theorem neg_add_cancel_left (a b : A) : -a + (a + b) = b :=
   calc -a + (a + b) = (-a + a) + b : sorry -- by rewrite add.assoc
                ...  = b            : sorry -- by simp
 
-  theorem neg_add_cancel_right [simp] (a b : A) : a + -b + b = a :=
+  theorem neg_add_cancel_right (a b : A) : a + -b + b = a :=
   sorry -- by simp
 
   theorem neg_eq_of_add_eq_zero {a b : A} (H : a + b = 0) : -a = b :=
@@ -378,9 +378,9 @@ section add_group
   by inst_simp
   -/
 
-  theorem neg_zero [simp] : -0 = (0 : A) := neg_eq_of_add_eq_zero (zero_add 0)
+  theorem neg_zero : -0 = (0 : A) := neg_eq_of_add_eq_zero (zero_add 0)
 
-  theorem neg_neg [simp] (a : A) : -(-a) = a := neg_eq_of_add_eq_zero (add.left_inv a)
+  theorem neg_neg (a : A) : -(-a) = a := neg_eq_of_add_eq_zero (add.left_inv a)
 
   variable (A)
   theorem left_inverse_neg : function.left_inverse (λ a : A, - a) (λ a, - a) :=
@@ -417,20 +417,20 @@ section add_group
   theorem eq_neg_iff_eq_neg (a b : A) : a = -b ↔ b = -a :=
   iff.intro eq_neg_of_eq_neg eq_neg_of_eq_neg
 
-  theorem add.right_inv [simp] (a : A) : a + -a = 0 :=
+  theorem add.right_inv (a : A) : a + -a = 0 :=
   sorry
   /-
   have a = -(-a), by simp,
   by inst_simp
   -/
 
-  theorem add_neg_cancel_left [simp] (a b : A) : a + (-a + b) = b :=
+  theorem add_neg_cancel_left (a b : A) : a + (-a + b) = b :=
   sorry -- by inst_simp
 
-  theorem add_neg_cancel_right [simp] (a b : A) : a + b + -b = a :=
+  theorem add_neg_cancel_right (a b : A) : a + b + -b = a :=
   sorry -- by simp
 
-  theorem neg_add_rev [simp] (a b : A) : -(a + b) = -b + -a :=
+  theorem neg_add_rev (a b : A) : -(a + b) = -b + -a :=
   sorry -- neg_eq_of_add_eq_zero (by simp)
 
   -- TODO: delete these in favor of sub rules?
@@ -522,7 +522,7 @@ section add_group
   definition add_group_has_sub [instance] : has_sub A :=
   has_sub.mk algebra.sub
 
-  theorem sub_eq_add_neg [simp] (a b : A) : a - b = a + -b := rfl
+  theorem sub_eq_add_neg (a b : A) : a - b = a + -b := rfl
 
   theorem sub_self (a : A) : a - a = 0 := add.right_inv a
 
@@ -768,6 +768,7 @@ sorry -- by simp
 
 end norm_num
 
+/-
 attribute [simp]
   zero_add add_zero one_mul mul_one
 
@@ -777,3 +778,4 @@ attribute [simp]
 attribute [simp]
   add.assoc add.comm add.left_comm
   mul.left_comm mul.comm mul.assoc
+-/

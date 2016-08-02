@@ -24,13 +24,13 @@ section division_ring
   definition division_ring_has_div [instance] : has_div A :=
   has_div.mk algebra.div
 
-  lemma division.def [simp] (a b : A) : a / b = a * b⁻¹ :=
+  lemma division.def (a b : A) : a / b = a * b⁻¹ :=
   rfl
 
-  theorem mul_inv_cancel [simp] (H : a ≠ 0) : a * a⁻¹ = 1 :=
+  theorem mul_inv_cancel (H : a ≠ 0) : a * a⁻¹ = 1 :=
   division_ring.mul_inv_cancel H
 
-  theorem inv_mul_cancel [simp] (H : a ≠ 0) : a⁻¹ * a = 1 :=
+  theorem inv_mul_cancel (H : a ≠ 0) : a⁻¹ * a = 1 :=
   division_ring.inv_mul_cancel H
 
   theorem inv_eq_one_div (a : A) : a⁻¹ = 1 / a := eq.symm $ one_mul (a⁻¹)
@@ -38,16 +38,16 @@ section division_ring
   theorem div_eq_mul_one_div (a b : A) : a / b = a * (1 / b) :=
   sorry -- by simp
 
-  theorem mul_one_div_cancel [simp] (H : a ≠ 0) : a * (1 / a) = 1 :=
+  theorem mul_one_div_cancel (H : a ≠ 0) : a * (1 / a) = 1 :=
   sorry -- by simp
 
-  theorem one_div_mul_cancel [simp] (H : a ≠ 0) : (1 / a) * a = 1 :=
+  theorem one_div_mul_cancel (H : a ≠ 0) : (1 / a) * a = 1 :=
   sorry -- by simp
 
-  theorem div_self [simp] (H : a ≠ 0) : a / a = 1 :=
+  theorem div_self (H : a ≠ 0) : a / a = 1 :=
   sorry -- by simp
 
-  theorem one_div_one [simp] : 1 / 1 = (1:A) :=
+  theorem one_div_one : 1 / 1 = (1:A) :=
   div_self (ne.symm zero_ne_one)
 
   theorem mul_div_assoc (a b : A) : (a * b) / c = a * (b / c) :=
@@ -61,13 +61,13 @@ section division_ring
     absurd C1 zero_ne_one
   -/
 
-  theorem one_inv_eq [simp] : 1⁻¹ = (1:A) :=
+  theorem one_inv_eq : 1⁻¹ = (1:A) :=
   sorry -- by rewrite [-mul_one, inv_mul_cancel (ne.symm (@zero_ne_one A _))]
 
-  theorem div_one [simp] (a : A) : a / 1 = a :=
+  theorem div_one (a : A) : a / 1 = a :=
   sorry -- by simp
 
-  theorem zero_div [simp] (a : A) : 0 / a = 0 :=
+  theorem zero_div (a : A) : 0 / a = 0 :=
   sorry -- by simp
 
   -- note: integral domain has a "mul_ne_zero". A commutative division ring is an integral
@@ -152,7 +152,7 @@ section division_ring
       a = b :=
     sorry -- by rewrite [-(division_ring.one_div_one_div Ha), H, (division_ring.one_div_one_div Hb)]
 
-  theorem mul_inv_eq [simp] (Ha : a ≠ 0) (Hb : b ≠ 0) : (b * a)⁻¹ = a⁻¹ * b⁻¹ :=
+  theorem mul_inv_eq (Ha : a ≠ 0) (Hb : b ≠ 0) : (b * a)⁻¹ = a⁻¹ * b⁻¹ :=
   sorry
   /-
     eq.symm (calc
