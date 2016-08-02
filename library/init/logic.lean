@@ -594,6 +594,14 @@ theorem exists_unique_congr (H : ∀ x, p₁ x ↔ p₂ x) : (∃! x, p₁ x) �
 exists_congr (λx, and_congr (H x) (forall_congr (λy, imp_congr (H y) iff.rfl)))
 end
 
+/- eq congr -/
+
+theorem imp_congr_eq [congr] {a b c d : Prop} (H1 : a = c) (H2 : b = d) : (a → b) = (c → d) :=
+sorry
+
+theorem forall_congr_eq [congr] {A : Type} {P Q : A → Prop} (H : ∀a, (P a = Q a)) : (∀a, P a) = ∀a, Q a :=
+sorry
+
 /- decidable -/
 
 inductive decidable [class] (p : Prop) : Type :=

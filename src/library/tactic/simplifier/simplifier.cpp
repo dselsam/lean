@@ -867,13 +867,21 @@ simp_result simplifier::try_congrs(expr const & e) {
     list<user_congr_lemma> const * cls = sls->find_congr(e);
     if (!cls) return simp_result(e);
 
-    for (user_congr_lemma const & cl : *cls) {
-        simp_result r = try_congr(e, cl);
-        if (r.has_proof())
+    simp_result r(e);
+    // TODO(dhs): exhaustive congruence here?
+    // Current motivation: need to try imp_congr_eq and forall_congr_eq
+    // Better: hardcode simplify_pi
+    while (true) {
+        simp_result r_congr(r.get_new());
+        for (user_congr_lemma const & cl : *cls) {
+            r_congr = join(r_congr, try_congr(r_congr.get_new(), cl));
+        }
+        if (r_congr.get_new() == r.get_new())
             return r;
-
+        else
+            r = join(r, r_congr);
     }
-    return simp_result(e);
+    return r;
 }
 
 simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cl) {
