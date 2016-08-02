@@ -269,7 +269,7 @@ public:
         { }
 
     simp_result operator()(expr const & e)  {
-        scope_trace_env scope(env(), m_tctx);
+        scope_trace_env scope(env(), m_tctx.get_options(), m_tctx);
         simp_result r(e);
         while (true) {
             m_need_restart = false;
@@ -867,12 +867,13 @@ simp_result simplifier::try_congrs(expr const & e) {
     list<user_congr_lemma> const * cls = sls->find_congr(e);
     if (!cls) return simp_result(e);
 
-    simp_result r(e);
     for (user_congr_lemma const & cl : *cls) {
-        if (r.has_proof()) break;
-        r = try_congr(e, cl);
+        simp_result r = try_congr(e, cl);
+        if (r.has_proof())
+            return r;
+
     }
-    return r;
+    return simp_result(e);
 }
 
 simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cl) {

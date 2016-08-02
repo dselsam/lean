@@ -478,6 +478,7 @@ private:
         metavar_context mctx;
         expr goal_mvar = mctx.mk_metavar_decl(lctx(), mk_constant(get_false_name()));
         vm_obj s = to_obj(tactic_state(env(), ios().get_options(), mctx, list<expr>(goal_mvar), goal_mvar));
+
         vm_obj result = get_tactic_vm_state(env()).invoke(get_smt_prove_name(), s);
         if (optional<tactic_state> s_new = is_tactic_success(result)) {
             mctx = s_new->mctx();
