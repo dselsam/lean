@@ -19,7 +19,7 @@ do n ← local_context >>= revert_lst,
 
 meta_definition prove : tactic unit :=
 do n ← local_context >>= revert_lst,
-   simp
-
+   simp,
+   failed
 
 end smt

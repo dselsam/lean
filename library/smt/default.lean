@@ -7,3 +7,6 @@ import smt.arith smt.array smt.prove algebra.binary
 
 definition and.is_assoc [instance] : is_associative and := sorry
 definition or.is_assoc  [instance] : is_associative or := sorry
+
+print [simp] simp
+print [congr] congr

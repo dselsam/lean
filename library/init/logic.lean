@@ -595,8 +595,8 @@ exists_congr (λx, and_congr (H x) (forall_congr (λy, imp_congr (H y) iff.rfl))
 end
 
 /- eq congr -/
-
-theorem imp_congr_eq [congr] {a b c d : Prop} (H1 : a = c) (H2 : c → b = d) : (a → b) = (c → d) :=
+theorem forall_congr_prop_eq [congr] [priority std.priority.default+1] {P₁ P₂ Q₁ Q₂ : Prop} :
+  P₁ = P₂ → (P₂ → Q₁ = Q₂) → (P₁ → Q₁) = (P₂ → Q₂) :=
 sorry
 
 theorem forall_congr_eq [congr] {A : Type} {P Q : A → Prop} (H : ∀a, (P a = Q a)) : (∀a, P a) = ∀a, Q a :=
