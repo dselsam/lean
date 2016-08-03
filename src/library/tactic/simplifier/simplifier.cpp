@@ -42,7 +42,7 @@ Author: Daniel Selsam
 #include "library/tactic/simplifier/util.h"
 
 #ifndef LEAN_DEFAULT_SIMPLIFY_MAX_STEPS
-#define LEAN_DEFAULT_SIMPLIFY_MAX_STEPS 1000
+#define LEAN_DEFAULT_SIMPLIFY_MAX_STEPS 100000
 #endif
 #ifndef LEAN_DEFAULT_SIMPLIFY_MAX_REWRITES
 #define LEAN_DEFAULT_SIMPLIFY_MAX_REWRITES 5000
@@ -148,7 +148,7 @@ class simplifier {
 
     optional<expr>            m_curr_nary_op;
 
-    vm_obj const &            m_prove_fn;
+    vm_obj                    m_prove_fn;
 
     /* Logging */
     unsigned                  m_num_steps{0};
@@ -356,8 +356,14 @@ simp_result simplifier::simplify(expr const & e) {
     lean_trace_inc_depth("simplifier");
     lean_trace_d("simplifier", tout() << m_rel << ": " << e << "\n";);
 
-    if (m_num_steps > m_max_steps)
+    if (m_num_steps == m_max_steps) {
+        unsigned i = 0;
+    }
+
+    if (m_num_steps > m_max_steps) {
+        lean_trace(name({"simplifier", "failed"}), tout() << m_rel << ": " << e << "\n";);
         throw exception("simplifier failed, maximum number of steps exceeded");
+    }
 
     if (m_memoize) {
         if (auto it = cache_lookup(e)) return *it;
@@ -452,6 +458,12 @@ simp_result simplifier::simplify(expr const & e) {
 
     if (m_memoize)
         cache_save(e, r);
+
+    m_num_steps++;
+    if (m_num_steps > m_max_steps) {
+        lean_trace(name({"simplifier", "failed"}), tout() << m_rel << ": " << e << "\n";);
+        throw exception("simplifier failed, maximum number of steps exceeded");
+    }
 
     return r;
 }
@@ -1153,6 +1165,7 @@ void initialize_simplifier() {
     register_trace_class(name({"simplifier", "congruence"}));
     register_trace_class(name({"simplifier", "user_extensions"}));
     register_trace_class(name({"simplifier", "failure"}));
+    register_trace_class(name({"simplifier", "failed"}));
     register_trace_class(name({"simplifier", "perm"}));
     register_trace_class(name({"simplifier", "canonize"}));
     register_trace_class(name({"simplifier", "prove"}));

@@ -199,7 +199,7 @@ expr instantiate_mvars(CTX & ctx, expr const & e) {
     if (!has_assigned(ctx, e))
         return e;
     expr r = instantiate_mvars_fn<CTX>(ctx)(e);
-    lean_assert(!has_assigned(ctx, r));
+    //lean_assert(!has_assigned(ctx, r));
     return r;
 }
 }

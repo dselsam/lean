@@ -659,11 +659,24 @@ private:
             }
             lean_assert(!n.is_anonymous());
             m_ios.set_option(n, status);
-    } else {
-        // TODO(dhs): just a warning?
-        throw_parser_exception(std::string("unsupported option: ") + sym);
-    }
-    check_curr_kind(scanner::token_kind::RIGHT_PAREN, "invalid set-option, ')' expected");
+        } else if (sym == ":lnat") {
+            check_curr_kind(scanner::token_kind::INT, "invalid set-option, option ':lnat` requires next argument to be a numeral");
+            unsigned val = curr_numeral().get_numerator().get_unsigned_int();
+            next();
+            bool status;
+            name n;
+            while (curr_kind() == scanner::token_kind::SYMBOL) {
+                symbol sym = curr_symbol();
+                next();
+                n = name(n, sym.c_str());
+            }
+            lean_assert(!n.is_anonymous());
+            m_ios.set_option(n, val);
+        } else {
+            // TODO(dhs): just a warning?
+            throw_parser_exception(std::string("unsupported option: ") + sym);
+        }
+        check_curr_kind(scanner::token_kind::RIGHT_PAREN, "invalid set-option, ')' expected");
         next();
     }
 

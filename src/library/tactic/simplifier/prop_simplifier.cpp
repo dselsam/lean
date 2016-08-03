@@ -166,7 +166,7 @@ optional<expr> prop_simplifier::simplify_and_core(buffer<expr> & args) {
 
     buffer<expr> new_args;
     expr last_lit, curr_lit;
-    bool last_lit_pos, curr_lit_pos;
+    bool last_lit_pos = false, curr_lit_pos = false;
 
     for (unsigned i = 0; i < args.size(); ++i) {
         if (is_false(args[i])) {
@@ -183,6 +183,7 @@ optional<expr> prop_simplifier::simplify_and_core(buffer<expr> & args) {
             curr_lit_pos = true;
         }
 
+        // Note use of structural equality
         if (curr_lit == last_lit) {
             if (last_lit_pos != curr_lit_pos) {
                 lean_assert(last_lit_pos);
@@ -219,7 +220,7 @@ optional<expr> prop_simplifier::simplify_or_core(buffer<expr> & args) {
 
     buffer<expr> new_args;
     expr last_lit, curr_lit;
-    bool last_lit_pos, curr_lit_pos;
+    bool last_lit_pos = false, curr_lit_pos = false;
 
     for (unsigned i = 0; i < args.size(); ++i) {
         if (is_true(args[i])) {

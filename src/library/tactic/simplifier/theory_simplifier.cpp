@@ -37,6 +37,8 @@ simp_result theory_simplifier::simplify(expr const & e) {
     if (!is_constant(head))
         return simp_result(e);
 
+    return simp_result(e);
+
     name id = const_name(head);
     // TODO(dhs): very incomplete
     if (id == get_eq_name()) {
@@ -44,31 +46,32 @@ simp_result theory_simplifier::simplify(expr const & e) {
         // result r_arith = m_arith_simplifier.simplify_eq(e);
         // result r_prop = m_prop_simplifier.simplify_eq(r_arith.get_new());
         // return join(r_arith, r_prop);
-        return m_prop_simplifier.simplify_eq(e);
-    } else if (id == get_iff_name()) {
-        return m_prop_simplifier.simplify_iff(e);
-    } else if (id == get_not_name()) {
-        return m_prop_simplifier.simplify_not(e);
-    } else if (id == get_and_name()) {
-        return m_prop_simplifier.simplify_and(e);
-    } else if (id == get_or_name()) {
-        return m_prop_simplifier.simplify_or(e);
+//        return m_prop_simplifier.simplify_eq(e);
+        return simp_result(e);
+    // } else if (id == get_iff_name()) {
+    //     return m_prop_simplifier.simplify_iff(e);
+    // } else if (id == get_not_name()) {
+    //     return m_prop_simplifier.simplify_not(e);
+    // } else if (id == get_and_name()) {
+    //     return m_prop_simplifier.simplify_and(e);
+    // } else if (id == get_or_name()) {
+    //     return m_prop_simplifier.simplify_or(e);
     } else {
-        auto assoc = is_assoc(m_tctx, e);
-        if (!assoc)
-            return simp_result(e);
-        auto comm = is_comm(m_tctx, e);
-        if (!comm)
-            return simp_result(e);
-        buffer<expr> nary_args;
-        auto nary_op = get_app_nary_args(e, nary_args);
-        lean_assert(nary_op);
-        if (!std::is_sorted(nary_args.begin(), nary_args.end())) {
-            std::sort(nary_args.begin(), nary_args.end());
-            expr e_new = mk_nary_app(*nary_op, nary_args);
-            expr pf = perm_ac(m_tctx, *nary_op, *assoc, *comm, e, e_new);
-            return simp_result(e_new, pf);
-        }
+        // auto assoc = is_assoc(m_tctx, e);
+        // if (!assoc)
+        //     return simp_result(e);
+        // auto comm = is_comm(m_tctx, e);
+        // if (!comm)
+        //     return simp_result(e);
+        // buffer<expr> nary_args;
+        // auto nary_op = get_app_nary_args(e, nary_args);
+        // lean_assert(nary_op);
+        // if (!std::is_sorted(nary_args.begin(), nary_args.end())) {
+        //     std::sort(nary_args.begin(), nary_args.end());
+        //     expr e_new = mk_nary_app(*nary_op, nary_args);
+        //     expr pf = perm_ac(m_tctx, *nary_op, *assoc, *comm, e, e_new);
+        //     return simp_result(e_new, pf);
+        // }
         return simp_result(e);
     }
 }

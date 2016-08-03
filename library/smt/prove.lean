@@ -9,11 +9,17 @@ do t ← target,
 
 lemma true_imp_true [simp] (P : Prop) : (P → true) = true :=
 propext $ and.intro (assume p, trivial) (assume p q, p)
-
+/-
 meta_definition prove : tactic unit :=
 do n ← local_context >>= revert_lst,
    simp,
    intro_all,
    assumption
+-/
+
+meta_definition prove : tactic unit :=
+do n ← local_context >>= revert_lst,
+   simp
+
 
 end smt
