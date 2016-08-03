@@ -56,6 +56,18 @@ Author: Daniel Selsam
 #ifndef LEAN_DEFAULT_SIMPLIFY_CONTEXTUAL
 #define LEAN_DEFAULT_SIMPLIFY_CONTEXTUAL true
 #endif
+#ifndef LEAN_DEFAULT_SIMPLIFY_USER_EXTENSIONS
+#define LEAN_DEFAULT_SIMPLIFY_USER_EXTENSIONS true
+#endif
+#ifndef LEAN_DEFAULT_SIMPLIFY_REWRITE
+#define LEAN_DEFAULT_SIMPLIFY_REWRITE true
+#endif
+#ifndef LEAN_DEFAULT_SIMPLIFY_THEORY
+#define LEAN_DEFAULT_SIMPLIFY_THEORY true
+#endif
+#ifndef LEAN_DEFAULT_SIMPLIFY_CONTEXTUAL
+#define LEAN_DEFAULT_SIMPLIFY_CONTEXTUAL true
+#endif
 #ifndef LEAN_DEFAULT_SIMPLIFY_LIFT_EQ
 #define LEAN_DEFAULT_SIMPLIFY_LIFT_EQ false
 #endif
@@ -72,6 +84,9 @@ static name * g_simplify_max_rewrites         = nullptr;
 static name * g_simplify_rewrite_ac           = nullptr;
 static name * g_simplify_memoize              = nullptr;
 static name * g_simplify_contextual           = nullptr;
+static name * g_simplify_user_extensions      = nullptr;
+static name * g_simplify_rewrite              = nullptr;
+static name * g_simplify_theory               = nullptr;
 static name * g_simplify_lift_eq              = nullptr;
 static name * g_simplify_canonize_proofs      = nullptr;
 
@@ -93,6 +108,18 @@ static bool get_simplify_memoize(options const & o) {
 
 static bool get_simplify_contextual(options const & o) {
     return o.get_bool(*g_simplify_contextual, LEAN_DEFAULT_SIMPLIFY_CONTEXTUAL);
+}
+
+static bool get_simplify_user_extensions(options const & o) {
+    return o.get_bool(*g_simplify_user_extensions, LEAN_DEFAULT_SIMPLIFY_USER_EXTENSIONS);
+}
+
+static bool get_simplify_rewrite(options const & o) {
+    return o.get_bool(*g_simplify_rewrite, LEAN_DEFAULT_SIMPLIFY_REWRITE);
+}
+
+static bool get_simplify_theory(options const & o) {
+    return o.get_bool(*g_simplify_theory, LEAN_DEFAULT_SIMPLIFY_THEORY);
 }
 
 static bool get_simplify_lift_eq(options const & o) {
@@ -135,6 +162,9 @@ class simplifier {
     bool                      m_rewrite_ac;
     bool                      m_memoize;
     bool                      m_contextual;
+    bool                      m_user_extensions;
+    bool                      m_rewrite;
+    bool                      m_theory;
     bool                      m_lift_eq;
     bool                      m_canonize_proofs;
 
@@ -264,6 +294,9 @@ public:
         m_rewrite_ac(get_simplify_rewrite_ac(tctx.get_options())),
         m_memoize(get_simplify_memoize(tctx.get_options())),
         m_contextual(get_simplify_contextual(tctx.get_options())),
+        m_user_extensions(get_simplify_user_extensions(tctx.get_options())),
+        m_rewrite(get_simplify_rewrite(tctx.get_options())),
+        m_theory(get_simplify_theory(tctx.get_options())),
         m_lift_eq(get_simplify_lift_eq(tctx.get_options())),
         m_canonize_proofs(get_simplify_canonize_proofs(tctx.get_options()))
         { }
@@ -368,7 +401,7 @@ simp_result simplifier::simplify(expr const & e) {
         return r;
 
     // [2] user simplifier extensions
-    if (is_app(r.get_new())) {
+    if (m_user_extensions) {
         r.update(whnf_eta(r.get_new()));
         simp_result r_user = simplify_user_extensions(r.get_new());
         if (r_user.get_new() != r.get_new()) {
@@ -382,12 +415,14 @@ simp_result simplifier::simplify(expr const & e) {
     }
 
     // [3] rewriting
-    simp_lemmas all_slss = ::lean::join(m_slss, m_ctx_slss);
-    simp_result r_rewrite = rewrite(r.get_new(), all_slss);
-    if (r_rewrite.get_new() != r.get_new()) {
-        r = join(r, r_rewrite);
-        r = join(r, simplify(r.get_new()));
-        r.update(whnf_eta(r.get_new()));
+    if (m_rewrite) {
+        simp_lemmas all_slss = ::lean::join(m_slss, m_ctx_slss);
+        simp_result r_rewrite = rewrite(r.get_new(), all_slss);
+        if (r_rewrite.get_new() != r.get_new()) {
+            r = join(r, r_rewrite);
+            r = join(r, simplify(r.get_new()));
+            r.update(whnf_eta(r.get_new()));
+        }
     }
 
     // [4] lifting
@@ -406,7 +441,7 @@ simp_result simplifier::simplify(expr const & e) {
     // [5] Simplify with the theory simplifier
     // Note: the theory simplifier guarantees that no new subterms are introduced that need to be simplified.
     // Thus we never need to repeat unless something is simplified downstream of here.
-    if (using_eq()) {
+    if (m_theory && using_eq()) {
         simp_result r_theory = m_theory_simplifier.simplify(r.get_new());
         if (r_theory.has_proof()) {
             lean_trace_d(name({"simplifier", "theory"}), tout() << r.get_new() << " ==> " << r_theory.get_new() << "\n";);
@@ -867,21 +902,12 @@ simp_result simplifier::try_congrs(expr const & e) {
     list<user_congr_lemma> const * cls = sls->find_congr(e);
     if (!cls) return simp_result(e);
 
-    simp_result r(e);
-    // TODO(dhs): exhaustive congruence here?
-    // Current motivation: need to try imp_congr_eq and forall_congr_eq
-    // Better: hardcode simplify_pi
-    while (true) {
-        simp_result r_congr(r.get_new());
-        for (user_congr_lemma const & cl : *cls) {
-            r_congr = join(r_congr, try_congr(r_congr.get_new(), cl));
-        }
-        if (r_congr.get_new() == r.get_new())
+    for (user_congr_lemma const & cl : *cls) {
+        simp_result r = try_congr(e, cl);
+        if (r.get_new() != e)
             return r;
-        else
-            r = join(r, r_congr);
     }
-    return r;
+    return simp_result(e);
 }
 
 simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cl) {
@@ -1129,6 +1155,9 @@ void initialize_simplifier() {
     g_simplify_rewrite_ac          = new name{"simplify", "rewrite_ac"};
     g_simplify_memoize             = new name{"simplify", "memoize"};
     g_simplify_contextual          = new name{"simplify", "contextual"};
+    g_simplify_user_extensions     = new name{"simplify", "user_extensions"};
+    g_simplify_rewrite             = new name{"simplify", "rewrite"};
+    g_simplify_theory              = new name{"simplify", "theory"};
     g_simplify_lift_eq             = new name{"simplify", "lift_eq"};
     g_simplify_canonize_proofs     = new name{"simplify", "canonize_proofs"};
 
@@ -1142,6 +1171,12 @@ void initialize_simplifier() {
                          "(simplify) memoize simplifications");
     register_bool_option(*g_simplify_contextual, LEAN_DEFAULT_SIMPLIFY_CONTEXTUAL,
                          "(simplify) use contextual simplification");
+    register_bool_option(*g_simplify_user_extensions, LEAN_DEFAULT_SIMPLIFY_USER_EXTENSIONS,
+                         "(simplify) simplify with user_extensions");
+    register_bool_option(*g_simplify_rewrite, LEAN_DEFAULT_SIMPLIFY_REWRITE,
+                         "(simplify) rewrite with simp_lemmas");
+    register_bool_option(*g_simplify_theory, LEAN_DEFAULT_SIMPLIFY_THEORY,
+                         "(simplify) use built-in theory simplification");
     register_bool_option(*g_simplify_lift_eq, LEAN_DEFAULT_SIMPLIFY_LIFT_EQ,
                          "(simplify) try simplifying with equality when no progress over other relation");
     register_bool_option(*g_simplify_canonize_proofs, LEAN_DEFAULT_SIMPLIFY_CANONIZE_PROOFS,
@@ -1153,6 +1188,9 @@ void initialize_simplifier() {
 void finalize_simplifier() {
     delete g_simplify_canonize_proofs;
     delete g_simplify_lift_eq;
+    delete g_simplify_theory;
+    delete g_simplify_rewrite;
+    delete g_simplify_user_extensions;
     delete g_simplify_contextual;
     delete g_simplify_memoize;
     delete g_simplify_rewrite_ac;
