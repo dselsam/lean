@@ -921,11 +921,15 @@ simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cl) {
                     << "[" << new_lhs << " =?= " << new_rhs << "]\n";);
 
     /* First, iterate over the congruence hypotheses */
-    bool failed = false;
     bool simplified = false;
-    list<expr> const & congr_hyps = cl.get_congr_hyps();
+    buffer<expr> congr_hyps;
+    to_buffer(cl.get_congr_hyps(), congr_hyps);
+    buffer<simp_result> congr_hyp_results;
+    buffer<type_context::tmp_locals> factories;
     for (expr const & m : congr_hyps) {
-        type_context::tmp_locals local_factory(m_tctx);
+        factories.emplace_back(m_tctx);
+        type_context::tmp_locals & local_factory = factories.back();
+
         expr m_type = tmp_tctx.instantiate_mvars(tmp_tctx.infer(m));
 
         while (is_pi(m_type)) {
@@ -953,23 +957,32 @@ simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cl) {
                 r_congr_hyp = simplify(h_lhs);
             }
 
+            congr_hyp_results.push_back(r_congr_hyp);
+
             if (r_congr_hyp.has_proof())
                 simplified = true;
-
-            expr hyp = finalize(m_tctx, m_rel, r_congr_hyp).get_proof();
-            if (!tmp_tctx.is_def_eq(m, local_factory.mk_lambda(hyp))) {
-                    failed = true;
-                    break;
-            }
         }
     }
 
-    if (failed || !simplified) return simp_result(e);
+    if (!simplified)
+        return simp_result(e);
 
-    if (!instantiate_emetas(tmp_tctx, cl.get_num_emeta(), cl.get_emetas(), cl.get_instances())) return simp_result(e);
+    lean_assert(congr_hyps.size() == congr_hyp_results.size());
+    for (unsigned i = 0; i < congr_hyps.size(); ++i) {
+        expr const & m = congr_hyps[i];
+        simp_result const & r_congr_hyp = congr_hyp_results[i];
+        expr hyp = finalize(m_tctx, m_rel, r_congr_hyp).get_proof();
+        if (!tmp_tctx.is_def_eq(m, factories[i].mk_lambda(hyp))) {
+            return simp_result(e);
+        }
+    }
+
+    if (!instantiate_emetas(tmp_tctx, cl.get_num_emeta(), cl.get_emetas(), cl.get_instances()))
+        return simp_result(e);
 
     for (unsigned i = 0; i < cl.get_num_umeta(); i++) {
-        if (!tmp_tctx.is_uassigned(i)) return simp_result(e);
+        if (!tmp_tctx.is_uassigned(i))
+            return simp_result(e);
     }
 
     expr e_s = tmp_tctx.instantiate_mvars(cl.get_rhs());
