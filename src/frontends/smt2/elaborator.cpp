@@ -317,7 +317,6 @@ void initialize_elaborator() {
         });
 
     g_constant_fun_attr_map = new name_hash_map<pair<expr, fun_attr>>({
-//            {"=>", mk_pair(mk_constant(get_implies_name()), fun_attr::RIGHT_ASSOC)},
             {"and", mk_pair(mk_constant(get_and_name()), fun_attr::LEFT_ASSOC)},
             {"or", mk_pair(mk_constant(get_or_name()), fun_attr::LEFT_ASSOC)},
             {"xor", mk_pair(mk_constant(get_xor_name()), fun_attr::LEFT_ASSOC)}

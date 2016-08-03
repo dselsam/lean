@@ -303,6 +303,13 @@ public:
 
     simp_result operator()(expr const & e)  {
         scope_trace_env scope(env(), m_tctx.get_options(), m_tctx);
+        simp_result r = simplify(e);
+        if (r.get_new() == e) {
+            lean_trace(name({"simplifier", "failed"}), tout() << "(did not simplify)" << "\n";);
+        }
+        return r;
+
+        /*
         simp_result r(e);
         while (true) {
             m_need_restart = false;
@@ -311,6 +318,7 @@ public:
                 return r;
             m_cache.clear();
         }
+        */
     }
 };
 
@@ -640,6 +648,8 @@ simp_result simplifier::simplify_user_extensions(expr const & _e) {
 /* Proving */
 
 optional<expr> simplifier::prove(expr const & goal) {
+    // TODO(dhs): temporory
+    return none_expr();
     metavar_context mctx = m_tctx.mctx();
     expr goal_mvar = mctx.mk_metavar_decl(m_tctx.lctx(), goal);
     lean_trace(name({"simplifier", "prove"}), tout() << goal_mvar << " : " << goal << "\n";);
