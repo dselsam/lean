@@ -644,7 +644,7 @@ optional<expr> simplifier::prove(expr const & goal) {
     expr goal_mvar = mctx.mk_metavar_decl(m_tctx.lctx(), goal);
     lean_trace(name({"simplifier", "prove"}), tout() << goal_mvar << " : " << goal << "\n";);
     vm_obj s = to_obj(tactic_state(m_tctx.env(), m_tctx.get_options(), mctx, list<expr>(goal_mvar), goal_mvar));
-    vm_obj prove_fn_result = get_tactic_vm_state(m_tctx.env()).invoke(m_prove_fn, s);
+    vm_obj prove_fn_result = invoke(m_prove_fn, s);
     optional<tactic_state> s_new = is_tactic_success(prove_fn_result);
     if (s_new) {
         m_tctx.set_mctx(s_new->mctx());
