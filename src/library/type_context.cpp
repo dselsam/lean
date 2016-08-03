@@ -2491,6 +2491,15 @@ expr tmp_type_context::instantiate_mvars(expr const & e) {
     return m_tctx.instantiate_mvars(e);
 }
 
+bool tmp_type_context::is_def_eq_alt(expr const & e1, expr const & e2) {
+    unsigned i = 0;
+    unsigned j = 0;
+    for (; j < 10; ++j) {
+        i++;
+    }
+    return is_def_eq(e1, e2) && j == 10 && i == 10;
+}
+
 type_context_cache & type_context_cache_helper::get_cache_for(environment const & env, options const & o) {
     if (!m_cache_ptr ||
         !is_eqp(env, m_cache_ptr->env()) ||

@@ -38,6 +38,7 @@ Author: Daniel Selsam
 #include "library/tactic/simplifier/simp_lemmas.h"
 #include "library/tactic/simplifier/simplifier.h"
 #include "library/vm/vm_expr.h"
+#include "library/vm/vm_declaration.h"
 #include "frontends/smt2/scanner.h"
 #include "frontends/smt2/elaborator.h"
 #include "frontends/smt2/parser.h"
@@ -485,19 +486,23 @@ private:
         expr goal_mvar = mctx.mk_metavar_decl(lctx(), mk_constant(get_false_name()));
 
         buffer<expr> locals;
-        lean_assert(!lctx().empty());
         lctx().for_each([&](local_decl const & ldecl) {
-                ios().get_regular_stream() << "pushing local: " << ldecl.get_name() << "\n";
                 locals.push_back(ldecl.mk_ref());
             });
 
         expr new_goal = revert(env(), m_ios.get_options(), mctx, goal_mvar, locals);
 
         aux_type_context aux_tctx(m_env, m_ios.get_options(), mctx, m_lctx);
-        ios().get_regular_stream() << "reverted goal: " << aux_tctx->infer(new_goal) << "\n";
+        expr new_goal_type = aux_tctx->infer(new_goal);
+//        ios().get_regular_stream() << "reverted goal: " << new_goal_type << "\n";
 
+        simp_result r = simplify(aux_tctx.get(), get_eq_name(), get_simp_lemmas(aux_tctx.get()), new_goal_type);
 
-        simp_result r = simplify(aux_tctx.get(), get_eq_name(), get_simp_lemmas(aux_tctx.get()), to_obj(mk_constant("DUMMY_PROVE_FN")), new_goal);
+        if (r.has_proof()) {
+            ios().get_regular_stream() << "<simplifier did something>\n";
+        } else {
+            ios().get_regular_stream() << "<simplifier did nothing>\n";
+        }
 /*
         vm_obj s = to_obj(tactic_state(env(), ios().get_options(), mctx, list<expr>(goal_mvar), goal_mvar));
 
@@ -682,6 +687,19 @@ private:
             }
             lean_assert(!n.is_anonymous());
             m_ios.set_option(n, status);
+        } else if (sym == ":lnat") {
+            check_curr_kind(scanner::token_kind::INT, "invalid set-option, option ':lnat` requires next argument to be a numeral");
+            unsigned val = curr_numeral().get_numerator().get_unsigned_int();
+            next();
+            bool status;
+            name n;
+            while (curr_kind() == scanner::token_kind::SYMBOL) {
+                symbol sym = curr_symbol();
+                next();
+                n = name(n, sym.c_str());
+            }
+            lean_assert(!n.is_anonymous());
+            m_ios.set_option(n, val);
     } else {
         // TODO(dhs): just a warning?
         throw_parser_exception(std::string("unsupported option: ") + sym);

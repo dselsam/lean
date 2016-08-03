@@ -523,6 +523,7 @@ public:
     virtual expr infer(expr const & e) override;
     virtual expr whnf(expr const & e) override;
     virtual bool is_def_eq(expr const & e1, expr const & e2) override;
+    bool is_def_eq_alt(expr const & e1, expr const & e2);
 
     level mk_tmp_univ_mvar();
     expr mk_tmp_mvar(expr const & type);
