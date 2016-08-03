@@ -148,7 +148,7 @@ class simplifier {
 
     optional<expr>            m_curr_nary_op;
 
-    vm_obj const &            m_prove_fn;
+    optional<vm_obj>          m_prove_fn;
 
     /* Logging */
     unsigned                  m_num_steps{0};
@@ -286,7 +286,7 @@ class simplifier {
     expr whnf_eta(expr const & e);
 
 public:
-    simplifier(type_context & tctx, name const & rel, simp_lemmas const & slss, vm_obj const & prove_fn):
+    simplifier(type_context & tctx, name const & rel, simp_lemmas const & slss, optional<vm_obj> const & prove_fn):
         m_tctx(tctx), m_theory_simplifier(tctx), m_rel(rel), m_slss(slss), m_prove_fn(prove_fn),
         /* Options */
         m_max_steps(get_simplify_max_steps(tctx.get_options())),
@@ -628,11 +628,14 @@ simp_result simplifier::simplify_user_extensions(expr const & _e) {
 /* Proving */
 
 optional<expr> simplifier::prove(expr const & goal) {
+    if (!m_prove_fn)
+        return none_expr();
+
     metavar_context mctx = m_tctx.mctx();
     expr goal_mvar = mctx.mk_metavar_decl(m_tctx.lctx(), goal);
     lean_trace(name({"simplifier", "prove"}), tout() << goal_mvar << " : " << goal << "\n";);
     vm_obj s = to_obj(tactic_state(m_tctx.env(), m_tctx.get_options(), mctx, list<expr>(goal_mvar), goal_mvar));
-    vm_obj prove_fn_result = get_tactic_vm_state(m_tctx.env()).invoke(m_prove_fn, s);
+    vm_obj prove_fn_result = get_tactic_vm_state(m_tctx.env()).invoke(*m_prove_fn, s);
     optional<tactic_state> s_new = is_tactic_success(prove_fn_result);
     if (s_new) {
         m_tctx.set_mctx(s_new->mctx());
@@ -1213,7 +1216,10 @@ void finalize_simplifier() {
 
 /* Entry point */
 simp_result simplify(type_context & ctx, name const & rel, simp_lemmas const & simp_lemmas, vm_obj const & prove_fn, expr const & e) {
-    return simplifier(ctx, rel, simp_lemmas, prove_fn)(e);
+    return simplifier(ctx, rel, simp_lemmas, optional<vm_obj>(prove_fn))(e);
 }
 
+simp_result simplify(type_context & ctx, name const & rel, simp_lemmas const & simp_lemmas, expr const & e) {
+    return simplifier(ctx, rel, simp_lemmas, optional<vm_obj>())(e);
+}
 }
