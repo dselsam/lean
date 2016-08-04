@@ -25,6 +25,7 @@ public:
 
     expr get_new() const { return m_new; }
     expr get_proof() const { lean_assert(m_proof); return *m_proof; }
+    optional<expr> get_optional_proof() const { return m_proof; }
 
     /* The following assumes that [e] and [m_new] are definitionally equal */
     void update(expr const & e) { m_new = e; }

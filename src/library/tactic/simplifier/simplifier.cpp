@@ -232,7 +232,71 @@ class simplifier {
     simp_result lift_from_eq(expr const & e_old, simp_result const & r_eq);
 
     /* N-ary */
-    void simplify_nary_args(expr const & op, expr const & arg, buffer<expr> & nary_args, buffer<simp_result> & nary_results, bool has_simplified = false);
+    simp_result simplify_nary(expr const & assoc, expr const & e_old) {
+        buffer<expr> nary_args;
+        expr const & op = get_app_nary_args(e_old, nary_args);
+
+        if (m_topdown) {
+            if (m_user_extensions) {
+                if (optional<simp_result> r_user = simplify_user_extensions_nary(op, nary_args))
+                    return join(mk_flat_simp_macro(assoc, e_old, *r_user), simplify(r_user->get_new()));
+            }
+
+            if (m_rewrite) {
+                if (optional<simp_result> r_rewrite = simplify_rewrite_nary(op, nary_args))
+                    return join(mk_flat_simp_macro(assoc, e_old, *r_rewrite), simplify(r_rewrite->get_new()));
+            }
+        }
+
+        buffer<expr> simp_nary_args;
+        buffer<optional<expr>> pf_nary_args;
+        bool has_proof = false;
+
+        pair<expr, optional<expr>> r_op = simplify_subterms_app_nary(op, nary_args, simp_nary_args, pf_nary_args, has_proof);
+        expr const & simp_op = r_op.first;
+
+        // Cumbersome way of computing has_proof
+        // bool has_proof = r_op.has_proof();
+        // for (optional<expr> const & pf : pf_nary_args) {
+        //     if (pf) {
+        //         has_proof = true;
+        //         break;
+        //     }
+        // }
+
+        if (!m_topdown) {
+            if (m_user_extensions) {
+                if (optional<simp_result> r_user = simplify_user_extensions_nary(simp_op, simp_nary_args)) {
+                    expr pf = has_proof ? mk_flat_simp_macro(assoc, e_old, *r_user) : mk_congr_flat_simp_macro(assoc, e_old, r_op.second, pf_nary_args, *r_user);
+                    simp_result r_rec = simplify(r_user->get_new());
+                    return join(simp_result(r_user->get_new(), pf), r_
+
+                    expr pf =
+                    return join(has_proof ? mk_flat_simp_macro(assoc, e_old, *r_user) : mk_congr_flat_simp_macro(assoc, e_old, r_op.second, pf_nary_args, *r_user)mk_*r_user, simplify(r_user->get_new()));
+            }
+
+            if (m_rewrite) {
+                if (optional<simp_result> r_rewrite = simplify_rewrite_nary(simp_op, simp_nary_args))
+                    return join(*r_rewrite, simplify(r_rewrite->get_new()));
+            }
+        }
+
+        if (m_theory) {
+            if (optional<simp_result> r_theory = m_theory_simplifier.simplify_nary(simp_op, simp_nary_args))
+                return *r_theory;
+        }
+    }
+
+    simp_result simplify_subterms_app_nary(expr const & op, buffer<expr> const & nary_args, buffer<simp_result> & nary_results);
+    simp_result simplify_rewrite_nary(expr const & op, buffer<expr> const & nary_args);
+    simp_result simplify_user_extensions_nary(expr const & op, buffer<expr> const & nary_args);
+
+
+    simp_result simplify_subterms_app( & assoc, expr const & e);
+    simp_result simplify_rewrite_nary(expr const & assoc, expr const & e);
+    simp_result simplify_user_extensions_nary(expr const & assoc, expr const & e);
+
+
 
     /* Simplification */
     simp_result simplify(expr const & e);
@@ -244,8 +308,6 @@ class simplifier {
 
     /* Called from simplify_subterms_app */
     simp_result simplify_operator_of_app(expr const & e);
-    simp_result simplify_subterms_app_nary(expr const & assoc, expr const & e);
-    simp_result simplify_each_nary_arg(expr const & op, expr const & e);
 
 
     /* Extenisons */
@@ -366,6 +428,41 @@ expr simplifier::whnf_eta(expr const & e) {
 }
 
 /* Simplification */
+simp_result simplifier::simplify_rewrite_binary(expr const & e) {
+/* There are 4 stages of the simplifier:
+   1. [TOPDOWN-DEPENDENT] rewrite
+   2. [TOPDOWN-DEPENDENT] user extension
+   3. subterms (congruence)
+   4. theory
+
+   Rewrite, Congruence and Theory all want to knaw about n-ary.
+   I could _simulate_ the n-ary perspective for the user extensions,
+   by just constructing the term and trying to hide this ugliness from
+   the rest of the simplifier. Then I don't need to decide yet whether
+   the user-extension interface should be aware of this.
+
+   Other important feature: have the user-extension return a bool for
+   whether IF it is called bottom-up, and it simplifies, it does not
+   need to recurse.
+*/
+
+
+
+
+
+}
+
+simp_result simplifier::simplify_user_extensions_binary(expr const & e) {
+
+
+
+}
+
+simp_result simplifier::simplify_binary(expr const & e) {
+    return simp_result(e);
+
+
+}
 
 simp_result simplifier::simplify(expr const & e) {
     m_num_steps++;
@@ -384,6 +481,38 @@ simp_result simplifier::simplify(expr const & e) {
     if (m_memoize) {
         if (auto it = cache_lookup(e)) return *it;
     }
+
+    expr e_n = whnf_eta(e);
+    simp_result r;
+
+    if (using_eq() && auto assoc = is_assoc(m_tctx, e_n))
+        r = simplify_nary(*assoc, e_n);
+    else
+        r = simplify_binary(e_n;)
+
+    if (m_lift_eq && !using_eq()) {
+        simp_result r_eq;
+        {
+            flet<name> use_eq(m_rel, get_eq_name());
+            r_eq = simplify(r.get_new());
+        }
+        if (r_eq.get_new() != r.get_new()) {
+            r = join(r, lift_from_eq(r.get_new(), r_eq));
+            r = join(r, simplify(r.get_new()));
+        }
+    }
+
+    if (m_memoize)
+        cache_save(e, r);
+
+    m_num_steps++;
+    if (m_num_steps > m_max_steps) {
+        lean_trace(name({"simplifier", "failed"}), tout() << m_rel << ": " << e << "\n";);
+        throw exception("simplifier failed, maximum number of steps exceeded");
+    }
+
+    return r;
+}
 
     simp_result r(whnf_eta(e));
 
@@ -448,17 +577,6 @@ simp_result simplifier::simplify(expr const & e) {
     }
 
     // [4] lifting
-    if (m_lift_eq && !using_eq()) {
-        simp_result r_eq;
-        {
-            flet<name> use_eq(m_rel, get_eq_name());
-            r_eq = simplify(r.get_new());
-        }
-        if (r_eq.get_new() != r.get_new()) {
-            r = join(r, lift_from_eq(r.get_new(), r_eq));
-            r = join(r, simplify(r.get_new()));
-        }
-    }
 
     // [5] Simplify with the theory simplifier
     // Note: the theory simplifier guarantees that no new subterms are introduced that need to be simplified.
@@ -471,9 +589,6 @@ simp_result simplifier::simplify(expr const & e) {
             r.update(whnf_eta(r.get_new()));
         }
     }
-
-    if (m_memoize)
-        cache_save(e, r);
 
     m_num_steps++;
     if (m_num_steps > m_max_steps) {
