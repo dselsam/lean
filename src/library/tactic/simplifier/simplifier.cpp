@@ -65,8 +65,8 @@ Author: Daniel Selsam
 #ifndef LEAN_DEFAULT_SIMPLIFY_THEORY
 #define LEAN_DEFAULT_SIMPLIFY_THEORY true
 #endif
-#ifndef LEAN_DEFAULT_SIMPLIFY_CONTEXTUAL
-#define LEAN_DEFAULT_SIMPLIFY_CONTEXTUAL true
+#ifndef LEAN_DEFAULT_SIMPLIFY_TOPDOWN
+#define LEAN_DEFAULT_SIMPLIFY_TOPDOWN false
 #endif
 #ifndef LEAN_DEFAULT_SIMPLIFY_LIFT_EQ
 #define LEAN_DEFAULT_SIMPLIFY_LIFT_EQ false
@@ -87,6 +87,7 @@ static name * g_simplify_contextual           = nullptr;
 static name * g_simplify_user_extensions      = nullptr;
 static name * g_simplify_rewrite              = nullptr;
 static name * g_simplify_theory               = nullptr;
+static name * g_simplify_topdown              = nullptr;
 static name * g_simplify_lift_eq              = nullptr;
 static name * g_simplify_canonize_proofs      = nullptr;
 
@@ -120,6 +121,10 @@ static bool get_simplify_rewrite(options const & o) {
 
 static bool get_simplify_theory(options const & o) {
     return o.get_bool(*g_simplify_theory, LEAN_DEFAULT_SIMPLIFY_THEORY);
+}
+
+static bool get_simplify_topdown(options const & o) {
+    return o.get_bool(*g_simplify_topdown, LEAN_DEFAULT_SIMPLIFY_TOPDOWN);
 }
 
 static bool get_simplify_lift_eq(options const & o) {
@@ -165,6 +170,7 @@ class simplifier {
     bool                      m_user_extensions;
     bool                      m_rewrite;
     bool                      m_theory;
+    bool                      m_topdown;
     bool                      m_lift_eq;
     bool                      m_canonize_proofs;
 
@@ -298,6 +304,7 @@ public:
         m_user_extensions(get_simplify_user_extensions(tctx.get_options())),
         m_rewrite(get_simplify_rewrite(tctx.get_options())),
         m_theory(get_simplify_theory(tctx.get_options())),
+        m_topdown(get_simplify_topdown(tctx.get_options())),
         m_lift_eq(get_simplify_lift_eq(tctx.get_options())),
         m_canonize_proofs(get_simplify_canonize_proofs(tctx.get_options()))
         { }
@@ -1208,6 +1215,7 @@ void initialize_simplifier() {
     g_simplify_user_extensions     = new name{"simplify", "user_extensions"};
     g_simplify_rewrite             = new name{"simplify", "rewrite"};
     g_simplify_theory              = new name{"simplify", "theory"};
+    g_simplify_topdown             = new name{"simplify", "topdown"};
     g_simplify_lift_eq             = new name{"simplify", "lift_eq"};
     g_simplify_canonize_proofs     = new name{"simplify", "canonize_proofs"};
 
@@ -1227,6 +1235,8 @@ void initialize_simplifier() {
                          "(simplify) rewrite with simp_lemmas");
     register_bool_option(*g_simplify_theory, LEAN_DEFAULT_SIMPLIFY_THEORY,
                          "(simplify) use built-in theory simplification");
+    register_bool_option(*g_simplify_topdown, LEAN_DEFAULT_SIMPLIFY_TOPDOWN,
+                         "(simplify) use topdown simplification");
     register_bool_option(*g_simplify_lift_eq, LEAN_DEFAULT_SIMPLIFY_LIFT_EQ,
                          "(simplify) try simplifying with equality when no progress over other relation");
     register_bool_option(*g_simplify_canonize_proofs, LEAN_DEFAULT_SIMPLIFY_CANONIZE_PROOFS,
@@ -1238,6 +1248,7 @@ void initialize_simplifier() {
 void finalize_simplifier() {
     delete g_simplify_canonize_proofs;
     delete g_simplify_lift_eq;
+    delete g_simplify_topdown;
     delete g_simplify_theory;
     delete g_simplify_rewrite;
     delete g_simplify_user_extensions;
