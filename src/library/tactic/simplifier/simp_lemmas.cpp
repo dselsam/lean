@@ -89,6 +89,7 @@ simp_lemmas add_core(tmp_type_context & tmp_tctx, simp_lemmas const & s,
     list<expr_pair> ceqvs   = to_ceqvs(tmp_tctx, e, h);
     if (is_nil(ceqvs)) {
         report_failure(sstream() << "invalid [simp] lemma '" << id << "' : " << e);
+        return s;
     }
     environment const & env = tmp_tctx.tctx().env();
     simp_lemmas new_s = s;

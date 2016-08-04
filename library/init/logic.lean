@@ -602,6 +602,7 @@ sorry
 
 theorem forall_congr_eq [congr] {A : Type} {P Q : A → Prop} (H : ∀a, (P a = Q a)) : (∀a, P a) = ∀a, Q a :=
 sorry
+
 /-
 theorem imp_congr_eq [congr] {P₁ P₂ Q₁ Q₂ : Prop} :
   (P₁ = P₂) → (Q₁ = Q₂) → (P₁ → Q₁) = (P₂ → Q₂) :=
