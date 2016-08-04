@@ -971,13 +971,13 @@ simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cl) {
             h_lhs = tmp_tctx.instantiate_mvars(h_lhs);
             lean_assert(!has_metavar(h_lhs));
 
-            simp_result r_congr_hyp;
             if (m_contextual) {
                 freset<simplify_cache> reset_cache(m_cache);
-                r_congr_hyp = simplify(h_lhs);
+                congr_hyp_results.emplace_back(simplify(h_lhs));
             } else {
-                r_congr_hyp = simplify(h_lhs);
+                congr_hyp_results.emplace_back(simplify(h_lhs));
             }
+            simp_result const & r_congr_hyp = congr_hyp_results.back();
 
             if (r_congr_hyp.has_proof())
                 simplified = true;
@@ -988,7 +988,6 @@ simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cl) {
             lean_assert(is_metavar(new_val_meta));
             expr new_val = tmp_tctx.mk_lambda(new_val_meta_args, r_congr_hyp.get_new());
             tmp_tctx.assign(new_val_meta, new_val);
-            congr_hyp_results.push_back(r_congr_hyp);
         }
     }
 
@@ -1001,6 +1000,8 @@ simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cl) {
         simp_result const & r_congr_hyp = congr_hyp_results[i];
         type_context::tmp_locals & local_factory = factories[i];
         expr hyp = finalize(m_tctx, m_rel, r_congr_hyp).get_proof();
+        // This is the current bottleneck
+        // Can address somewhat by keeping the proofs as small as possible using macros
         expr pf = local_factory.mk_lambda(hyp);
         tmp_tctx.assign(pf_meta, pf);
     }
