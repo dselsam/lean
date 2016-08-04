@@ -213,6 +213,7 @@ class simplifier {
             try {
                 // TODO(Leo,Daniel): should we allow the user to set the priority of local lemmas?
                 slss = add(m_tctx, slss, mlocal_name(l), m_tctx.infer(l), l, LEAN_DEFAULT_PRIORITY);
+                lean_trace_d(name({"simplifier", "context"}), tout() << mlocal_name(l) << " : " << m_tctx.infer(l) << "\n";);
             } catch (exception e) {
             }
         }
@@ -562,6 +563,9 @@ simp_result simplifier::simplify_subterms_app_nary(expr const & assoc, expr cons
     flet<optional<expr>> with_nary_assoc(m_curr_nary_op, some_expr(op));
     simp_result r_congr = simplify_each_nary_arg(op, e);
     simp_result r_flat  = simp_result(flat_assoc(m_tctx, op, assoc, r_congr.get_new()));
+    if (r_flat.get_new() != e) {
+        unsigned i = 0;
+    }
     return join(r_congr, r_flat);
 }
 
@@ -648,8 +652,6 @@ simp_result simplifier::simplify_user_extensions(expr const & _e) {
 /* Proving */
 
 optional<expr> simplifier::prove(expr const & goal) {
-    // TODO(dhs): temporory
-    return none_expr();
     metavar_context mctx = m_tctx.mctx();
     expr goal_mvar = mctx.mk_metavar_decl(m_tctx.lctx(), goal);
     lean_trace(name({"simplifier", "prove"}), tout() << goal_mvar << " : " << goal << "\n";);
@@ -994,7 +996,8 @@ simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cl) {
         expr const & m = congr_hyps[i];
         simp_result const & r_congr_hyp = congr_hyp_results[i];
         expr hyp = finalize(m_tctx, m_rel, r_congr_hyp).get_proof();
-        if (!tmp_tctx.is_def_eq(m, factories[i].mk_lambda(hyp))) {
+        expr pf = factories[i].mk_lambda(hyp);
+        if (!tmp_tctx.is_def_eq(m, pf)) {
             return simp_result(e);
         }
     }
@@ -1178,6 +1181,7 @@ void initialize_simplifier() {
     register_trace_class(name({"simplifier", "failed"}));
     register_trace_class(name({"simplifier", "perm"}));
     register_trace_class(name({"simplifier", "canonize"}));
+    register_trace_class(name({"simplifier", "context"}));
     register_trace_class(name({"simplifier", "prove"}));
     register_trace_class(name({"simplifier", "rewrite"}));
     register_trace_class(name({"simplifier", "rewrite", "assoc"}));
