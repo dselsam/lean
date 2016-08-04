@@ -2579,6 +2579,31 @@ expr tmp_type_context::instantiate_mvars(expr const & e) {
     return m_tctx.instantiate_mvars(e);
 }
 
+void tmp_type_context::assign(expr const & m, expr const & v) {
+    type_context::tmp_mode_scope_with_buffers tmp_scope(m_tctx, m_tmp_uassignment, m_tmp_eassignment);
+    m_tctx.assign(m, v);
+}
+
+expr tmp_type_context::mk_lambda(buffer<expr> const & locals, expr const & e) {
+    type_context::tmp_mode_scope_with_buffers tmp_scope(m_tctx, m_tmp_uassignment, m_tmp_eassignment);
+    return m_tctx.mk_lambda(locals, e);
+}
+
+expr tmp_type_context::mk_pi(buffer<expr> const & locals, expr const & e) {
+    type_context::tmp_mode_scope_with_buffers tmp_scope(m_tctx, m_tmp_uassignment, m_tmp_eassignment);
+    return m_tctx.mk_pi(locals, e);
+}
+
+expr tmp_type_context::mk_lambda(expr const & local, expr const & e) {
+    type_context::tmp_mode_scope_with_buffers tmp_scope(m_tctx, m_tmp_uassignment, m_tmp_eassignment);
+    return m_tctx.mk_lambda(local, e);
+}
+
+expr tmp_type_context::mk_pi(expr const & local, expr const & e) {
+    type_context::tmp_mode_scope_with_buffers tmp_scope(m_tctx, m_tmp_uassignment, m_tmp_eassignment);
+    return m_tctx.mk_pi(local, e);
+}
+
 expr tmp_type_context::mk_lambda(std::initializer_list<expr> const & locals, expr const & e) {
     type_context::tmp_mode_scope_with_buffers tmp_scope(m_tctx, m_tmp_uassignment, m_tmp_eassignment);
     return m_tctx.mk_lambda(locals, e);

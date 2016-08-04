@@ -936,6 +936,94 @@ simp_result simplifier::try_congrs(expr const & e) {
 
 simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cl) {
     tmp_type_context tmp_tctx(m_tctx, cl.get_num_umeta(), cl.get_num_emeta());
+    if (!tmp_tctx.is_def_eq(e, cl.get_lhs()))
+        return simp_result(e);
+
+    lean_simp_trace(tmp_tctx, name({"debug", "simplifier", "try_congruence"}),
+                    tout() << "(" << cl.get_id() << ") " << e << "\n";);
+
+    bool simplified = false;
+
+    buffer<expr> congr_hyps;
+    to_buffer(cl.get_congr_hyps(), congr_hyps);
+
+    buffer<simp_result> congr_hyp_results;
+    buffer<type_context::tmp_locals> factories;
+    for (expr const & m : congr_hyps) {
+        factories.emplace_back(m_tctx);
+        type_context::tmp_locals & local_factory = factories.back();
+        expr m_type = tmp_tctx.instantiate_mvars(tmp_tctx.infer(m));
+
+        while (is_pi(m_type)) {
+            expr d = instantiate_rev(binding_domain(m_type), local_factory.as_buffer().size(), local_factory.as_buffer().data());
+            expr l = local_factory.push_local(binding_name(m_type), d, binding_info(m_type));
+            lean_assert(!has_metavar(l));
+            m_type = binding_body(m_type);
+        }
+        m_type = instantiate_rev(m_type, local_factory.as_buffer().size(), local_factory.as_buffer().data());
+
+        expr h_rel, h_lhs, h_rhs;
+        lean_verify(is_simp_relation(tmp_tctx.env(), m_type, h_rel, h_lhs, h_rhs) && is_constant(h_rel));
+        {
+            flet<name> set_name(m_rel, const_name(h_rel));
+            flet<simp_lemmas> set_ctx_slss(m_ctx_slss, m_contextual ? add_to_slss(m_ctx_slss, local_factory.as_buffer()) : m_ctx_slss);
+
+            h_lhs = tmp_tctx.instantiate_mvars(h_lhs);
+            lean_assert(!has_metavar(h_lhs));
+
+            simp_result r_congr_hyp;
+            if (m_contextual) {
+                freset<simplify_cache> reset_cache(m_cache);
+                r_congr_hyp = simplify(h_lhs);
+            } else {
+                r_congr_hyp = simplify(h_lhs);
+            }
+
+            if (r_congr_hyp.has_proof())
+                simplified = true;
+
+            lean_assert(is_meta(h_rhs));
+            buffer<expr> new_val_meta_args;
+            expr new_val_meta = get_app_args(h_rhs, new_val_meta_args);
+            lean_assert(is_metavar(new_val_meta));
+            expr new_val = tmp_tctx.mk_lambda(new_val_meta_args, r_congr_hyp.get_new());
+            tmp_tctx.assign(new_val_meta, new_val);
+            congr_hyp_results.push_back(r_congr_hyp);
+        }
+    }
+
+    if (!simplified)
+        return simp_result(e);
+
+    lean_assert(congr_hyps.size() == congr_hyp_results.size());
+    for (unsigned i = 0; i < congr_hyps.size(); ++i) {
+        expr const & pf_meta = congr_hyps[i];
+        simp_result const & r_congr_hyp = congr_hyp_results[i];
+        type_context::tmp_locals & local_factory = factories[i];
+        expr hyp = finalize(m_tctx, m_rel, r_congr_hyp).get_proof();
+        expr pf = local_factory.mk_lambda(hyp);
+        tmp_tctx.assign(pf_meta, pf);
+    }
+
+    if (!instantiate_emetas(tmp_tctx, cl.get_num_emeta(), cl.get_emetas(), cl.get_instances()))
+        return simp_result(e);
+
+    for (unsigned i = 0; i < cl.get_num_umeta(); i++) {
+        if (!tmp_tctx.is_uassigned(i))
+            return simp_result(e);
+    }
+
+    expr e_s = tmp_tctx.instantiate_mvars(cl.get_rhs());
+    expr pf = tmp_tctx.instantiate_mvars(cl.get_proof());
+
+    lean_simp_trace(tmp_tctx, name({"simplifier", "congruence"}),
+                    tout() << "(" << cl.get_id() << ") "
+                    << "[" << e << " ==> " << e_s << "]\n";);
+
+    return simp_result(e_s, pf);
+}
+/*
+tmp_type_context tmp_tctx(m_tctx, cl.get_num_umeta(), cl.get_num_emeta());
     if (!tmp_tctx.is_def_eq(e, cl.get_lhs())) return simp_result(e);
 
     lean_simp_trace(tmp_tctx, name({"simplifier", "congruence"}),
@@ -944,12 +1032,12 @@ simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cl) {
                     tout() << "(" << cl.get_id() << ") "
                     << "[" << new_lhs << " =?= " << new_rhs << "]\n";);
 
-    /* First, iterate over the congruence hypotheses */
     bool simplified = false;
     buffer<expr> congr_hyps;
     to_buffer(cl.get_congr_hyps(), congr_hyps);
     buffer<simp_result> congr_hyp_results;
     buffer<type_context::tmp_locals> factories;
+    buffer<expr> new_val_metas;
     for (expr const & m : congr_hyps) {
         factories.emplace_back(m_tctx);
         type_context::tmp_locals & local_factory = factories.back();
@@ -966,6 +1054,9 @@ simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cl) {
 
         expr h_rel, h_lhs, h_rhs;
         lean_verify(is_simp_relation(tmp_tctx.env(), m_type, h_rel, h_lhs, h_rhs) && is_constant(h_rel));
+
+        new_val_metas.push_back(h_rhs);
+
         {
             flet<name> set_name(m_rel, const_name(h_rel));
             flet<simp_lemmas> set_ctx_slss(m_ctx_slss, m_contextual ? add_to_slss(m_ctx_slss, local_factory.as_buffer()) : m_ctx_slss);
@@ -995,11 +1086,25 @@ simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cl) {
     for (unsigned i = 0; i < congr_hyps.size(); ++i) {
         expr const & m = congr_hyps[i];
         simp_result const & r_congr_hyp = congr_hyp_results[i];
+        expr const & new_val_meta_app = new_val_metas[i];
+
+        if (m_num_steps > 5550) {
+            unsigned i = 0;
+        }
+        buffer<expr> new_val_meta_args;
+        expr const & new_val_meta = get_app_args(new_val_meta_app, new_val_meta_args);
+        // TODO(dhs): confirm that this is sufficient
+        // (may need to special case for Pi)
+        if (new_val_meta_args.size() == factories[i].as_buffer().size()) {
+            expr new_val = factories[i].mk_lambda(r_congr_hyp.get_new());
+            tmp_tctx.assign(new_val_meta, new_val);
+        } else {
+            lean_verify(tmp_tctx.is_def_eq(new_val_meta_app, r_congr_hyp.get_new()));
+        }
+
         expr hyp = finalize(m_tctx, m_rel, r_congr_hyp).get_proof();
         expr pf = factories[i].mk_lambda(hyp);
-        if (!tmp_tctx.is_def_eq(m, pf)) {
-            return simp_result(e);
-        }
+        tmp_tctx.assign(m, pf);
     }
 
     if (!instantiate_emetas(tmp_tctx, cl.get_num_emeta(), cl.get_emetas(), cl.get_instances()))
@@ -1014,7 +1119,7 @@ simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cl) {
     expr pf = tmp_tctx.instantiate_mvars(cl.get_proof());
     return simp_result(e_s, pf);
 }
-
+*/
 bool simplifier::instantiate_emetas(tmp_type_context & tmp_tctx, unsigned num_emeta, list<expr> const & emetas, list<bool> const & instances) {
     bool failed = false;
     unsigned i = num_emeta;
@@ -1189,6 +1294,7 @@ void initialize_simplifier() {
     register_trace_class(name({"simplifier", "theory"}));
     register_trace_class(name({"debug", "simplifier", "try_rewrite"}));
     register_trace_class(name({"debug", "simplifier", "try_rewrite", "assoc"}));
+    register_trace_class(name({"debug", "simplifier", "try_congruence"}));
 
     g_simplify_max_steps           = new name{"simplify", "max_steps"};
     g_simplify_max_rewrites        = new name{"simplify", "max_rewrites"};

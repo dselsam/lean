@@ -18,7 +18,8 @@ do n ← local_context >>= revert_lst,
 -/
 
 meta_definition prove : tactic unit :=
+--do local_context >>= revert_lst >> target >>= simplify failed [] >> return unit.star
 do n ← local_context >>= revert_lst,
-   simp
+   simplify_goal failed []
 
 end smt
