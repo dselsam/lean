@@ -20,18 +20,16 @@ private:
     type_context                 & m_tctx;
     prop_simplifier_options        m_options;
 
-    optional<expr> simplify_eq_core(expr const & type, expr const & lhs, expr const & rhs);
-    optional<expr> simplify_not_core(expr const & e);
-    optional<expr> simplify_and_core(buffer<expr> & nary_args);
-    optional<expr> simplify_or_core(buffer<expr> & nary_args);
+    optional<expr> simplify_eq(expr const & eq, expr const & type, expr const & lhs, expr const & rhs);
+    optional<expr> simplify_iff(expr const & lhs, expr const & rhs);
+    optional<expr> simplify_not(expr const & e);
+
+    optional<expr> simplify_and(buffer<expr> & args);
+    optional<expr> simplify_or(buffer<expr> & args);
 
 public:
-
-    simp_result simplify_eq(expr const & e);
-    simp_result simplify_iff(expr const & e);
-    simp_result simplify_not(expr const & e);
-    simp_result simplify_and(expr const & e);
-    simp_result simplify_or(expr const & e);
+    simp_result simplify_binary(name const & rel, expr const & e);
+    optional<simp_result> simplify_nary(name const & rel, expr const & assoc, expr const & op, buffer<expr> & args);
 
     prop_simplifier(type_context & tctx): m_tctx(tctx), m_options(tctx.get_options()) {}
 };

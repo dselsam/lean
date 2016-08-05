@@ -357,8 +357,10 @@ class simplifier {
         // (1) Try user-defined congruences
         simp_result r_user = try_congrs(e);
         if (r_user.has_proof()) {
-            if (using_eq()) return join(r_user, simplify_operator_of_app(r_user.get_new()));
-            else return r_user;
+            if (using_eq())
+                return join(r_user, simplify_operator_of_app(r_user.get_new()));
+            else
+                return r_user;
         }
 
         // (2) Synthesize congruence lemma
@@ -469,7 +471,7 @@ class simplifier {
         // [5] Simplify with the theory simplifier
         // Note: the theory simplifier guarantees that no new subterms are introduced that need to be simplified.
         // Thus we never need to repeat unless something is simplified downstream of here.
-        if (m_theory && using_eq()) {
+        if (m_theory) {
             simp_result r_theory = m_theory_simplifier.simplify_binary(m_rel, r.get_new());
             if (r_theory.get_new() != r.get_new()) {
                 lean_trace_d(name({"simplifier", "theory"}), tout() << r.get_new() << " ==> " << r_theory.get_new() << "\n";);
@@ -643,7 +645,7 @@ class simplifier {
         // [5] Simplify with the theory simplifier
         // Note: the theory simplifier guarantees that no new subterms are introduced that need to be simplified.
         // Thus we never need to repeat unless something is simplified downstream of here.
-        if (m_theory && using_eq()) {
+        if (m_theory) {
             if (optional<simp_result> r_theory = m_theory_simplifier.simplify_nary(m_rel, assoc, new_op, new_nary_args)) {
                 expr new_e = r_theory->get_new();
                 bool done = true;
