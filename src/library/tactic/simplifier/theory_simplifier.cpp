@@ -33,13 +33,11 @@ bool theory_simplifier::owns(expr const & e) {
 }
 
 simp_result theory_simplifier::simplify_binary(expr const & e) {
-    throw exception("NYI");
-    return simp_result();
+    return simp_result(e);
 }
 
-simp_result theory_simplifier::simplify_nary(expr const & assoc, expr const & op, buffer<expr> & args) {
-    throw exception("NYI");
-    return simp_result();
+optional<simp_result> theory_simplifier::simplify_nary(expr const & assoc, expr const & op, buffer<expr> & args) {
+    return optional<simp_result>();
 }
 
 /*

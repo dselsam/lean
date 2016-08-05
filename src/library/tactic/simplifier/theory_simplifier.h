@@ -42,7 +42,7 @@ public:
 
     bool        owns(expr const & e);
     simp_result simplify_binary(expr const & e);
-    simp_result simplify_nary(expr const & assoc, expr const & op, buffer<expr> & nary_args);
+    optional<simp_result> simplify_nary(expr const & assoc, expr const & op, buffer<expr> & nary_args);
 };
 
 void initialize_theory_simplifier();

@@ -485,8 +485,81 @@ class simplifier {
 
     // n-ary methods
     optional<simp_result> simplify_rewrite_nary(expr const & assoc, expr const & op, buffer<expr> const & nary_args) {
-        throw exception("NYI");
+        simp_lemmas slss = ::lean::join(m_slss, m_ctx_slss);
+        simp_lemmas_for const * sr = slss.find(m_rel);
+        if (!sr)
+            return optional<simp_result>();
+
+        list<simp_lemma> const * srs = sr->find_simp(op);
+        if (!srs) {
+            return optional<simp_result>();
+        }
+
+        for (simp_lemma const & lemma : *srs) {
+            if (optional<simp_result> r = rewrite_nary(assoc, op, nary_args, lemma))
+                return r;
+        }
         return optional<simp_result>();
+    }
+
+    optional<simp_result> rewrite_nary(expr const & assoc, expr const & op, buffer<expr> const & nary_args, simp_lemma const & sl) {
+        optional<expr> pattern_op = get_binary_op(sl.get_lhs());
+        if (!pattern_op)
+            return optional<simp_result>();
+
+        tmp_type_context tmp_tctx(m_tctx, sl.get_num_umeta(), sl.get_num_emeta());
+        if (!tmp_tctx.is_def_eq(op, *pattern_op))
+            return optional<simp_result>();
+
+        buffer<expr> nary_pattern_args;
+        get_app_nary_args(*pattern_op, sl.get_lhs(), nary_pattern_args);
+
+        unsigned num_patterns = nary_pattern_args.size();
+
+        if (nary_args.size() < num_patterns)
+            return optional<simp_result>();
+
+        for (unsigned i = 0; i <= nary_args.size() - num_patterns; ++i) {
+            if (optional<simp_result> r = rewrite_nary_step(nary_args, nary_pattern_args, i, sl)) {
+                lean_assert(r->has_proof());
+                unsigned j = nary_args.size() - 1;
+                expr new_e = (j >= i + num_patterns) ? nary_args[j] : r->get_new();
+                j = (j >= i + num_patterns) ? (j - 1) : (j - num_patterns);
+                while (j + 1 > 0) {
+                    if (j >= i + num_patterns || j < i) {
+                        new_e = mk_app(op, nary_args[j], new_e);
+                        j -= 1;
+                    } else {
+                        new_e = mk_app(op, r->get_new(), new_e);
+                        j -= num_patterns;
+                    }
+                }
+                return optional<simp_result>(simp_result(new_e, mk_rewrite_assoc_macro(assoc, new_e, r->get_proof())));
+            }
+        }
+        return optional<simp_result>();
+    }
+
+    optional<simp_result> rewrite_nary_step(buffer<expr> const & nary_args, buffer<expr> const & nary_pattern_args, unsigned offset, simp_lemma const & sl) {
+        tmp_type_context tmp_tctx(m_tctx, sl.get_num_umeta(), sl.get_num_emeta());
+        for (unsigned i = 0; i < nary_pattern_args.size(); ++i) {
+            if (!m_tctx.is_def_eq(nary_args[offset+i], nary_pattern_args[i]))
+                return optional<simp_result>();
+        }
+
+        if (!instantiate_emetas(tmp_tctx, sl.get_num_emeta(), sl.get_emetas(), sl.get_instances()))
+            return optional<simp_result>();
+
+        for (unsigned i = 0; i < sl.get_num_umeta(); i++) {
+            if (!tmp_tctx.is_uassigned(i))
+                return optional<simp_result>();
+        }
+
+        expr new_lhs = tmp_tctx.instantiate_mvars(sl.get_lhs());
+        expr new_rhs = tmp_tctx.instantiate_mvars(sl.get_rhs());
+
+        expr pf = tmp_tctx.instantiate_mvars(sl.get_proof());
+        return optional<simp_result>(simp_result(new_rhs, pf));
     }
 
     optional<simp_result> simplify_user_extensions_nary(expr const & assoc, expr const & op, buffer<expr> const & nary_args) {
@@ -497,8 +570,17 @@ class simplifier {
     simp_result simplify_subterms_app_nary(expr const & op, buffer<expr> const & nary_args,
                                            buffer<expr> & new_nary_args, buffer<optional<expr> > & pf_nary_args,
                                            bool & simplified) {
-        throw exception("NYI");
-        return simp_result();
+        for (expr const & arg : nary_args) {
+            simp_result r_arg = simplify(arg);
+            if (r_arg.get_new() != arg)
+                simplified = true;
+            new_nary_args.push_back(r_arg.get_new());
+            pf_nary_args.push_back(r_arg.get_optional_proof());
+        }
+        simp_result r_op = simplify(op);
+        if (r_op.get_new() != op)
+            simplified = true;
+        return r_op;
     }
 
 
@@ -561,18 +643,19 @@ class simplifier {
         // Note: the theory simplifier guarantees that no new subterms are introduced that need to be simplified.
         // Thus we never need to repeat unless something is simplified downstream of here.
         if (m_theory && using_eq()) {
-            simp_result r_theory = m_theory_simplifier.simplify_nary(assoc, new_op, new_nary_args);
-            expr new_e = r_theory.get_new();
-            bool done = true;
-            return simp_result(new_e,
-                               mk_congr_flat_simp_macro(assoc, mk_eq(m_tctx, old_e, new_e), r_op.get_optional_proof(), pf_nary_args, r_theory.get_optional_proof()),
-                               done);
+            if (optional<simp_result> r_theory = m_theory_simplifier.simplify_nary(assoc, new_op, new_nary_args)) {
+                expr new_e = r_theory->get_new();
+                bool done = true;
+                return simp_result(new_e,
+                                   mk_congr_flat_simp_macro(assoc, mk_eq(m_tctx, old_e, new_e), r_op.get_optional_proof(), pf_nary_args, r_theory->get_optional_proof()),
+                                   done);
+            }
         }
 
         expr new_e = mk_nary_app(new_op, new_nary_args);
         expr pf = mk_congr_flat_macro(assoc, mk_eq(m_tctx, old_e, new_e), r_op.get_optional_proof(), pf_nary_args);
         bool done = true;
-        return simp_result(new_e, pf, true);
+        return simp_result(new_e, pf, done);
     }
 
     /* Simplying the necessary subterms */
