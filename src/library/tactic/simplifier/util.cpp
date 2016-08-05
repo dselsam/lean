@@ -14,18 +14,18 @@ Author: Daniel Selsam
 
 namespace lean {
 
-optional<expr> is_assoc(type_context & tctx, expr const & e) {
+optional<pair<expr, expr> > is_assoc(type_context & tctx, expr const & e) {
     auto op = get_binary_op(e);
     if (!op)
-        return none_expr();
+        return optional<pair<expr, expr> >();
     try {
         expr assoc_class = mk_app(tctx, get_is_associative_name(), *op);
         if (auto assoc_inst = tctx.mk_class_instance(assoc_class))
-            return some_expr(mk_app(tctx, get_is_associative_op_assoc_name(), 3, *assoc_inst));
+            return optional<pair<expr, expr> >(mk_pair(mk_app(tctx, get_is_associative_op_assoc_name(), 3, *assoc_inst), *op));
         else
-            return none_expr();
+            return optional<pair<expr, expr> >();
     } catch (app_builder_exception ex) {
-        return none_expr();
+        return optional<pair<expr, expr> >();
     }
 }
 

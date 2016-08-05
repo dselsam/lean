@@ -14,21 +14,26 @@ struct simp_result {
 
     /* If proof is not provided, it is assumed to be reflexivity */
     optional<expr> m_proof;
+
+    bool m_done{false};
 public:
     simp_result() {}
     simp_result(expr const & e): m_new(e) {}
-    simp_result(expr const & e, expr const & proof): m_new(e), m_proof(proof) {}
+    simp_result(expr const & e, expr const & proof, bool done = false): m_new(e), m_proof(proof), m_done(done) {}
     simp_result(expr const & e, optional<expr> const & proof): m_new(e), m_proof(proof) {}
     simp_result(pair<expr, optional<expr>> const & r): m_new(r.first), m_proof(r.second) {}
 
     bool has_proof() const { return static_cast<bool>(m_proof); }
 
-    expr get_new() const { return m_new; }
-    expr get_proof() const { lean_assert(m_proof); return *m_proof; }
-    optional<expr> get_optional_proof() const { return m_proof; }
+    expr const & get_new() const { return m_new; }
+    expr const & get_proof() const { lean_assert(m_proof); return *m_proof; }
+    optional<expr> const & get_optional_proof() const { return m_proof; }
 
     /* The following assumes that [e] and [m_new] are definitionally equal */
     void update(expr const & e) { m_new = e; }
+
+    void set_done() { m_done = true; }
+    bool is_done() const { return m_done; }
 };
 
 simp_result join(type_context & tctx, name const & rel, simp_result const & r1, simp_result const & r2);

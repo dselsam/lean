@@ -32,6 +32,17 @@ bool theory_simplifier::owns(expr const & e) {
     return static_cast<bool>(to_num(e));
 }
 
+simp_result theory_simplifier::simplify_binary(expr const & e) {
+    throw exception("NYI");
+    return simp_result();
+}
+
+simp_result theory_simplifier::simplify_nary(expr const & assoc, expr const & op, buffer<expr> & args) {
+    throw exception("NYI");
+    return simp_result();
+}
+
+/*
 simp_result theory_simplifier::simplify(expr const & e) {
     expr head = get_app_fn(e);
     if (!is_constant(head))
@@ -75,7 +86,7 @@ simp_result theory_simplifier::simplify(expr const & e) {
         return simp_result(e);
     }
 }
-
+*/
 /*
 class theory_simplifier {
     enum class dispatch_id {

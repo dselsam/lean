@@ -302,33 +302,37 @@ simp_result prop_simplifier::simplify_not(expr const & e) {
 }
 
 simp_result prop_simplifier::simplify_and(expr const & e) {
-    buffer<expr> args;
-    expr op = get_app_args(e, args);
-    if (args.size() != 2)
-        return simp_result(e);
+    throw exception("NYI");
+    return simp_result(e);
+    // buffer<expr> args;
+    // expr op = get_app_args(e, args);
+    // if (args.size() != 2)
+    //     return simp_result(e);
 
-    buffer<expr> nary_args;
-    optional<expr> nary_op = get_app_nary_args(e, nary_args);
-    lean_assert(nary_op && *nary_op == op);
-    if (auto new_e = simplify_and_core(nary_args))
-        return mk_simp_result(e, *new_e);
-    else
-        return simp_result(e);
+    // buffer<expr> nary_args;
+    // optional<expr> nary_op = get_app_nary_args(e, nary_args);
+    // lean_assert(nary_op && *nary_op == op);
+    // if (auto new_e = simplify_and_core(nary_args))
+    //     return mk_simp_result(e, *new_e);
+    // else
+    //     return simp_result(e);
 }
 
 simp_result prop_simplifier::simplify_or(expr const & e) {
-    buffer<expr> args;
-    expr op = get_app_args(e, args);
-    if (args.size() != 2)
-        return simp_result(e);
+    throw exception("NYI");
+    return simp_result(e);
+    // buffer<expr> args;
+    // expr op = get_app_args(e, args);
+    // if (args.size() != 2)
+    //     return simp_result(e);
 
-    buffer<expr> nary_args;
-    optional<expr> nary_op = get_app_nary_args(e, nary_args);
-    lean_assert(nary_op && *nary_op == op);
-    if (auto new_e = simplify_or_core(nary_args))
-        return mk_simp_result(e, *new_e);
-    else
-        return simp_result(e);
+    // buffer<expr> nary_args;
+    // optional<expr> nary_op = get_app_nary_args(e, nary_args);
+    // lean_assert(nary_op && *nary_op == op);
+    // if (auto new_e = simplify_or_core(nary_args))
+    //     return mk_simp_result(e, *new_e);
+    // else
+    //     return simp_result(e);
 }
 
 // Setup and teardown
