@@ -14,21 +14,11 @@ namespace lean {
 optional<pair<expr, expr> > is_assoc(type_context & tctx, expr const & e);
 optional<expr> is_comm(type_context & tctx, expr const & op);
 
-expr mk_flat_simp_macro(expr const & assoc, expr const & thm, optional<expr> pf_of_simp) {
-    throw exception("NYI");
-    return expr();
-}
-
-expr mk_congr_flat_macro(expr const & assoc, expr const & thm, optional<expr> pf_op, buffer<optional<expr> > const & pf_nary_args) {
-    throw exception("NYI");
-    return expr();
-}
-
+expr mk_flat_simp_macro(expr const & assoc, expr const & thm, optional<expr> pf_of_simp);
+expr mk_congr_flat_macro(expr const & assoc, expr const & thm, optional<expr> pf_op,
+                         buffer<optional<expr> > const & pf_nary_args);
 expr mk_congr_flat_simp_macro(expr const & assoc, expr const & thm, optional<expr> const & pf_op,
-                              buffer<optional<expr> > const & pf_nary_args, optional<expr> const & pf_of_simp) {
-    throw exception("NYI");
-    return expr();
-}
+                              buffer<optional<expr> > const & pf_nary_args, optional<expr> const & pf_of_simp);
 
 expr mk_rewrite_assoc_macro(expr const & assoc, expr const & thm, expr const & pf_of_step);
 expr mk_rewrite_ac_macro(expr const & assoc, expr const & comm, expr const & thm, expr const & pf_of_step);

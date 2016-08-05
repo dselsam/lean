@@ -44,6 +44,24 @@ optional<expr> is_comm(type_context & tctx, expr const & e) {
     }
 }
 
+
+// TODO(dhs): flat/congr/simp macros
+expr mk_flat_simp_macro(expr const & assoc, expr const & thm, optional<expr> pf_of_simp) {
+    throw exception("NYI");
+    return expr();
+}
+
+expr mk_congr_flat_macro(expr const & assoc, expr const & thm, optional<expr> pf_op, buffer<optional<expr> > const & pf_nary_args) {
+    throw exception("NYI");
+    return expr();
+}
+
+expr mk_congr_flat_simp_macro(expr const & assoc, expr const & thm, optional<expr> const & pf_op,
+                              buffer<optional<expr> > const & pf_nary_args, optional<expr> const & pf_of_simp) {
+    throw exception("NYI");
+    return expr();
+}
+
 // Rewrite-assoc macro
 static name * g_rewrite_assoc_macro_name    = nullptr;
 static std::string * g_rewrite_assoc_opcode = nullptr;
@@ -191,5 +209,4 @@ void finalize_simp_util() {
     delete g_rewrite_assoc_macro_name;
     delete g_rewrite_assoc_opcode;
 }
-
 }
