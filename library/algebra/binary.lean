@@ -88,5 +88,12 @@ end binary
 
 open binary
 
-structure is_associative [class] {A : Type} (op : A → A → A) := (op_assoc : associative op)
-structure is_commutative [class] {A : Type} (op : A → A → A) := (op_comm : commutative op)
+-- TODO(dhs, avigad): generalize the definitions above to take relation as argument
+structure is_associative [class] {A : Type} (rel : A → A → Prop) (op : A → A → A) :=
+(op_assoc : ∀ x y z : A, rel (op (op x y) z) (op x (op y z)))
+
+definition and_is_associative [instance] : is_associative iff and :=
+is_associative.mk @and.assoc
+
+definition or_is_associative [instance] : is_associative iff or :=
+is_associative.mk @or.assoc
