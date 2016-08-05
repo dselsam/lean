@@ -102,8 +102,11 @@ eq.subst H (eq.refl (f a))
 theorem congr_arg {A B : Type} {a₁ a₂ : A} (f : A → B) : a₁ = a₂ → f a₁ = f a₂ :=
 congr rfl
 
-theorem congr_arg_bin {A : Type} {a₁ a₁' a₂ a₂' : A} (f : A → A → A) : a₁ = a₁' → a₂ = a₂' → f a₁ a₂ = f a₁' a₂' := sorry
-theorem congr_arg_bin_fst {A : Type} {a₁ a₁' : A} (f : A → A → A) : a₁ = a₁' →  Π (a₂ : A), f a₁ a₂ = f a₁' a₂ := sorry
+theorem congr_arg_bin {A : Type} {a₁ a₁' a₂ a₂' : A} (f : A → A → A) (H₁ : a₁ = a₁') (H₂ : a₂ = a₂') : f a₁ a₂ = f a₁' a₂' :=
+congr (congr_arg f H₁) H₂
+
+theorem congr_arg_bin_fst {A : Type} {a₁ a₁' : A} (f : A → A → A) (H₁ : a₁ = a₁') (a₂ : A) : f a₁ a₂ = f a₁' a₂ :=
+congr_fun (congr_arg f H₁) a₂
 
 section
   variables {A : Type} {a b c: A}
