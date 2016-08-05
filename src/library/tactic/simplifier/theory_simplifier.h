@@ -41,8 +41,8 @@ public:
     theory_simplifier(type_context & tctx);
 
     bool        owns(expr const & e);
-    simp_result simplify_binary(expr const & e);
-    optional<simp_result> simplify_nary(expr const & assoc, expr const & op, buffer<expr> & nary_args);
+    simp_result simplify_binary(name const & rel, expr const & e);
+    optional<simp_result> simplify_nary(name const & rel, expr const & assoc, expr const & op, buffer<expr> & nary_args);
 };
 
 void initialize_theory_simplifier();

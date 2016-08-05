@@ -423,15 +423,15 @@ iff.intro
   (take Hab, and.intro (and.left Hab) (iff.elim_left (H (and.left Hab)) (and.right Hab)))
   (take Hac, and.intro (and.left Hac) (iff.elim_right (H (and.left Hac)) (and.right Hac)))
 
-theorem and.comm [simp] : a ∧ b ↔ b ∧ a :=
+theorem and.comm : a ∧ b ↔ b ∧ a :=
 iff.intro and.swap and.swap
 
-theorem and.assoc [simp] : (a ∧ b) ∧ c ↔ a ∧ (b ∧ c) :=
+theorem and.assoc : (a ∧ b) ∧ c ↔ a ∧ (b ∧ c) :=
 iff.intro
   (and.rec (λ H' Hc, and.rec (λ Ha Hb, and.intro Ha (and.intro Hb Hc)) H'))
   (and.rec (λ Ha, and.rec (λ Hb Hc, and.intro (and.intro Ha Hb) Hc)))
 
-theorem and.left_comm [simp] : a ∧ (b ∧ c) ↔ b ∧ (a ∧ c) :=
+theorem and.left_comm : a ∧ (b ∧ c) ↔ b ∧ (a ∧ c) :=
 iff.trans (iff.symm and.assoc) (iff.trans (and_congr and.comm (iff.refl c)) and.assoc)
 
 theorem and_iff_left {a b : Prop} (Hb : b) : (a ∧ b) ↔ a :=
@@ -475,14 +475,14 @@ or.imp id H
 theorem or_congr [congr] (H1 : a ↔ c) (H2 : b ↔ d) : (a ∨ b) ↔ (c ∨ d) :=
 iff.intro (or.imp (iff.mp H1) (iff.mp H2)) (or.imp (iff.mpr H1) (iff.mpr H2))
 
-theorem or.comm [simp] : a ∨ b ↔ b ∨ a := iff.intro or.swap or.swap
+theorem or.comm : a ∨ b ↔ b ∨ a := iff.intro or.swap or.swap
 
-theorem or.assoc [simp] : (a ∨ b) ∨ c ↔ a ∨ (b ∨ c) :=
+theorem or.assoc : (a ∨ b) ∨ c ↔ a ∨ (b ∨ c) :=
 iff.intro
   (or.rec (or.imp_right or.inl) (λ H, or.inr (or.inr H)))
   (or.rec (λ H, or.inl (or.inl H)) (or.imp_left or.inr))
 
-theorem or.left_comm [simp] : a ∨ (b ∨ c) ↔ b ∨ (a ∨ c) :=
+theorem or.left_comm : a ∨ (b ∨ c) ↔ b ∨ (a ∨ c) :=
 iff.trans (iff.symm or.assoc) (iff.trans (or_congr or.comm (iff.refl c)) or.assoc)
 
 theorem or_true [simp] (a : Prop) : a ∨ true ↔ true :=

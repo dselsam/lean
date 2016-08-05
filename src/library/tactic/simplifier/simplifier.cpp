@@ -42,7 +42,7 @@ Author: Daniel Selsam
 #include "library/tactic/simplifier/util.h"
 
 #ifndef LEAN_DEFAULT_SIMPLIFY_MAX_STEPS
-#define LEAN_DEFAULT_SIMPLIFY_MAX_STEPS 100000
+#define LEAN_DEFAULT_SIMPLIFY_MAX_STEPS 1000
 #endif
 #ifndef LEAN_DEFAULT_SIMPLIFY_MAX_REWRITES
 #define LEAN_DEFAULT_SIMPLIFY_MAX_REWRITES 5000
@@ -250,9 +250,7 @@ class simplifier {
         expr e = whnf_eta(old_e);
         simp_result r;
 
-        optional<pair<expr, expr> > assoc;
-        if (using_eq())
-            assoc = is_assoc(m_tctx, m_rel, e);
+        optional<pair<expr, expr> > assoc = is_assoc(m_tctx, m_rel, e);
 
         if (assoc)
             r = simplify_nary(assoc->first, assoc->second, e);
@@ -472,7 +470,7 @@ class simplifier {
         // Note: the theory simplifier guarantees that no new subterms are introduced that need to be simplified.
         // Thus we never need to repeat unless something is simplified downstream of here.
         if (m_theory && using_eq()) {
-            simp_result r_theory = m_theory_simplifier.simplify_binary(r.get_new());
+            simp_result r_theory = m_theory_simplifier.simplify_binary(m_rel, r.get_new());
             if (r_theory.get_new() != r.get_new()) {
                 lean_trace_d(name({"simplifier", "theory"}), tout() << r.get_new() << " ==> " << r_theory.get_new() << "\n";);
                 r = join(r, r_theory);
@@ -519,6 +517,9 @@ class simplifier {
         if (nary_args.size() < num_patterns)
             return optional<simp_result>();
 
+        // TODO(dhs): return an n-ary macro, and have simplify(e) unfold these at the end
+        // Reason: multiple rewrites and theory steps could avoid reconstructing the term
+        // Reason for postponing: easy to support and may not be a bottleneck
         for (unsigned i = 0; i <= nary_args.size() - num_patterns; ++i) {
             if (optional<simp_result> r = rewrite_nary_step(nary_args, nary_pattern_args, i, sl)) {
                 lean_assert(r->has_proof());
@@ -543,7 +544,7 @@ class simplifier {
     optional<simp_result> rewrite_nary_step(buffer<expr> const & nary_args, buffer<expr> const & nary_pattern_args, unsigned offset, simp_lemma const & sl) {
         tmp_type_context tmp_tctx(m_tctx, sl.get_num_umeta(), sl.get_num_emeta());
         for (unsigned i = 0; i < nary_pattern_args.size(); ++i) {
-            if (!m_tctx.is_def_eq(nary_args[offset+i], nary_pattern_args[i]))
+            if (!tmp_tctx.is_def_eq(nary_args[offset+i], nary_pattern_args[i]))
                 return optional<simp_result>();
         }
 
@@ -563,7 +564,7 @@ class simplifier {
     }
 
     optional<simp_result> simplify_user_extensions_nary(expr const & assoc, expr const & op, buffer<expr> const & nary_args) {
-        throw exception("NYI");
+        // TODO(dhs): expose command and implement
         return optional<simp_result>();
     }
 
@@ -594,14 +595,14 @@ class simplifier {
                 if (optional<simp_result> r_rewrite = simplify_rewrite_nary(assoc, op, nary_args)) {
                     lean_trace_d(name({"simplifier", "rewrite"}), tout() << old_e << " ==> " << r_rewrite->get_new() << "\n";);
                     expr new_e = r_rewrite->get_new();
-                    return simp_result(new_e, mk_flat_simp_macro(assoc, mk_eq(m_tctx, old_e, new_e), r_rewrite->get_optional_proof()));
+                    return simp_result(new_e, mk_flat_simp_macro(assoc, mk_rel(m_tctx, m_rel, old_e, new_e), r_rewrite->get_optional_proof()));
                 }
             }
             if (m_user_extensions) {
                 if (optional<simp_result> r_user = simplify_user_extensions_nary(assoc, op, nary_args)) {
                     lean_trace_d(name({"simplifier", "user_extensions"}), tout() << old_e << " ==> " << r_user->get_new() << "\n";);
                     expr new_e = r_user->get_new();
-                    return simp_result(new_e, mk_flat_simp_macro(assoc, mk_eq(m_tctx, old_e, new_e), r_user->get_optional_proof()));
+                    return simp_result(new_e, mk_flat_simp_macro(assoc, mk_rel(m_tctx, m_rel, old_e, new_e), r_user->get_optional_proof()));
                 }
             }
         }
@@ -614,7 +615,7 @@ class simplifier {
 
         if (m_topdown && simplified) {
             expr new_e = mk_nary_app(new_op, new_nary_args);
-            expr pf = mk_congr_flat_macro(assoc, mk_eq(m_tctx, old_e, new_e), r_op.get_optional_proof(), pf_nary_args);
+            expr pf = mk_congr_flat_simp_macro(assoc, mk_rel(m_tctx, m_rel, old_e, new_e), none_expr(), r_op.get_optional_proof(), pf_nary_args);
             return simp_result(new_e, pf);
         }
 
@@ -625,7 +626,7 @@ class simplifier {
                     expr new_e = r_rewrite->get_new();
                     // TODO(dhs): if !congr, just create a mk_flat_simp_macro (all three of these)
                     return simp_result(new_e,
-                                       mk_congr_flat_simp_macro(assoc, mk_eq(m_tctx, old_e, new_e), r_op.get_optional_proof(), pf_nary_args, r_rewrite->get_optional_proof()));
+                                       mk_congr_flat_simp_macro(assoc, mk_rel(m_tctx, m_rel, old_e, new_e), r_rewrite->get_optional_proof(), r_op.get_optional_proof(), pf_nary_args));
                 }
             }
             if (m_user_extensions) {
@@ -633,7 +634,7 @@ class simplifier {
                     lean_trace_d(name({"simplifier", "user_extensions"}), tout() << old_e << " ==> " << r_user->get_new() << "\n";);
                     expr new_e = r_user->get_new();
                     return simp_result(new_e,
-                                       mk_congr_flat_simp_macro(assoc, mk_eq(m_tctx, old_e, new_e), r_op.get_optional_proof(), pf_nary_args, r_user->get_optional_proof()),
+                                       mk_congr_flat_simp_macro(assoc, mk_rel(m_tctx, m_rel, old_e, new_e), r_user->get_optional_proof(), r_op.get_optional_proof(), pf_nary_args),
                                        r_user->is_done());
                 }
             }
@@ -643,17 +644,17 @@ class simplifier {
         // Note: the theory simplifier guarantees that no new subterms are introduced that need to be simplified.
         // Thus we never need to repeat unless something is simplified downstream of here.
         if (m_theory && using_eq()) {
-            if (optional<simp_result> r_theory = m_theory_simplifier.simplify_nary(assoc, new_op, new_nary_args)) {
+            if (optional<simp_result> r_theory = m_theory_simplifier.simplify_nary(m_rel, assoc, new_op, new_nary_args)) {
                 expr new_e = r_theory->get_new();
                 bool done = true;
                 return simp_result(new_e,
-                                   mk_congr_flat_simp_macro(assoc, mk_eq(m_tctx, old_e, new_e), r_op.get_optional_proof(), pf_nary_args, r_theory->get_optional_proof()),
+                                   mk_congr_flat_simp_macro(assoc, mk_rel(m_tctx, m_rel, old_e, new_e), r_theory->get_optional_proof(), r_op.get_optional_proof(), pf_nary_args),
                                    done);
             }
         }
 
         expr new_e = mk_nary_app(new_op, new_nary_args);
-        expr pf = mk_congr_flat_macro(assoc, mk_eq(m_tctx, old_e, new_e), r_op.get_optional_proof(), pf_nary_args);
+        expr pf = mk_congr_flat_simp_macro(assoc, mk_rel(m_tctx, m_rel, old_e, new_e), none_expr(), r_op.get_optional_proof(), pf_nary_args);
         bool done = true;
         return simp_result(new_e, pf, done);
     }
@@ -668,17 +669,6 @@ class simplifier {
 
     /* Proving */
     optional<expr> prove(expr const & thm);
-
-    /* Rewriting */
-    // simp_result rewrite_a(expr const & assoc, expr const & e, simp_lemma const & lemma);
-    // optional<simp_result> rewrite_a(buffer<expr> const & nary_args, buffer<expr> const & nary_pattern_args, unsigned offset, simp_lemma const & sl);
-
-//    simp_result process_success_ac(expr const & assoc, expr const & comm, expr const & old_e, expr const & nary_op,
-//                                               buffer<expr> const & nary_args, unsigned i, unsigned j, simp_result const & r_step);
-//    optional<simp_result> rewrite_ac(buffer<expr> const & nary_args, buffer<expr> const & nary_pattern_args, unsigned i, unsigned j, simp_lemma const & sl);
-//    simp_result rewrite_ac(expr const & assoc, expr const & comm, expr const & e, simp_lemma const & lemma);
-
-//    simp_result rewrite(expr const & e, simp_lemma const & lemma);
 
     /* Canonicalize */
     expr canonize_args(expr const & e);
@@ -724,14 +714,6 @@ public:
     simp_result operator()(expr const & e)  {
         scope_trace_env scope(env(), m_tctx.get_options(), m_tctx);
         return simplify(e);
-        // simp_result r(e);
-        // while (true) {
-        //     m_need_restart = false;
-        //     r = join(r, simplify(r.get_new()));
-        //     if (!m_need_restart)
-        //         return r;
-        //     m_cache.clear();
-        // }
     }
 };
 
@@ -831,38 +813,6 @@ simp_result simplifier::simplify_operator_of_app(expr const & e) {
     return congr_funs(r_f, args);
 }
 
-// simp_result simplifier::simplify_each_nary_arg(expr const & op, expr const & e) {
-//     expr arg1, arg2;
-//     if (is_binary_app_of(e, op, arg1, arg2)) {
-//         simp_result r1 = simplify_each_nary_arg(op, arg1);
-//         simp_result r2 = simplify_each_nary_arg(op, arg2);
-//         expr new_e = mk_app(op, r1.get_new(), r2.get_new());
-//         if (r1.has_proof() && r2.has_proof()) {
-//             return simp_result(new_e, mk_congr_arg_bin(m_tctx, op, r1.get_proof(), r2.get_proof()));
-//         } else if (r1.has_proof()) {
-//             return simp_result(new_e, mk_congr_arg_bin_fst(m_tctx, op, r1.get_proof(), r2.get_new()));
-//         } else if (r2.has_proof()) {
-//             return simp_result(new_e, mk_congr_arg(m_tctx, mk_app(op, r1.get_new()), r2.get_proof()));
-//         } else {
-//             return simp_result(new_e);
-//         }
-//     } else {
-//         return simplify(e);
-//     }
-// }
-
-// simp_result simplifier::simplify_subterms_app_nary(expr const & assoc, expr const & e) {
-//     expr op = app_fn(app_fn(e));
-//     flet<optional<expr>> with_nary_assoc(m_curr_nary_op, some_expr(op));
-//     simp_result r_congr = simplify_each_nary_arg(op, e);
-//     simp_result r_flat  = simp_result(flat_assoc(m_tctx, op, assoc, r_congr.get_new()));
-//     if (r_flat.get_new() != e) {
-//         unsigned i = 0;
-//     }
-//     return join(r_congr, r_flat);
-// }
-
-
 /* Proving */
 optional<expr> simplifier::prove(expr const & goal) {
     metavar_context mctx = m_tctx.mctx();
@@ -881,208 +831,6 @@ optional<expr> simplifier::prove(expr const & goal) {
         return none_expr();
     }
 }
-
-/* Rewriting */
-// simp_result simplifier::rewrite(expr const & e, simp_lemmas const & slss) {
-//     simp_lemmas_for const * sr = slss.find(m_rel);
-//     if (!sr) return simp_result(e);
-
-//     list<simp_lemma> const * srs = sr->find_simp(e);
-//     if (!srs) {
-//         lean_trace(name({"debug", "simplifier", "try_rewrite"}), tout() << "no simp lemmas for: " << e << "\n";);
-//         return simp_result(e);
-//     }
-
-//     return rewrite(e, *srs);
-// }
-
-// simp_result simplifier::rewrite(expr const & e, list<simp_lemma> const & lemmas) {
-//     auto assoc = !using_eq() ? none_expr() : is_assoc(m_tctx, e);
-//     auto comm  = !using_eq() ? none_expr() : is_comm(m_tctx, e);
-
-//     for (simp_lemma const & lemma : lemmas) {
-//         simp_result r;
-//         if (m_rewrite_ac && assoc && comm)
-//             r = rewrite_ac(*assoc, *comm, e, lemma);
-//         else if (assoc)
-//             r = rewrite_a(*assoc, e, lemma);
-//         else
-//             r = rewrite(e, lemma);
-//         if (r.has_proof())
-//             return r;
-//     }
-//     return simp_result(e);
-// }
-
-// simp_result simplifier::rewrite_a(expr const & assoc, expr const & e, simp_lemma const & sl) {
-//     buffer<expr> nary_args;
-//     optional<expr> nary_op = get_app_nary_args(e, nary_args);
-//     lean_assert(nary_op);
-
-//     buffer<expr> nary_pattern_args;
-//     optional<expr> nary_pattern_op = get_app_nary_args(sl.get_lhs(), nary_pattern_args);
-//     lean_assert(nary_pattern_op);
-
-//     if (!m_tctx.is_def_eq(*nary_op, *nary_pattern_op))
-//         return simp_result(e);
-
-//     unsigned num_patterns = nary_pattern_args.size();
-
-//     if (nary_args.size() < num_patterns)
-//         return simp_result(e);
-
-//     for (unsigned i = 0; i <= nary_args.size() - num_patterns; ++i) {
-//         if (optional<simp_result> r = rewrite_a(nary_args, nary_pattern_args, i, sl)) {
-//             lean_assert(r->has_proof());
-//             unsigned j = nary_args.size() - 1;
-//             expr new_e = (j >= i + num_patterns) ? nary_args[j] : r->get_new();
-//             j = (j >= i + num_patterns) ? (j - 1) : (j - num_patterns);
-//             while (j + 1 > 0) {
-//                 if (j >= i + num_patterns || j < i) {
-//                     new_e = mk_app(*nary_op, nary_args[j], new_e);
-//                     j -= 1;
-//                 } else {
-//                     new_e = mk_app(*nary_op, r->get_new(), new_e);
-//                     j -= num_patterns;
-//                 }
-//             }
-//             lean_trace(name({"simplifier", "rewrite", "assoc"}), tout() << e << " ==> " << new_e << "\n";);
-//             return simp_result(new_e, mk_rewrite_assoc_macro(assoc, mk_eq(m_tctx, e, new_e), r->get_proof()));
-//         }
-//     }
-//     return simp_result(e);
-// }
-
-// optional<simp_result> simplifier::rewrite_a(buffer<expr> const & nary_args, buffer<expr> const & nary_pattern_args, unsigned offset, simp_lemma const & sl) {
-//     unsigned num_patterns = nary_pattern_args.size();
-//     tmp_type_context tmp_tctx(m_tctx, sl.get_num_umeta(), sl.get_num_emeta());
-//     for (unsigned i = 0; i < num_patterns; ++i) {
-//         if (!m_tctx.is_def_eq(nary_args[offset+i], nary_pattern_args[i]))
-//             return optional<simp_result>();
-//     }
-
-//     if (!instantiate_emetas(tmp_tctx, sl.get_num_emeta(), sl.get_emetas(), sl.get_instances()))
-//         return optional<simp_result>();
-
-//     for (unsigned i = 0; i < sl.get_num_umeta(); i++) {
-//         if (!tmp_tctx.is_uassigned(i))
-//             return optional<simp_result>();
-//     }
-
-//     expr new_lhs = tmp_tctx.instantiate_mvars(sl.get_lhs());
-//     expr new_rhs = tmp_tctx.instantiate_mvars(sl.get_rhs());
-
-//     expr pf = tmp_tctx.instantiate_mvars(sl.get_proof());
-//     return optional<simp_result>(simp_result(new_rhs, pf));
-// }
-
-// simp_result simplifier::process_success_ac(expr const & assoc, expr const & comm, expr const & old_e, expr const & nary_op,
-//                                            buffer<expr> const & nary_args, unsigned i, unsigned j, simp_result const & r_step) {
-//     lean_assert(r_step.has_proof());
-//     expr new_e = r_step.get_new();
-//     for (unsigned k = nary_args.size() - 1; k + 1 > 0; --k) {
-//         if (k == i || k == j)
-//             continue;
-//         new_e = mk_app(nary_op, nary_args[k], new_e);
-//     }
-//     lean_trace(name({"simplifier", "rewrite", "ac"}), tout() << old_e << " ==> " << new_e << "\n";);
-//     return simp_result(new_e, mk_rewrite_ac_macro(assoc, comm, mk_eq(m_tctx, old_e, new_e), r_step.get_proof()));
-// }
-
-// // TODO(dhs): clean up, three methods are all almost identical
-// optional<simp_result> simplifier::rewrite_ac(buffer<expr> const & nary_args, buffer<expr> const & nary_pattern_args, unsigned i, unsigned j, simp_lemma const & sl) {
-//     unsigned num_patterns = nary_pattern_args.size();
-//     tmp_type_context tmp_tctx(m_tctx, sl.get_num_umeta(), sl.get_num_emeta());
-//     if (!m_tctx.is_def_eq(nary_args[i], nary_pattern_args[0]))
-//             return optional<simp_result>();
-
-//     if (!m_tctx.is_def_eq(nary_args[j], nary_pattern_args[1]))
-//             return optional<simp_result>();
-
-//     if (!instantiate_emetas(tmp_tctx, sl.get_num_emeta(), sl.get_emetas(), sl.get_instances()))
-//         return optional<simp_result>();
-
-//     for (unsigned i = 0; i < sl.get_num_umeta(); i++) {
-//         if (!tmp_tctx.is_uassigned(i))
-//             return optional<simp_result>();
-//     }
-
-//     expr new_lhs = tmp_tctx.instantiate_mvars(sl.get_lhs());
-//     expr new_rhs = tmp_tctx.instantiate_mvars(sl.get_rhs());
-
-//     expr pf = tmp_tctx.instantiate_mvars(sl.get_proof());
-//     return optional<simp_result>(simp_result(new_rhs, pf));
-// }
-
-// simp_result simplifier::rewrite_ac(expr const & assoc, expr const & comm, expr const & e, simp_lemma const & sl) {
-//     buffer<expr> nary_args;
-//     optional<expr> nary_op = get_app_nary_args(e, nary_args);
-//     lean_assert(nary_op);
-
-//     buffer<expr> nary_pattern_args;
-//     optional<expr> nary_pattern_op = get_app_nary_args(sl.get_lhs(), nary_pattern_args);
-//     lean_assert(nary_pattern_op);
-
-//     if (!m_tctx.is_def_eq(*nary_op, *nary_pattern_op))
-//         return simp_result(e);
-
-//     unsigned num_patterns = nary_pattern_args.size();
-
-//     if (nary_args.size() < num_patterns)
-//         return simp_result(e);
-
-//     if (nary_pattern_args.size() > 2) {
-//         lean_trace(name({"simplifier", "rewrite", "ac"}), tout() << "(not yet implemented for > 2 patterns)" << "\n";);
-//         return rewrite_a(assoc, e, sl);
-//     }
-
-//     // TODO(dhs): hardcoded for numPatterns = 2 for now
-//     for (unsigned i = 0; i < nary_args.size() - 1; ++i) {
-//         for (unsigned j = i + 1; j < nary_args.size(); ++j) {
-//             if (optional<simp_result> r = rewrite_ac(nary_args, nary_pattern_args, i, j, sl))
-//                 return process_success_ac(assoc, comm, e, *nary_op, nary_args, i, j, *r);
-
-//             if (optional<simp_result> r = rewrite_ac(nary_args, nary_pattern_args, j, i, sl))
-//                 return process_success_ac(assoc, comm, e, *nary_op, nary_args, j, i, *r);
-//         }
-//     }
-//     return simp_result(e);
-// }
-
-// simp_result simplifier::rewrite(expr const & e, simp_lemma const & sl) {
-//     tmp_type_context tmp_tctx(m_tctx, sl.get_num_umeta(), sl.get_num_emeta());
-//     lean_simp_trace(tmp_tctx, name({"debug", "simplifier", "try_rewrite"}), tout() << e << " =?= " << sl.get_lhs() << "\n";);
-
-//     if (!tmp_tctx.is_def_eq(e, sl.get_lhs())) return simp_result(e);
-
-//     lean_simp_trace(tmp_tctx, name({"simplifier", "rewrite"}),
-//                     expr new_lhs = tmp_tctx.instantiate_mvars(sl.get_lhs());
-//                     expr new_rhs = tmp_tctx.instantiate_mvars(sl.get_rhs());
-//                     tout() << "(" << sl.get_id() << ") "
-//                     << "[" << new_lhs << " --> " << new_rhs << "]\n";);
-
-//     if (!instantiate_emetas(tmp_tctx, sl.get_num_emeta(), sl.get_emetas(), sl.get_instances()))
-//         return simp_result(e);
-
-//     for (unsigned i = 0; i < sl.get_num_umeta(); i++) {
-//         if (!tmp_tctx.is_uassigned(i)) return simp_result(e);
-//     }
-
-//     expr new_lhs = tmp_tctx.instantiate_mvars(sl.get_lhs());
-//     expr new_rhs = tmp_tctx.instantiate_mvars(sl.get_rhs());
-
-//     if (sl.is_perm()) {
-//         // TODO(dhs): restore light-lt
-//         if (!is_lt(new_rhs, new_lhs, false)) {
-//             lean_simp_trace(tmp_tctx, name({"simplifier", "perm"}),
-//                             tout() << "perm rejected: " << new_rhs << " !< " << new_lhs << "\n";);
-//             return simp_result(e);
-//         }
-//     }
-
-//     expr pf = tmp_tctx.instantiate_mvars(sl.get_proof());
-//     return simp_result(new_rhs, pf);
-// }
 
 /* Congruence */
 

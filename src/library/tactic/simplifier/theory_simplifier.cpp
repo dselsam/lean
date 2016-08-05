@@ -32,11 +32,11 @@ bool theory_simplifier::owns(expr const & e) {
     return static_cast<bool>(to_num(e));
 }
 
-simp_result theory_simplifier::simplify_binary(expr const & e) {
+simp_result theory_simplifier::simplify_binary(name const & rel, expr const & e) {
     return simp_result(e);
 }
 
-optional<simp_result> theory_simplifier::simplify_nary(expr const & assoc, expr const & op, buffer<expr> & args) {
+optional<simp_result> theory_simplifier::simplify_nary(name const & rel, expr const & assoc, expr const & op, buffer<expr> & args) {
     return optional<simp_result>();
 }
 
