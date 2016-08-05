@@ -16,12 +16,13 @@ example : P ↔ P := by psimp
 
 -- Eq
 example : (P = P) ↔ true := by psimp
-
 example : ((¬ P) = (¬ Q)) ↔ (P = Q) := by psimp
 example : (true = P) ↔ P := by psimp
 example : (false = P) ↔ ¬ P := by psimp
+example : (false = ¬ P) ↔ P := by psimp
 example : (P = true) ↔ P := by psimp
 example : (P = false) ↔ ¬ P := by psimp
+example : (¬ P = false) ↔ P := by psimp
 example : (P = ¬ P) ↔ false := by psimp
 example : (¬ P = P) ↔ false := by psimp
 
