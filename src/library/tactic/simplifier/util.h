@@ -11,8 +11,7 @@ Author: Daniel Selsam
 
 namespace lean {
 
-optional<pair<expr, expr> > is_assoc(type_context & tctx, expr const & e);
-optional<expr> is_comm(type_context & tctx, expr const & op);
+optional<pair<expr, expr> > is_assoc(type_context & tctx, name const & rel, expr const & e);
 
 expr mk_flat_simp_macro(expr const & assoc, expr const & thm, optional<expr> pf_of_simp);
 expr mk_congr_flat_macro(expr const & assoc, expr const & thm, optional<expr> pf_op,

@@ -26,7 +26,7 @@ structure semigroup [class] (A : Type) extends has_mul A :=
 theorem mul.assoc [semigroup A] (a b c : A) : a * b * c = a * (b * c) :=
 semigroup.mul_assoc a b c
 
-theorem semigroup_mul_is_associative [instance] (A : Type) [semigroup A] : is_associative (@mul A _) :=
+theorem semigroup_mul_is_associative [instance] (A : Type) [semigroup A] : is_associative (@eq A) (@mul A _) :=
 is_associative.mk mul.assoc
 
 set_option pp.all true
@@ -35,9 +35,6 @@ structure comm_semigroup [class] (A : Type) extends semigroup A :=
 
 theorem mul.comm [comm_semigroup A] (a b : A) : a * b = b * a :=
 comm_semigroup.mul_comm a b
-
-theorem comm_semigroup_mul_is_commutative [instance] (A : Type) [comm_semigroup A] : is_commutative (@mul A _) :=
-is_commutative.mk mul.comm
 
 theorem mul.left_comm [comm_semigroup A] (a b c : A) : a * (b * c) = b * (a * c) :=
 binary.left_comm (@mul.comm A _) (@mul.assoc A _) a b c
@@ -69,7 +66,7 @@ structure add_semigroup [class] (A : Type) extends has_add A :=
 theorem add.assoc [add_semigroup A] (a b c : A) : a + b + c = a + (b + c) :=
 add_semigroup.add_assoc a b c
 
-theorem comm_semigroup_add_is_associative [instance] (A : Type) [add_semigroup A] : is_associative (@add A _) :=
+theorem comm_semigroup_add_is_associative [instance] (A : Type) [add_semigroup A] : is_associative (@eq A) (@add A _) :=
 is_associative.mk add.assoc
 
 structure add_comm_semigroup [class] (A : Type) extends add_semigroup A :=
@@ -77,9 +74,6 @@ structure add_comm_semigroup [class] (A : Type) extends add_semigroup A :=
 
 theorem add.comm [add_comm_semigroup A] (a b : A) : a + b = b + a :=
 add_comm_semigroup.add_comm a b
-
-theorem comm_semigroup_add_is_commutative [instance] (A : Type) [add_comm_semigroup A] : is_commutative (@add A _) :=
-is_commutative.mk add.comm
 
 theorem add.left_comm [add_comm_semigroup A] (a b c : A) : a + (b + c) = b + (a + c) :=
 binary.left_comm (@add.comm A _) (@add.assoc A _) a b c

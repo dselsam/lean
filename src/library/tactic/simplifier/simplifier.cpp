@@ -252,7 +252,7 @@ class simplifier {
 
         optional<pair<expr, expr> > assoc;
         if (using_eq())
-            assoc = is_assoc(m_tctx, e);
+            assoc = is_assoc(m_tctx, m_rel, e);
 
         if (assoc)
             r = simplify_nary(assoc->first, assoc->second, e);

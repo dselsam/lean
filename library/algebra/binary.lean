@@ -84,11 +84,13 @@ namespace binary
   definition left_commutative_compose_left [reducible]
     {A B : Type} (f : A → A → A) (g : B → A) (lcomm : left_commutative f) : left_commutative (comp_left f g) :=
   λ a b₁ b₂, lcomm _ _ _
+
 end binary
 
 open binary
 
 -- TODO(dhs, avigad): generalize the definitions above to take relation as argument
+-- TODO(dhs, avigad): where to put these?
 structure is_associative [class] {A : Type} (rel : A → A → Prop) (op : A → A → A) :=
 (op_assoc : ∀ x y z : A, rel (op (op x y) z) (op x (op y z)))
 

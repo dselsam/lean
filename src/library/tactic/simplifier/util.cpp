@@ -14,36 +14,22 @@ Author: Daniel Selsam
 
 namespace lean {
 
-optional<pair<expr, expr> > is_assoc(type_context & tctx, expr const & e) {
+optional<pair<expr, expr> > is_assoc(type_context & tctx, name const & rel, expr const & e) {
     auto op = get_binary_op(e);
     if (!op)
         return optional<pair<expr, expr> >();
+    // TODO(dhs): optimized helper for instantiating a relation given a single element of a given type
+    expr e_rel = app_fn(app_fn(mk_rel(tctx, rel, e, e)));
     try {
-        expr assoc_class = mk_app(tctx, get_is_associative_name(), *op);
+        expr assoc_class = mk_app(tctx, get_is_associative_name(), e_rel, *op);
         if (auto assoc_inst = tctx.mk_class_instance(assoc_class))
-            return optional<pair<expr, expr> >(mk_pair(mk_app(tctx, get_is_associative_op_assoc_name(), 3, *assoc_inst), *op));
+            return optional<pair<expr, expr> >(mk_pair(mk_app(tctx, get_is_associative_op_assoc_name(), 4, e_rel, *op, *assoc_inst), *op));
         else
             return optional<pair<expr, expr> >();
     } catch (app_builder_exception ex) {
         return optional<pair<expr, expr> >();
     }
 }
-
-optional<expr> is_comm(type_context & tctx, expr const & e) {
-    auto op = get_binary_op(e);
-    if (!op)
-        return none_expr();
-    try {
-        expr comm_class = mk_app(tctx, get_is_commutative_name(), *op);
-        if (auto comm_inst = tctx.mk_class_instance(comm_class))
-            return some_expr(mk_app(tctx, get_is_commutative_op_comm_name(), 3, *comm_inst));
-        else
-            return none_expr();
-    } catch (app_builder_exception ex) {
-        return none_expr();
-    }
-}
-
 
 // TODO(dhs): flat/congr/simp macros
 expr mk_flat_simp_macro(expr const & assoc, expr const & thm, optional<expr> pf_of_simp) {
