@@ -252,10 +252,12 @@ class simplifier {
 
         optional<pair<expr, expr> > assoc = is_assoc(m_tctx, m_rel, e);
 
-        if (assoc)
+        if (assoc) {
             r = simplify_nary(assoc->first, assoc->second, e);
-        else
+            // TODO(dhs): look at sheet for next step
+        } else {
             r = simplify_binary(e);
+        }
 
         if (!r.is_done())
             r = join(r, simplify(r.get_new()));
@@ -611,7 +613,6 @@ class simplifier {
     simp_result simplify_nary(expr const & assoc, expr const & op, expr const & old_e) {
         buffer<expr> nary_args;
         get_app_nary_args(op, old_e, nary_args);
-        bool inside_nary = m_curr_nary_op && *m_curr_nary_op == op;
 
         if (m_topdown) {
             if (m_rewrite) {
