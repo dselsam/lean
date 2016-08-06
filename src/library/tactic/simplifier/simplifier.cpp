@@ -302,7 +302,7 @@ class simplifier {
         }
 
         if (m_memoize)
-            cache_save(e, r);
+            cache_save(old_e, r);
 
         return r;
     }
@@ -735,6 +735,7 @@ class simplifier {
     simp_result congr_fun(simp_result const & r_f, expr const & arg);
     simp_result congr_arg(expr const & f, simp_result const & r_arg);
     simp_result congr_funs(simp_result const & r_f, buffer<expr> const & args);
+    simp_result funext(simp_result const & r, expr const & l);
 
     simp_result try_congrs(expr const & e);
     simp_result try_congr(expr const & e, user_congr_lemma const & cr);
@@ -764,7 +765,7 @@ public:
         m_theory(get_simplify_theory(tctx.get_options())),
         m_topdown(get_simplify_topdown(tctx.get_options())),
         m_lift_eq(get_simplify_lift_eq(tctx.get_options())),
-        m_canonize_fixed_point(get_simplify_canonize_fixed_point(tctx.get_options()))
+        m_canonize_fixed_point(get_simplify_canonize_fixed_point(tctx.get_options())),
         m_canonize_proofs(get_simplify_canonize_proofs(tctx.get_options()))
         { }
 
@@ -817,25 +818,43 @@ expr simplifier::whnf_eta(expr const & e) {
     return try_eta(m_tctx.whnf(e));
 }
 
-simp_result simplifier::simplify_subterms_lambda(expr const & e) {
-    lean_assert(is_lambda(e));
-    expr t = e;
+simp_result simplifier::simplify_subterms_lambda(expr const & old_e) {
+    lean_assert(is_lambda(old_e));
+    expr e = old_e;
 
-    type_context::tmp_locals local_factory(m_tctx);
-
-    expr l = local_factory.push_local_from_binding(t);
-    t = instantiate(binding_body(t), l);
-
-    simp_result r = simplify(t);
-    expr new_t = local_factory.mk_lambda(r.get_new());
-
-    if (r.has_proof()) {
-        expr lam_pf = local_factory.mk_lambda(r.get_proof());
-        expr funext_pf = mk_app(m_tctx, get_funext_name(), lam_pf);
-        return simp_result(new_t, funext_pf);
-    } else {
-        return simp_result(new_t);
+    buffer<expr> ls;
+    while (is_lambda(e)) {
+        expr d = instantiate_rev(binding_domain(e), ls.size(), ls.data());
+        expr l = m_tctx.push_local(binding_name(e), d, binding_info(e));
+        ls.push_back(l);
+        e = instantiate(binding_body(e), l);
     }
+
+    simp_result r = simplify(e);
+    expr new_e = r.get_new();
+    expr new_e_type = m_tctx.infer(new_e);
+    if (auto inst = m_tctx.mk_subsingleton_instance(new_e_type)) {
+        auto it = m_subsingleton_elem_map.find(new_e_type);
+        if (it != m_subsingleton_elem_map.end()) {
+            if (it->second != new_e) {
+                expr proof = mk_ss_elim(m_tctx, new_e_type, *inst, new_e, it->second);
+                r = join(r, simp_result(it->second, proof));
+            }
+        } else {
+            m_subsingleton_elem_map.insert(mk_pair(new_e_type, new_e));
+        }
+    }
+
+    if (r.get_new() != e)
+        return old_e;
+
+    if (!r.has_proof())
+        return m_tctx.mk_lambda(ls, r.get_new());
+
+    for (int i = ls.size() - 1; i >= 0; --i)
+        r = funext(r, ls[i]);
+
+    return r;
 }
 
 simp_result simplifier::simplify_subterms_pi(expr const & e) {
@@ -932,16 +951,25 @@ simp_result simplifier::congr_arg(expr const & f, simp_result const & r_arg) {
 
 /* Note: handles reflexivity */
 simp_result simplifier::congr_funs(simp_result const & r_f, buffer<expr> const & args) {
-    // congr_fun : ∀ {A : Type} {B : A → Type} {f g : Π (x : A), B x}, f = g → (∀ (a : A), f a = g a)
     expr e = r_f.get_new();
     for (unsigned i = 0; i < args.size(); ++i) {
         e  = mk_app(e, args[i]);
     }
-    if (!r_f.has_proof()) return simp_result(e);
+    if (!r_f.has_proof())
+        return simp_result(e);
     expr pf = r_f.get_proof();
     for (unsigned i = 0; i < args.size(); ++i) {
-        pf = mk_app(m_tctx, get_congr_fun_name(), pf, args[i]);
+        pf = mk_congr_fun(m_tctx, pf, args[i]);
     }
+    return simp_result(e, pf);
+}
+
+simp_result simplifier::funext(simp_result const & r, expr const & l) {
+    expr e = m_tctx.mk_lambda(l, r.get_new());
+    if (!r.has_proof())
+        return simp_result(e);
+    expr lam_pf = m_tctx.mk_lambda(l, r.get_proof());
+    expr pf = mk_funext(m_tctx, lam_pf);
     return simp_result(e, pf);
 }
 
@@ -1313,13 +1341,16 @@ expr simplifier::remove_unnecessary_casts(expr const & e) {
     return mk_app(f, args);
 }
 
-vm_obj tactic_simplify_core(vm_obj const & prove_fn, vm_obj const & rel, vm_obj const & lemmas, vm_obj const & e, vm_obj const & s0) {
+vm_obj tactic_simplify_core(vm_obj const & prove_fn, vm_obj const & rel_name, vm_obj const & lemmas, vm_obj const & e, vm_obj const & s0) {
     tactic_state const & s   = to_tactic_state(s0);
     try {
         type_context tctx    = mk_type_context_for(s, transparency_mode::Reducible);
-        simp_result result   = simplify(tctx, to_name(rel), to_simp_lemmas(lemmas), prove_fn, to_expr(e));
+        name rel             = to_name(rel_name);
+        expr old_e           = to_expr(e);
+        simp_result result   = simplify(tctx, rel, to_simp_lemmas(lemmas), prove_fn, old_e);
 
-        if (result.has_proof()) {
+        if (result.get_new() != old_e) {
+            result = finalize(tctx, rel, result);
             return mk_tactic_success(mk_vm_pair(to_obj(result.get_new()), to_obj(result.get_proof())), s);
         } else {
             return mk_tactic_exception("simp tactic failed to simplify", s);
