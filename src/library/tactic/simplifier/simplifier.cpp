@@ -635,6 +635,8 @@ class simplifier {
         buffer<expr> new_nary_args;
         buffer<optional<expr>> pf_nary_args;
         bool simplified = false;
+        // Note: it is easy to also detect whether there is a proof here,
+        // and to skip the congr part of the macros downstream accordingly
         simp_result r_op = simplify_subterms_app_nary(op, nary_args, new_nary_args, pf_nary_args, simplified);
         expr const & new_op = r_op.get_new();
 
@@ -646,7 +648,7 @@ class simplifier {
 
         if (!m_topdown && !use_congr_only) {
             if (m_rewrite) {
-                if (optional<simp_result> r_rewrite = simplify_rewrite_nary(assoc, op, nary_args)) {
+                if (optional<simp_result> r_rewrite = simplify_rewrite_nary(assoc, new_op, new_nary_args)) {
                     lean_trace_d(name({"simplifier", "rewrite"}), tout() << old_e << " ==> " << r_rewrite->get_new() << "\n";);
                     expr new_e = r_rewrite->get_new();
                     // TODO(dhs): if !congr, just create a mk_flat_simp_macro (all three of these)

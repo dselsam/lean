@@ -1,6 +1,5 @@
 open tactic
 
-namespace synth_congr
 universe variable l
 constants (ss₁ : Type.{l} → Type.{l})
           (ss₂ : Π {A : Type.{l}}, A → Type.{l})
@@ -23,12 +22,10 @@ attribute HAB [simp]
 attribute H₁ [simp]
 attribute H₂ [simp]
 
-example : f A ss_A a₁ a₂ ss_a₁ ss_a₂ = f A ss_A a₁' a₂' ss_a₁' ss_a₂' := by simp_using_hs
+example : f A ss_A a₁ a₂ ss_a₁ ss_a₂ = f A ss_A a₁' a₂' ss_a₁' ss_a₂' := by simp
 
 definition c₁' [reducible] := a₁'
 definition c₂' [reducible] := a₂'
 
-example : f A ss_A a₁' a₂' ss_a₁' ss_a₂' = f A ss_A c₁' c₂' ss_a₁' ss_a₂' := by simp_using_hs
-example : f A ss_A a₁ a₂ ss_a₁ ss_a₂ = f A ss_A c₁' c₂' ss_a₁' ss_a₂' := by simp_using_hs
-
-end synth_congr
+example : f A ss_A a₁' a₂' ss_a₁' ss_a₂' = f A ss_A c₁' c₂' ss_a₁' ss_a₂' := by simp
+example : f A ss_A a₁ a₂ ss_a₁ ss_a₂ = f A ss_A c₁' c₂' ss_a₁' ss_a₂' := by simp
