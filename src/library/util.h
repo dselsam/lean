@@ -218,11 +218,21 @@ bool is_or(expr const & e, expr & A, expr & B);
 /** \brief Return true if \c e is of the form <tt>(not arg)</tt>, and store \c arg in \c a.
      Return false otherwise */
 bool is_not(environment const & env, expr const & e, expr & a);
+bool is_not(expr const & e, expr & a);
 bool is_not(environment const & env, expr const & e);
 expr mk_not(abstract_type_context & ctx, expr const & e);
 
 /** \brief Create the term <tt>absurd e not_e : t</tt>. */
 expr mk_absurd(abstract_type_context & ctx, expr const & t, expr const & e, expr const & not_e);
+
+optional<expr> get_binary_op(expr const & e);
+optional<expr> get_binary_op(expr const & e, expr & arg1, expr & arg2);
+bool is_binary_app_of(expr const & e, expr const & op, expr & arg1, expr & arg2);
+void get_app_nary_args(expr const & op, expr const & e, buffer<expr> & nary_args);
+
+/** \brief Makes n-ary (right-associative) application. */
+expr mk_nary_app(expr const & op, buffer<expr> const & nary_args);
+expr mk_nary_app(expr const & op, unsigned num_nary_args, expr const * nary_args);
 
 expr try_eta(expr const & e);
 expr beta_reduce(expr t);

@@ -787,6 +787,23 @@ bool is_not(environment const & env, expr const & e, expr & a) {
     }
 }
 
+bool is_not(expr const & e, expr & a) {
+    if (is_app(e)) {
+        expr const & f = app_fn(e);
+        if (!is_constant(f) || const_name(f) != get_not_name())
+            return false;
+        a = app_arg(e);
+        return true;
+    } else if (is_pi(e)) {
+        if (!is_false(binding_body(e)))
+            return false;
+        a = binding_domain(e);
+        return true;
+    } else {
+        return false;
+    }
+}
+
 bool is_not(environment const & env, expr const & e) {
     if (is_app(e)) {
         expr const & f = app_fn(e);
@@ -819,6 +836,61 @@ expr mk_absurd(abstract_type_context & ctx, expr const & t, expr const & e, expr
         level e_lvl = get_level(ctx, e_type);
         return mk_app(mk_constant(get_absurd_name(), {e_lvl, t_lvl}), e_type, t, e, not_e);
     }
+}
+
+optional<expr> get_binary_op(expr const & e) {
+    if (!is_app(e) || !is_app(app_fn(e)))
+        return none_expr();
+    return some_expr(app_fn(app_fn(e)));
+}
+
+optional<expr> get_binary_op(expr const & e, expr & arg1, expr & arg2) {
+    if (auto op = get_binary_op(e)) {
+        arg1 = app_arg(app_fn(e));
+        arg2 = app_arg(e);
+        return some_expr(*op);
+    } else {
+        return none_expr();
+    }
+}
+
+bool is_binary_app_of(expr const & e, expr const & op, expr & arg1, expr & arg2) {
+    if (auto e_op = get_binary_op(e, arg1, arg2))
+        return *e_op == op;
+    else
+        return false;
+}
+
+static void get_app_nary_args_core(expr const & op, expr const & e, buffer<expr> & nary_args) {
+    auto next_op = get_binary_op(e);
+    // Note: this assumes that the implicit arguments are definitionally equal in nested applications.
+    // It may lead to a kernel type-checking error later on if this is not the case.
+    // If this ever happens, we can take a type_context and switch this to the more expensive `is_def_eq`.
+    if (next_op && get_app_fn(*next_op) == get_app_fn(op)) {
+        get_app_nary_args_core(op, app_arg(app_fn(e)), nary_args);
+        get_app_nary_args_core(op, app_arg(e), nary_args);
+    } else {
+        nary_args.push_back(e);
+    }
+}
+
+void get_app_nary_args(expr const & op, expr const & e, buffer<expr> & nary_args) {
+    get_app_nary_args_core(op, app_arg(app_fn(e)), nary_args);
+    get_app_nary_args_core(op, app_arg(e), nary_args);
+}
+
+expr mk_nary_app(expr const & op, buffer<expr> const & nary_args) {
+    return mk_nary_app(op, nary_args.size(), nary_args.data());
+}
+
+expr mk_nary_app(expr const & op, unsigned num_nary_args, expr const * nary_args) {
+    lean_assert(num_nary_args >= 2);
+    // f x1 x2 x3 ==> f x1 (f x2 x3)
+    expr e = mk_app(op, nary_args[num_nary_args - 2], nary_args[num_nary_args - 1]);
+    for (int i = num_nary_args - 3; i >= 0; --i) {
+        e = mk_app(op, nary_args[i], e);
+    }
+    return e;
 }
 
 optional<expr> lift_down_if_hott(abstract_type_context & ctx, expr const & v) {
