@@ -378,9 +378,7 @@ class simplifier {
 
         // (2) Synthesize congruence lemma
         if (using_eq()) {
-            optional<simp_result> r_args = synth_congr(e, [&](expr const & e) {
-                    return simplify(e);
-                });
+            optional<simp_result> r_args = synth_congr(e);
             if (r_args) return join(*r_args, simplify_operator_of_app(r_args->get_new()));
         }
         // (3) Fall back on generic binary congruence
@@ -714,8 +712,7 @@ class simplifier {
     simp_result try_congrs(expr const & e);
     simp_result try_congr(expr const & e, user_congr_lemma const & cr);
 
-    template<typename F>
-    optional<simp_result> synth_congr(expr const & e, F && simp);
+    optional<simp_result> synth_congr(expr const & e);
 
     expr remove_unnecessary_casts(expr const & e);
 
@@ -1070,10 +1067,7 @@ bool simplifier::instantiate_emetas(tmp_type_context & tmp_tctx, unsigned num_em
     return !failed;
 }
 
-template<typename F>
-optional<simp_result> simplifier::synth_congr(expr const & e, F && simp) {
-    static_assert(std::is_same<typename std::result_of<F(expr const & e)>::type, simp_result>::value,
-                  "synth_congr: simp must take expressions to simp_results");
+optional<simp_result> simplifier::synth_congr(expr const & e) {
     lean_assert(is_app(e));
     buffer<expr> args;
     expr f = get_app_args(e, args);
@@ -1102,7 +1096,7 @@ optional<simp_result> simplifier::synth_congr(expr const & e, F && simp) {
             subst.push_back(args[i]);
             type = binding_body(type);
             {
-                simp_result r_arg = simp(args[i]);
+                simp_result r_arg = simplify(args[i]);
                 if (r_arg.has_proof())
                     has_proof = true;
                 r_arg = finalize(m_tctx, m_rel, r_arg);
