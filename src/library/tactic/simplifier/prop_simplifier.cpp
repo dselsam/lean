@@ -46,11 +46,16 @@ public:
     virtual name get_name() const { return *g_prop_simplifier_macro_name; }
     virtual expr check_type(expr const & m, abstract_type_context & tctx, bool infer_only) const {
         check_macro(m);
-        if (macro_num_args(m) == 2)
-            return mk_app(mk_constant(get_iff_name()), macro_arg(m, 0), macro_arg(m, 1));
-        else
+        if (macro_num_args(m) == 2) {
+            expr fn = get_app_fn(macro_arg(m, 0));
+            if (is_constant(fn) && const_name(fn) == get_ite_name())
+                return mk_app(mk_constant(get_eq_name(), {mk_level_one()}), mk_Prop(), macro_arg(m, 0), macro_arg(m, 1));
+            else
+                return mk_app(mk_constant(get_iff_name()), macro_arg(m, 0), macro_arg(m, 1));
+        } else {
             throw exception(sstream() << "prop_simplifier macro does not store any information in the nary-case, "
                             << "since it expects to be wrapped by a congr_flat_simp macro");
+        }
         lean_unreachable();
     }
 
@@ -221,6 +226,70 @@ optional<expr> prop_simplifier::simplify_not(expr const & e) {
     return none_expr();
 }
 
+optional<expr> prop_simplifier::simplify_pi(expr const & dom, expr const & body, bool is_arrow) {
+    if (m_tctx.is_def_eq(body, mk_true()))
+        return some_expr(mk_true());
+    if (is_arrow && m_tctx.is_def_eq(dom, body))
+        return some_expr(mk_true());
+    return none_expr();
+}
+
+optional<expr> prop_simplifier::simplify_ite(expr const & fn, buffer<expr> & args) {
+    bool simplified = false;
+
+    expr & c = args[0];
+    expr & t = args[3];
+    expr & e = args[4];
+
+    // TODO(dhs): add classical transformation for (ite (not c) t e)
+    // t and e are propositions? (with a flag?)
+
+    // Note: c is already in whnf
+    if (c == mk_true())
+        return some_expr(t);
+
+    if (c == mk_false())
+        return some_expr(e);
+
+    buffer<expr> x_args;
+    expr x_op = get_app_args(t, x_args);
+
+    // Issue: subsingleton instances are not canonized
+    // TODO(dhs): ite c (ite c t _) e ==> ite c t e
+    // TODO(dhs): ite c t (ite c _ e) ==> ite c t e
+    if (is_constant(x_op) && const_name(x_op) == get_ite_name()) {
+        expr & t_c = x_args[0];
+        expr & t_t = x_args[3];
+        if (m_tctx.is_def_eq(c, t_c)) {
+            t = t_t;
+            simplified = true;
+        }
+    }
+
+    x_args.clear();
+    x_op = get_app_args(e, x_args);
+
+    if (is_constant(x_op) && const_name(x_op) == get_ite_name()) {
+        expr & e_c = x_args[0];
+        expr & e_e = x_args[4];
+        if (m_tctx.is_def_eq(c, e_c)) {
+            e = e_e;
+            simplified = true;
+        }
+    }
+
+    if (m_tctx.is_def_eq(t, e))
+        return some_expr(t);
+
+    // TODO(dhs): add classical transformations when
+    // t and e are propositions? (with a flag?)
+
+    if (simplified)
+        return some_expr(mk_app(fn, args));
+    else
+        return none_expr();
+}
+
 optional<expr> prop_simplifier::simplify_and(buffer<expr> & args) {
     bool simplified = false;
     if (!std::is_sorted(args.begin(), args.end(), is_lt_light_not)) {
@@ -362,8 +431,12 @@ void finalize_prop_simplifier() {
 
 // Entry points
 simp_result prop_simplifier::simplify_binary(name const & rel, expr const & old_e) {
-    if (rel != get_iff_name())
-        return simp_result(old_e);
+    if (rel == get_iff_name() && is_pi(old_e)) {
+        if (auto r = simplify_pi(binding_domain(old_e), binding_body(old_e), is_arrow(old_e)))
+            return mk_simp_result_binary(old_e, *r);
+        else
+            return simp_result(old_e);
+    }
 
     buffer<expr> args;
     expr f = get_app_args(old_e, args);
@@ -371,6 +444,16 @@ simp_result prop_simplifier::simplify_binary(name const & rel, expr const & old_
         return simp_result(old_e);
 
     name id = const_name(f);
+
+    if (rel == get_eq_name()) {
+        if (id == get_ite_name() && args.size() == 5) {
+            if (auto r = simplify_ite(f, args))
+                return mk_simp_result_binary(old_e, *r);
+        }
+    }
+
+    if (rel != get_iff_name())
+        return simp_result(old_e);
 
     if (id == get_eq_name() && args.size() == 3) {
         if (auto r = simplify_eq(f, args[0], args[1], args[2]))

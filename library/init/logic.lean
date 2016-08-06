@@ -823,7 +823,7 @@ decidable.rec
   (λ Hc : c,    absurd Hc Hnc)
   H
 
-theorem if_t_t [simp] (c : Prop) [H : decidable c] {A : Type} (t : A) : (ite c t t) = t :=
+theorem if_t_t (c : Prop) [H : decidable c] {A : Type} (t : A) : (ite c t t) = t :=
 decidable.rec
   (λ Hnc : ¬c, eq.refl (@ite c (decidable.ff Hnc) A t t))
   (λ Hc  : c,  eq.refl (@ite c (decidable.tt Hc)  A t t))
@@ -865,10 +865,10 @@ theorem if_simp_congr [congr] {A : Type} {b c : Prop} [dec_b : decidable b] {x y
         ite b x y = (@ite c (decidable_of_decidable_of_iff dec_b h_c) A u v) :=
 @if_ctx_simp_congr A b c dec_b x y u v h_c (λ h, h_t) (λ h, h_e)
 
-definition if_true [simp] {A : Type} (t e : A) : (if true then t else e) = t :=
+definition if_true {A : Type} (t e : A) : (if true then t else e) = t :=
 if_pos trivial
 
-definition if_false [simp] {A : Type} (t e : A) : (if false then t else e) = e :=
+definition if_false {A : Type} (t e : A) : (if false then t else e) = e :=
 if_neg not_false
 
 theorem if_ctx_congr_prop {b c x y u v : Prop} [dec_b : decidable b] [dec_c : decidable c]

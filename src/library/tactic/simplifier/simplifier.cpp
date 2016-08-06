@@ -253,8 +253,8 @@ class simplifier {
         optional<pair<expr, expr> > assoc = is_assoc(m_tctx, m_rel, e);
 
         if (assoc) {
-            r = simplify_nary(assoc->first, assoc->second, e);
-            // TODO(dhs): look at sheet for next step
+            bool in_nary_subtree = assoc && m_curr_nary_op && *m_curr_nary_op == assoc->second;
+            r = simplify_nary(assoc->first, assoc->second, e, in_nary_subtree);
         } else {
             r = simplify_binary(e);
         }
@@ -367,10 +367,12 @@ class simplifier {
         // (1) Try user-defined congruences
         simp_result r_user = try_congrs(e);
         if (r_user.has_proof()) {
-            if (using_eq())
-                return join(r_user, simplify_operator_of_app(r_user.get_new()));
-            else
+            if (using_eq()) {
+                simp_result r_user_app = join(r_user, simplify_operator_of_app(r_user.get_new()));
+                return join(r_user_app, normalize_subsingleton_args(r_user_app.get_new()));
+            } else {
                 return r_user;
+            }
         }
 
         // (2) Synthesize congruence lemma
@@ -591,6 +593,7 @@ class simplifier {
     simp_result simplify_subterms_app_nary(expr const & op, buffer<expr> const & nary_args,
                                            buffer<expr> & new_nary_args, buffer<optional<expr> > & pf_nary_args,
                                            bool & simplified) {
+        flet<optional<expr> > in_nary_subtree(m_curr_nary_op, some_expr(op));
         for (expr const & arg : nary_args) {
             simp_result r_arg = simplify(arg);
             if (r_arg.get_new() != arg)
@@ -610,11 +613,11 @@ class simplifier {
     }
 
     // Main n-ary simplify method
-    simp_result simplify_nary(expr const & assoc, expr const & op, expr const & old_e) {
+    simp_result simplify_nary(expr const & assoc, expr const & op, expr const & old_e, bool in_nary_subtree) {
         buffer<expr> nary_args;
         get_app_nary_args(op, old_e, nary_args);
 
-        if (m_topdown) {
+        if (m_topdown && !in_nary_subtree) {
             if (m_rewrite) {
                 if (optional<simp_result> r_rewrite = simplify_rewrite_nary(assoc, op, nary_args)) {
                     lean_trace_d(name({"simplifier", "rewrite"}), tout() << old_e << " ==> " << r_rewrite->get_new() << "\n";);
@@ -643,7 +646,7 @@ class simplifier {
             return simp_result(new_e, pf);
         }
 
-        if (!m_topdown) {
+        if (!m_topdown && !in_nary_subtree) {
             if (m_rewrite) {
                 if (optional<simp_result> r_rewrite = simplify_rewrite_nary(assoc, op, nary_args)) {
                     lean_trace_d(name({"simplifier", "rewrite"}), tout() << old_e << " ==> " << r_rewrite->get_new() << "\n";);
@@ -667,7 +670,7 @@ class simplifier {
         // [5] Simplify with the theory simplifier
         // Note: the theory simplifier guarantees that no new subterms are introduced that need to be simplified.
         // Thus we never need to repeat unless something is simplified downstream of here.
-        if (m_theory) {
+        if (m_theory && !in_nary_subtree) {
             if (optional<simp_result> r_theory = m_theory_simplifier.simplify_nary(m_rel, assoc, new_op, new_nary_args)) {
                 expr new_e = r_theory->get_new();
                 bool done = true;
@@ -684,7 +687,7 @@ class simplifier {
         return simp_result(new_e, pf, done);
     }
 
-    /* Simplying the necessary subterms */
+    /* Simplifying the necessary subterms */
     simp_result simplify_subterms_lambda(expr const & e);
     simp_result simplify_subterms_pi(expr const & e);
     simp_result simplify_subterms_app(expr const & e);
@@ -697,6 +700,9 @@ class simplifier {
 
     /* Canonicalize */
     expr canonize_args(expr const & e);
+
+    expr_struct_map<expr> m_subsingleton_elem_map;
+    simp_result normalize_subsingleton_args(expr const & e);
 
     /* Congruence */
     simp_result congr_fun_arg(simp_result const & r_f, simp_result const & r_arg);
@@ -935,6 +941,7 @@ simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cl) {
 
     buffer<simp_result> congr_hyp_results;
     buffer<type_context::tmp_locals> factories;
+    buffer<name> relations;
     for (expr const & m : congr_hyps) {
         factories.emplace_back(m_tctx);
         type_context::tmp_locals & local_factory = factories.back();
@@ -952,6 +959,7 @@ simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cl) {
         lean_verify(is_simp_relation(tmp_tctx.env(), m_type, h_rel, h_lhs, h_rhs) && is_constant(h_rel));
         {
             flet<name> set_name(m_rel, const_name(h_rel));
+            relations.push_back(m_rel);
             flet<simp_lemmas> set_ctx_slss(m_ctx_slss, m_contextual ? add_to_slss(m_ctx_slss, local_factory.as_buffer()) : m_ctx_slss);
 
             h_lhs = tmp_tctx.instantiate_mvars(h_lhs);
@@ -984,8 +992,9 @@ simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cl) {
     for (unsigned i = 0; i < congr_hyps.size(); ++i) {
         expr const & pf_meta = congr_hyps[i];
         simp_result const & r_congr_hyp = congr_hyp_results[i];
+        name const & rel = relations[i];
         type_context::tmp_locals & local_factory = factories[i];
-        expr hyp = finalize(m_tctx, m_rel, r_congr_hyp).get_proof();
+        expr hyp = finalize(m_tctx, rel, r_congr_hyp).get_proof();
         // This is the current bottleneck
         // Can address somewhat by keeping the proofs as small as possible using macros
         expr pf = local_factory.mk_lambda(hyp);
@@ -1069,9 +1078,10 @@ optional<simp_result> simplifier::synth_congr(expr const & e, F && simp) {
     expr proof = congr_lemma->get_proof();
     expr type = congr_lemma->get_type();
     unsigned i = 0;
-    bool has_proof              = false;
-    /* bool has_cast            = false; */
+    bool has_proof = false;
+    bool has_cast = false;
     buffer<expr> subst;
+    // TODO(dhs): if it is a bottleneck, only finalize and construct proofs on a second pass
     for (congr_arg_kind const & ckind : congr_lemma->get_arg_kinds()) {
         switch (ckind) {
         case congr_arg_kind::HEq:
@@ -1095,14 +1105,14 @@ optional<simp_result> simplifier::synth_congr(expr const & e, F && simp) {
                 proof = mk_app(proof, r_arg.get_new(), r_arg.get_proof());
                 subst.push_back(r_arg.get_new());
                 subst.push_back(r_arg.get_proof());
-                type = binding_body(binding_body(type));
             }
+            type = binding_body(binding_body(type));
             break;
         case congr_arg_kind::Cast:
             proof = mk_app(proof, args[i]);
             subst.push_back(args[i]);
             type = binding_body(type);
-            /* has_cast = true; */
+            has_cast = true;
             break;
         }
         i++;
@@ -1111,16 +1121,77 @@ optional<simp_result> simplifier::synth_congr(expr const & e, F && simp) {
     expr rhs   = instantiate_rev(app_arg(type), subst.size(), subst.data());
     expr new_e = remove_unnecessary_casts(rhs);
     simp_result r;
-    if (has_proof) r = simp_result(new_e, proof);
-    else r = simp_result(new_e);
+    if (has_proof)
+        r = simp_result(new_e, proof);
+    else
+        r = simp_result(new_e);
 
-    /* TODO(dhs): re-integrate
-    if (has_cast) {
-        if (auto r_norm = normalize_subsingleton_args(new_e))
-            r = join(r, *r_norm);
-    }
-    */
+    if (has_cast)
+        r = join(r, normalize_subsingleton_args(new_e));
+
     return optional<simp_result>(r);
+}
+
+// Given a function application \c e, replace arguments that are subsingletons with a
+// representative
+simp_result simplifier::normalize_subsingleton_args(expr const & e) {
+    // TODO(dhs): flag to skip this step
+    buffer<expr> args;
+    get_app_args(e, args);
+    auto congr_lemma = mk_specialized_congr(m_tctx, e);
+    if (!congr_lemma)
+        return simp_result(e);
+    expr proof = congr_lemma->get_proof();
+    expr type = congr_lemma->get_type();
+    unsigned i = 0;
+    bool normalized = false;
+    for_each(congr_lemma->get_arg_kinds(), [&](congr_arg_kind const & ckind) {
+            expr rfl;
+            switch (ckind) {
+            case congr_arg_kind::HEq:
+                lean_unreachable();
+            case congr_arg_kind::Fixed:
+                proof = mk_app(proof, args[i]);
+                type = instantiate(binding_body(type), args[i]);
+                break;
+            case congr_arg_kind::FixedNoParam:
+                break;
+            case congr_arg_kind::Eq:
+                proof = mk_app(proof, args[i]);
+                type = instantiate(binding_body(type), args[i]);
+                rfl = mk_eq_refl(m_tctx, args[i]);
+                proof = mk_app(proof, args[i], rfl);
+                type = instantiate(binding_body(type), args[i]);
+                type = instantiate(binding_body(type), rfl);
+                break;
+            case congr_arg_kind::Cast:
+                proof = mk_app(proof, args[i]);
+                type  = instantiate(binding_body(type), args[i]);
+                expr const & arg_type = binding_domain(type);
+                expr new_arg;
+                auto it = m_subsingleton_elem_map.find(arg_type);
+                if (it != m_subsingleton_elem_map.end()) {
+                    normalized = (it->second != args[i]);
+                    new_arg    = it->second;
+                    lean_trace_d(name({"simplifier", "subsingleton"}), tout() << args[i] << " ==> " << new_arg << "\n";);
+                } else {
+                    new_arg = args[i];
+                    m_subsingleton_elem_map.insert(mk_pair(arg_type, args[i]));
+                }
+                proof = mk_app(proof, new_arg);
+                type = instantiate(binding_body(type), new_arg);
+                break;
+            }
+            i++;
+        });
+    if (!normalized)
+        return simp_result(e);
+
+    lean_assert(is_eq(type));
+    buffer<expr> type_args;
+    get_app_args(type, type_args);
+    expr e_new = type_args[2];
+    return simp_result(e_new, proof);
 }
 
 expr simplifier::remove_unnecessary_casts(expr const & e) {
@@ -1180,8 +1251,8 @@ void initialize_simplifier() {
     register_trace_class(name({"simplifier", "prove"}));
     register_trace_class(name({"simplifier", "rewrite"}));
     register_trace_class(name({"simplifier", "rewrite", "assoc"}));
-    register_trace_class(name({"simplifier", "rewrite", "ac"}));
     register_trace_class(name({"simplifier", "theory"}));
+    register_trace_class(name({"simplifier", "subsingleton"}));
     register_trace_class(name({"debug", "simplifier", "try_rewrite"}));
     register_trace_class(name({"debug", "simplifier", "try_rewrite", "assoc"}));
     register_trace_class(name({"debug", "simplifier", "try_congruence"}));

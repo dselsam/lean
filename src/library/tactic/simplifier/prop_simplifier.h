@@ -23,7 +23,10 @@ private:
     optional<expr> simplify_eq(expr const & eq, expr const & type, expr const & lhs, expr const & rhs);
     optional<expr> simplify_heq(expr const & heq, expr const & type1, expr const & type2, expr const & lhs, expr const & rhs);
     optional<expr> simplify_iff(expr const & lhs, expr const & rhs);
+    optional<expr> simplify_ite(expr const & fn, buffer<expr> & args);
+
     optional<expr> simplify_not(expr const & e);
+    optional<expr> simplify_pi(expr const & dom, expr const & body, bool is_arrow);
 
     optional<expr> simplify_and(buffer<expr> & args);
     optional<expr> simplify_or(buffer<expr> & args);
