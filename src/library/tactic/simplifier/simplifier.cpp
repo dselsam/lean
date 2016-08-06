@@ -254,8 +254,10 @@ class simplifier {
 
         if (assoc) {
             bool in_nary_subtree = assoc && m_curr_nary_op && *m_curr_nary_op == assoc->second;
+            flet<optional<expr> > in_nary_subtree(m_curr_nary_op, some_expr(assoc->second));
             r = simplify_nary(assoc->first, assoc->second, e, in_nary_subtree);
         } else {
+            flet<optional<expr> > not_in_nary_subtree(m_curr_nary_op, none_expr());
             r = simplify_binary(e);
         }
 
@@ -593,7 +595,6 @@ class simplifier {
     simp_result simplify_subterms_app_nary(expr const & op, buffer<expr> const & nary_args,
                                            buffer<expr> & new_nary_args, buffer<optional<expr> > & pf_nary_args,
                                            bool & simplified) {
-        flet<optional<expr> > in_nary_subtree(m_curr_nary_op, some_expr(op));
         for (expr const & arg : nary_args) {
             simp_result r_arg = simplify(arg);
             if (r_arg.get_new() != arg)
