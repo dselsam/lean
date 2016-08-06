@@ -573,7 +573,7 @@ class simplifier {
             if (!is_lt(new_rhs, new_lhs, false)) {
                 lean_simp_trace(tmp_tctx, name({"simplifier", "perm"}),
                                 tout() << "perm rejected: " << new_rhs << " !< " << new_lhs << "\n";);
-                return simp_result(e);
+                return optional<simp_result>();
             }
         }
 
