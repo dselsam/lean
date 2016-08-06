@@ -22,3 +22,9 @@ by mk_dec_eq_instance
 
 definition sum_decidable [instance] {A : Type} {B : Type} [decidable_eq A] [decidable_eq B] : decidable_eq (sum A B) :=
 by mk_dec_eq_instance
+
+definition and_is_associative [instance] : is_associative iff and :=
+is_associative.mk @and.assoc
+
+definition or_is_associative [instance] : is_associative iff or :=
+is_associative.mk @or.assoc

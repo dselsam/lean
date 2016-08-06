@@ -157,9 +157,47 @@ optional<expr> prop_simplifier::simplify_eq(expr const & eq, expr const & type, 
     return none_expr();
 }
 
+optional<expr> prop_simplifier::simplify_heq(expr const & eq, expr const & type1, expr const & type2, expr const & lhs, expr const & rhs) {
+    if (m_tctx.is_def_eq(type1, type2))
+        return simplify_eq(type1, lhs, rhs);
+    return none_expr();
+}
+
 optional<expr> prop_simplifier::simplify_iff(expr const & lhs, expr const & rhs) {
     if (m_tctx.is_def_eq(lhs, rhs))
         return some_expr(mk_true());
+
+    expr new_lhs, new_rhs;
+    if (is_not(lhs, new_lhs) && is_not(rhs, new_rhs)) {
+        return some_expr(mk_app(mk_constant(get_iff_name()), new_lhs, new_rhs));
+    }
+
+    if (is_true(lhs))
+        return some_expr(rhs);
+
+    if (is_false(lhs)) {
+        if (auto r = simplify_not(rhs))
+            return r;
+        else
+            return some_expr(mk_app(mk_constant(get_not_name()), rhs));
+    }
+
+    if (is_true(rhs))
+        return some_expr(lhs);
+
+    if (is_false(rhs)) {
+        if (auto r = simplify_not(lhs))
+            return r;
+        else
+            return some_expr(mk_app(mk_constant(get_not_name()), lhs));
+    }
+
+    if (is_not(lhs, new_lhs) && m_tctx.is_def_eq(new_lhs, rhs))
+        return some_expr(mk_false());
+
+    if (is_not(rhs, new_rhs) && m_tctx.is_def_eq(new_rhs, lhs))
+        return some_expr(mk_false());
+
     return none_expr();
 }
 
@@ -333,6 +371,9 @@ simp_result prop_simplifier::simplify_binary(name const & rel, expr const & old_
 
     if (id == get_eq_name() && args.size() == 3) {
         if (auto r = simplify_eq(f, args[0], args[1], args[2]))
+            return mk_simp_result_binary(old_e, *r);
+    if (id == get_heq_name() && args.size() == 4) {
+        if (auto r = simplify_heq(f, args[0], args[1], args[2], args[3]))
             return mk_simp_result_binary(old_e, *r);
     } else if (id == get_iff_name() && args.size() == 2) {
         if (auto r = simplify_iff(args[0], args[1]))

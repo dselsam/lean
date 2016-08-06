@@ -345,7 +345,15 @@ class simplifier {
                 return simp_result(e);
         }
 
+        expr new_lhs = tmp_tctx.instantiate_mvars(sl.get_lhs());
         expr new_rhs = tmp_tctx.instantiate_mvars(sl.get_rhs());
+        if (sl.is_perm()) {
+            if (!is_lt(new_rhs, new_lhs, false)) {
+                lean_simp_trace(tmp_tctx, name({"simplifier", "perm"}),
+                                tout() << "perm rejected: " << new_rhs << " !< " << new_lhs << "\n";);
+                return simp_result(e);
+            }
+        }
         expr pf = tmp_tctx.instantiate_mvars(sl.get_proof());
         return simp_result(new_rhs, pf);
     }
@@ -560,6 +568,14 @@ class simplifier {
 
         expr new_lhs = tmp_tctx.instantiate_mvars(sl.get_lhs());
         expr new_rhs = tmp_tctx.instantiate_mvars(sl.get_rhs());
+
+        if (sl.is_perm()) {
+            if (!is_lt(new_rhs, new_lhs, false)) {
+                lean_simp_trace(tmp_tctx, name({"simplifier", "perm"}),
+                                tout() << "perm rejected: " << new_rhs << " !< " << new_lhs << "\n";);
+                return simp_result(e);
+            }
+        }
 
         expr pf = tmp_tctx.instantiate_mvars(sl.get_proof());
         return optional<simp_result>(simp_result(new_rhs, pf));
