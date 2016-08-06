@@ -402,7 +402,7 @@ class simplifier {
 
     simp_result simplify_subterms_app_binary(expr const & _e) {
         lean_assert(is_app(_e));
-        expr e = should_defeq_canonize() ? canonize_args_step(_e) : _e;
+        expr e = should_defeq_canonize() ? defeq_canonize_args_step(_e) : _e;
 
         // (1) Try user-defined congruences
         simp_result r_user = try_congrs(e);
@@ -744,7 +744,7 @@ class simplifier {
     optional<expr> prove(expr const & thm);
 
     /* Canonicalize */
-    expr canonize_args_step(expr const & e);
+    expr defeq_canonize_args_step(expr const & e);
 
     expr_struct_map<expr> m_subsingleton_elem_map;
     simp_result canonize_subsingleton_args(expr const & e);
@@ -884,7 +884,7 @@ simp_result simplifier::simplify_subterms_pi(expr const & e) {
     return try_congrs(e);
 }
 
-expr simplifier::canonize_args_step(expr const & e) {
+expr simplifier::defeq_canonize_args_step(expr const & e) {
         buffer<expr> args;
         bool modified = false;
         expr f        = get_app_args(e, args);
@@ -896,7 +896,7 @@ expr simplifier::canonize_args_step(expr const & e) {
             if ((m_canonize_instances_fixed_point && pinfo.is_inst_implicit()) || (m_canonize_proofs_fixed_point && pinfo.is_prop())) {
                 new_a = ::lean::defeq_canonize(m_tctx, args[i], m_need_restart);
                 lean_trace(name({"simplifier", "canonize"}),
-                           tout() << "\n" << args[i] << "\n===>\n" << new_a << "\n";);
+                           tout() << "\n" << args[i] << "\n==>\n" << new_a << "\n";);
                 if (new_a != args[i]) {
                     modified = true;
                     args[i] = new_a;
@@ -930,7 +930,7 @@ optional<expr> simplifier::prove(expr const & goal) {
     if (s_new) {
         m_tctx.set_mctx(s_new->mctx());
         expr proof = m_tctx.instantiate_mvars(goal_mvar);
-        lean_trace(name({"simplifier", "prove"}), tout() << "SUCCESS: " << proof << " : " << m_tctx.infer(proof) << "\n";);
+        lean_trace(name({"simplifier", "prove"}), tout() << "Success: " << proof << " : " << m_tctx.infer(proof) << "\n";);
         return some_expr(proof);
     } else {
         lean_trace(name({"simplifier", "prove"}), tout() << "prove_fn failed to prove " << goal << "\n";);
