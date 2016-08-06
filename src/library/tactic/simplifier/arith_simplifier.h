@@ -23,7 +23,6 @@ private:
     type_context                 * m_tctx_ptr;
     arith_simplifier_options       m_options;
     arith_instance_info_ref        m_arith_info;
-    norm_num_context               m_norm_num;
 
     optional<expr>   simplify_eq(expr const & prefix, buffer<expr> const & args);
 
@@ -50,7 +49,7 @@ public:
     simp_result simplify_binary(name const & rel, expr const & e);
     optional<simp_result> simplify_nary(name const & rel, expr const & assoc, expr const & op, buffer<expr> & args);
 
-    arith_simplifier(type_context & tctx): m_tctx_ptr(&tctx), m_norm_num(tctx), m_options(tctx.get_options()) {}
+    arith_simplifier(type_context & tctx): m_tctx_ptr(&tctx), m_options(tctx.get_options()) {}
 };
 
 void initialize_arith_simplifier();

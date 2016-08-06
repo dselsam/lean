@@ -41,6 +41,17 @@ bool is_num_leaf_constant(name const & n);
 /** \brief Encode \c n as an expression using bit0/bit1/one/zero constants */
 expr to_nat_expr(mpz const & n);
 
+/** \brief Construct a Lean expression for the corresponding rational number.
+    The target type is stored in the \c arith_instance_info_ref. */
+expr mpq2expr(arith_instance_info_ref const & info, mpq const & q);
+
+/** \brief Wrap a
+expr mk_mpq_macro(mpq const & q, expr const & type);
+
+bool is_mpq_macro(expr const & e);
+bool is_mpq_macro(expr const & e, mpq & q);
+
+
 void initialize_num();
 void finalize_num();
 }

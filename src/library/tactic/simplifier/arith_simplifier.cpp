@@ -5,6 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Author: Daniel Selsam
 */
 #include "util/sexpr/option_declarations.h"
+#include "library/constants.h"
 #include "library/tactic/simplifier/arith_simplifier.h"
 
 #ifndef LEAN_DEFAULT_ARITH_SIMPLIFIER_DISTRIBUTE_MUL
@@ -39,11 +40,12 @@ void finalize_arith_simplifier() {
 }
 
 // Entry points
-simp_result prop_simplifier::simplify_binary(name const & rel, expr const & old_e) {
-    return simp_result(e_old);
+simp_result arith_simplifier::simplify_binary(name const & rel, expr const & old_e) {
+    return simp_result(old_e);
 }
 
-optional<simp_result> prop_simplifier::simplify_nary(name const & rel, expr const & assoc, expr const & op, buffer<expr> & args) {
+optional<simp_result> arith_simplifier::simplify_nary(name const & rel, expr const & assoc, expr const & op, buffer<expr> & args) {
+    /*
     if (rel != get_eq_name())
         return optional<simp_result>();
     if (!is_constant(op))
@@ -57,6 +59,7 @@ optional<simp_result> prop_simplifier::simplify_nary(name const & rel, expr cons
         if (auto r = simplify_mul(op, args))
             return mk_simp_result_nary(*r);
     }
+    */
     return optional<simp_result>();
 }
 

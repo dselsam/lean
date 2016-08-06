@@ -7,7 +7,9 @@ do simp_lemmas  ← mk_simp_lemmas_core reducible [] [`congr],
    assert `Htarget new_target, swap,
    Ht ← get_local `Htarget,
    mk_app `iff.mpr [Heq, Ht] >>= exact,
-   triv
+   try triv
+
+
 
 variables (P Q R : Prop)
 
@@ -40,6 +42,7 @@ example : P ∧ P ↔ P ∧ P ∧ P := by psimp
 
 example : P ∧ Q ↔ Q ∧ P := by psimp
 example : P ∧ Q ∧ R ↔ R ∧ Q ∧ P := by psimp
+example : P ∧ Q ∧ R ∧ P ∧ Q ∧ R ↔ R ∧ Q ∧ P := by psimp
 
 example : P ∧ true ↔ P := by psimp
 example : true ∧ P ∧ true ∧ P ∧ true ↔ P := by psimp
@@ -55,6 +58,7 @@ example : P ∨ P ↔ P ∨ P ∨ P := by psimp
 
 example : P ∨ Q ↔ Q ∨ P := by psimp
 example : P ∨ Q ∨ R ↔ R ∨ Q ∨ P := by psimp
+example : P ∨ Q ∨ R ∨ P ∨ Q ∨ R ↔ R ∨ Q ∨ P := by psimp
 
 example : P ∨ false ↔ P := by psimp
 example : false ∨ P ∨ false ∨ P ∨ false ↔ P := by psimp
@@ -63,3 +67,7 @@ example : P ∨ true ↔ true := by psimp
 example : true ∨ P ∨ true ∨ P ∨ true ↔ true := by psimp
 
 example : P ∨ Q ∨ R ∨ false ∨ ¬ P ↔ true := by psimp
+
+-- Mix
+set_option trace.simplifier.theory true
+example : (P ↔ (Q ∧ R)) → ((P ∧ P) ↔ (R ∧ P ∧ Q)) := by psimp

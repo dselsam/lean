@@ -649,6 +649,7 @@ class simplifier {
             if (optional<simp_result> r_theory = m_theory_simplifier.simplify_nary(m_rel, assoc, new_op, new_nary_args)) {
                 expr new_e = r_theory->get_new();
                 bool done = true;
+                lean_trace_d(name({"simplifier", "theory"}), tout() << old_e << " ==> " << new_e << "\n";);
                 return simp_result(new_e,
                                    mk_congr_flat_simp_macro(assoc, mk_rel(m_tctx, m_rel, old_e, new_e), r_theory->get_optional_proof(), r_op.get_optional_proof(), pf_nary_args),
                                    done);
