@@ -593,7 +593,12 @@ class simplifier {
             simp_result r_arg = simplify(arg);
             if (r_arg.get_new() != arg)
                 simplified = true;
-            new_nary_args.push_back(r_arg.get_new());
+
+            optional<expr> arg_op = get_binary_op(r_arg.get_new());
+            if (arg_op && *arg_op == op)
+                get_app_nary_args(op, r_arg.get_new(), new_nary_args);
+            else
+                new_nary_args.push_back(r_arg.get_new());
             pf_nary_args.push_back(r_arg.get_optional_proof());
         }
         simp_result r_op = simplify(op);
@@ -602,11 +607,11 @@ class simplifier {
         return r_op;
     }
 
-
     // Main n-ary simplify method
     simp_result simplify_nary(expr const & assoc, expr const & op, expr const & old_e) {
         buffer<expr> nary_args;
         get_app_nary_args(op, old_e, nary_args);
+        bool inside_nary = m_curr_nary_op && *m_curr_nary_op == op;
 
         if (m_topdown) {
             if (m_rewrite) {

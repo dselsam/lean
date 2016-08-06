@@ -21,6 +21,7 @@ private:
     prop_simplifier_options        m_options;
 
     optional<expr> simplify_eq(expr const & eq, expr const & type, expr const & lhs, expr const & rhs);
+    optional<expr> simplify_heq(expr const & heq, expr const & type1, expr const & type2, expr const & lhs, expr const & rhs);
     optional<expr> simplify_iff(expr const & lhs, expr const & rhs);
     optional<expr> simplify_not(expr const & e);
 

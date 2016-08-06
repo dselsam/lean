@@ -1,4 +1,3 @@
-import algebra.binary
 open tactic
 
 meta_definition psimp : tactic unit :=
@@ -68,6 +67,11 @@ example : true ∨ P ∨ true ∨ P ∨ true ↔ true := by psimp
 
 example : P ∨ Q ∨ R ∨ false ∨ ¬ P ↔ true := by psimp
 
--- Mix
+-- Contextual
+example : (P ↔ Q) → (P ↔ Q) := by psimp >> intron 1 >> triv
+example : (P ↔ Q) → ((P ∧ P) ↔ (Q ∧ Q)) := by psimp >> intron 1 >> triv
+
+example : (P ↔ (Q ∧ R)) → ((P ∧ P) ↔ (R ∧ P ∧ Q)) := by psimp >> intron 1 >> triv
+
 set_option trace.simplifier.theory true
-example : (P ↔ (Q ∧ R)) → ((P ∧ P) ↔ (R ∧ P ∧ Q)) := by psimp
+example : (P ↔ (Q ∧ R ∧ Q)) → ((P ∧ P) ↔ (R ∧ P ∧ Q)) := by psimp >> intron 1 >> triv
