@@ -1073,13 +1073,64 @@ optional<simp_result> simplifier::synth_congr(expr const & e) {
     expr f = get_app_args(e, args);
     auto congr_lemma = mk_specialized_congr_simp(m_tctx, e);
     if (!congr_lemma) return optional<simp_result>();
-    expr proof = congr_lemma->get_proof();
-    expr type = congr_lemma->get_type();
-    unsigned i = 0;
+
+    buffer<simp_result> r_args;
+    buffer<expr>        new_args;
     bool has_proof = false;
     bool has_cast = false;
+    bool has_simplified = false;
+
+    unsigned i = 0;
+
+    // First pass, try to simplify all the Eq arguments
+    for (congr_arg_kind const & ckind : congr_lemma->get_arg_kinds()) {
+        switch (ckind) {
+        case congr_arg_kind::HEq:
+            lean_unreachable();
+        case congr_arg_kind::Fixed:
+        case congr_arg_kind::FixedNoParam:
+            new_args.emplace_back(args[i]);
+            break;
+        case congr_arg_kind::Eq:
+            {
+                r_args.emplace_back(simplify(args[i]));
+                simp_result & r_arg = r_args.back();
+                new_args.emplace_back(r_arg.get_new());
+                if (r_arg.has_proof())
+                    has_proof = true;
+                if (r_arg.get_new() != args[i])
+                    has_simplified = true;
+            }
+            break;
+        case congr_arg_kind::Cast:
+            has_cast = true;
+            new_args.emplace_back(args[i]);
+            break;
+        }
+        i++;
+    }
+
+    if (!has_simplified) {
+        simp_result r = simp_result(e);
+        if (has_cast)
+            r = join(r, normalize_subsingleton_args(r.get_new()));
+        return optional<simp_result>(r);
+    }
+
+    if (!has_proof) {
+        simp_result r = simp_result(mk_app(f, new_args));
+        if (has_cast)
+            r = join(r, normalize_subsingleton_args(r.get_new()));
+        return optional<simp_result>(r);
+    }
+
+    // We have a proof, so we need to build the congruence lemma
+    expr proof = congr_lemma->get_proof();
+    expr type = congr_lemma->get_type();
     buffer<expr> subst;
-    // TODO(dhs): if it is a bottleneck, only finalize and construct proofs on a second pass
+
+    i = 0;
+    unsigned i_eq = 0;
     for (congr_arg_kind const & ckind : congr_lemma->get_arg_kinds()) {
         switch (ckind) {
         case congr_arg_kind::HEq:
@@ -1096,36 +1147,31 @@ optional<simp_result> simplifier::synth_congr(expr const & e) {
             subst.push_back(args[i]);
             type = binding_body(type);
             {
-                simp_result r_arg = simplify(args[i]);
-                if (r_arg.has_proof())
-                    has_proof = true;
-                r_arg = finalize(m_tctx, m_rel, r_arg);
+                simp_result r_arg = finalize(m_tctx, m_rel, r_args[i_eq]);
                 proof = mk_app(proof, r_arg.get_new(), r_arg.get_proof());
                 subst.push_back(r_arg.get_new());
                 subst.push_back(r_arg.get_proof());
             }
             type = binding_body(binding_body(type));
+            i_eq++;
             break;
         case congr_arg_kind::Cast:
+            lean_assert(has_cast);
             proof = mk_app(proof, args[i]);
             subst.push_back(args[i]);
             type = binding_body(type);
-            has_cast = true;
             break;
         }
         i++;
     }
     lean_assert(is_eq(type));
     expr rhs   = instantiate_rev(app_arg(type), subst.size(), subst.data());
-    expr new_e = remove_unnecessary_casts(rhs);
-    simp_result r;
-    if (has_proof)
-        r = simp_result(new_e, proof);
-    else
-        r = simp_result(new_e);
+    simp_result r(rhs, proof);
 
-    if (has_cast)
-        r = join(r, normalize_subsingleton_args(new_e));
+    if (has_cast) {
+        r.update(remove_unnecessary_casts(r.get_new()));
+        r = join(r, normalize_subsingleton_args(r.get_new()));
+    }
 
     return optional<simp_result>(r);
 }
@@ -1197,6 +1243,7 @@ expr simplifier::remove_unnecessary_casts(expr const & e) {
     expr f = get_app_args(e, args);
     ss_param_infos ss_infos = get_specialized_subsingleton_info(m_tctx, e);
     int i = -1;
+    bool updated = false;
     for (ss_param_info const & ss_info : ss_infos) {
         i++;
         if (ss_info.is_subsingleton()) {
@@ -1208,16 +1255,24 @@ expr simplifier::remove_unnecessary_casts(expr const & e) {
                     lean_assert(cast_args.size() == 6);
                     expr major_premise = cast_args[5];
                     expr f_major_premise = get_app_fn(major_premise);
-                    if (is_constant(f_major_premise) && const_name(f_major_premise) == get_eq_refl_name())
+                    if (is_constant(f_major_premise) && const_name(f_major_premise) == get_eq_refl_name()) {
                         args[i] = cast_args[3];
-                    else
+                        updated = true;
+                    } else {
                         break;
+                    }
                 } else {
                     break;
                 }
             }
         }
     }
+    if (!updated)
+        return e;
+
+    expr new_e = mk_app(f, args);
+    lean_trace(name({"debug", "simplifier", "remove_casts"}), tout() << e << " ==> " << new_e << "\n";);
+
     return mk_app(f, args);
 }
 
@@ -1254,6 +1309,7 @@ void initialize_simplifier() {
     register_trace_class(name({"debug", "simplifier", "try_rewrite"}));
     register_trace_class(name({"debug", "simplifier", "try_rewrite", "assoc"}));
     register_trace_class(name({"debug", "simplifier", "try_congruence"}));
+    register_trace_class(name({"debug", "simplifier", "remove_casts"}));
 
     g_simplify_max_steps           = new name{"simplify", "max_steps"};
     g_simplify_max_rewrites        = new name{"simplify", "max_rewrites"};
