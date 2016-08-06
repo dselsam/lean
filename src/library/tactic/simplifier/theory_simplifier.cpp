@@ -38,8 +38,12 @@ optional<simp_result> theory_simplifier::simplify_nary(name const & rel, expr co
     if (auto r_prop = m_prop_simplifier.simplify_nary(rel, assoc, op, args))
         return r_prop;
 
+    if (auto r_arith = m_arith_simplifier.simplify_nary(rel, assoc, op, args))
+        return r_arith;
+
     return optional<simp_result>();
 }
+
 void initialize_theory_simplifier() {
 }
 

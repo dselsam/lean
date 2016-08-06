@@ -23,33 +23,34 @@ private:
     type_context                 * m_tctx_ptr;
     arith_simplifier_options       m_options;
     arith_instance_info_ref        m_arith_info;
+    norm_num_context               m_norm_num;
+
+    optional<expr>   simplify_eq(expr const & prefix, buffer<expr> const & args);
+
+    optional<expr>   simplify_lt(expr const & prefix, buffer<expr> const & args);
+    optional<expr>   simplify_gt(expr const & prefix, buffer<expr> const & args);
+    optional<expr>   simplify_le(expr const & prefix, buffer<expr> const & args);
+    optional<expr>   simplify_ge(expr const & prefix, buffer<expr> const & args);
+
+    optional<expr>   simplify_add(expr const & prefix, buffer<expr> const & args);
+    optional<expr>   simplify_mul(expr const & prefix, buffer<expr> const & args);
+
+    optional<expr>   simplify_neg(expr const & prefix, buffer<expr> const & args);
+    optional<expr>   simplify_sub(expr const & prefix, buffer<expr> const & args);
+    optional<expr>   simplify_inv(expr const & prefix, buffer<expr> const & args);
+    optional<expr>   simplify_div(expr const & prefix, buffer<expr> const & args);
+
+    optional<expr>   simplify_numeral(expr const & prefix, buffer<expr> const & args);
+
+    optional<expr>   simplify_int_of_nat(expr const & prefix, buffer<expr> const & args);
+    optional<expr>   simplify_rat_of_int(expr const & prefix, buffer<expr> const & args);
+    optional<expr>   simplify_real_of_rat(expr const & prefix, buffer<expr> const & args);
 
 public:
-    optional<simp_result>   simplify_eq(expr const & prefix, buffer<expr> const & args);
+    simp_result simplify_binary(name const & rel, expr const & e);
+    optional<simp_result> simplify_nary(name const & rel, expr const & assoc, expr const & op, buffer<expr> & args);
 
-    optional<simp_result>   simplify_lt(expr const & prefix, buffer<expr> const & args);
-    optional<simp_result>   simplify_gt(expr const & prefix, buffer<expr> const & args);
-    optional<simp_result>   simplify_le(expr const & prefix, buffer<expr> const & args);
-    optional<simp_result>   simplify_ge(expr const & prefix, buffer<expr> const & args);
-
-    optional<simp_result>   simplify_add(expr const & prefix, buffer<expr> const & args);
-    optional<simp_result>   simplify_mul(expr const & prefix, buffer<expr> const & args);
-
-    optional<simp_result>   simplify_neg(expr const & prefix, buffer<expr> const & args);
-    optional<simp_result>   simplify_sub(expr const & prefix, buffer<expr> const & args);
-    optional<simp_result>   simplify_inv(expr const & prefix, buffer<expr> const & args);
-    optional<simp_result>   simplify_div(expr const & prefix, buffer<expr> const & args);
-
-    optional<simp_result>   simplify_numeral(expr const & prefix, buffer<expr> const & args);
-
-    optional<simp_result>   simplify_int_of_nat(expr const & prefix, buffer<expr> const & args);
-    optional<simp_result>   simplify_rat_of_int(expr const & prefix, buffer<expr> const & args);
-    optional<simp_result>   simplify_real_of_rat(expr const & prefix, buffer<expr> const & args);
-
-    // New interface
-//    simp_result simplify_
-
-    arith_simplifier(type_context & tctx): m_tctx_ptr(&tctx), m_options(tctx.get_options()) {}
+    arith_simplifier(type_context & tctx): m_tctx_ptr(&tctx), m_norm_num(tctx), m_options(tctx.get_options()) {}
 };
 
 void initialize_arith_simplifier();

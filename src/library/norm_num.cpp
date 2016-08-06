@@ -25,6 +25,53 @@ static bool is_numeral_aux(expr const & e, bool is_first) {
     return false;
 }
 
+static optional<mpq> to_mpq(expr const & e) {
+    auto v = to_num(e);
+    if (v) {
+        return optional<mpq>(mpq(*v));
+    } else {
+        return optional<mpq>();
+    }
+}
+
+static mpq mpq_of_expr_core(expr const & e) {
+    buffer<expr> args;
+    expr f = get_app_args(e, args);
+    if (!is_constant(f)) {
+        throw exception("cannot find num of nonconstant");
+    } else if (const_name(f) == get_add_name() && args.size() == 4) {
+        return mpq_of_expr(args[2]) + mpq_of_expr(args[3]);
+    } else if (const_name(f) == get_mul_name() && args.size() == 4) {
+        return mpq_of_expr(args[2]) * mpq_of_expr(args[3]);
+    } else if (const_name(f) == get_sub_name() && args.size() == 4) {
+        return mpq_of_expr(args[2]) - mpq_of_expr(args[3]);
+    } else if (const_name(f) == get_div_name() && args.size() == 4) {
+        mpq num = mpq_of_expr(args[2]), den = mpq_of_expr(args[3]);
+        if (den != 0)
+            return mpq_of_expr(args[2]) / mpq_of_expr(args[3]);
+        else
+            throw exception("divide by 0");
+    } else if (const_name(f) == get_neg_name() && args.size() == 3) {
+        return neg(mpq_of_expr(args[2]));
+    } else {
+        auto v = to_mpq(e);
+        if (v) {
+            return *v;
+        } else {
+            throw exception("expression in mpq_of_expr is malfomed");
+        }
+    }
+}
+
+// TODO(dhs): At some point, refactor this not to throw exceptions
+optional<mpq> mpq_of_expr(expr const & e) {
+    try {
+        return optional<mpq>(mpq_of_expr_core(e));
+    } catch (exception ex) {
+        return optional<mpq>();
+    }
+}
+
 bool norm_num_context::is_numeral(expr const & e) const {
     return is_numeral_aux(e, true);
 }
@@ -480,44 +527,6 @@ pair<expr, expr> norm_num_context::mk_norm_mul(expr const & lhs, expr const & rh
       throw exception("mk_norm_mul got malformed args");
     }
     return pair<expr, expr>(rv, prf);
-}
-
-optional<mpq> norm_num_context::to_mpq(expr const & e) {
-    auto v = to_num(e);
-    if (v) {
-        return optional<mpq>(mpq(*v));
-    } else {
-        return optional<mpq>();
-    }
-}
-
-mpq norm_num_context:: mpq_of_expr(expr const & e){
-    buffer<expr> args;
-    expr f = get_app_args(e, args);
-    if (!is_constant(f)) {
-        throw exception("cannot find num of nonconstant");
-    } else if (const_name(f) == get_add_name() && args.size() == 4) {
-        return mpq_of_expr(args[2]) + mpq_of_expr(args[3]);
-    } else if (const_name(f) == get_mul_name() && args.size() == 4) {
-        return mpq_of_expr(args[2]) * mpq_of_expr(args[3]);
-    } else if (const_name(f) == get_sub_name() && args.size() == 4) {
-        return mpq_of_expr(args[2]) - mpq_of_expr(args[3]);
-    } else if (const_name(f) == get_div_name() && args.size() == 4) {
-        mpq num = mpq_of_expr(args[2]), den = mpq_of_expr(args[3]);
-        if (den != 0)
-            return mpq_of_expr(args[2]) / mpq_of_expr(args[3]);
-        else
-            throw exception("divide by 0");
-    } else if (const_name(f) == get_neg_name() && args.size() == 3) {
-        return neg(mpq_of_expr(args[2]));
-    } else {
-        auto v = to_mpq(e);
-        if (v) {
-            return *v;
-        } else {
-            throw exception("expression in mpq_of_expr is malfomed");
-        }
-    }
 }
 
 mpz norm_num_context::num_of_expr(expr const & e) {

@@ -23,11 +23,6 @@ static bool get_arith_simplifier_distribute_mul(options const & o) {
 arith_simplifier_options::arith_simplifier_options(options const & o):
     m_distribute_mul(get_arith_simplifier_distribute_mul(o)) {}
 
-
-
-
-
-
 // Setup and teardown
 void initialize_arith_simplifier() {
     // Option names
@@ -42,4 +37,27 @@ void finalize_arith_simplifier() {
     // Option names
     delete g_arith_simplifier_distribute_mul;
 }
+
+// Entry points
+simp_result prop_simplifier::simplify_binary(name const & rel, expr const & old_e) {
+    return simp_result(e_old);
+}
+
+optional<simp_result> prop_simplifier::simplify_nary(name const & rel, expr const & assoc, expr const & op, buffer<expr> & args) {
+    if (rel != get_eq_name())
+        return optional<simp_result>();
+    if (!is_constant(op))
+        return optional<simp_result>();
+
+    name id = const_name(op);
+    if (id == get_add_name()) {
+        if (auto r = simplify_add(op, args))
+            return mk_simp_result_nary(*r);
+    } else if (id == get_mul_name()) {
+        if (auto r = simplify_mul(op, args))
+            return mk_simp_result_nary(*r);
+    }
+    return optional<simp_result>();
+}
+
 }

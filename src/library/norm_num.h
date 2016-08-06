@@ -73,8 +73,6 @@ public:
     pair<expr, expr> mk_norm(expr const & e);
     expr mk_norm_eq(expr const &, expr const &);
     mpz num_of_expr(expr const & e);
-    mpq mpq_of_expr(expr const & e);
-    optional<mpq> to_mpq(expr const & e);
     expr from_pos_num(mpz const &, expr const &);
     expr from_num(mpz const &, expr const &);
     expr from_mpq(mpq const &, expr const &);
@@ -94,7 +92,6 @@ inline mpz num_of_expr(type_context & type_ctx, expr const & e) {
     return norm_num_context(type_ctx).num_of_expr(e);
 }
 
-inline mpq mpq_of_expr(type_context & type_ctx, expr const & e) {
-    return norm_num_context(type_ctx).mpq_of_expr(e);
-}
+optional<mpq> mpq_of_expr(expr const & e);
+
 }
