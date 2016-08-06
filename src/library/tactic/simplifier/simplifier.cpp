@@ -45,7 +45,7 @@ Author: Daniel Selsam
 #define LEAN_DEFAULT_SIMPLIFY_MAX_STEPS 1000
 #endif
 #ifndef LEAN_DEFAULT_SIMPLIFY_MAX_REWRITES
-#define LEAN_DEFAULT_SIMPLIFY_MAX_REWRITES 5000
+#define LEAN_DEFAULT_SIMPLIFY_MAX_REWRITES 1000
 #endif
 #ifndef LEAN_DEFAULT_SIMPLIFY_REWRITE_AC
 #define LEAN_DEFAULT_SIMPLIFY_REWRITE_AC false
@@ -74,8 +74,11 @@ Author: Daniel Selsam
 #ifndef LEAN_DEFAULT_SIMPLIFY_LIFT_EQ
 #define LEAN_DEFAULT_SIMPLIFY_LIFT_EQ true
 #endif
-#ifndef LEAN_DEFAULT_DEFEQ_SIMPLIFY_CANONIZE_PROOFS
-#define LEAN_DEFAULT_DEFEQ_SIMPLIFY_CANONIZE_PROOFS false
+#ifndef LEAN_DEFAULT_SIMPLIFY_DEFEQ_CANONIZE_FIXED_POINT
+#define LEAN_DEFAULT_SIMPLIFY_DEFEQ_CANONIZE_FIXED_POINT false
+#endif
+#ifndef LEAN_DEFAULT_SIMPLIFY_DEFEQ_CANONIZE_PROOFS
+#define LEAN_DEFAULT_SIMPLIFY_DEFEQ_CANONIZE_PROOFS false
 #endif
 
 namespace lean {
@@ -93,6 +96,7 @@ static name * g_simplify_unsafe_nary          = nullptr;
 static name * g_simplify_theory               = nullptr;
 static name * g_simplify_topdown              = nullptr;
 static name * g_simplify_lift_eq              = nullptr;
+static name * g_simplify_canonize_fixed_point = nullptr;
 static name * g_simplify_canonize_proofs      = nullptr;
 
 static unsigned get_simplify_max_steps(options const & o) {
@@ -139,8 +143,12 @@ static bool get_simplify_lift_eq(options const & o) {
     return o.get_bool(*g_simplify_lift_eq, LEAN_DEFAULT_SIMPLIFY_LIFT_EQ);
 }
 
+static bool get_simplify_canonize_fixed_point(options const & o) {
+    return o.get_bool(*g_simplify_canonize_fixed_point, LEAN_DEFAULT_SIMPLIFY_DEFEQ_CANONIZE_FIXED_POINT);
+}
+
 static bool get_simplify_canonize_proofs(options const & o) {
-    return o.get_bool(*g_simplify_canonize_proofs, LEAN_DEFAULT_DEFEQ_SIMPLIFY_CANONIZE_PROOFS);
+    return o.get_bool(*g_simplify_canonize_proofs, LEAN_DEFAULT_SIMPLIFY_DEFEQ_CANONIZE_PROOFS);
 }
 
 #define lean_simp_trace(tctx, n, code) lean_trace(n, scope_trace_env _scope1(tctx.env(), tctx); code)
@@ -181,6 +189,7 @@ class simplifier {
     bool                      m_theory;
     bool                      m_topdown;
     bool                      m_lift_eq;
+    bool                      m_canonize_fixed_point;
     bool                      m_canonize_proofs;
 
     /* Cache */
@@ -755,11 +764,20 @@ public:
         m_theory(get_simplify_theory(tctx.get_options())),
         m_topdown(get_simplify_topdown(tctx.get_options())),
         m_lift_eq(get_simplify_lift_eq(tctx.get_options())),
+        m_canonize_fixed_point(get_simplify_canonize_fixed_point(tctx.get_options()))
         m_canonize_proofs(get_simplify_canonize_proofs(tctx.get_options()))
         { }
 
     simp_result operator()(expr const & e)  {
         scope_trace_env scope(env(), m_tctx.get_options(), m_tctx);
+        simp_result r(e);
+        while (true) {
+            m_need_restart = false;
+            r = join(r, simplify(r.get_new()));
+            if (!m_need_restart || !m_canonize_fixed_point)
+                return r;
+            m_cache.clear();
+        }
         return simplify(e);
     }
 };
@@ -1330,18 +1348,19 @@ void initialize_simplifier() {
     register_trace_class(name({"debug", "simplifier", "try_congruence"}));
     register_trace_class(name({"debug", "simplifier", "remove_casts"}));
 
-    g_simplify_max_steps           = new name{"simplify", "max_steps"};
-    g_simplify_max_rewrites        = new name{"simplify", "max_rewrites"};
-    g_simplify_rewrite_ac          = new name{"simplify", "rewrite_ac"};
-    g_simplify_memoize             = new name{"simplify", "memoize"};
-    g_simplify_contextual          = new name{"simplify", "contextual"};
-    g_simplify_user_extensions     = new name{"simplify", "user_extensions"};
-    g_simplify_rewrite             = new name{"simplify", "rewrite"};
-    g_simplify_unsafe_nary         = new name{"simplify", "unsafe_nary"};
-    g_simplify_theory              = new name{"simplify", "theory"};
-    g_simplify_topdown             = new name{"simplify", "topdown"};
-    g_simplify_lift_eq             = new name{"simplify", "lift_eq"};
-    g_simplify_canonize_proofs     = new name{"simplify", "canonize_proofs"};
+    g_simplify_max_steps            = new name{"simplify", "max_steps"};
+    g_simplify_max_rewrites         = new name{"simplify", "max_rewrites"};
+    g_simplify_rewrite_ac           = new name{"simplify", "rewrite_ac"};
+    g_simplify_memoize              = new name{"simplify", "memoize"};
+    g_simplify_contextual           = new name{"simplify", "contextual"};
+    g_simplify_user_extensions      = new name{"simplify", "user_extensions"};
+    g_simplify_rewrite              = new name{"simplify", "rewrite"};
+    g_simplify_unsafe_nary          = new name{"simplify", "unsafe_nary"};
+    g_simplify_theory               = new name{"simplify", "theory"};
+    g_simplify_topdown              = new name{"simplify", "topdown"};
+    g_simplify_lift_eq              = new name{"simplify", "lift_eq"};
+    g_simplify_canonize_fixed_point = new name{"simplify", "canonize_fixed_point"};
+    g_simplify_canonize_proofs      = new name{"simplify", "canonize_proofs"};
 
     register_unsigned_option(*g_simplify_max_steps, LEAN_DEFAULT_SIMPLIFY_MAX_STEPS,
                              "(simplify) max number of (large) steps in simplification");
@@ -1368,6 +1387,8 @@ void initialize_simplifier() {
                          "(simplify) use topdown simplification");
     register_bool_option(*g_simplify_lift_eq, LEAN_DEFAULT_SIMPLIFY_LIFT_EQ,
                          "(simplify) try simplifying with equality when no progress over other relation");
+    register_bool_option(*g_simplify_canonize_fixed_point, LEAN_DEFAULT_SIMPLIFY_CANONIZE_FIXED_POINT,
+                         "(simplify) continue to canonize instances until reaching a fixed point");
     register_bool_option(*g_simplify_canonize_proofs, LEAN_DEFAULT_SIMPLIFY_CANONIZE_PROOFS,
                          "(simplify) canonize_proofs");
 
@@ -1376,6 +1397,7 @@ void initialize_simplifier() {
 
 void finalize_simplifier() {
     delete g_simplify_canonize_proofs;
+    delete g_simplify_canonize_fixed_point;
     delete g_simplify_lift_eq;
     delete g_simplify_topdown;
     delete g_simplify_theory;
