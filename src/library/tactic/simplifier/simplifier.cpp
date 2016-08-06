@@ -74,30 +74,34 @@ Author: Daniel Selsam
 #ifndef LEAN_DEFAULT_SIMPLIFY_LIFT_EQ
 #define LEAN_DEFAULT_SIMPLIFY_LIFT_EQ true
 #endif
-#ifndef LEAN_DEFAULT_SIMPLIFY_DEFEQ_CANONIZE_FIXED_POINT
-#define LEAN_DEFAULT_SIMPLIFY_DEFEQ_CANONIZE_FIXED_POINT false
+#ifndef LEAN_DEFAULT_SIMPLIFY_DEFEQ_CANONIZE_INSTANCES_FIXED_POINT
+#define LEAN_DEFAULT_SIMPLIFY_DEFEQ_CANONIZE_INSTANCES_FIXED_POINT false
 #endif
-#ifndef LEAN_DEFAULT_SIMPLIFY_DEFEQ_CANONIZE_PROOFS
-#define LEAN_DEFAULT_SIMPLIFY_DEFEQ_CANONIZE_PROOFS false
+#ifndef LEAN_DEFAULT_SIMPLIFY_DEFEQ_CANONIZE_PROOFS_FIXED_POINT
+#define LEAN_DEFAULT_SIMPLIFY_DEFEQ_CANONIZE_PROOFS_FIXED_POINT false
+#endif
+#ifndef LEAN_DEFAULT_SIMPLIFY_CANONIZE_SUBSINGLETONS
+#define LEAN_DEFAULT_SIMPLIFY_CANONIZE_SUBSINGLETONS true
 #endif
 
 namespace lean {
 
 /* Options */
 
-static name * g_simplify_max_steps            = nullptr;
-static name * g_simplify_max_rewrites         = nullptr;
-static name * g_simplify_rewrite_ac           = nullptr;
-static name * g_simplify_memoize              = nullptr;
-static name * g_simplify_contextual           = nullptr;
-static name * g_simplify_user_extensions      = nullptr;
-static name * g_simplify_rewrite              = nullptr;
-static name * g_simplify_unsafe_nary          = nullptr;
-static name * g_simplify_theory               = nullptr;
-static name * g_simplify_topdown              = nullptr;
-static name * g_simplify_lift_eq              = nullptr;
-static name * g_simplify_canonize_fixed_point = nullptr;
-static name * g_simplify_canonize_proofs      = nullptr;
+static name * g_simplify_max_steps                      = nullptr;
+static name * g_simplify_max_rewrites                   = nullptr;
+static name * g_simplify_rewrite_ac                     = nullptr;
+static name * g_simplify_memoize                        = nullptr;
+static name * g_simplify_contextual                     = nullptr;
+static name * g_simplify_user_extensions                = nullptr;
+static name * g_simplify_rewrite                        = nullptr;
+static name * g_simplify_unsafe_nary                    = nullptr;
+static name * g_simplify_theory                         = nullptr;
+static name * g_simplify_topdown                        = nullptr;
+static name * g_simplify_lift_eq                        = nullptr;
+static name * g_simplify_canonize_instances_fixed_point = nullptr;
+static name * g_simplify_canonize_proofs_fixed_point    = nullptr;
+static name * g_simplify_canonize_subsingletons         = nullptr;
 
 static unsigned get_simplify_max_steps(options const & o) {
     return o.get_unsigned(*g_simplify_max_steps, LEAN_DEFAULT_SIMPLIFY_MAX_STEPS);
@@ -143,12 +147,16 @@ static bool get_simplify_lift_eq(options const & o) {
     return o.get_bool(*g_simplify_lift_eq, LEAN_DEFAULT_SIMPLIFY_LIFT_EQ);
 }
 
-static bool get_simplify_canonize_fixed_point(options const & o) {
-    return o.get_bool(*g_simplify_canonize_fixed_point, LEAN_DEFAULT_SIMPLIFY_DEFEQ_CANONIZE_FIXED_POINT);
+static bool get_simplify_canonize_instances_fixed_point(options const & o) {
+    return o.get_bool(*g_simplify_canonize_instances_fixed_point, LEAN_DEFAULT_SIMPLIFY_DEFEQ_CANONIZE_INSTANCES_FIXED_POINT);
 }
 
-static bool get_simplify_canonize_proofs(options const & o) {
-    return o.get_bool(*g_simplify_canonize_proofs, LEAN_DEFAULT_SIMPLIFY_DEFEQ_CANONIZE_PROOFS);
+static bool get_simplify_canonize_proofs_fixed_point(options const & o) {
+    return o.get_bool(*g_simplify_canonize_proofs_fixed_point, LEAN_DEFAULT_SIMPLIFY_DEFEQ_CANONIZE_PROOFS_FIXED_POINT);
+}
+
+static bool get_simplify_canonize_subsingletons(options const & o) {
+    return o.get_bool(*g_simplify_canonize_subsingletons, LEAN_DEFAULT_SIMPLIFY_CANONIZE_SUBSINGLETONS);
 }
 
 #define lean_simp_trace(tctx, n, code) lean_trace(n, scope_trace_env _scope1(tctx.env(), tctx); code)
@@ -189,8 +197,9 @@ class simplifier {
     bool                      m_theory;
     bool                      m_topdown;
     bool                      m_lift_eq;
-    bool                      m_canonize_fixed_point;
-    bool                      m_canonize_proofs;
+    bool                      m_canonize_instances_fixed_point;
+    bool                      m_canonize_proofs_fixed_point;
+    bool                      m_canonize_subsingletons;
 
     /* Cache */
     struct key {
@@ -242,6 +251,10 @@ class simplifier {
             }
         }
         return slss;
+    }
+
+    bool should_defeq_canonize() {
+        return m_canonize_instances_fixed_point || m_canonize_proofs_fixed_point;
     }
 
     void get_app_nary_args(expr const & op, expr const & e, buffer<expr> & nary_args) {
@@ -389,7 +402,7 @@ class simplifier {
 
     simp_result simplify_subterms_app_binary(expr const & _e) {
         lean_assert(is_app(_e));
-        expr e = m_canonize_fixed_point ? canonize_args(_e) : _e;
+        expr e = should_defeq_canonize() ? canonize_args_step(_e) : _e;
 
         // (1) Try user-defined congruences
         simp_result r_user = try_congrs(e);
@@ -610,8 +623,15 @@ class simplifier {
     }
 
     optional<simp_result> simplify_user_extensions_nary(expr const & assoc, expr const & op, buffer<expr> const & nary_args) {
-        // TODO(dhs): expose command and implement
-        return optional<simp_result>();
+        // For now, user extensions are not aware of the binary/nary distinction, except that they are guaranteed that
+        // if an operator is an instance of [is_associative] for the relation in question, the user extension will only be
+        // called on the outermost applications.
+        expr old_e = mk_nary_app(op, nary_args);
+        simp_result r = simplify_user_extensions_binary(old_e);
+        if (r.get_new() != old_e)
+            return optional<simp_result>(r);
+        else
+            return optional<simp_result>();
     }
 
     simp_result simplify_subterms_app_nary(expr const & op, buffer<expr> const & nary_args,
@@ -724,10 +744,10 @@ class simplifier {
     optional<expr> prove(expr const & thm);
 
     /* Canonicalize */
-    expr canonize_args(expr const & e);
+    expr canonize_args_step(expr const & e);
 
     expr_struct_map<expr> m_subsingleton_elem_map;
-    simp_result normalize_subsingleton_args(expr const & e);
+    simp_result canonize_subsingleton_args(expr const & e);
 
     /* Congruence */
     simp_result congr_fun_arg(simp_result const & r_f, simp_result const & r_arg);
@@ -765,8 +785,9 @@ public:
         m_theory(get_simplify_theory(tctx.get_options())),
         m_topdown(get_simplify_topdown(tctx.get_options())),
         m_lift_eq(get_simplify_lift_eq(tctx.get_options())),
-        m_canonize_fixed_point(get_simplify_canonize_fixed_point(tctx.get_options())),
-        m_canonize_proofs(get_simplify_canonize_proofs(tctx.get_options()))
+        m_canonize_instances_fixed_point(get_simplify_canonize_instances_fixed_point(tctx.get_options())),
+        m_canonize_proofs_fixed_point(get_simplify_canonize_proofs_fixed_point(tctx.get_options())),
+        m_canonize_subsingletons(get_simplify_canonize_subsingletons(tctx.get_options()))
         { }
 
     simp_result operator()(expr const & e)  {
@@ -775,7 +796,7 @@ public:
         while (true) {
             m_need_restart = false;
             r = join(r, simplify(r.get_new()));
-            if (!m_need_restart || !m_canonize_fixed_point)
+            if (!m_need_restart || !should_defeq_canonize())
                 return r;
             m_cache.clear();
         }
@@ -863,7 +884,7 @@ simp_result simplifier::simplify_subterms_pi(expr const & e) {
     return try_congrs(e);
 }
 
-expr simplifier::canonize_args(expr const & e) {
+expr simplifier::canonize_args_step(expr const & e) {
         buffer<expr> args;
         bool modified = false;
         expr f        = get_app_args(e, args);
@@ -872,7 +893,7 @@ expr simplifier::canonize_args(expr const & e) {
         for (param_info const & pinfo : info.get_params_info()) {
             lean_assert(i < args.size());
             expr new_a;
-            if (pinfo.is_inst_implicit() || (m_canonize_proofs && pinfo.is_prop())) {
+            if ((m_canonize_instances_fixed_point && pinfo.is_inst_implicit()) || (m_canonize_proofs_fixed_point && pinfo.is_prop())) {
                 new_a = ::lean::defeq_canonize(m_tctx, args[i], m_need_restart);
                 lean_trace(name({"simplifier", "canonize"}),
                            tout() << "\n" << args[i] << "\n===>\n" << new_a << "\n";);
@@ -1077,7 +1098,7 @@ simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cl) {
 
     simp_result r(e_s, pf);
     if (is_app(e_s))
-        r = join(r, normalize_subsingleton_args(r.get_new()));
+        r = join(r, canonize_subsingleton_args(r.get_new()));
 
     lean_simp_trace(tmp_tctx, name({"simplifier", "congruence"}),
                     tout() << "(" << cl.get_id() << ") "
@@ -1179,14 +1200,14 @@ optional<simp_result> simplifier::synth_congr(expr const & e) {
     if (!has_simplified) {
         simp_result r = simp_result(e);
         if (has_cast)
-            r = join(r, normalize_subsingleton_args(r.get_new()));
+            r = join(r, canonize_subsingleton_args(r.get_new()));
         return optional<simp_result>(r);
     }
 
     if (!has_proof) {
         simp_result r = simp_result(mk_app(f, new_args));
         if (has_cast)
-            r = join(r, normalize_subsingleton_args(r.get_new()));
+            r = join(r, canonize_subsingleton_args(r.get_new()));
         return optional<simp_result>(r);
     }
 
@@ -1236,7 +1257,7 @@ optional<simp_result> simplifier::synth_congr(expr const & e) {
 
     if (has_cast) {
         r.update(remove_unnecessary_casts(r.get_new()));
-        r = join(r, normalize_subsingleton_args(r.get_new()));
+        r = join(r, canonize_subsingleton_args(r.get_new()));
     }
 
     return optional<simp_result>(r);
@@ -1244,7 +1265,7 @@ optional<simp_result> simplifier::synth_congr(expr const & e) {
 
 // Given a function application \c e, replace arguments that are subsingletons with a
 // representative
-simp_result simplifier::normalize_subsingleton_args(expr const & e) {
+simp_result simplifier::canonize_subsingleton_args(expr const & e) {
     // TODO(dhs): flag to skip this step
     buffer<expr> args;
     get_app_args(e, args);
@@ -1254,7 +1275,7 @@ simp_result simplifier::normalize_subsingleton_args(expr const & e) {
     expr proof = congr_lemma->get_proof();
     expr type = congr_lemma->get_type();
     unsigned i = 0;
-    bool normalized = false;
+    bool modified = false;
     for_each(congr_lemma->get_arg_kinds(), [&](congr_arg_kind const & ckind) {
             expr rfl;
             switch (ckind) {
@@ -1279,14 +1300,18 @@ simp_result simplifier::normalize_subsingleton_args(expr const & e) {
                 type  = instantiate(binding_body(type), args[i]);
                 expr const & arg_type = binding_domain(type);
                 expr new_arg;
-                auto it = m_subsingleton_elem_map.find(arg_type);
-                if (it != m_subsingleton_elem_map.end()) {
-                    normalized = (it->second != args[i]);
-                    new_arg    = it->second;
-                    lean_trace_d(name({"simplifier", "subsingleton"}), tout() << args[i] << " ==> " << new_arg << "\n";);
+                if (!m_tctx.is_prop(arg_type)) {
+                    auto it = m_subsingleton_elem_map.find(arg_type);
+                    if (it != m_subsingleton_elem_map.end()) {
+                        modified = (it->second != args[i]);
+                        new_arg    = it->second;
+                        lean_trace_d(name({"simplifier", "subsingleton"}), tout() << args[i] << " ==> " << new_arg << "\n";);
+                    } else {
+                        new_arg = args[i];
+                        m_subsingleton_elem_map.insert(mk_pair(arg_type, args[i]));
+                    }
                 } else {
                     new_arg = args[i];
-                    m_subsingleton_elem_map.insert(mk_pair(arg_type, args[i]));
                 }
                 proof = mk_app(proof, new_arg);
                 type = instantiate(binding_body(type), new_arg);
@@ -1294,7 +1319,7 @@ simp_result simplifier::normalize_subsingleton_args(expr const & e) {
             }
             i++;
         });
-    if (!normalized)
+    if (!modified)
         return simp_result(e);
 
     lean_assert(is_eq(type));
@@ -1380,19 +1405,20 @@ void initialize_simplifier() {
     register_trace_class(name({"debug", "simplifier", "try_congruence"}));
     register_trace_class(name({"debug", "simplifier", "remove_casts"}));
 
-    g_simplify_max_steps            = new name{"simplify", "max_steps"};
-    g_simplify_max_rewrites         = new name{"simplify", "max_rewrites"};
-    g_simplify_rewrite_ac           = new name{"simplify", "rewrite_ac"};
-    g_simplify_memoize              = new name{"simplify", "memoize"};
-    g_simplify_contextual           = new name{"simplify", "contextual"};
-    g_simplify_user_extensions      = new name{"simplify", "user_extensions"};
-    g_simplify_rewrite              = new name{"simplify", "rewrite"};
-    g_simplify_unsafe_nary          = new name{"simplify", "unsafe_nary"};
-    g_simplify_theory               = new name{"simplify", "theory"};
-    g_simplify_topdown              = new name{"simplify", "topdown"};
-    g_simplify_lift_eq              = new name{"simplify", "lift_eq"};
-    g_simplify_canonize_fixed_point = new name{"simplify", "canonize_fixed_point"};
-    g_simplify_canonize_proofs      = new name{"simplify", "canonize_proofs"};
+    g_simplify_max_steps                      = new name{"simplify", "max_steps"};
+    g_simplify_max_rewrites                   = new name{"simplify", "max_rewrites"};
+    g_simplify_rewrite_ac                     = new name{"simplify", "rewrite_ac"};
+    g_simplify_memoize                        = new name{"simplify", "memoize"};
+    g_simplify_contextual                     = new name{"simplify", "contextual"};
+    g_simplify_user_extensions                = new name{"simplify", "user_extensions"};
+    g_simplify_rewrite                        = new name{"simplify", "rewrite"};
+    g_simplify_unsafe_nary                    = new name{"simplify", "unsafe_nary"};
+    g_simplify_theory                         = new name{"simplify", "theory"};
+    g_simplify_topdown                        = new name{"simplify", "topdown"};
+    g_simplify_lift_eq                        = new name{"simplify", "lift_eq"};
+    g_simplify_canonize_instances_fixed_point = new name{"simplify", "canonize_instances_fixed_point"};
+    g_simplify_canonize_proofs_fixed_point    = new name{"simplify", "canonize_proofs_fixed_point"};
+    g_simplify_canonize_subsingletons         = new name{"simplify", "canonize_subsingletons"};
 
     register_unsigned_option(*g_simplify_max_steps, LEAN_DEFAULT_SIMPLIFY_MAX_STEPS,
                              "(simplify) max number of (large) steps in simplification");
@@ -1419,17 +1445,19 @@ void initialize_simplifier() {
                          "(simplify) use topdown simplification");
     register_bool_option(*g_simplify_lift_eq, LEAN_DEFAULT_SIMPLIFY_LIFT_EQ,
                          "(simplify) try simplifying with equality when no progress over other relation");
-    register_bool_option(*g_simplify_canonize_fixed_point, LEAN_DEFAULT_SIMPLIFY_CANONIZE_FIXED_POINT,
-                         "(simplify) continue to canonize instances until reaching a fixed point");
-    register_bool_option(*g_simplify_canonize_proofs, LEAN_DEFAULT_SIMPLIFY_CANONIZE_PROOFS,
-                         "(simplify) canonize_proofs");
+    register_bool_option(*g_simplify_canonize_instances_fixed_point, LEAN_DEFAULT_SIMPLIFY_CANONIZE_INSTANCES_FIXED_POINT,
+                         "(simplify) canonize instances, replacing with the smallest seen so far until reaching a fixed point");
+    register_bool_option(*g_simplify_canonize_proofs_fixed_point, LEAN_DEFAULT_SIMPLIFY_CANONIZE_PROOFS_FIXED_POINT,
+                         "(simplify) canonize proofs, replacing with the smallest seen so far until reaching a fixed point. ");
+    register_bool_option(*g_simplify_canonize_subsingletons, LEAN_DEFAULT_SIMPLIFY_CANONIZE_SUBSINGLETONS,
+                         "(simplify) canonize_subsingletons");
 
     DECLARE_VM_BUILTIN(name({"tactic", "simplify_core"}), tactic_simplify_core);
 }
 
 void finalize_simplifier() {
-    delete g_simplify_canonize_proofs;
-    delete g_simplify_canonize_fixed_point;
+    delete g_simplify_canonize_subsingletons;
+    delete g_simplify_canonize_instances_fixed_point;
     delete g_simplify_lift_eq;
     delete g_simplify_topdown;
     delete g_simplify_theory;

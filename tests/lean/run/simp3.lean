@@ -4,6 +4,8 @@ attribute A_cr [instance]
 
 open tactic
 
+set_option simplify.canonize_instances_fixed_point true
+
 example : (x + y) * (z + w) = x * z + x * w + y * z + y * w * 1 + 0 :=
 by simp
 
