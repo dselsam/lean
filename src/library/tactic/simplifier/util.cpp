@@ -76,7 +76,18 @@ public:
 
     virtual optional<expr> expand(expr const & m, abstract_type_context &) const {
         check_macro(m);
-        // TODO(dhs): expand flat-simp macro
+        // expr mk_flat_simp_macro(expr const & assoc, expr const & thm, optional<expr> pf_of_simp)
+        expr const & assoc      = macro_arg(m, 0);
+        expr const & thm        = macro_arg(m, 1);
+        expr const & pf_of_simp = macro_arg(m, 2);
+
+        expr old_e = app_arg(app_fn(thm));
+        expr new_e = app_arg(thm);
+
+
+
+
+
         return none_expr();
     }
 
