@@ -4,6 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 
 Author: Daniel Selsam
 */
+#include <string>
+#include <algorithm>
 #include "util/sexpr/option_declarations.h"
 #include "library/kernel_serializer.h"
 #include "library/constants.h"

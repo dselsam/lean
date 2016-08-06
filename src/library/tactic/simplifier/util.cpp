@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 
 Author: Daniel Selsam
 */
+#include <string>
 #include "util/sstream.h"
 #include "kernel/expr.h"
 #include "library/kernel_serializer.h"
@@ -197,18 +198,17 @@ expr mk_flat_simp_macro(unsigned num_args, expr const * args) {
 
 expr mk_congr_flat_simp_macro(expr const & assoc, expr const & thm, optional<expr> const & pf_of_simp,
                               optional<expr> const & pf_op, buffer<optional<expr> > const & pf_nary_args) {
-    unsigned num_macro_args = 4 + pf_nary_args.size();
-    expr margs[num_macro_args];
-    margs[0] = assoc;
-    margs[1] = thm;
-    margs[2] = pf_of_simp ? *pf_of_simp : expr();
-    margs[3] = pf_op ? *pf_op : expr();
+    buffer<expr> margs;
+    margs.push_back(assoc);
+    margs.push_back(thm);
+    margs.push_back(pf_of_simp ? *pf_of_simp : expr());
+    margs.push_back(pf_op ? *pf_op : expr());
     for (unsigned i = 0; i < pf_nary_args.size(); ++i) {
         optional<expr> const & pf = pf_nary_args[i];
-        margs[i+4] = pf ? *pf : expr();
+        margs.push_back(pf ? *pf : expr());
     }
     macro_definition m(new congr_flat_simp_macro_definition_cell());
-    return mk_macro(m, num_macro_args, margs);
+    return mk_macro(m, margs.size(), margs.data());
 }
 
 expr mk_congr_flat_simp_macro(unsigned num_args, expr const * args) {
@@ -277,6 +277,5 @@ void finalize_simp_util() {
     // flat_simp macro
     delete g_flat_simp_macro_name;
     delete g_flat_simp_opcode;
-
 }
 }

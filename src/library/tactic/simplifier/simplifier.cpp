@@ -389,7 +389,7 @@ class simplifier {
 
     simp_result simplify_subterms_app_binary(expr const & _e) {
         lean_assert(is_app(_e));
-        expr e = canonize_args(_e);
+        expr e = m_canonize_fixed_point ? canonize_args(_e) : _e;
 
         // (1) Try user-defined congruences
         simp_result r_user = try_congrs(e);
