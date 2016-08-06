@@ -854,31 +854,6 @@ optional<expr> get_binary_op(expr const & e, expr & arg1, expr & arg2) {
     }
 }
 
-bool is_binary_app_of(expr const & e, expr const & op, expr & arg1, expr & arg2) {
-    if (auto e_op = get_binary_op(e, arg1, arg2))
-        return *e_op == op;
-    else
-        return false;
-}
-
-static void get_app_nary_args_core(expr const & op, expr const & e, buffer<expr> & nary_args) {
-    auto next_op = get_binary_op(e);
-    // Note: this assumes that the implicit arguments are definitionally equal in nested applications.
-    // It may lead to a kernel type-checking error later on if this is not the case.
-    // If this ever happens, we can take a type_context and switch this to the more expensive `is_def_eq`.
-    if (next_op && get_app_fn(*next_op) == get_app_fn(op)) {
-        get_app_nary_args_core(op, app_arg(app_fn(e)), nary_args);
-        get_app_nary_args_core(op, app_arg(e), nary_args);
-    } else {
-        nary_args.push_back(e);
-    }
-}
-
-void get_app_nary_args(expr const & op, expr const & e, buffer<expr> & nary_args) {
-    get_app_nary_args_core(op, app_arg(app_fn(e)), nary_args);
-    get_app_nary_args_core(op, app_arg(e), nary_args);
-}
-
 expr mk_nary_app(expr const & op, buffer<expr> const & nary_args) {
     return mk_nary_app(op, nary_args.size(), nary_args.data());
 }

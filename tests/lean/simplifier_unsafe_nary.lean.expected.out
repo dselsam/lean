@@ -1,0 +1,8 @@
+Safe version, should not simplify
+simplifier_unsafe_nary.lean:12:59: error: simp tactic failed to simplify
+state:
+⊢ op a (op b x y) z = op a x (op b y z)
+simplifier_unsafe_nary.lean:12:59: error: failed to add declaration 'example' to environment, value has metavariables
+remark: set 'formatter.hide_full_terms' to false to see the complete term
+  ?M_1
+Unsafe version, should simplify and the proof macro should be incorrect

@@ -14,6 +14,29 @@ Author: Daniel Selsam
 
 namespace lean {
 
+static void get_app_nary_args_core(type_context * tctx_ptr, expr const & op, expr const & e, buffer<expr> & nary_args, bool unsafe) {
+    lean_assert(unsafe || tctx_ptr);
+    auto next_op = get_binary_op(e);
+    if (next_op && (unsafe ? (get_app_fn(*next_op) == get_app_fn(op)) : tctx_ptr->is_def_eq(*next_op, op))) {
+        get_app_nary_args_core(tctx_ptr, op, app_arg(app_fn(e)), nary_args, unsafe);
+        get_app_nary_args_core(tctx_ptr, op, app_arg(e), nary_args, unsafe);
+    } else {
+        nary_args.push_back(e);
+    }
+}
+
+void unsafe_get_app_nary_args(expr const & op, expr const & e, buffer<expr> & nary_args) {
+    bool unsafe = true;
+    get_app_nary_args_core(nullptr, op, app_arg(app_fn(e)), nary_args, unsafe);
+    get_app_nary_args_core(nullptr, op, app_arg(e), nary_args, unsafe);
+}
+
+void get_app_nary_args(type_context & tctx, expr const & op, expr const & e, buffer<expr> & nary_args) {
+    bool unsafe = false;
+    get_app_nary_args_core(&tctx, op, app_arg(app_fn(e)), nary_args, unsafe);
+    get_app_nary_args_core(&tctx, op, app_arg(e), nary_args, unsafe);
+}
+
 optional<pair<expr, expr> > is_assoc(type_context & tctx, name const & rel, expr const & e) {
     auto op = get_binary_op(e);
     if (!op)

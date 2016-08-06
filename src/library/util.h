@@ -225,10 +225,10 @@ expr mk_not(abstract_type_context & ctx, expr const & e);
 /** \brief Create the term <tt>absurd e not_e : t</tt>. */
 expr mk_absurd(abstract_type_context & ctx, expr const & t, expr const & e, expr const & not_e);
 
+/** \brief Returns none if \c e is not an application with at least two arguments.
+    Otherwise it returns <tt>app_fn(app_fn(e))</tt>. */
 optional<expr> get_binary_op(expr const & e);
 optional<expr> get_binary_op(expr const & e, expr & arg1, expr & arg2);
-bool is_binary_app_of(expr const & e, expr const & op, expr & arg1, expr & arg2);
-void get_app_nary_args(expr const & op, expr const & e, buffer<expr> & nary_args);
 
 /** \brief Makes n-ary (right-associative) application. */
 expr mk_nary_app(expr const & op, buffer<expr> const & nary_args);

@@ -11,6 +11,15 @@ Author: Daniel Selsam
 
 namespace lean {
 
+/** \brief Collect all nary arguments of \c e, with binary operator \c op.
+    Example: <tt>(op (op a b) (op c d)) ==> [a, b, c, d]</tt>.
+    In <tt>unsafe_get_app_nary_args</tt>, we assume that the pre-binary arguments are definitionally
+    equal in nested applications. It will lead to a kernel type-checking error later on if this is
+    not the case, and even this error may only be detected at a low-enough trust level.
+    Rationale for providing the unsafe option: arithmetic. */
+void get_app_nary_args(type_context & tctx, expr const & op, expr const & e, buffer<expr> & nary_args);
+void unsafe_get_app_nary_args(expr const & op, expr const & e, buffer<expr> & nary_args);
+
 optional<pair<expr, expr> > is_assoc(type_context & tctx, name const & rel, expr const & e);
 
 expr mk_flat_simp_macro(expr const & assoc, expr const & thm, optional<expr> pf_of_simp);

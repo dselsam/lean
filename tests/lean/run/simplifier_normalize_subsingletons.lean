@@ -39,6 +39,4 @@ attribute f_congr [congr]
 set_option trace.simplifier.subsingleton true
 example : f A a₁ ss₁ = f A a₁' ss₁' := by simp
 
-
-
 end user_congr

@@ -62,6 +62,9 @@ Author: Daniel Selsam
 #ifndef LEAN_DEFAULT_SIMPLIFY_REWRITE
 #define LEAN_DEFAULT_SIMPLIFY_REWRITE true
 #endif
+#ifndef LEAN_DEFAULT_SIMPLIFY_UNSAFE_NARY
+#define LEAN_DEFAULT_SIMPLIFY_UNSAFE_NARY false
+#endif
 #ifndef LEAN_DEFAULT_SIMPLIFY_THEORY
 #define LEAN_DEFAULT_SIMPLIFY_THEORY true
 #endif
@@ -86,6 +89,7 @@ static name * g_simplify_memoize              = nullptr;
 static name * g_simplify_contextual           = nullptr;
 static name * g_simplify_user_extensions      = nullptr;
 static name * g_simplify_rewrite              = nullptr;
+static name * g_simplify_unsafe_nary          = nullptr;
 static name * g_simplify_theory               = nullptr;
 static name * g_simplify_topdown              = nullptr;
 static name * g_simplify_lift_eq              = nullptr;
@@ -117,6 +121,10 @@ static bool get_simplify_user_extensions(options const & o) {
 
 static bool get_simplify_rewrite(options const & o) {
     return o.get_bool(*g_simplify_rewrite, LEAN_DEFAULT_SIMPLIFY_REWRITE);
+}
+
+static bool get_simplify_unsafe_nary(options const & o) {
+    return o.get_bool(*g_simplify_unsafe_nary, LEAN_DEFAULT_SIMPLIFY_UNSAFE_NARY);
 }
 
 static bool get_simplify_theory(options const & o) {
@@ -169,6 +177,7 @@ class simplifier {
     bool                      m_contextual;
     bool                      m_user_extensions;
     bool                      m_rewrite;
+    bool                      m_unsafe_nary;
     bool                      m_theory;
     bool                      m_topdown;
     bool                      m_lift_eq;
@@ -224,6 +233,13 @@ class simplifier {
             }
         }
         return slss;
+    }
+
+    void get_app_nary_args(expr const & op, expr const & e, buffer<expr> & nary_args) {
+        if (m_unsafe_nary)
+            ::lean::unsafe_get_app_nary_args(op, e, nary_args);
+        else
+            ::lean::get_app_nary_args(m_tctx, op, e, nary_args);
     }
 
     bool instantiate_emetas(tmp_type_context & tmp_tctx, unsigned num_emeta, list<expr> const & emetas, list<bool> const & instances);
@@ -735,6 +751,7 @@ public:
         m_contextual(get_simplify_contextual(tctx.get_options())),
         m_user_extensions(get_simplify_user_extensions(tctx.get_options())),
         m_rewrite(get_simplify_rewrite(tctx.get_options())),
+        m_unsafe_nary(get_simplify_unsafe_nary(tctx.get_options())),
         m_theory(get_simplify_theory(tctx.get_options())),
         m_topdown(get_simplify_topdown(tctx.get_options())),
         m_lift_eq(get_simplify_lift_eq(tctx.get_options())),
@@ -1320,6 +1337,7 @@ void initialize_simplifier() {
     g_simplify_contextual          = new name{"simplify", "contextual"};
     g_simplify_user_extensions     = new name{"simplify", "user_extensions"};
     g_simplify_rewrite             = new name{"simplify", "rewrite"};
+    g_simplify_unsafe_nary         = new name{"simplify", "unsafe_nary"};
     g_simplify_theory              = new name{"simplify", "theory"};
     g_simplify_topdown             = new name{"simplify", "topdown"};
     g_simplify_lift_eq             = new name{"simplify", "lift_eq"};
@@ -1339,6 +1357,11 @@ void initialize_simplifier() {
                          "(simplify) simplify with user_extensions");
     register_bool_option(*g_simplify_rewrite, LEAN_DEFAULT_SIMPLIFY_REWRITE,
                          "(simplify) rewrite with simp_lemmas");
+    register_bool_option(*g_simplify_unsafe_nary, LEAN_DEFAULT_SIMPLIFY_UNSAFE_NARY,
+                         "(simplify) assume all nested applications of associative operators "
+                         "with the same head symbol are definitionally equal. "
+                         "Will yield to invalid proofs if this assumption is not valid. "
+                         "The kernel will detect these errors but only at a high-enough trust level.");
     register_bool_option(*g_simplify_theory, LEAN_DEFAULT_SIMPLIFY_THEORY,
                          "(simplify) use built-in theory simplification");
     register_bool_option(*g_simplify_topdown, LEAN_DEFAULT_SIMPLIFY_TOPDOWN,
