@@ -253,9 +253,9 @@ class simplifier {
         optional<pair<expr, expr> > assoc = is_assoc(m_tctx, m_rel, e);
 
         if (assoc) {
-            bool in_nary_subtree = assoc && m_curr_nary_op && *m_curr_nary_op == assoc->second;
+            bool use_congr_only = assoc && m_curr_nary_op && *m_curr_nary_op == assoc->second;
             flet<optional<expr> > in_nary_subtree(m_curr_nary_op, some_expr(assoc->second));
-            r = simplify_nary(assoc->first, assoc->second, e, in_nary_subtree);
+            r = simplify_nary(assoc->first, assoc->second, e, use_congr_only);
         } else {
             flet<optional<expr> > not_in_nary_subtree(m_curr_nary_op, none_expr());
             r = simplify_binary(e);
@@ -370,8 +370,7 @@ class simplifier {
         simp_result r_user = try_congrs(e);
         if (r_user.has_proof()) {
             if (using_eq()) {
-                simp_result r_user_app = join(r_user, simplify_operator_of_app(r_user.get_new()));
-                return join(r_user_app, normalize_subsingleton_args(r_user_app.get_new()));
+                return join(r_user, simplify_operator_of_app(r_user.get_new()));
             } else {
                 return r_user;
             }
@@ -614,11 +613,11 @@ class simplifier {
     }
 
     // Main n-ary simplify method
-    simp_result simplify_nary(expr const & assoc, expr const & op, expr const & old_e, bool in_nary_subtree) {
+    simp_result simplify_nary(expr const & assoc, expr const & op, expr const & old_e, bool use_congr_only) {
         buffer<expr> nary_args;
         get_app_nary_args(op, old_e, nary_args);
 
-        if (m_topdown && !in_nary_subtree) {
+        if (m_topdown && !use_congr_only) {
             if (m_rewrite) {
                 if (optional<simp_result> r_rewrite = simplify_rewrite_nary(assoc, op, nary_args)) {
                     lean_trace_d(name({"simplifier", "rewrite"}), tout() << old_e << " ==> " << r_rewrite->get_new() << "\n";);
@@ -647,7 +646,7 @@ class simplifier {
             return simp_result(new_e, pf);
         }
 
-        if (!m_topdown && !in_nary_subtree) {
+        if (!m_topdown && !use_congr_only) {
             if (m_rewrite) {
                 if (optional<simp_result> r_rewrite = simplify_rewrite_nary(assoc, op, nary_args)) {
                     lean_trace_d(name({"simplifier", "rewrite"}), tout() << old_e << " ==> " << r_rewrite->get_new() << "\n";);
@@ -671,7 +670,7 @@ class simplifier {
         // [5] Simplify with the theory simplifier
         // Note: the theory simplifier guarantees that no new subterms are introduced that need to be simplified.
         // Thus we never need to repeat unless something is simplified downstream of here.
-        if (m_theory && !in_nary_subtree) {
+        if (m_theory && !use_congr_only) {
             if (optional<simp_result> r_theory = m_theory_simplifier.simplify_nary(m_rel, assoc, new_op, new_nary_args)) {
                 expr new_e = r_theory->get_new();
                 bool done = true;
@@ -1013,11 +1012,15 @@ simp_result simplifier::try_congr(expr const & e, user_congr_lemma const & cl) {
     expr e_s = tmp_tctx.instantiate_mvars(cl.get_rhs());
     expr pf = tmp_tctx.instantiate_mvars(cl.get_proof());
 
+    simp_result r(e_s, pf);
+    if (is_app(e_s))
+        r = join(r, normalize_subsingleton_args(r.get_new()));
+
     lean_simp_trace(tmp_tctx, name({"simplifier", "congruence"}),
                     tout() << "(" << cl.get_id() << ") "
                     << "[" << e << " ==> " << e_s << "]\n";);
 
-    return simp_result(e_s, pf);
+    return r;
 }
 
 bool simplifier::instantiate_emetas(tmp_type_context & tmp_tctx, unsigned num_emeta, list<expr> const & emetas, list<bool> const & instances) {
