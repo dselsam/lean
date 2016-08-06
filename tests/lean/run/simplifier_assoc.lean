@@ -1,7 +1,7 @@
 import algebra.binary
 open tactic
 
-constants (A : Type.{1}) (a b c d e f g h : A) (op : A → A → A) (op_assoc : is_associative op)
+constants (A : Type.{1}) (a b c d e f g h : A) (op : A → A → A) (op_assoc : is_associative eq op)
 attribute op_assoc [instance]
 
 infixr `%%` := op
