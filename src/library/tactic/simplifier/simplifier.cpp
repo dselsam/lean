@@ -839,13 +839,14 @@ simp_result simplifier::simplify_subterms_lambda(expr const & old_e) {
             if (it->second != new_e) {
                 expr proof = mk_ss_elim(m_tctx, new_e_type, *inst, new_e, it->second);
                 r = join(r, simp_result(it->second, proof));
+                lean_trace_d(name({"simplifier", "subsingleton"}), tout() << new_e << " ==> " << it->second << "\n";);
             }
         } else {
             m_subsingleton_elem_map.insert(mk_pair(new_e_type, new_e));
         }
     }
 
-    if (r.get_new() != e)
+    if (r.get_new() == e)
         return old_e;
 
     if (!r.has_proof())

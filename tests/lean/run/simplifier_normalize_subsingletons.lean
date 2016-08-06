@@ -40,3 +40,20 @@ set_option trace.simplifier.subsingleton true
 example : f A a₁ ss₁ = f A a₁' ss₁' := by simp
 
 end user_congr
+
+namespace lambda
+
+universe variable l
+constants (ss : Π {A : Type.{l}}, A → Type.{l})
+          [ss_ss : ∀ (T : Type) (t : T), subsingleton (ss t)]
+          (A : Type.{l}) (a : A)
+          (ss₁ ss₂ : ss a)
+
+attribute ss_ss [instance]
+
+set_option trace.simplifier.subsingleton true
+example : ss₁ = ss₂ := by simp
+example : (λ p : Prop, ss₁) = (λ p : Prop, ss₂) := by simp
+example : (λ (A : Type) (a : A), ss₁) = (λ (A : Type) (a : A), ss₂) := by simp
+
+end lambda
