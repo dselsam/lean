@@ -865,7 +865,7 @@ simp_result simplifier::simplify_subterms_lambda(expr const & old_e) {
     if (auto inst = m_tctx.mk_subsingleton_instance(new_e_type)) {
         auto it = m_subsingleton_elem_map.find(new_e_type);
         if (it != m_subsingleton_elem_map.end()) {
-            if (it->second != new_e) {
+            if (it->second != new_e && locals_subset(it->second, new_e)) {
                 expr proof = mk_ss_elim(m_tctx, new_e_type, *inst, new_e, it->second);
                 r = join(r, simp_result(it->second, proof));
                 lean_trace_d(name({"simplifier", "subsingleton"}), tout() << new_e << " ==> " << it->second << "\n";);
