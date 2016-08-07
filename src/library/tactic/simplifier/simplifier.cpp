@@ -18,6 +18,7 @@ Author: Daniel Selsam
 #include "library/constants.h"
 #include "library/normalize.h"
 #include "library/expr_lt.h"
+#include "library/locals.h"
 #include "library/num.h"
 #include "library/util.h"
 #include "library/norm_num.h"
@@ -160,9 +161,6 @@ static bool get_simplify_canonize_subsingletons(options const & o) {
 }
 
 #define lean_simp_trace(tctx, n, code) lean_trace(n, scope_trace_env _scope1(tctx.env(), tctx); code)
-
-/* Util (move to util.h?) */
-
 
 /* Main simplifier class */
 
@@ -865,6 +863,8 @@ simp_result simplifier::simplify_subterms_lambda(expr const & old_e) {
     if (auto inst = m_tctx.mk_subsingleton_instance(new_e_type)) {
         auto it = m_subsingleton_elem_map.find(new_e_type);
         if (it != m_subsingleton_elem_map.end()) {
+            // We do not canonize when there is an unfavourable locals mismatch
+            // TODO(dhs): maintain a list of canonical elements as we do in the defeq-canonizer
             if (it->second != new_e && locals_subset(it->second, new_e)) {
                 expr proof = mk_ss_elim(m_tctx, new_e_type, *inst, new_e, it->second);
                 r = join(r, simp_result(it->second, proof));
