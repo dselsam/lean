@@ -42,12 +42,10 @@ optional<pair<expr, expr> > is_assoc(type_context & tctx, name const & rel, expr
     auto op = get_binary_op(e);
     if (!op)
         return optional<pair<expr, expr> >();
-    // TODO(dhs): optimized helper for instantiating a relation given a single element of a given type
-    expr e_rel = app_fn(app_fn(mk_rel(tctx, rel, e, e)));
     try {
-        expr assoc_class = mk_app(tctx, get_is_associative_name(), e_rel, *op);
+        expr assoc_class = mk_app(tctx, get_is_associative_name(), *op);
         if (auto assoc_inst = tctx.mk_class_instance(assoc_class))
-            return optional<pair<expr, expr> >(mk_pair(mk_app(tctx, get_is_associative_op_assoc_name(), 4, e_rel, *op, *assoc_inst), *op));
+            return optional<pair<expr, expr> >(mk_pair(mk_app(tctx, get_is_associative_op_assoc_name(), 3, *op, *assoc_inst), *op));
         else
             return optional<pair<expr, expr> >();
     } catch (app_builder_exception ex) {
@@ -66,7 +64,8 @@ class flat_simp_macro_definition_cell : public macro_definition_cell {
     }
 
 public:
-    flat_simp_macro_definition_cell() {}
+    name m_rel;
+    flat_simp_macro_definition_cell(name const & rel): m_rel(rel) {}
 
     virtual name get_name() const { return *g_flat_simp_macro_name; }
     virtual expr check_type(expr const & m, abstract_type_context &, bool) const {
@@ -74,9 +73,8 @@ public:
         return macro_arg(m, 1);
     }
 
-    virtual optional<expr> expand(expr const & m, abstract_type_context &) const {
+    virtual optional<expr> expand(expr const & m, abstract_type_context & tctx) const {
         check_macro(m);
-        // expr mk_flat_simp_macro(expr const & assoc, expr const & thm, optional<expr> pf_of_simp)
         expr const & assoc      = macro_arg(m, 0);
         expr const & thm        = macro_arg(m, 1);
         expr const & pf_of_simp = macro_arg(m, 2);
@@ -84,27 +82,43 @@ public:
         expr old_e = app_arg(app_fn(thm));
         expr new_e = app_arg(thm);
 
+        optional<expr> op = get_binary_op(old_e);
+        lean_assert(op);
 
+        pair<expr, optional<expr>> r_assoc = flat_assoc(tctx, *op, assoc, old_e);
+        expr const & flat_e = r_assoc.first;
+        optional<expr> const & pf_of_assoc = r_assoc.second;
 
-
-
-        return none_expr();
+        if (!pf_of_assoc && pf_of_simp == expr()) {
+            return mk_eq_refl(tctx, old_e);
+        } else if (!pf_of_assoc) {
+            return pf_of_simp;
+        } else if (pf_of_simp == expr()) {
+            return *pf_of_assoc;
+        } else if (m_rel == get_eq_name()) {
+            return mk_eq_trans(tctx, *pf_of_assoc, pf_of_step);
+        } else {
+            lean_assert(m_rel == get_iff_name());
+            return mk_iff_trans(tctx, *pf_of_assoc, pf_of_step);
+        }
+        lean_unreachable();
     }
 
     virtual void write(serializer & s) const {
         s.write_string(*g_flat_simp_opcode);
+        s << m_rel;
     }
 
     virtual bool operator==(macro_definition_cell const & other) const {
         if (auto other_ptr = dynamic_cast<flat_simp_macro_definition_cell const *>(&other)) {
-            return true;
+            return m_rel == other_ptr->m_rel;
         } else {
             return false;
         }
     }
 
     virtual unsigned hash() const {
-        return get_name().hash();
+        return ::lean::hash(m_rel.hash(), get_name().hash());
     }
 };
 
@@ -119,7 +133,8 @@ class congr_flat_simp_macro_definition_cell : public macro_definition_cell {
     }
 
 public:
-    congr_flat_simp_macro_definition_cell() {}
+    name m_rel;
+    congr_flat_simp_macro_definition_cell(name const & rel): m_rel(rel) {}
 
     virtual name get_name() const { return *g_congr_flat_simp_macro_name; }
     virtual expr check_type(expr const & m, abstract_type_context &, bool) const {
@@ -135,18 +150,19 @@ public:
 
     virtual void write(serializer & s) const {
         s.write_string(*g_congr_flat_simp_opcode);
+        s << m_rel;
     }
 
     virtual bool operator==(macro_definition_cell const & other) const {
         if (auto other_ptr = dynamic_cast<congr_flat_simp_macro_definition_cell const *>(&other)) {
-            return true;
+            return m_rel == other_ptr->m_rel;
         } else {
             return false;
         }
     }
 
     virtual unsigned hash() const {
-        return get_name().hash();
+        return ::lean::hash(m_rel.hash(), get_name().hash());
     }
 };
 
@@ -192,22 +208,22 @@ public:
     }
 };
 
-expr mk_flat_simp_macro(expr const & assoc, expr const & thm, optional<expr> pf_of_simp) {
+expr mk_flat_simp_macro(name const & rel, expr const & assoc, expr const & thm, optional<expr> pf_of_simp) {
     expr margs[3];
     margs[0] = assoc;
     margs[1] = thm;
     margs[2] = pf_of_simp ? *pf_of_simp : expr();
-    macro_definition m(new flat_simp_macro_definition_cell());
+    macro_definition m(new flat_simp_macro_definition_cell(rel));
     return mk_macro(m, 3, margs);
 }
 
-expr mk_flat_simp_macro(unsigned num_args, expr const * args) {
+expr mk_flat_simp_macro(name const & rel, unsigned num_args, expr const * args) {
     lean_assert(num_args == 3);
-    macro_definition m(new flat_simp_macro_definition_cell());
+    macro_definition m(new flat_simp_macro_definition_cell(rel));
     return mk_macro(m, num_args, args);
 }
 
-expr mk_congr_flat_simp_macro(expr const & assoc, expr const & thm, optional<expr> const & pf_of_simp,
+expr mk_congr_flat_simp_macro(name const & rel, expr const & assoc, expr const & thm, optional<expr> const & pf_of_simp,
                               optional<expr> const & pf_op, buffer<optional<expr> > const & pf_nary_args) {
     buffer<expr> margs;
     margs.push_back(assoc);
@@ -218,11 +234,11 @@ expr mk_congr_flat_simp_macro(expr const & assoc, expr const & thm, optional<exp
         optional<expr> const & pf = pf_nary_args[i];
         margs.push_back(pf ? *pf : expr());
     }
-    macro_definition m(new congr_flat_simp_macro_definition_cell());
+    macro_definition m(new congr_flat_simp_macro_definition_cell(rel));
     return mk_macro(m, margs.size(), margs.data());
 }
 
-expr mk_congr_flat_simp_macro(unsigned num_args, expr const * args) {
+expr mk_congr_flat_simp_macro(name const & rel, unsigned num_args, expr const * args) {
     lean_assert(num_args >= 6);
     macro_definition m(new congr_flat_simp_macro_definition_cell());
     return mk_macro(m, num_args, args);
@@ -252,7 +268,8 @@ void initialize_simp_util() {
                                 [](deserializer & d, unsigned num, expr const * args) {
                                     if (num != 3)
                                         throw corrupted_stream_exception();
-                                    return mk_flat_simp_macro(num, args);
+                                    name rel << d;
+                                    return mk_flat_simp_macro(rel, num, args);
                                 });
 
     // congr_flat_simp macro
@@ -262,7 +279,8 @@ void initialize_simp_util() {
                                 [](deserializer & d, unsigned num, expr const * args) {
                                     if (num < 6)
                                         throw corrupted_stream_exception();
-                                    return mk_congr_flat_simp_macro(num, args);
+                                    name rel << d;
+                                    return mk_congr_flat_simp_macro(rel, num, args);
                                 });
 
     // rewrite_assoc macro

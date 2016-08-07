@@ -12,3 +12,4 @@ import init.monad init.option init.state init.fin init.list init.char init.strin
 import init.timeit init.trace init.unsigned init.ordering init.list_classes init.coe
 import init.meta init.instances
 import init.wf init.wf_k init.sigma_lex init.measurable
+import init.simplifier

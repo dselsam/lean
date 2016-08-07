@@ -47,6 +47,3 @@ theorem inv_image.irreflexive (f : A → B) (H : irreflexive R) : irreflexive (i
 inductive tc {A : Type} (R : A → A → Prop) : A → A → Prop :=
 | base  : ∀a b, R a b → tc R a b
 | trans : ∀a b c, tc R a b → tc R b c → tc R a c
-
-structure is_associative [class] {A : Type} (rel : A → A → Prop) (op : A → A → A) :=
-(op_assoc : ∀ x y z : A, rel (op (op x y) z) (op x (op y z)))

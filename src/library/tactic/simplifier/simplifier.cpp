@@ -288,7 +288,9 @@ class simplifier {
         expr e = whnf_eta(old_e);
         simp_result r;
 
-        optional<pair<expr, expr> > assoc = is_assoc(m_tctx, m_rel, e);
+        optional<pair<expr, expr> > assoc;
+        if (using_eq())
+            assoc = is_assoc(m_tctx, m_rel, e);
 
         if (assoc) {
             bool use_congr_only = assoc && m_curr_nary_op && *m_curr_nary_op == assoc->second;
@@ -586,7 +588,7 @@ class simplifier {
                         j -= num_patterns;
                     }
                 }
-                return optional<simp_result>(simp_result(new_e, mk_rewrite_assoc_macro(assoc, new_e, r->get_proof())));
+                return optional<simp_result>(simp_result(new_e, mk_rewrite_assoc_proof(assoc, new_e, r->get_proof())));
             }
         }
         return optional<simp_result>();
@@ -671,14 +673,14 @@ class simplifier {
                 if (optional<simp_result> r_rewrite = simplify_rewrite_nary(assoc, op, nary_args)) {
                     lean_trace_d(name({"simplifier", "rewrite"}), tout() << old_e << " ==> " << r_rewrite->get_new() << "\n";);
                     expr new_e = r_rewrite->get_new();
-                    return simp_result(new_e, mk_flat_simp_macro(assoc, mk_rel(m_tctx, m_rel, old_e, new_e), r_rewrite->get_optional_proof()));
+                    return simp_result(new_e, mk_flat_simp_proof(assoc, mk_eq(m_tctx, old_e, new_e), r_rewrite->get_optional_proof()));
                 }
             }
             if (m_user_extensions) {
                 if (optional<simp_result> r_user = simplify_user_extensions_nary(assoc, op, nary_args)) {
                     lean_trace_d(name({"simplifier", "user_extensions"}), tout() << old_e << " ==> " << r_user->get_new() << "\n";);
                     expr new_e = r_user->get_new();
-                    return simp_result(new_e, mk_flat_simp_macro(assoc, mk_rel(m_tctx, m_rel, old_e, new_e), r_user->get_optional_proof()));
+                    return simp_result(new_e, mk_flat_simp_proof(assoc, mk_eq(m_tctx, old_e, new_e), r_user->get_optional_proof()));
                 }
             }
         }
@@ -693,7 +695,7 @@ class simplifier {
 
         if (m_topdown && simplified) {
             expr new_e = mk_nary_app(new_op, new_nary_args);
-            expr pf = mk_congr_flat_simp_macro(assoc, mk_rel(m_tctx, m_rel, old_e, new_e), none_expr(), r_op.get_optional_proof(), pf_nary_args);
+            expr pf = mk_congr_flat_simp_proof(assoc, mk_eq(m_tctx, old_e, new_e), none_expr(), r_op.get_optional_proof(), pf_nary_args);
             return simp_result(new_e, pf);
         }
 
@@ -702,9 +704,9 @@ class simplifier {
                 if (optional<simp_result> r_rewrite = simplify_rewrite_nary(assoc, new_op, new_nary_args)) {
                     lean_trace_d(name({"simplifier", "rewrite"}), tout() << old_e << " ==> " << r_rewrite->get_new() << "\n";);
                     expr new_e = r_rewrite->get_new();
-                    // TODO(dhs): if !congr, just create a mk_flat_simp_macro (all three of these)
+                    // TODO(dhs): if !congr, just create a mk_flat_simp_proof (all three of these)
                     return simp_result(new_e,
-                                       mk_congr_flat_simp_macro(assoc, mk_rel(m_tctx, m_rel, old_e, new_e), r_rewrite->get_optional_proof(), r_op.get_optional_proof(), pf_nary_args));
+                                       mk_congr_flat_simp_proof(assoc, mk_eq(m_tctx, old_e, new_e), r_rewrite->get_optional_proof(), r_op.get_optional_proof(), pf_nary_args));
                 }
             }
             if (m_user_extensions) {
@@ -712,7 +714,7 @@ class simplifier {
                     lean_trace_d(name({"simplifier", "user_extensions"}), tout() << old_e << " ==> " << r_user->get_new() << "\n";);
                     expr new_e = r_user->get_new();
                     return simp_result(new_e,
-                                       mk_congr_flat_simp_macro(assoc, mk_rel(m_tctx, m_rel, old_e, new_e), r_user->get_optional_proof(), r_op.get_optional_proof(), pf_nary_args),
+                                       mk_congr_flat_simp_proof(assoc, mk_eq(m_tctx, old_e, new_e), r_user->get_optional_proof(), r_op.get_optional_proof(), pf_nary_args),
                                        r_user->is_done());
                 }
             }
@@ -722,18 +724,18 @@ class simplifier {
         // Note: the theory simplifier guarantees that no new subterms are introduced that need to be simplified.
         // Thus we never need to repeat unless something is simplified downstream of here.
         if (m_theory && !use_congr_only) {
-            if (optional<simp_result> r_theory = m_theory_simplifier.simplify_nary(m_rel, assoc, new_op, new_nary_args)) {
+            if (optional<simp_result> r_theory = m_theory_simplifier.simplify_nary(assoc, new_op, new_nary_args)) {
                 expr new_e = r_theory->get_new();
                 bool done = true;
                 lean_trace_d(name({"simplifier", "theory"}), tout() << old_e << " ==> " << new_e << "\n";);
                 return simp_result(new_e,
-                                   mk_congr_flat_simp_macro(assoc, mk_rel(m_tctx, m_rel, old_e, new_e), r_theory->get_optional_proof(), r_op.get_optional_proof(), pf_nary_args),
+                                   mk_congr_flat_simp_proof(assoc, mk_eq(m_tctx, old_e, new_e), r_theory->get_optional_proof(), r_op.get_optional_proof(), pf_nary_args),
                                    done);
             }
         }
 
         expr new_e = mk_nary_app(new_op, new_nary_args);
-        expr pf = mk_congr_flat_simp_macro(assoc, mk_rel(m_tctx, m_rel, old_e, new_e), none_expr(), r_op.get_optional_proof(), pf_nary_args);
+        expr pf = mk_congr_flat_simp_proof(assoc, mk_eq(m_tctx, old_e, new_e), none_expr(), r_op.get_optional_proof(), pf_nary_args);
         bool done = true;
         return simp_result(new_e, pf, done);
     }

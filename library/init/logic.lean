@@ -354,7 +354,7 @@ iff.intro
   (λHab Hc, iff.mp H2 (Hab (iff.mpr H1 Hc)))
   (λHcd Ha, iff.mpr H2 (Hcd (iff.mp H1 Ha)))
 
-theorem imp_congr_ctx [congr] (H1 : a ↔ c) (H2 : c → (b ↔ d)) : (a → b) ↔ (c → d) :=
+theorem imp_congr_ctx (H1 : a ↔ c) (H2 : c → (b ↔ d)) : (a → b) ↔ (c → d) :=
 iff.intro
   (λHab Hc, have Ha : a, from iff.mpr H1 Hc,
             have Hb : b, from Hab Ha,
