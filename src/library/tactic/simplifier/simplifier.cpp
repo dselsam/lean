@@ -623,6 +623,12 @@ class simplifier {
     }
 
     optional<simp_result> simplify_user_extensions_nary(expr const & assoc, expr const & op, buffer<expr> const & nary_args) {
+        // Only construct the n-ary application if there is a user-extension registered for the given head symbol.
+        buffer<unsigned> ext_ids;
+        get_simp_extensions_for(m_tctx.env(), head, ext_ids);
+        if (ext_ids.empty())
+            return optional<simp_result>();
+
         // For now, user extensions are not aware of the binary/nary distinction, except that they are guaranteed that
         // if an operator is an instance of [is_associative] for the relation in question, the user extension will only be
         // called on the outermost applications.
