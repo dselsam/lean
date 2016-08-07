@@ -34,11 +34,11 @@ simp_result theory_simplifier::simplify_binary(expr const & e) {
     return simp_result(e);
 }
 
-optional<simp_result> theory_simplifier::simplify_nary(expr const & assoc, expr const & op, buffer<expr> & args) {
-    if (auto r_prop = m_prop_simplifier.simplify_nary(assoc, op, args))
+optional<simp_result> theory_simplifier::simplify_nary(expr const & assoc, expr const & old_e, expr const & op, buffer<expr> & args) {
+    if (auto r_prop = m_prop_simplifier.simplify_nary(assoc, old_e, op, args))
         return r_prop;
 
-    if (auto r_arith = m_arith_simplifier.simplify_nary(assoc, op, args))
+    if (auto r_arith = m_arith_simplifier.simplify_nary(assoc, old_e, op, args))
         return r_arith;
 
     return optional<simp_result>();

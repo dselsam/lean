@@ -462,7 +462,7 @@ simp_result prop_simplifier::simplify_binary(expr const & old_e) {
     return simp_result(old_e);
 }
 
-optional<simp_result> prop_simplifier::simplify_nary(expr const & assoc, expr const & op, buffer<expr> & args) {
+optional<simp_result> prop_simplifier::simplify_nary(expr const & assoc, expr const & old_e, expr const & op, buffer<expr> & args) {
     if (!is_constant(op))
         return optional<simp_result>();
 

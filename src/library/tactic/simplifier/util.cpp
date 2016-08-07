@@ -100,19 +100,19 @@ expr mk_assoc_subst(abstract_type_context & tctx, expr const & old_op, expr cons
 }
 
 // flat-simp macro
-static name * g_flat_simp_macro_name    = nullptr;
-static std::string * g_flat_simp_opcode = nullptr;
+static name * g_flat_macro_name    = nullptr;
+static std::string * g_flat_opcode = nullptr;
 
-class flat_simp_macro_definition_cell : public macro_definition_cell {
+class flat_macro_definition_cell : public macro_definition_cell {
     void check_macro(expr const & m) const {
-        if (!is_macro(m) || macro_num_args(m) != 3)
-            throw exception(sstream() << "invalid 'flat_simp' macro, incorrect number of arguments");
+        if (!is_macro(m) || macro_num_args(m) != 2)
+            throw exception(sstream() << "invalid 'flat' macro, incorrect number of arguments");
     }
 
 public:
-    flat_simp_macro_definition_cell() {}
+    flat_macro_definition_cell() {}
 
-    virtual name get_name() const { return *g_flat_simp_macro_name; }
+    virtual name get_name() const { return *g_flat_macro_name; }
     virtual expr check_type(expr const & m, abstract_type_context &, bool) const {
         check_macro(m);
         return macro_arg(m, 1);
@@ -122,7 +122,6 @@ public:
         check_macro(m);
         expr const & assoc      = macro_arg(m, 0);
         expr const & thm        = macro_arg(m, 1);
-        expr const & pf_of_simp = macro_arg(m, 2);
 
         expr old_e = app_arg(app_fn(thm));
         expr new_e = app_arg(thm);
@@ -131,25 +130,20 @@ public:
         lean_assert(op);
 
         pair<expr, optional<expr>> r_assoc = flat_assoc(tctx, *op, assoc, old_e);
-        expr const & flat_e = r_assoc.first;
         optional<expr> const & pf_of_assoc = r_assoc.second;
 
-        if (!pf_of_assoc && pf_of_simp == expr())
+        if (!pf_of_assoc)
             return some_expr(mk_eq_refl(tctx, old_e));
-        else if (pf_of_simp == expr())
-            return some_expr(*pf_of_assoc);
-        else if (!pf_of_assoc)
-            return some_expr(pf_of_simp);
         else
-            return some_expr(mk_eq_trans(tctx, *pf_of_assoc, pf_of_simp));
+            return pf_of_assoc;
     }
 
     virtual void write(serializer & s) const {
-        s.write_string(*g_flat_simp_opcode);
+        s.write_string(*g_flat_opcode);
     }
 
     virtual bool operator==(macro_definition_cell const & other) const {
-        if (auto other_ptr = dynamic_cast<flat_simp_macro_definition_cell const *>(&other)) {
+        if (auto other_ptr = dynamic_cast<flat_macro_definition_cell const *>(&other)) {
             return true;
         } else {
             return false;
@@ -161,20 +155,21 @@ public:
     }
 };
 
-// congr_flat_simp macro
-static name * g_congr_flat_simp_macro_name    = nullptr;
-static std::string * g_congr_flat_simp_opcode = nullptr;
+// congr_flat macro
+static name * g_congr_flat_macro_name    = nullptr;
+static std::string * g_congr_flat_opcode = nullptr;
 
-class congr_flat_simp_macro_definition_cell : public macro_definition_cell {
+class congr_flat_macro_definition_cell : public macro_definition_cell {
     void check_macro(expr const & m) const {
-        if (!is_macro(m) || macro_num_args(m) < 5)
-            throw exception(sstream() << "invalid 'congr_flat_simp' macro, not enough number of arguments");
+        // TODO confirm 5
+        if (!is_macro(m) || macro_num_args(m) < 8)
+            throw exception(sstream() << "invalid 'congr_flat' macro, not enough number of arguments");
     }
 
 public:
-    congr_flat_simp_macro_definition_cell() {}
+    congr_flat_macro_definition_cell() {}
 
-    virtual name get_name() const { return *g_congr_flat_simp_macro_name; }
+    virtual name get_name() const { return *g_congr_flat_macro_name; }
     virtual expr check_type(expr const & m, abstract_type_context &, bool) const {
         check_macro(m);
         return macro_arg(m, 1);
@@ -217,34 +212,28 @@ public:
         return simp_result(flat_assoc(tctx, new_op, new_assoc, e));
     }
 
-    simp_result simp(expr const & new_e, expr const & pf_of_simp) const {
-        if (pf_of_simp == expr())
-            return simp_result(new_e);
-        else
-            return simp_result(new_e, pf_of_simp);
-    }
-
     virtual optional<expr> expand(expr const & m, abstract_type_context & tctx) const {
         check_macro(m);
-        // expr mk_congr_flat_simp_proof(expr const & assoc, expr const & thm,
-        //                       optional<expr> const & pf_of_simp,
+        // expr mk_congr_flat_proof(expr const & assoc, expr const & thm,
         //                       expr const & new_op, optional<expr> const & pf_op,
         //                       buffer<expr> const & new_nary_args,
         //                       buffer<optional<expr> > const & pf_nary_args)
+
         expr const * margs      = macro_args(m);
         expr const & assoc      = margs[0];
         expr const & thm        = margs[1];
-        expr const & pf_of_simp = margs[2];
-        expr const & new_op     = margs[3];
-        expr const & pf_of_op   = margs[4];
+        expr const & new_op     = margs[2];
+        expr const & pf_of_op   = margs[3];
 
         expr type = binding_domain(tctx.infer(new_op));
         level lvl = get_level(tctx, type);
 
         unsigned num_args = macro_num_args(m);
-        lean_assert(num_args % 2 == 1);
-        expr const * new_args = margs + 5;
-        expr const * pf_args  = margs + 5 + ((num_args - 5) / 2);
+        unsigned arg_prefix_size = 4;
+
+        lean_assert(num_args % 2 == 0);
+        expr const * new_args = margs + arg_prefix_size;
+        expr const * pf_args  = margs + arg_prefix_size + ((num_args - arg_prefix_size) / 2);
 
         expr old_e = app_arg(app_fn(thm));
         expr new_e = app_arg(thm);
@@ -257,17 +246,15 @@ public:
         unsigned i = 0;
         simp_result r = congruence(tctx, old_e, *old_op, new_op, pf_of_op, new_args, pf_args, i);
         r = join_eq(tctx, r, flatten(tctx, new_op, new_assoc, r.get_new()));
-        r = join_eq(tctx, r, simp(new_e, pf_of_simp));
-
         return some_expr(finalize_eq(tctx, r).get_proof());
     }
 
     virtual void write(serializer & s) const {
-        s.write_string(*g_congr_flat_simp_opcode);
+        s.write_string(*g_congr_flat_opcode);
     }
 
     virtual bool operator==(macro_definition_cell const & other) const {
-        if (auto other_ptr = dynamic_cast<congr_flat_simp_macro_definition_cell const *>(&other)) {
+        if (auto other_ptr = dynamic_cast<congr_flat_macro_definition_cell const *>(&other)) {
             return true;
         } else {
             return false;
@@ -284,13 +271,15 @@ static name * g_rewrite_assoc_macro_name    = nullptr;
 static std::string * g_rewrite_assoc_opcode = nullptr;
 
 class rewrite_assoc_macro_definition_cell : public macro_definition_cell {
+    unsigned m_arg_idx;
+
     void check_macro(expr const & m) const {
         if (!is_macro(m) || macro_num_args(m) != 3)
             throw exception(sstream() << "invalid 'rewrite_assoc' macro, incorrect number of arguments");
     }
 
 public:
-    rewrite_assoc_macro_definition_cell() {}
+    rewrite_assoc_macro_definition_cell(unsigned arg_idx): m_arg_idx(arg_idx) {}
 
     virtual name get_name() const { return *g_rewrite_assoc_macro_name; }
     virtual expr check_type(expr const & m, abstract_type_context &, bool) const {
@@ -300,51 +289,53 @@ public:
 
     virtual optional<expr> expand(expr const & m, abstract_type_context &) const {
         check_macro(m);
+        expr const & assoc      = macro_arg(m, 0);
+        expr const & thm        = macro_arg(m, 1);
+        expr const & pf_of_step = macro_arg(m, 2);
+
         // TODO(dhs): expand rewrite-assoc macro
         return none_expr();
     }
 
     virtual void write(serializer & s) const {
         s.write_string(*g_rewrite_assoc_opcode);
+        s << m_arg_idx;
     }
 
     virtual bool operator==(macro_definition_cell const & other) const {
         if (auto other_ptr = dynamic_cast<rewrite_assoc_macro_definition_cell const *>(&other)) {
-            return true;
+            return m_arg_idx == other_ptr->m_arg_idx;
         } else {
             return false;
         }
     }
 
     virtual unsigned hash() const {
-        return get_name().hash();
+        return ::lean::hash(m_arg_idx, get_name().hash());
     }
 };
 
-expr mk_flat_simp_proof(expr const & assoc, expr const & thm, optional<expr> pf_of_simp) {
+expr mk_flat_proof(expr const & assoc, expr const & thm) {
     expr margs[3];
     margs[0] = assoc;
     margs[1] = thm;
-    margs[2] = pf_of_simp ? *pf_of_simp : expr();
-    macro_definition m(new flat_simp_macro_definition_cell());
-    return mk_macro(m, 3, margs);
+    macro_definition m(new flat_macro_definition_cell());
+    return mk_macro(m, 2, margs);
 }
 
-expr mk_flat_simp_macro(unsigned num_args, expr const * args) {
-    lean_assert(num_args == 3);
-    macro_definition m(new flat_simp_macro_definition_cell());
+expr mk_flat_macro(unsigned num_args, expr const * args) {
+    lean_assert(num_args == 2);
+    macro_definition m(new flat_macro_definition_cell());
     return mk_macro(m, num_args, args);
 }
 
-expr mk_congr_flat_simp_proof(expr const & assoc, expr const & thm,
-                              optional<expr> const & pf_of_simp,
-                              expr const & new_op, optional<expr> const & pf_op,
-                              buffer<expr> const & new_nary_args,
-                              buffer<optional<expr> > const & pf_nary_args) {
+expr mk_congr_flat_proof(expr const & assoc, expr const & thm,
+                         expr const & new_op, optional<expr> const & pf_op,
+                         buffer<expr> const & new_nary_args,
+                         buffer<optional<expr> > const & pf_nary_args) {
     buffer<expr> margs;
     margs.push_back(assoc);
     margs.push_back(thm);
-    margs.push_back(pf_of_simp ? *pf_of_simp : expr());
     margs.push_back(new_op);
     margs.push_back(pf_op ? *pf_op : expr());
     for (unsigned i = 0; i < new_nary_args.size(); ++i) {
@@ -354,51 +345,51 @@ expr mk_congr_flat_simp_proof(expr const & assoc, expr const & thm,
         optional<expr> const & pf = pf_nary_args[i];
         margs.push_back(pf ? *pf : expr());
     }
-    macro_definition m(new congr_flat_simp_macro_definition_cell());
+    macro_definition m(new congr_flat_macro_definition_cell());
     return mk_macro(m, margs.size(), margs.data());
 }
 
-expr mk_congr_flat_simp_macro(unsigned num_args, expr const * args) {
-    lean_assert(num_args >= 9);
-    macro_definition m(new congr_flat_simp_macro_definition_cell());
+expr mk_congr_flat_macro(unsigned num_args, expr const * args) {
+    lean_assert(num_args >= 8);
+    macro_definition m(new congr_flat_macro_definition_cell());
     return mk_macro(m, num_args, args);
 }
 
-expr mk_rewrite_assoc_proof(expr const & assoc, expr const & thm, expr const & pf_of_step) {
+expr mk_rewrite_assoc_proof(expr const & assoc, expr const & thm, unsigned arg_idx, expr const & pf_of_step) {
     expr margs[3];
     margs[0] = assoc;
     margs[1] = thm;
     margs[2] = pf_of_step;
-    macro_definition m(new rewrite_assoc_macro_definition_cell());
+    macro_definition m(new rewrite_assoc_macro_definition_cell(arg_idx));
     return mk_macro(m, 3, margs);
 }
 
-expr mk_rewrite_assoc_macro(unsigned num_args, expr const * args) {
+expr mk_rewrite_assoc_macro(unsigned num_args, expr const * args, unsigned arg_idx) {
     lean_assert(num_args == 3);
-    macro_definition m(new rewrite_assoc_macro_definition_cell());
+    macro_definition m(new rewrite_assoc_macro_definition_cell(arg_idx));
     return mk_macro(m, 3, args);
 }
 
 // Setup and teardown
 void initialize_simp_util() {
-    // flat_simp macro
-    g_flat_simp_macro_name = new name("flat_simp");
-    g_flat_simp_opcode     = new std::string("FLAT_SIMP");
-    register_macro_deserializer(*g_flat_simp_opcode,
+    // flat macro
+    g_flat_macro_name = new name("flat");
+    g_flat_opcode     = new std::string("FLAT");
+    register_macro_deserializer(*g_flat_opcode,
                                 [](deserializer & d, unsigned num, expr const * args) {
                                     if (num != 3)
                                         throw corrupted_stream_exception();
-                                    return mk_flat_simp_macro(num, args);
+                                    return mk_flat_macro(num, args);
                                 });
 
-    // congr_flat_simp macro
-    g_congr_flat_simp_macro_name = new name("congr_flat_simp");
-    g_congr_flat_simp_opcode     = new std::string("CONGR_FLAT_SIMP");
-    register_macro_deserializer(*g_congr_flat_simp_opcode,
+    // congr_flat macro
+    g_congr_flat_macro_name = new name("congr_flat");
+    g_congr_flat_opcode     = new std::string("CONGR_FLAT");
+    register_macro_deserializer(*g_congr_flat_opcode,
                                 [](deserializer & d, unsigned num, expr const * args) {
-                                    if (num < 9)
+                                    if (num < 8)
                                         throw corrupted_stream_exception();
-                                    return mk_congr_flat_simp_macro(num, args);
+                                    return mk_congr_flat_macro(num, args);
                                 });
 
     // rewrite_assoc macro
@@ -408,7 +399,9 @@ void initialize_simp_util() {
                                 [](deserializer & d, unsigned num, expr const * args) {
                                     if (num != 3)
                                         throw corrupted_stream_exception();
-                                    return mk_rewrite_assoc_macro(num, args);
+                                    unsigned arg_idx;
+                                    d >> arg_idx;
+                                    return mk_rewrite_assoc_macro(num, args, arg_idx);
                                 });
 }
 
@@ -417,12 +410,12 @@ void finalize_simp_util() {
     delete g_rewrite_assoc_macro_name;
     delete g_rewrite_assoc_opcode;
 
-    // congr_flat_simp macro
-    delete g_congr_flat_simp_macro_name;
-    delete g_congr_flat_simp_opcode;
+    // congr_flat macro
+    delete g_congr_flat_macro_name;
+    delete g_congr_flat_opcode;
 
-    // flat_simp macro
-    delete g_flat_simp_macro_name;
-    delete g_flat_simp_opcode;
+    // flat macro
+    delete g_flat_macro_name;
+    delete g_flat_opcode;
 }
 }
