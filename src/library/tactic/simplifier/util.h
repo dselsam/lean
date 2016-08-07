@@ -22,7 +22,6 @@ void unsafe_get_app_nary_args(expr const & op, expr const & e, buffer<expr> & na
 
 optional<pair<expr, expr> > is_assoc(type_context & tctx, expr const & e);
 
-
 expr mk_congr_bin_op(abstract_type_context & tctx, expr const & H, expr const & arg1, expr const & arg2);
 expr mk_congr_bin_arg1(abstract_type_context & tctx, expr const & op, expr const & H1, expr const & arg2);
 expr mk_congr_bin_arg2(abstract_type_context & tctx, expr const & op, expr const & arg1, expr const & H2);
@@ -30,7 +29,8 @@ expr mk_congr_bin_args(abstract_type_context & tctx, expr const & op, expr const
 expr mk_assoc_subst(abstract_type_context & tctx, expr const & old_op, expr const & new_op, expr const & pf_op, expr const & assoc);
 
 expr mk_flat_proof(expr const & assoc, expr const & thm);
-expr mk_rewrite_assoc_proof(expr const & assoc, expr const & thm, unsigned arg_idx, expr const & pf_of_step);
+expr mk_rewrite_assoc_proof(expr const & assoc, expr const & thm, unsigned arg_idx, unsigned num_patterns,
+                            unsigned num_e_args, expr const & step_rhs, expr const & pf_of_step);
 
 void initialize_simp_util();
 void finalize_simp_util();

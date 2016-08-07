@@ -593,7 +593,8 @@ class simplifier {
                         j -= num_patterns;
                     }
                 }
-                return optional<simp_result>(simp_result(new_e, mk_rewrite_assoc_proof(assoc, mk_eq(m_tctx, old_e, new_e), i, r->get_proof())));
+                return optional<simp_result>(simp_result(new_e, mk_rewrite_assoc_proof(assoc, mk_eq(m_tctx, old_e, new_e),
+                                                                                       i, num_patterns, nary_args.size(), r->get_new(), r->get_proof())));
             }
         }
         return optional<simp_result>();
