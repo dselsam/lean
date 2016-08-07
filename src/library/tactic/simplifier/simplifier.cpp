@@ -640,38 +640,49 @@ class simplifier {
             return optional<simp_result>();
     }
 
-    simp_result simplify_subterms_app_nary(expr const & op, buffer<expr> const & nary_args,
-                                           buffer<expr> & new_nary_args, buffer<optional<expr> > & pf_nary_args,
-                                           bool & simplified) {
-        for (expr const & arg : nary_args) {
-            simp_result r_arg = simplify(arg);
-            if (r_arg.get_new() != arg)
-                simplified = true;
+    simp_result simplify_subterms_app_nary_core(expr const & old_op, expr const & new_op, optional<expr> const & pf_op, expr const & e) {
+        expr arg1, arg2;
+        optional<expr> op = get_binary_op(e, arg1, arg2);
+        if (op && ops_are_the_same(*op, old_op)) {
+            simp_result r(e);
+            if (pf_op)
+                r = join(r, simp_result(mk_app(new_op, arg1, arg2), mk_congr_bin_op(m_tctx, *pf_op, arg1, arg2)));
 
-            optional<expr> arg_op = get_binary_op(r_arg.get_new());
-            if (arg_op && ops_are_the_same(*arg_op, op))
-                get_app_nary_args(op, r_arg.get_new(), new_nary_args);
-            else
-                new_nary_args.push_back(r_arg.get_new());
-            pf_nary_args.push_back(r_arg.get_optional_proof());
+            simp_result r1 = simplify_subterms_app_nary_core(old_op, new_op, pf_op, arg1);
+            simp_result r2 = simplify_subterms_app_nary_core(old_op, new_op, pf_op, arg2);
+
+            expr new_e = mk_app(new_op, r1.get_new(), r2.get_new());
+            if (r1.has_proof() && r2.has_proof()) {
+                return join(r, simp_result(new_e, mk_congr_bin_args(m_tctx, new_op, r1.get_proof(), r2.get_proof())));
+            } else if (r1.has_proof()) {
+                return join(r, simp_result(new_e, mk_congr_bin_arg1(m_tctx, new_op, r1.get_proof(), r2.get_new())));
+            } else if (r2.has_proof()) {
+                return join(r, simp_result(new_e, mk_congr_bin_arg2(m_tctx, new_op, r1.get_new(), r2.get_proof())));
+            } else {
+                r.update(new_e);
+                return r;
+            }
+        } else {
+            return simplify(e);
         }
-        simp_result r_op = simplify(op);
-        if (r_op.get_new() != op)
-            simplified = true;
-        return r_op;
+    }
+
+    simp_result simplify_subterms_app_nary(expr const & old_op, expr const & e) {
+        simp_result pf_op = simplify(old_op);
+        return simplify_subterms_app_nary_core(old_op, old_op, pf_op.get_optional_proof(), e);
     }
 
     // Main n-ary simplify method
     simp_result simplify_nary(expr const & assoc, expr const & op, expr const & old_e, bool use_congr_only) {
         lean_assert(using_eq());
-        buffer<expr> nary_args;
-        // TODO(dhs): return bool for whether it flattened or not
-        get_app_nary_args(op, old_e, nary_args);
-
-        expr flat_e = mk_nary_app(op, nary_args);
-        simp_result r_flat = simp_result(flat_e, mk_flat_proof(assoc, mk_eq(m_tctx, old_e, flat_e)));
 
         if (m_topdown && !use_congr_only) {
+            buffer<expr> nary_args;
+            get_app_nary_args(op, old_e, nary_args);
+
+            expr flat_e = mk_nary_app(op, nary_args);
+            simp_result r_flat(flat_e, mk_flat_proof(assoc, mk_eq(m_tctx, old_e, flat_e)));
+
             if (m_rewrite) {
                 if (optional<simp_result> r_rewrite = simplify_rewrite_nary(assoc, r_flat.get_new(), op, nary_args)) {
                     lean_trace_d(name({"simplifier", "rewrite"}), tout() << old_e << " ==> " << r_rewrite->get_new() << "\n";);
@@ -686,23 +697,16 @@ class simplifier {
             }
         }
 
-        buffer<expr> new_nary_args;
-        buffer<optional<expr>> pf_nary_args;
-        bool simplified = false;
-        // Note: it is easy to also detect whether there is a proof here,
-        // and to skip the congr part of the macros downstream accordingly
-        simp_result r_op = simplify_subterms_app_nary(op, nary_args, new_nary_args, pf_nary_args, simplified);
-        expr const & new_op = r_op.get_new();
+        simp_result r_congr = simplify_subterms_app_nary(op, old_e);
+        expr new_op = *get_binary_op(r_congr.get_new());
 
-        simp_result r_congr_flat = r_flat;
-        if (simplified) {
-            expr congr_flat_e = mk_nary_app(new_op, new_nary_args);
-            r_congr_flat = simp_result(congr_flat_e, mk_congr_flat_proof(assoc, mk_eq(m_tctx, old_e, congr_flat_e),
-                                                                         new_op, r_op.get_optional_proof(),
-                                                                         new_nary_args, pf_nary_args));
-            if (m_topdown)
-                return r_congr_flat;
-        }
+        buffer<expr> new_nary_args;
+        get_app_nary_args(new_op, r_congr.get_new(), new_nary_args);
+        expr congr_flat_e = mk_nary_app(new_op, new_nary_args);
+        simp_result r_congr_flat = join(r_congr, simp_result(congr_flat_e, mk_flat_proof(assoc, mk_eq(m_tctx, r_congr.get_new(), congr_flat_e))));
+
+        if (m_topdown && r_congr_flat.get_new() != old_e)
+            return r_congr_flat;
 
         if (!m_topdown && !use_congr_only) {
             if (m_rewrite) {

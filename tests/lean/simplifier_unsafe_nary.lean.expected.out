@@ -5,4 +5,13 @@ state:
 simplifier_unsafe_nary.lean:12:59: error: failed to add declaration 'example' to environment, value has metavariables
 remark: set 'formatter.hide_full_terms' to false to see the complete term
   ?M_1
-Unsafe version, should simplify and the proof macro should be incorrect
+Unsafe version, should simplify and the proof should be incorrect
+simplifier_unsafe_nary.lean:17:0: error: type mismatch at application
+  (λ a a_1 e_1 a_2 a_3, congr (congr_arg eq e_1)) (op a (op b x y) z) (op a x (op a y z))
+    (is_associative.op_assoc (op a) x y z)
+term
+  is_associative.op_assoc (op a) x y z
+has type
+  op a (op a x y) z = op a x (op a y z)
+but is expected to have type
+  op a (op b x y) z = op a x (op a y z)

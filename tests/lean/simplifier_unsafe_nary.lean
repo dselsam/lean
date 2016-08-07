@@ -11,7 +11,7 @@ print "Safe version, should not simplify"
 set_option simplify.unsafe_nary false
 example : (op a) ((op b) x y) z = (op a) x ((op b) y z) := by simp
 
-print "Unsafe version, should simplify and the proof macro should be incorrect"
+print "Unsafe version, should simplify and the proof should be incorrect"
 
 set_option simplify.unsafe_nary true
 example : (op a) ((op b) x y) z = (op a) x ((op b) y z) := by simp

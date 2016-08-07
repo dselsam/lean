@@ -99,7 +99,7 @@ expr mk_assoc_subst(abstract_type_context & tctx, expr const & old_op, expr cons
     return ::lean::mk_app({mk_constant(get_simplifier_assoc_subst_name(), {lvl}), A, old_op, new_op, pf_op, assoc});
 }
 
-// flat-simp macro
+// flat macro
 static name * g_flat_macro_name    = nullptr;
 static std::string * g_flat_opcode = nullptr;
 
@@ -147,120 +147,6 @@ public:
 
     virtual bool operator==(macro_definition_cell const & other) const override {
         if (auto other_ptr = dynamic_cast<flat_macro_definition_cell const *>(&other)) {
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    virtual unsigned hash() const override {
-        return get_name().hash();
-    }
-};
-
-// congr_flat macro
-static name * g_congr_flat_macro_name    = nullptr;
-static std::string * g_congr_flat_opcode = nullptr;
-
-class congr_flat_macro_definition_cell : public macro_definition_cell {
-    void check_macro(expr const & m) const {
-        if (!is_macro(m) || macro_num_args(m) < 8)
-            throw exception(sstream() << "invalid 'congr_flat' macro, not enough number of arguments");
-    }
-
-public:
-    congr_flat_macro_definition_cell() {}
-
-    // TODO(dhs): this is just for testing
-    virtual unsigned trust_level() const override { return 10000; }
-
-    virtual name get_name() const override { return *g_congr_flat_macro_name; }
-    virtual expr check_type(expr const & m, abstract_type_context &, bool) const override {
-        check_macro(m);
-        return macro_arg(m, 1);
-    }
-
-    simp_result congruence(abstract_type_context & tctx, expr const & e, expr const & old_op, expr const & new_op,
-                           expr const & pf_op, expr const * new_args, expr const * pf_args, unsigned & i) const {
-        expr arg1, arg2;
-        optional<expr> op = get_binary_op(e, arg1, arg2);
-        if (op && tctx.is_def_eq(*op, old_op)) {
-            simp_result r(e);
-            if (pf_op != expr())
-                r = join_eq(tctx, r, simp_result(mk_app(new_op, arg1, arg2), mk_congr_bin_op(tctx, pf_op, arg1, arg2)));
-
-            simp_result r1 = congruence(tctx, arg1, old_op, new_op, pf_op, new_args, pf_args, i);
-            simp_result r2 = congruence(tctx, arg2, old_op, new_op, pf_op, new_args, pf_args, i);
-
-            expr new_e = mk_app(new_op, r1.get_new(), r2.get_new());
-            if (r1.has_proof() && r2.has_proof()) {
-                return join_eq(tctx, r, simp_result(new_e, mk_congr_bin_args(tctx, new_op, r1.get_proof(), r2.get_proof())));
-            } else if (r1.has_proof()) {
-                return join_eq(tctx, r, simp_result(new_e, mk_congr_bin_arg1(tctx, new_op, r1.get_proof(), r2.get_new())));
-            } else if (r2.has_proof()) {
-                return join_eq(tctx, r, simp_result(new_e, mk_congr_bin_arg2(tctx, new_op, r1.get_new(), r2.get_proof())));
-            } else {
-                r.update(new_e);
-                return r;
-            }
-        } else {
-            simp_result r(e);
-            if (pf_args[i] == expr())
-                r.update(new_args[i]);
-            else
-                r = join_eq(tctx, r, simp_result(new_args[i], pf_args[i]));
-            i++;
-            return r;
-        }
-    }
-
-    simp_result flatten(abstract_type_context & tctx, expr const & new_op, expr const & new_assoc, expr const & e) const {
-        return simp_result(flat_assoc(tctx, new_op, new_assoc, e));
-    }
-
-    virtual optional<expr> expand(expr const & m, abstract_type_context & tctx) const override {
-        check_macro(m);
-        // expr mk_congr_flat_proof(expr const & assoc, expr const & thm,
-        //                       expr const & new_op, optional<expr> const & pf_op,
-        //                       buffer<expr> const & new_nary_args,
-        //                       buffer<optional<expr> > const & pf_nary_args)
-
-        expr const * margs      = macro_args(m);
-        expr const & assoc      = margs[0];
-        expr const & thm        = margs[1];
-        expr const & new_op     = margs[2];
-        expr const & pf_of_op   = margs[3];
-
-        expr type = binding_domain(tctx.infer(new_op));
-        level lvl = get_level(tctx, type);
-
-        unsigned num_args = macro_num_args(m);
-        unsigned arg_prefix_size = 4;
-
-        lean_assert(num_args % 2 == 0);
-        expr const * new_args = margs + arg_prefix_size;
-        expr const * pf_args  = margs + arg_prefix_size + ((num_args - arg_prefix_size) / 2);
-
-        expr old_e = app_arg(app_fn(thm));
-        expr new_e = app_arg(thm);
-
-        optional<expr> old_op = get_binary_op(old_e);
-        lean_assert(old_op);
-
-        expr new_assoc = pf_of_op == expr() ? assoc : mk_assoc_subst(tctx, *old_op, new_op, pf_of_op, assoc);
-
-        unsigned i = 0;
-        simp_result r = congruence(tctx, old_e, *old_op, new_op, pf_of_op, new_args, pf_args, i);
-        r = join_eq(tctx, r, flatten(tctx, new_op, new_assoc, r.get_new()));
-        return some_expr(finalize_eq(tctx, r).get_proof());
-    }
-
-    virtual void write(serializer & s) const override {
-        s.write_string(*g_congr_flat_opcode);
-    }
-
-    virtual bool operator==(macro_definition_cell const & other) const override {
-        if (auto other_ptr = dynamic_cast<congr_flat_macro_definition_cell const *>(&other)) {
             return true;
         } else {
             return false;
@@ -335,32 +221,6 @@ expr mk_flat_macro(unsigned num_args, expr const * args) {
     return mk_macro(m, num_args, args);
 }
 
-expr mk_congr_flat_proof(expr const & assoc, expr const & thm,
-                         expr const & new_op, optional<expr> const & pf_op,
-                         buffer<expr> const & new_nary_args,
-                         buffer<optional<expr> > const & pf_nary_args) {
-    buffer<expr> margs;
-    margs.push_back(assoc);
-    margs.push_back(thm);
-    margs.push_back(new_op);
-    margs.push_back(pf_op ? *pf_op : expr());
-    for (unsigned i = 0; i < new_nary_args.size(); ++i) {
-        margs.push_back(new_nary_args[i]);
-    }
-    for (unsigned i = 0; i < pf_nary_args.size(); ++i) {
-        optional<expr> const & pf = pf_nary_args[i];
-        margs.push_back(pf ? *pf : expr());
-    }
-    macro_definition m(new congr_flat_macro_definition_cell());
-    return mk_macro(m, margs.size(), margs.data());
-}
-
-expr mk_congr_flat_macro(unsigned num_args, expr const * args) {
-    lean_assert(num_args >= 8);
-    macro_definition m(new congr_flat_macro_definition_cell());
-    return mk_macro(m, num_args, args);
-}
-
 expr mk_rewrite_assoc_proof(expr const & assoc, expr const & thm, unsigned arg_idx, expr const & pf_of_step) {
     expr margs[3];
     margs[0] = assoc;
@@ -388,16 +248,6 @@ void initialize_simp_util() {
                                     return mk_flat_macro(num, args);
                                 });
 
-    // congr_flat macro
-    g_congr_flat_macro_name = new name("congr_flat");
-    g_congr_flat_opcode     = new std::string("CONGR_FLAT");
-    register_macro_deserializer(*g_congr_flat_opcode,
-                                [](deserializer & d, unsigned num, expr const * args) {
-                                    if (num < 8)
-                                        throw corrupted_stream_exception();
-                                    return mk_congr_flat_macro(num, args);
-                                });
-
     // rewrite_assoc macro
     g_rewrite_assoc_macro_name = new name("rewrite_assoc");
     g_rewrite_assoc_opcode     = new std::string("REWRITE_ASSOC");
@@ -415,10 +265,6 @@ void finalize_simp_util() {
     // rewrite_assoc macro
     delete g_rewrite_assoc_macro_name;
     delete g_rewrite_assoc_opcode;
-
-    // congr_flat macro
-    delete g_congr_flat_macro_name;
-    delete g_congr_flat_opcode;
 
     // flat macro
     delete g_flat_macro_name;
