@@ -44,8 +44,8 @@ Author: Daniel Selsam
 #ifndef LEAN_DEFAULT_SIMPLIFY_MAX_STEPS
 #define LEAN_DEFAULT_SIMPLIFY_MAX_STEPS 1000
 #endif
-#ifndef LEAN_DEFAULT_SIMPLIFY_MAX_REWRITES
-#define LEAN_DEFAULT_SIMPLIFY_MAX_REWRITES 1000
+#ifndef LEAN_DEFAULT_SIMPLIFY_NARY_ASSOC
+#define LEAN_DEFAULT_SIMPLIFY_NARY_ASSOC true
 #endif
 #ifndef LEAN_DEFAULT_SIMPLIFY_REWRITE_AC
 #define LEAN_DEFAULT_SIMPLIFY_REWRITE_AC false
@@ -89,7 +89,7 @@ namespace lean {
 /* Options */
 
 static name * g_simplify_max_steps                      = nullptr;
-static name * g_simplify_max_rewrites                   = nullptr;
+static name * g_simplify_nary_assoc                   = nullptr;
 static name * g_simplify_rewrite_ac                     = nullptr;
 static name * g_simplify_memoize                        = nullptr;
 static name * g_simplify_contextual                     = nullptr;
@@ -107,8 +107,8 @@ static unsigned get_simplify_max_steps(options const & o) {
     return o.get_unsigned(*g_simplify_max_steps, LEAN_DEFAULT_SIMPLIFY_MAX_STEPS);
 }
 
-static unsigned get_simplify_max_rewrites(options const & o) {
-    return o.get_unsigned(*g_simplify_max_rewrites, LEAN_DEFAULT_SIMPLIFY_MAX_REWRITES);
+static unsigned get_simplify_nary_assoc(options const & o) {
+    return o.get_unsigned(*g_simplify_nary_assoc, LEAN_DEFAULT_SIMPLIFY_NARY_ASSOC);
 }
 
 static bool get_simplify_rewrite_ac(options const & o) {
@@ -181,13 +181,12 @@ class simplifier {
 
     /* Logging */
     unsigned                  m_num_steps{0};
-    unsigned                  m_num_rewrites{0};
 
     bool                      m_need_restart{false};
 
     /* Options */
     unsigned                  m_max_steps;
-    unsigned                  m_max_rewrites;
+    unsigned                  m_nary_assoc;
     bool                      m_rewrite_ac;
     bool                      m_memoize;
     bool                      m_contextual;
@@ -296,7 +295,7 @@ class simplifier {
         simp_result r;
 
         optional<pair<expr, expr> > assoc;
-        if (using_eq())
+        if (m_nary_assoc && using_eq())
             assoc = is_assoc(m_tctx, e);
 
         if (assoc) {
@@ -779,7 +778,7 @@ public:
         m_tctx(tctx), m_theory_simplifier(tctx), m_rel(rel), m_slss(slss), m_prove_fn(prove_fn),
         /* Options */
         m_max_steps(get_simplify_max_steps(tctx.get_options())),
-        m_max_rewrites(get_simplify_max_rewrites(tctx.get_options())),
+        m_nary_assoc(get_simplify_nary_assoc(tctx.get_options())),
         m_rewrite_ac(get_simplify_rewrite_ac(tctx.get_options())),
         m_memoize(get_simplify_memoize(tctx.get_options())),
         m_contextual(get_simplify_contextual(tctx.get_options())),
@@ -1410,7 +1409,7 @@ void initialize_simplifier() {
     register_trace_class(name({"debug", "simplifier", "remove_casts"}));
 
     g_simplify_max_steps                      = new name{"simplify", "max_steps"};
-    g_simplify_max_rewrites                   = new name{"simplify", "max_rewrites"};
+    g_simplify_nary_assoc                   = new name{"simplify", "nary_assoc"};
     g_simplify_rewrite_ac                     = new name{"simplify", "rewrite_ac"};
     g_simplify_memoize                        = new name{"simplify", "memoize"};
     g_simplify_contextual                     = new name{"simplify", "contextual"};
@@ -1426,8 +1425,8 @@ void initialize_simplifier() {
 
     register_unsigned_option(*g_simplify_max_steps, LEAN_DEFAULT_SIMPLIFY_MAX_STEPS,
                              "(simplify) max number of (large) steps in simplification");
-    register_unsigned_option(*g_simplify_max_rewrites, LEAN_DEFAULT_SIMPLIFY_MAX_REWRITES,
-                             "(simplify) max number of rewrites in simplification");
+    register_bool_option(*g_simplify_nary_assoc, LEAN_DEFAULT_SIMPLIFY_NARY_ASSOC,
+                         "(simplify) use special treatment for operators that are instances of the is_associative typeclass");
     register_bool_option(*g_simplify_rewrite_ac, LEAN_DEFAULT_SIMPLIFY_REWRITE_AC,
                          "(simplify) rewrite mod AC for AC operators");
     register_bool_option(*g_simplify_memoize, LEAN_DEFAULT_SIMPLIFY_MEMOIZE,
@@ -1470,7 +1469,7 @@ void finalize_simplifier() {
     delete g_simplify_contextual;
     delete g_simplify_memoize;
     delete g_simplify_rewrite_ac;
-    delete g_simplify_max_rewrites;
+    delete g_simplify_nary_assoc;
     delete g_simplify_max_steps;
 }
 

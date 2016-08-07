@@ -161,7 +161,6 @@ static std::string * g_congr_flat_opcode = nullptr;
 
 class congr_flat_macro_definition_cell : public macro_definition_cell {
     void check_macro(expr const & m) const {
-        // TODO confirm 5
         if (!is_macro(m) || macro_num_args(m) < 8)
             throw exception(sstream() << "invalid 'congr_flat' macro, not enough number of arguments");
     }
@@ -182,7 +181,8 @@ public:
         if (op && tctx.is_def_eq(*op, old_op)) {
             simp_result r(e);
             if (pf_op != expr())
-                r = join_eq(tctx, r, mk_congr_bin_op(tctx, pf_op, arg1, arg2));
+                r = join_eq(tctx, r, simp_result(mk_app(new_op, arg1, arg2), mk_congr_bin_op(tctx, pf_op, arg1, arg2)));
+
             simp_result r1 = congruence(tctx, arg1, old_op, new_op, pf_op, new_args, pf_args, i);
             simp_result r2 = congruence(tctx, arg2, old_op, new_op, pf_op, new_args, pf_args, i);
 

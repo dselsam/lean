@@ -1,4 +1,3 @@
-struct_class.lean:1:0: warning: imported file uses 'sorry'
 alternative : (Type → Type) → Type
 applicative : (Type → Type) → Type
 decidable : Prop → Type₁

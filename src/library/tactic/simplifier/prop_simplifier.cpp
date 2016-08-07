@@ -28,42 +28,27 @@ static bool get_prop_simplifier_elim_and(options const & o) {
 prop_simplifier_options::prop_simplifier_options(options const & o):
     m_elim_and(get_prop_simplifier_elim_and(o)) {}
 
-// TODO(dhs): make two different macros? One for binary and one for n-ary? It is a lot of boilerplate.
 static name * g_prop_simplifier_macro_name    = nullptr;
 static std::string * g_prop_simplifier_opcode = nullptr;
 
 class prop_simplifier_macro_definition_cell : public macro_definition_cell {
     void check_macro(expr const & m) const {
-        if (!is_macro(m) || (macro_num_args(m) != 0 && macro_num_args(m) != 2))
+        if (!is_macro(m) || macro_num_args(m) != 2)
             throw exception(sstream() << "invalid 'prop_simplifier' macro, incorrect number of arguments");
     }
 
 public:
     prop_simplifier_macro_definition_cell() {}
 
-    expr expand_nary(abstract_type_context & tctx, expr const & old_e, expr const & new_e) {
-        throw exception(sstream() << "proof generation for the prop_simplifier macro has not been implemented yet");
-    }
-
     virtual name get_name() const { return *g_prop_simplifier_macro_name; }
     virtual expr check_type(expr const & m, abstract_type_context & tctx, bool infer_only) const {
         check_macro(m);
-        if (macro_num_args(m) == 2) {
-            return mk_app(mk_constant(get_eq_name(), {mk_level_one()}), mk_Prop(), macro_arg(m, 0), macro_arg(m, 1));
-        } else {
-            throw exception(sstream() << "prop_simplifier macro does not store any information in the nary-case, "
-                            << "since it expects to be wrapped by a congr_flat_simp macro");
-        }
-        lean_unreachable();
+        return mk_app(mk_constant(get_eq_name(), {mk_level_one()}), mk_Prop(), macro_arg(m, 0), macro_arg(m, 1));
     }
 
     virtual optional<expr> expand(expr const & m, abstract_type_context & tctx) const {
         check_macro(m);
-        if (macro_num_args(m) == 2)
-            throw exception(sstream() << "proof generation for the prop_simplifier macro has not been implemented yet");
-        else
-            throw exception(sstream() << "prop_simplifier macro does not store any information in the nary-case, "
-                            << "since it expects to be wrapped by a congr_flat_simp macro");
+        throw exception(sstream() << "proof generation for the prop_simplifier macro has not been implemented yet");
         lean_unreachable();
     }
 
@@ -84,7 +69,7 @@ public:
     }
 };
 
-static expr mk_prop_simplifier_macro_binary(expr const & old_e, expr const & new_e) {
+static expr mk_prop_simplifier_macro(expr const & old_e, expr const & new_e) {
     expr margs[2];
     margs[0] = old_e;
     margs[1] = new_e;
@@ -92,18 +77,8 @@ static expr mk_prop_simplifier_macro_binary(expr const & old_e, expr const & new
     return mk_macro(m, 2, margs);
 }
 
-static expr mk_prop_simplifier_macro_nary() {
-    macro_definition m(new prop_simplifier_macro_definition_cell());
-    return mk_macro(m, 0, nullptr);
-}
-
-
-static simp_result mk_simp_result_binary(expr const & old_e, expr const & new_e) {
-    return simp_result(new_e, mk_prop_simplifier_macro_binary(old_e, new_e));
-}
-
-static optional<simp_result> mk_simp_result_nary(expr const & new_e) {
-    return optional<simp_result>(simp_result(new_e, mk_prop_simplifier_macro_nary()));
+static simp_result mk_simp_result(expr const & old_e, expr const & new_e) {
+    return simp_result(new_e, mk_prop_simplifier_macro(old_e, new_e));
 }
 
 // Util
@@ -409,10 +384,8 @@ void initialize_prop_simplifier() {
     g_prop_simplifier_opcode     = new std::string("Prop_Simp");
     register_macro_deserializer(*g_prop_simplifier_opcode,
                                 [](deserializer & d, unsigned num, expr const * args) {
-                                    if (num == 0)
-                                        return mk_prop_simplifier_macro_nary();
-                                    else if (num == 2)
-                                        return mk_prop_simplifier_macro_binary(args[0], args[1]);
+                                    if (num == 2)
+                                        return mk_prop_simplifier_macro(args[0], args[1]);
                                     else
                                         throw corrupted_stream_exception();
                                 });
@@ -431,7 +404,7 @@ void finalize_prop_simplifier() {
 simp_result prop_simplifier::simplify_binary(expr const & old_e) {
     if (is_pi(old_e)) {
         if (auto r = simplify_pi(binding_domain(old_e), binding_body(old_e), is_arrow(old_e)))
-            return mk_simp_result_binary(old_e, *r);
+            return mk_simp_result(old_e, *r);
         else
             return simp_result(old_e);
     }
@@ -445,19 +418,19 @@ simp_result prop_simplifier::simplify_binary(expr const & old_e) {
 
     if (id == get_ite_name() && args.size() == 5) {
         if (auto r = simplify_ite(f, args))
-            return mk_simp_result_binary(old_e, *r);
+            return mk_simp_result(old_e, *r);
     } else if (id == get_eq_name() && args.size() == 3) {
         if (auto r = simplify_eq(f, args[0], args[1], args[2]))
-            return mk_simp_result_binary(old_e, *r);
+            return mk_simp_result(old_e, *r);
     } else if (id == get_heq_name() && args.size() == 4) {
         if (auto r = simplify_heq(f, args[0], args[1], args[2], args[3]))
-            return mk_simp_result_binary(old_e, *r);
+            return mk_simp_result(old_e, *r);
     } else if (id == get_iff_name() && args.size() == 2) {
         if (auto r = simplify_iff(args[0], args[1]))
-            return mk_simp_result_binary(old_e, *r);
+            return mk_simp_result(old_e, *r);
     } else if (id == get_not_name() && args.size() == 1) {
         if (auto r = simplify_not(args[0]))
-            return mk_simp_result_binary(old_e, *r);
+            return mk_simp_result(old_e, *r);
     }
     return simp_result(old_e);
 }
@@ -469,10 +442,10 @@ optional<simp_result> prop_simplifier::simplify_nary(expr const & assoc, expr co
     name id = const_name(op);
     if (id == get_and_name()) {
         if (auto r = simplify_and(args))
-            return mk_simp_result_nary(*r);
+            return optional<simp_result>(mk_simp_result(old_e, *r));
     } else if (id == get_or_name()) {
         if (auto r = simplify_or(args))
-            return mk_simp_result_nary(*r);
+            return optional<simp_result>(mk_simp_result(old_e, *r));
     }
     return optional<simp_result>();
 }
