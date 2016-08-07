@@ -68,7 +68,17 @@ constants (ss : Π {A : Type.{l}}, A → Type.{l})
 
 attribute ss_ss [instance]
 
+example : (λ (s : ss a), ss₁) = (λ (s : ss a), s) := by simp
+
+-- The first call fails to simplify, but it does not throw an error
+-- The mistake would be to replace ss₁ with the local s.
+-- TODO(dhs): the more robust solution is to canonize exhaustively
+-- as in defeq_canonize.
 example : (λ (s : ss a), s) = (λ (s : ss a), ss₁) :=
-by try simp >> exact sorry
+by do try simp,
+      f ← mk_const `funext,
+      apply f,
+      intro `s,
+      simp
 
 end dont_crash_when_locals_incompatible
