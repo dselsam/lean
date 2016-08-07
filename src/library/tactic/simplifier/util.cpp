@@ -112,13 +112,16 @@ class flat_macro_definition_cell : public macro_definition_cell {
 public:
     flat_macro_definition_cell() {}
 
+    // TODO(dhs): this is just for testing
+    virtual unsigned trust_level() const override { return 10000; }
+
     virtual name get_name() const { return *g_flat_macro_name; }
-    virtual expr check_type(expr const & m, abstract_type_context &, bool) const {
+    virtual expr check_type(expr const & m, abstract_type_context &, bool) const override {
         check_macro(m);
         return macro_arg(m, 1);
     }
 
-    virtual optional<expr> expand(expr const & m, abstract_type_context & tctx) const {
+    virtual optional<expr> expand(expr const & m, abstract_type_context & tctx) const override {
         check_macro(m);
         expr const & assoc      = macro_arg(m, 0);
         expr const & thm        = macro_arg(m, 1);
@@ -138,11 +141,11 @@ public:
             return pf_of_assoc;
     }
 
-    virtual void write(serializer & s) const {
+    virtual void write(serializer & s) const override {
         s.write_string(*g_flat_opcode);
     }
 
-    virtual bool operator==(macro_definition_cell const & other) const {
+    virtual bool operator==(macro_definition_cell const & other) const override {
         if (auto other_ptr = dynamic_cast<flat_macro_definition_cell const *>(&other)) {
             return true;
         } else {
@@ -150,7 +153,7 @@ public:
         }
     }
 
-    virtual unsigned hash() const {
+    virtual unsigned hash() const override {
         return get_name().hash();
     }
 };
@@ -168,8 +171,11 @@ class congr_flat_macro_definition_cell : public macro_definition_cell {
 public:
     congr_flat_macro_definition_cell() {}
 
-    virtual name get_name() const { return *g_congr_flat_macro_name; }
-    virtual expr check_type(expr const & m, abstract_type_context &, bool) const {
+    // TODO(dhs): this is just for testing
+    virtual unsigned trust_level() const override { return 10000; }
+
+    virtual name get_name() const override { return *g_congr_flat_macro_name; }
+    virtual expr check_type(expr const & m, abstract_type_context &, bool) const override {
         check_macro(m);
         return macro_arg(m, 1);
     }
@@ -212,7 +218,7 @@ public:
         return simp_result(flat_assoc(tctx, new_op, new_assoc, e));
     }
 
-    virtual optional<expr> expand(expr const & m, abstract_type_context & tctx) const {
+    virtual optional<expr> expand(expr const & m, abstract_type_context & tctx) const override {
         check_macro(m);
         // expr mk_congr_flat_proof(expr const & assoc, expr const & thm,
         //                       expr const & new_op, optional<expr> const & pf_op,
@@ -249,11 +255,11 @@ public:
         return some_expr(finalize_eq(tctx, r).get_proof());
     }
 
-    virtual void write(serializer & s) const {
+    virtual void write(serializer & s) const override {
         s.write_string(*g_congr_flat_opcode);
     }
 
-    virtual bool operator==(macro_definition_cell const & other) const {
+    virtual bool operator==(macro_definition_cell const & other) const override {
         if (auto other_ptr = dynamic_cast<congr_flat_macro_definition_cell const *>(&other)) {
             return true;
         } else {
@@ -261,7 +267,7 @@ public:
         }
     }
 
-    virtual unsigned hash() const {
+    virtual unsigned hash() const override {
         return get_name().hash();
     }
 };
