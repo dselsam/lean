@@ -2,7 +2,7 @@ open tactic
 
 universe l
 constants (A : Type.{l}) (op : A → A → A → A)
-          (op_assoc : Π a, is_associative eq (op a))
+          (op_assoc : Π a, is_associative (op a))
           (a b x y z : A)
 
 attribute op_assoc [instance]

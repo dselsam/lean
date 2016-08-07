@@ -49,11 +49,7 @@ public:
     virtual expr check_type(expr const & m, abstract_type_context & tctx, bool infer_only) const {
         check_macro(m);
         if (macro_num_args(m) == 2) {
-            expr fn = get_app_fn(macro_arg(m, 0));
-            if (is_constant(fn) && const_name(fn) == get_ite_name())
-                return mk_app(mk_constant(get_eq_name(), {mk_level_one()}), mk_Prop(), macro_arg(m, 0), macro_arg(m, 1));
-            else
-                return mk_app(mk_constant(get_iff_name()), macro_arg(m, 0), macro_arg(m, 1));
+            return mk_app(mk_constant(get_eq_name(), {mk_level_one()}), mk_Prop(), macro_arg(m, 0), macro_arg(m, 1));
         } else {
             throw exception(sstream() << "prop_simplifier macro does not store any information in the nary-case, "
                             << "since it expects to be wrapped by a congr_flat_simp macro");
@@ -432,8 +428,8 @@ void finalize_prop_simplifier() {
 }
 
 // Entry points
-simp_result prop_simplifier::simplify_binary(name const & rel, expr const & old_e) {
-    if (rel == get_iff_name() && is_pi(old_e)) {
+simp_result prop_simplifier::simplify_binary(expr const & old_e) {
+    if (is_pi(old_e)) {
         if (auto r = simplify_pi(binding_domain(old_e), binding_body(old_e), is_arrow(old_e)))
             return mk_simp_result_binary(old_e, *r);
         else
@@ -447,17 +443,10 @@ simp_result prop_simplifier::simplify_binary(name const & rel, expr const & old_
 
     name id = const_name(f);
 
-    if (rel == get_eq_name()) {
-        if (id == get_ite_name() && args.size() == 5) {
-            if (auto r = simplify_ite(f, args))
-                return mk_simp_result_binary(old_e, *r);
-        }
-    }
-
-    if (rel != get_iff_name())
-        return simp_result(old_e);
-
-    if (id == get_eq_name() && args.size() == 3) {
+    if (id == get_ite_name() && args.size() == 5) {
+        if (auto r = simplify_ite(f, args))
+            return mk_simp_result_binary(old_e, *r);
+    } else if (id == get_eq_name() && args.size() == 3) {
         if (auto r = simplify_eq(f, args[0], args[1], args[2]))
             return mk_simp_result_binary(old_e, *r);
     } else if (id == get_heq_name() && args.size() == 4) {
@@ -473,9 +462,7 @@ simp_result prop_simplifier::simplify_binary(name const & rel, expr const & old_
     return simp_result(old_e);
 }
 
-optional<simp_result> prop_simplifier::simplify_nary(name const & rel, expr const & assoc, expr const & op, buffer<expr> & args) {
-    if (rel != get_iff_name())
-        return optional<simp_result>();
+optional<simp_result> prop_simplifier::simplify_nary(expr const & assoc, expr const & op, buffer<expr> & args) {
     if (!is_constant(op))
         return optional<simp_result>();
 

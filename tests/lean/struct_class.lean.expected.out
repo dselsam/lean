@@ -1,3 +1,4 @@
+struct_class.lean:1:0: warning: imported file uses 'sorry'
 alternative : (Type → Type) → Type
 applicative : (Type → Type) → Type
 decidable : Prop → Type₁
@@ -28,7 +29,7 @@ has_to_string : Type → Type
 has_to_tactic_format : Type → Type
 has_zero : Type → Type
 inhabited : Type → Type
-is_associative : Π {A}, (A → A → Prop) → (A → A → A) → Type₁
+is_associative : Π {A}, (A → A → A) → Type₁
 measurable : Type → Type
 monad : (Type → Type) → Type
 nonempty : Type → Prop
@@ -66,7 +67,7 @@ has_to_string : Type → Type
 has_to_tactic_format : Type → Type
 has_zero : Type → Type
 inhabited : Type → Type
-is_associative : Π {A}, (A → A → Prop) → (A → A → A) → Type₁
+is_associative : Π {A}, (A → A → A) → Type₁
 measurable : Type → Type
 monad : (Type → Type) → Type
 nonempty : Type → Prop

@@ -42,7 +42,7 @@ example : u = f y := by simp
 end iterated
 
 namespace nary
-constants (assoc : is_associative eq op)
+constants (assoc : is_associative op)
 attribute assoc [instance]
 
 constants (Hf : f x = y)
@@ -61,7 +61,7 @@ example : x %% f (f x) %% x %% f (f x) = b %% b := by simp
 end nary
 
 namespace nary_iterated
-constants (assoc : is_associative eq op)
+constants (assoc : is_associative op)
 attribute assoc [instance]
 
 constants (Hf : f x = y)

@@ -26,19 +26,19 @@ bool theory_simplifier::owns(expr const & e) {
     return static_cast<bool>(to_num(e));
 }
 
-simp_result theory_simplifier::simplify_binary(name const & rel, expr const & e) {
-    simp_result r_prop = m_prop_simplifier.simplify_binary(rel, e);
+simp_result theory_simplifier::simplify_binary(expr const & e) {
+    simp_result r_prop = m_prop_simplifier.simplify_binary(e);
     if (r_prop.get_new() != e)
         return r_prop;
 
     return simp_result(e);
 }
 
-optional<simp_result> theory_simplifier::simplify_nary(name const & rel, expr const & assoc, expr const & op, buffer<expr> & args) {
-    if (auto r_prop = m_prop_simplifier.simplify_nary(rel, assoc, op, args))
+optional<simp_result> theory_simplifier::simplify_nary(expr const & assoc, expr const & op, buffer<expr> & args) {
+    if (auto r_prop = m_prop_simplifier.simplify_nary(assoc, op, args))
         return r_prop;
 
-    if (auto r_arith = m_arith_simplifier.simplify_nary(rel, assoc, op, args))
+    if (auto r_arith = m_arith_simplifier.simplify_nary(assoc, op, args))
         return r_arith;
 
     return optional<simp_result>();

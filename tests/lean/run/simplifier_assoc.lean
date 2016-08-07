@@ -1,5 +1,5 @@
 open tactic
-constants (A : Type.{1}) (a b c d e f g h : A) (op : A → A → A) (op_assoc : is_associative eq op)
+constants (A : Type.{1}) (a b c d e f g h : A) (op : A → A → A) (op_assoc : is_associative op)
 attribute op_assoc [instance]
 
 infixr `%%` := op

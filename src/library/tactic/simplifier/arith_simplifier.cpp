@@ -40,26 +40,11 @@ void finalize_arith_simplifier() {
 }
 
 // Entry points
-simp_result arith_simplifier::simplify_binary(name const & rel, expr const & old_e) {
+simp_result arith_simplifier::simplify_binary(expr const & old_e) {
     return simp_result(old_e);
 }
 
-optional<simp_result> arith_simplifier::simplify_nary(name const & rel, expr const & assoc, expr const & op, buffer<expr> & args) {
-    /*
-    if (rel != get_eq_name())
-        return optional<simp_result>();
-    if (!is_constant(op))
-        return optional<simp_result>();
-
-    name id = const_name(op);
-    if (id == get_add_name()) {
-        if (auto r = simplify_add(op, args))
-            return mk_simp_result_nary(*r);
-    } else if (id == get_mul_name()) {
-        if (auto r = simplify_mul(op, args))
-            return mk_simp_result_nary(*r);
-    }
-    */
+optional<simp_result> arith_simplifier::simplify_nary(expr const & assoc, expr const & op, buffer<expr> & args) {
     return optional<simp_result>();
 }
 

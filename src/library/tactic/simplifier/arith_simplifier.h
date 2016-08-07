@@ -46,8 +46,8 @@ private:
     optional<expr>   simplify_real_of_rat(expr const & prefix, buffer<expr> const & args);
 
 public:
-    simp_result simplify_binary(name const & rel, expr const & e);
-    optional<simp_result> simplify_nary(name const & rel, expr const & assoc, expr const & op, buffer<expr> & args);
+    simp_result simplify_binary(expr const & e);
+    optional<simp_result> simplify_nary(expr const & assoc, expr const & op, buffer<expr> & args);
 
     arith_simplifier(type_context & tctx): m_tctx_ptr(&tctx), m_options(tctx.get_options()) {}
 };
