@@ -5,6 +5,7 @@ Authors: Leonardo de Moura, Jeremy Avigad, Floris van Doorn
 -/
 prelude
 import init.datatypes init.reserved_notation
+set_option simplify.theory false
 
 definition id [reducible] [unfold_full] {A : Type} (a : A) : A :=
 a

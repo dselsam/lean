@@ -68,12 +68,15 @@ constants (ss : Π {A : Type.{l}}, A → Type.{l})
 
 attribute ss_ss [instance]
 
+-- This example works by accident. The first (_ : ss a) it encounters
+-- has no locals, and is compatible with the second it finds so it
+-- replaces the second with the first.
 example : (λ (s : ss a), ss₁) = (λ (s : ss a), s) := by simp
 
--- The first call fails to simplify, but it does not throw an error
--- The mistake would be to replace ss₁ with the local s.
--- TODO(dhs): the more robust solution is to canonize exhaustively
--- as in defeq_canonize.
+-- This example fails because it finds the (_ : ss a) with the local
+-- first. We do however avoid the error of replacing ss₁ with the local s.
+-- TODO(dhs): the more robust solution is to maintain a set of (_ : ss a)
+-- one for each minimal locals configuration, and to canonize exhaustively.
 example : (λ (s : ss a), s) = (λ (s : ss a), ss₁) :=
 by do try simp,
       f ← mk_const `funext,
