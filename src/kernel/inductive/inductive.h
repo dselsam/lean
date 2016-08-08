@@ -31,14 +31,19 @@ inline name const & intro_rule_name(intro_rule const & r) { return mlocal_name(r
 inline expr const & intro_rule_type(intro_rule const & r) { return mlocal_type(r); }
 
 /** \brief Inductive datatype */
-typedef std::tuple<name,                // datatype name
-                   expr,                // type
-                   list<intro_rule>     // introduction rules for this datatype
-                   > inductive_decl;
+struct inductive_decl {
+    name               m_name;
+    level_param_names  m_lp_names;
+    unsigned           m_num_params;
+    expr               m_type;
+    list<intro_rule>   m_intro_rules;
 
-inline name const & inductive_decl_name(inductive_decl const & d) { return std::get<0>(d); }
-inline expr const & inductive_decl_type(inductive_decl const & d) { return std::get<1>(d); }
-inline list<intro_rule> const & inductive_decl_intros(inductive_decl const & d) { return std::get<2>(d); }
+    inline name const & get_name() const { return m_name; }
+    inline expr const & get_type() const { return m_type; }
+    level_param_names const & get_lp_names() const { return m_lp_names; }
+    inline unsigned get_num_params() constn { return m_num_params; }
+    inline list<intro_rule> const & get_intro_rules() const { return m_intro_rules; }
+};
 
 /** \brief Auxiliary class that stores the "compiled" version of an inductive declaration.
     It is used to save/read compiled .olean files efficiently.
@@ -51,24 +56,17 @@ public:
         comp_rule(unsigned num_bu, expr const & rhs):m_num_bu(num_bu), m_comp_rhs(rhs) {}
     };
 
-    struct data {
-        inductive_decl    m_decl;
-        bool              m_K_target;
-        unsigned          m_num_indices;
-        list<comp_rule>   m_comp_rules;
-        data(inductive_decl const & decl, bool is_K_target, unsigned num_indices, list<comp_rule> const & rules):
-            m_decl(decl), m_K_target(is_K_target), m_num_indices(num_indices), m_comp_rules(rules) {}
-    };
-
 private:
-    level_param_names  m_levels; // eliminator levels
-    unsigned           m_num_params;
+    inductive_decl     m_decl;
+    bool               m_K_target;
+    unsigned           m_num_indices;
+    list<comp_rule>    m_comp_rules;
+
     unsigned           m_num_ACe;
-    bool               m_elim_prop;
-    // remark: if m_elim_prop == true, then inductive datatype levels == m_levels, otherwise it is tail(m_levels)
+    optional<name>     m_elim_lp_name; // If this is none, then this datatype only eliminates to Prop
+
     bool               m_dep_elim;
-    list<expr>         m_elim_types;
-    list<data>         m_decl_data;
+    expr               m_elim_type;
 
     friend struct add_inductive_fn;
     friend class ::lean::read_certified_inductive_decl_fn;
@@ -76,16 +74,23 @@ private:
     environment add_core(environment const & env, bool update_ext_only) const;
     environment add_constant(environment const & env, name const & n, level_param_names const & ls, expr const & t) const;
 
-    certified_inductive_decl(level_param_names const & ps, unsigned num_params, unsigned num_ACe,
-                             bool elim_prop, bool dep_delim, list<expr> const & ets, list<data> const & d):
-        m_levels(ps), m_num_params(num_params), m_num_ACe(num_ACe),
-        m_elim_prop(elim_prop), m_dep_elim(dep_delim), m_elim_types(ets), m_decl_data(d) {}
+    certified_inductive_decl(inductive_decl const decl, bool K_target, unsigned num_indices, list<comp_rule> const & comp_rules,
+                             unsigned num_ACe, optional<name> elim_lp_name, bool dep_elim, expr const & elim_type):
+        m_decl(decl), m_K_target(K_target), m_num_indices(num_indices), m_comp_rules(comp_rules),
+        m_num_ACe(num_ACe), m_elim_lp_name(elim_lp_name), m_dep_elim(dep_elim), m_elim_type(elim_type) {}
 public:
-    level_param_names const & get_univ_params() const { return m_levels; }
-    unsigned get_num_params() const { return m_num_params; }
+    level_param_names const & get_univ_params() const {
+        return m_elim_lp_name ? list(*m_elim_lp_name, m_decl.get_lp_names()) : m_decl.get_lp_names();
+    }
+
+    // TODO(dhs): more getters as necessary
+    inductive_decl const & get_decl() const { return m_decl; }
+    unsigned get_num_params() const { return m_decl.get_num_params(); }
     unsigned get_num_ACe() const { return m_num_ACe; }
-    bool elim_prop_only() const { return m_elim_prop; }
+    bool elim_prop_only() const { return !m_elim_lp_name; }
     bool has_dep_elim() const { return m_dep_elim; }
+    expr const & get_elim_type() const { return m_elim_type; }
+
     list<expr> const & get_elim_types() const { return m_elim_types; }
     list<data> const & get_decl_data() const { return m_decl_data; }
 
@@ -95,21 +100,17 @@ public:
     environment add(environment const & env) const;
 };
 
-/** \brief Declare a finite set of mutually dependent inductive datatypes. */
+/** \brief Declare an inductive datatype. */
 pair<environment, certified_inductive_decl>
 add_inductive(environment                  env,
-              level_param_names const &    level_params,
-              unsigned                     num_params,
-              list<inductive_decl> const & decls);
-
-typedef std::tuple<level_param_names, unsigned, list<inductive::inductive_decl>> inductive_decls;
+              inductive_decl const &       decl);
 
 /**
     \brief If \c n is the name of an inductive declaration in the environment \c env, then return the
     list of all inductive decls that were simultaneously defined with \c n.
     Return none otherwise
 */
-optional<inductive_decls> is_inductive_decl(environment const & env, name const & n);
+optional<inductive_decl> is_inductive_decl(environment const & env, name const & n);
 
 /**
    \brief If \c n is the name of an introduction rule in \c env, then return the name of the inductive datatype D
@@ -131,8 +132,8 @@ bool is_elim_meta_app(type_checker & tc, expr const & e);
     If \c n is not an inductive datatype in \c env, then return none.
 */
 inline optional<unsigned> get_num_params(environment const & env, name const & n) {
-    if (auto ds = is_inductive_decl(env, n))
-        return optional<unsigned>(std::get<1>(*ds));
+    if (auto decl = is_inductive_decl(env, n))
+        return optional<unsigned>(decl.get_num_params());
     else
         return optional<unsigned>();
 }
