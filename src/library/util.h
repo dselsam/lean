@@ -61,7 +61,7 @@ bool is_inductive_predicate(environment const & env, name const & n);
 
 /** \brief Store in \c result the introduction rules of the given inductive datatype.
     \remark this procedure does nothing if \c n is not an inductive datatype. */
-void get_intro_rule_names(environment const & env, name const & n, buffer<name> & result);
+bool get_intro_rule_names(environment const & env, name const & n, buffer<name> & result);
 
 /** \brief If \c e is a constructor application, then return the name of the constructor.
     Otherwise, return none. */

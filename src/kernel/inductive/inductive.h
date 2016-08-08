@@ -39,6 +39,7 @@ struct inductive_decl {
     list<intro_rule>   m_intro_rules;
 
 public:
+    inductive_decl() {} // so it can be stored in an rb_map
     inductive_decl(name const & n, expr const & type, level_param_names const & lp_names,
                    unsigned num_params, list<intro_rule> const & intro_rules):
         m_name(n), m_type(type), m_lp_names(lp_names),
@@ -94,7 +95,7 @@ public:
     unsigned get_num_indices() const { return m_num_indices; }
     list<comp_rule> get_comp_rules() const { return m_comp_rules; }
     unsigned get_num_ACe() const { return m_num_ACe; }
-    optional<name> get_elim_lp_name() const { return m_elim_lp_name; }
+    optional<name> get_elim_level_lp_name() const { return m_elim_lp_name; }
     bool has_dep_elim() const { return m_dep_elim; }
     expr const & get_elim_type() const { return m_elim_type; }
 

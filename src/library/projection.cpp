@@ -80,11 +80,10 @@ static void projection_info_reader(deserializer & d, shared_environment & senv,
     If not, generate an error message using \c pos.
 */
 bool is_structure_like(environment const & env, name const & S) {
-    optional<inductive::inductive_decls> idecls = inductive::is_inductive_decl(env, S);
-    if (!idecls || length(std::get<2>(*idecls)) != 1)
+    optional<inductive::inductive_decl> decl = inductive::is_inductive_decl(env, S);
+    if (!decl)
         return false;
-    inductive::inductive_decl decl   = head(std::get<2>(*idecls));
-    return length(inductive::inductive_decl_intros(decl)) == 1 && *inductive::get_num_indices(env, S) == 0;
+    return length(decl->get_intro_rules()) == 1 && *inductive::get_num_indices(env, S) == 0;
 }
 
 projection_info const * projection_converter::is_projection(expr const & e) const {

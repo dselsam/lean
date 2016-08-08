@@ -118,15 +118,19 @@ serializer & write_optional(serializer & s, optional<T> const & a) {
     return s;
 }
 
-template<typename T>
-optional<T> read_optional(deserializer & d) {
+template<typename T, typename R>
+optional<T> read_optional(deserializer & d, R && t_reader) {
     if (d.read_bool()) {
-        T r;
-        d >> r;
+        T r = t_reader(d);
         return optional<T>(r);
     } else {
         return optional<T>();
     }
+}
+
+template<typename T>
+optional<T> read_optional(deserializer & d) {
+    return read_optional<T>(d, [](deserializer & d) { T r; d >> r; return r; });
 }
 
 template<typename T>

@@ -372,25 +372,25 @@ inductive_decl read_inductive_decl(deserializer & d) {
 serializer & operator<<(serializer & s, certified_inductive_decl const & d) {
     s << d.get_decl() << d.is_K_target() << d.get_num_indices();
     write_list<certified_inductive_decl::comp_rule>(s, d.get_comp_rules());
-    s << d.get_numACe() << d.get_elim_lp_name()
-      << d.has_dep_elim() << d.get_elim_type();
+    s << d.get_num_ACe();
+    write_optional<name>(s, d.get_elim_level_lp_name());
+    s << d.has_dep_elim() << d.get_elim_type();
     return s;
 }
 
 class read_certified_inductive_decl_fn {
 public:
     certified_inductive_decl operator()(deserializer & d) {
-        inductive_decl decl = read_inductive_decl(d);
-        bool K_target = d.read_bool();
-
-        level_param_names ls = read_list<name>(d, read_name);
-        unsigned nparams = d.read_unsigned();
-        unsigned nACe    = d.read_unsigned();
-        bool elim_prop   = d.read_bool();
-        bool dep_elim    = d.read_bool();
-        list<expr> ets   = read_list<expr>(d, read_expr);
-        auto ds          = read_list<certified_inductive_decl::data>(d, read_certified_inductive_decl_data);
-        return certified_inductive_decl(ls, nparams, nACe, elim_prop, dep_elim, ets, ds);
+        inductive_decl decl         = read_inductive_decl(d);
+        bool K_target               = d.read_bool();
+        unsigned num_indices        = d.read_unsigned();
+        auto comp_rules             = read_list<certified_inductive_decl::comp_rule>(d, read_comp_rule);
+        unsigned num_ACe            = d.read_unsigned();
+        optional<name> elim_lp_name = read_optional<name>(d, read_name);
+        bool dep_elim               = d.read_bool();
+        expr elim_type              = read_expr(d);
+        return certified_inductive_decl(decl, K_target, num_indices, comp_rules, num_ACe,
+                                        elim_lp_name, dep_elim, elim_type);
     }
 };
 
