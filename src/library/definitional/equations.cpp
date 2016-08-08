@@ -1115,28 +1115,6 @@ class equation_compiler_fn {
         }
     }
 
-    /** \brief Return true iff t1 and t2 are inductive datatypes of the same mutually inductive declaration. */
-    bool is_compatible_inductive(expr const & t1, expr const & t2) {
-        buffer<expr> args1, args2;
-        name const & I1 = const_name(get_app_args(t1, args1));
-        name const & I2 = const_name(get_app_args(t2, args2));
-        inductive::inductive_decls decls = *inductive::is_inductive_decl(env(), I1);
-        unsigned nparams = std::get<1>(decls);
-        for (auto decl : std::get<2>(decls)) {
-            if (inductive::inductive_decl_name(decl) == I2) {
-                // parameters must be definitionally equal
-                unsigned i = 0;
-                for (; i < nparams; i++) {
-                    if (!is_def_eq(args1[i], args2[i]))
-                        break;
-                }
-                if (i == nparams)
-                    return true;
-            }
-        }
-        return false;
-    }
-
     /** \brief Return true iff \c t1 and \c t2 are instances of the same inductive datatype */
     static bool is_same_inductive(expr const & t1, expr const & t2) {
         return const_name(get_app_fn(t1)) == const_name(get_app_fn(t2));
@@ -1266,7 +1244,7 @@ class equation_compiler_fn {
                     std::all_of(arg_types.begin(), arg_types.end(),
                                 [&](expr const & prev_type) { return !is_same_inductive(t, prev_type); }) &&
                     // argument type must be in the same mutually recursive declaration of previous argument types
-                    (arg_types.empty() || is_compatible_inductive(t, arg_types[0]))) {
+                    (arg_types.empty())) {
                     // Found candidate
                     arg_pos.push_back(j);
                     arg_types.push_back(t);
@@ -1568,9 +1546,8 @@ class equation_compiler_fn {
         lean_assert(is_rec_inductive(prgs[0].m_context, a0_type));
         buffer<expr> a0_type_args;
         expr const & I0      = get_app_args(a0_type, a0_type_args);
-        inductive::inductive_decls t = *inductive::is_inductive_decl(env(), const_name(I0));
-        unsigned nparams                      = std::get<1>(t);
-        list<inductive::inductive_decl> decls = std::get<2>(t);
+        inductive::inductive_decl decl = *inductive::is_inductive_decl(env(), const_name(I0));
+        unsigned nparams               = decl.get_num_params();
         buffer<expr> params;
         params.append(nparams, a0_type_args.data());
 
@@ -1662,36 +1639,29 @@ class equation_compiler_fn {
         // add parameters
         brec_on = mk_app(brec_on, params);
 
-        buffer<expr> Cs; // brec_on "motives"
-        // The following loop fills Cs_locals with auxiliary local constants that will be used to
+        // TODO(dhs): fix comment
+        // The following section fills Cs_locals with auxiliary local constants that will be used to
         // convert recursive applications into "below applications".
         // These constants are essentially abstracting Cs.
-        buffer<expr> Cs_locals;
-        buffer<buffer<expr>> C_args_buffer;
-        for (inductive::inductive_decl const & decl : decls) {
-            name const & I_name = inductive::inductive_decl_name(decl);
-            expr C;
-            C_args_buffer.push_back(buffer<expr>());
-            buffer<expr> & C_args = C_args_buffer.back();
-            expr C_type           = whnf(infer_type(brec_on));
-            expr C_local          = mk_local(mk_fresh_name(), "C", C_type, binder_info());
-            Cs_locals.push_back(C_local);
-            if (optional<unsigned> p_idx = get_prg_for(I_name)) {
-                buffer<expr> indices, rest; expr arg;
-                distribute_context(*p_idx, indices, arg, rest);
-                expr type = Pi(rest, prgs[*p_idx].m_type);
-                C_args.append(indices);
-                C_args.push_back(arg);
-                C = Fun(C_args, type);
-            } else {
-                expr d    = binding_domain(C_type);
-                expr unit = mk_constant(get_poly_unit_name(), to_list(rlvl));
-                to_telescope_ext(d, C_args);
-                C = Fun(C_args, unit);
-            }
-            brec_on = mk_app(brec_on, C);
-            Cs.push_back(C);
+        expr C; // brec_on "motives"
+        expr C_local;
+        buffer<expr> C_args;
+        expr C_type      = whnf(infer_type(brec_on));
+        C_local          = mk_local(mk_fresh_name(), "C", C_type, binder_info());
+        if (optional<unsigned> p_idx = get_prg_for(decl.get_name())) {
+            buffer<expr> indices, rest; expr arg;
+            distribute_context(*p_idx, indices, arg, rest);
+            expr type = Pi(rest, prgs[*p_idx].m_type);
+            C_args.append(indices);
+            C_args.push_back(arg);
+            C = Fun(C_args, type);
+        } else {
+            expr d    = binding_domain(C_type);
+            expr unit = mk_constant(get_poly_unit_name(), to_list(rlvl));
+            to_telescope_ext(d, C_args);
+            C = Fun(C_args, unit);
         }
+        brec_on = mk_app(brec_on, C);
 
         // add indices and major
         buffer<expr> indices0, rest0; expr arg0;
@@ -1699,45 +1669,39 @@ class equation_compiler_fn {
         brec_on = mk_app(mk_app(brec_on, indices0), arg0);
 
         // add functionals
-        unsigned i = 0;
-        buffer<expr> below_cnsts;
-        buffer<buffer<unsigned>> rest_arg_pos;
-        for (inductive::inductive_decl const & decl : decls) {
-            name const & I_name = inductive::inductive_decl_name(decl);
-            expr below_cnst;
-            if (use_ibelow)
-                below_cnst = mk_constant(name{I_name, "ibelow"}, brec_on_lvls);
-            else
-                below_cnst = mk_constant(name{I_name, "below"}, brec_on_lvls);
-            below_cnsts.push_back(below_cnst);
-            expr below     = mk_app(mk_app(below_cnst, params), Cs);
-            expr F;
-            buffer<expr> & C_args = C_args_buffer[i];
-            rest_arg_pos.push_back(buffer<unsigned>());
-            if (optional<unsigned> p_idx = get_prg_for(I_name)) {
-                program const & prg_i = prgs[*p_idx];
-                buffer<expr> indices, rest; expr arg; buffer<unsigned> indices_pos;
-                buffer<unsigned> & rest_pos = rest_arg_pos.back();
-                distribute_context_core(*p_idx, indices, arg, rest, indices_pos, rest_pos);
-                below           = mk_app(mk_app(below, indices), arg);
-                expr b          = mk_local(mk_fresh_name(), "b", below, binder_info());
-                buffer<expr> new_ctx;
-                new_ctx.append(indices);
-                new_ctx.push_back(arg);
-                new_ctx.push_back(b);
-                new_ctx.append(rest);
-                F               = compile_pat_match(program(prg_i, to_list(new_ctx)), *p_idx);
-            } else {
-                expr star    = mk_constant(get_poly_unit_star_name(), to_list(rlvl));
-                buffer<expr> F_args;
-                F_args.append(C_args);
-                below        = mk_app(below, F_args);
-                F_args.push_back(mk_local(mk_fresh_name(), "b", below, binder_info()));
-                F = Fun(F_args, star);
-            }
-            brec_on = mk_app(brec_on, F);
-            i++;
+        expr below_cnsts;
+        buffer<unsigned> rest_arg_pos;
+
+        expr below_cnst;
+        if (use_ibelow)
+            below_cnst = mk_constant(name{decl.get_name(), "ibelow"}, brec_on_lvls);
+        else
+            below_cnst = mk_constant(name{decl.get_name(), "below"}, brec_on_lvls);
+        below_cnsts.push_back(below_cnst);
+        expr below     = mk_app(mk_app(below_cnst, params), Cs);
+        expr F;
+        if (optional<unsigned> p_idx = get_prg_for(decl.get_name())) {
+            program const & prg_i = prgs[*p_idx];
+            buffer<expr> indices, rest; expr arg; buffer<unsigned> indices_pos;
+            distribute_context_core(*p_idx, indices, arg, rest, indices_pos, rest_arg_pos);
+            below           = mk_app(mk_app(below, indices), arg);
+            expr b          = mk_local(mk_fresh_name(), "b", below, binder_info());
+            buffer<expr> new_ctx;
+            new_ctx.append(indices);
+            new_ctx.push_back(arg);
+            new_ctx.push_back(b);
+            new_ctx.append(rest);
+            F               = compile_pat_match(program(prg_i, to_list(new_ctx)), *p_idx);
+        } else {
+            expr star    = mk_constant(get_poly_unit_star_name(), to_list(rlvl));
+            buffer<expr> F_args;
+            F_args.append(C_args);
+            below        = mk_app(below, F_args);
+            F_args.push_back(mk_local(mk_fresh_name(), "b", below, binder_info()));
+            F = Fun(F_args, star);
         }
+        brec_on = mk_app(brec_on, F);
+
         expr r = elim_rec_apps_fn(*this, prgs, nparams, below_cnsts, Cs_locals, arg_pos, rest_arg_pos)(brec_on);
         // add remaining arguments
         r = mk_app(r, rest0);

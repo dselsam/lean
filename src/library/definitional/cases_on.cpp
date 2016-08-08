@@ -56,18 +56,18 @@ static expr mk_fun_star(expr const & minor, buffer<name> const & C_names, name c
 }
 
 environment mk_cases_on(environment const & env, name const & n) {
-    optional<inductive::inductive_decls> decls = inductive::is_inductive_decl(env, n);
-    if (!decls)
+    optional<inductive::inductive_decl> decl = inductive::is_inductive_decl(env, n);
+    if (!decl)
         throw exception(sstream() << "error in 'cases_on' generation, '" << n << "' is not an inductive datatype");
+    lean_assert(decl->get_name() == n);
+
     name cases_on_name(n, "cases_on");
     name rec_name          = inductive::get_elim_name(n);
     declaration rec_decl   = env.get(rec_name);
     declaration ind_decl   = env.get(n);
     unsigned num_idx_major = *inductive::get_num_indices(env, n) + 1;
     unsigned num_minors    = *inductive::get_num_minor_premises(env, n);
-    auto idecls            = std::get<2>(*decls);
-    unsigned num_types     = length(idecls);
-    unsigned num_params    = std::get<1>(*decls);
+    unsigned num_params    = decl->get_num_params();
     buffer<expr> rec_params;
     expr rec_type = rec_decl.get_type();
     while (is_pi(rec_type)) {
@@ -82,11 +82,6 @@ environment mk_cases_on(environment const & env, name const & n) {
 
     optional<expr> unit;
     optional<expr> star;
-    // we use unit if num_types > 1
-    if (num_types > 1) {
-        unit = mk_constant(get_poly_unit_name(), to_list(elim_univ));
-        star = mk_constant(get_poly_unit_star_name(), to_list(elim_univ));
-    }
 
     // rec_params order
     //   As Cs minor_premises indices major-premise
@@ -106,24 +101,12 @@ environment mk_cases_on(environment const & env, name const & n) {
     }
 
     // Add C[i]
-    buffer<name> C_names;
-    bool found = false;
     unsigned i = num_params;
+    name C_name = mlocal_name(rec_params[i]);
     name C_main; // name of the main type former
-    for (auto const & d : idecls) {
-        C_names.push_back(mlocal_name(rec_params[i]));
-        if (inductive::inductive_decl_name(d) == n) {
-            cases_on_params.push_back(rec_params[i]);
-            rec_args.push_back(rec_params[i]);
-            C_main = mlocal_name(rec_params[i]);
-            found = true;
-        } else {
-            rec_args.push_back(mk_fun_unit(mlocal_type(rec_params[i]), *unit));
-        }
-        i++;
-    }
-    if (!found)
-        throw_corrupted(n);
+    cases_on_params.push_back(rec_params[i]);
+    rec_args.push_back(rec_params[i]);
+    C_main = mlocal_name(rec_params[i]);
 
     // Add indices and major-premise to rec_params
     for (unsigned i = 0; i < num_idx_major; i++)
@@ -131,44 +114,37 @@ environment mk_cases_on(environment const & env, name const & n) {
     unsigned cases_on_major_idx = cases_on_params.size() - 1;
 
     // Add minor premises to rec_params and rec_args
-    i = num_params + num_types;
-    for (auto const & d : idecls) {
-        bool is_main = inductive::inductive_decl_name(d) == n;
-        for (auto ir : inductive::inductive_decl_intros(d)) {
-            expr const & minor = rec_params[i];
-            if (is_main) {
-                // A cases_on minor premise does not contain "recursive" arguments
-                buffer<expr> minor_non_rec_params;
-                buffer<expr> minor_params;
-                expr minor_type = mlocal_type(minor);
-                while (is_pi(minor_type)) {
-                    expr local = mk_local(mk_fresh_name(), binding_name(minor_type), binding_domain(minor_type),
-                                          binding_info(minor_type));
-                    expr curr_type = mlocal_type(local);
-                    while (is_pi(curr_type))
-                        curr_type = binding_body(curr_type);
-                    if (is_type_former_arg(C_names, curr_type)) {
-                        if (mlocal_name(get_app_fn(curr_type)) == C_main) {
-                            minor_params.push_back(local);
-                        } else {
-                            minor_params.push_back(update_mlocal(local, *unit));
-                        }
-                    } else {
-                        minor_params.push_back(local);
-                        minor_non_rec_params.push_back(local);
-                    }
-                    minor_type = instantiate(binding_body(minor_type), local);
+    i = num_params + 1;
+    for (auto ir : decl->get_intro_rules()) {
+        expr const & minor = rec_params[i];
+        // A cases_on minor premise does not contain "recursive" arguments
+        buffer<expr> minor_non_rec_params;
+        buffer<expr> minor_params;
+        expr minor_type = mlocal_type(minor);
+        while (is_pi(minor_type)) {
+            expr local = mk_local(mk_fresh_name(), binding_name(minor_type), binding_domain(minor_type),
+                                  binding_info(minor_type));
+            expr curr_type = mlocal_type(local);
+            while (is_pi(curr_type))
+                curr_type = binding_body(curr_type);
+            if (is_type_former_arg(C_names, curr_type)) {
+                if (mlocal_name(get_app_fn(curr_type)) == C_main) {
+                    minor_params.push_back(local);
+                } else {
+                    minor_params.push_back(update_mlocal(local, *unit));
                 }
-                expr new_C = update_mlocal(minor, Pi(minor_non_rec_params, minor_type));
-                cases_on_params.push_back(new_C);
-                expr new_C_app = mk_app(new_C, minor_non_rec_params);
-                expr rec_arg   = Fun(minor_params, new_C_app);
-                rec_args.push_back(rec_arg);
             } else {
-                rec_args.push_back(mk_fun_star(mlocal_type(minor), C_names, C_main, *unit, *star));
+                minor_params.push_back(local);
+                minor_non_rec_params.push_back(local);
             }
-            i++;
+            minor_type = instantiate(binding_body(minor_type), local);
         }
+        expr new_C = update_mlocal(minor, Pi(minor_non_rec_params, minor_type));
+        cases_on_params.push_back(new_C);
+        expr new_C_app = mk_app(new_C, minor_non_rec_params);
+        expr rec_arg   = Fun(minor_params, new_C_app);
+        rec_args.push_back(rec_arg);
+        i++;
     }
 
     // Add indices and major-premise to rec_args
