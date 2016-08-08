@@ -114,24 +114,24 @@ using inductive::mk_intro_rule;
 using inductive::intro_rule_name;
 using inductive::intro_rule_type;
 
-pair<level_param_names, inductive_decl> sanitize_level_params(level_param_names const & ls, inductive_decl const & decl) {
+inductive_decl sanitize_level_params(inductive_decl const & decl) {
     name_set globals;
     collect_global_levels(decl.get_type(), globals);
     for (auto const & r : decl.get_intro_rules()) {
         collect_global_levels(intro_rule_type(r), globals);
     }
     if (globals.empty())
-        return mk_pair(ls, decl);
+        return decl;
     name_map<name> param_name_map;
-    level_param_names new_ls = sanitize_level_params(ls, globals, param_name_map);
+    level_param_names new_ls = sanitize_level_params(decl.get_lp_names(), globals, param_name_map);
     if (param_name_map.empty())
-        return mk_pair(ls, decl);
-    expr new_type = rename_param_levels(d.get_type(), param_name_map);
+        return decl;
+    expr new_type = rename_param_levels(decl.get_type(), param_name_map);
     buffer<intro_rule> new_rules;
-    for (auto const & r : d.get_intro_rules()) {
+    for (auto const & r : decl.get_intro_rules()) {
         expr new_type = rename_param_levels(intro_rule_type(r), param_name_map);
         new_rules.push_back(mk_intro_rule(intro_rule_name(r), new_type));
     }
-    return mk_pair(new_ls, inductive_decl(decl.get_name(), new_type, to_list(new_rules.begin(), new_rules.end())));
+    return inductive_decl(decl.get_name(), new_type, new_ls, decl.get_num_params(), to_list(new_rules.begin(), new_rules.end()));
 }
 }

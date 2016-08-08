@@ -38,9 +38,14 @@ struct inductive_decl {
     unsigned           m_num_params;
     list<intro_rule>   m_intro_rules;
 
+public:
+    inductive_decl(name const & n, expr const & type, level_param_names const & lp_names,
+                   unsigned num_params, list<intro_rule> const & intro_rules):
+        m_name(n), m_type(type), m_lp_names(lp_names),
+        m_num_params(num_params), m_intro_rules(intro_rules) {}
     inline name const & get_name() const { return m_name; }
     inline expr const & get_type() const { return m_type; }
-    level_param_names const & get_lp_names() const { return m_lp_names; }
+    inline level_param_names const & get_lp_names() const { return m_lp_names; }
     inline unsigned get_num_params() const { return m_num_params; }
     inline list<intro_rule> const & get_intro_rules() const { return m_intro_rules; }
 };
