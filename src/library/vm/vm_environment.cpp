@@ -81,13 +81,8 @@ static list<inductive::intro_rule> to_list_intro_rule(vm_obj const & cnstrs) {
 vm_obj environment_add_inductive(vm_obj const & env, vm_obj const & n, vm_obj const & ls, vm_obj const & num,
                                  vm_obj const & type, vm_obj const & cnstrs) {
     try {
-        environment new_env = module::add_inductive(to_env(env),
-                                                    to_list_name(ls),
-                                                    force_to_unsigned(num, 0),
-                                                    list<inductive::inductive_decl>(
-                                                        inductive::inductive_decl(to_name(n),
-                                                                                  to_expr(type),
-                                                                                  to_list_intro_rule(cnstrs))));
+        environment new_env = module::add_inductive(to_env(env), to_name(n), to_list_name(ls), force_to_unsigned(num, 0),
+                                                    to_expr(type), to_list_intro_rule(cnstrs));
         return mk_vm_exceptional_success(to_obj(new_env));
     } catch (throwable & ex) {
         return mk_vm_exceptional_exception(ex);

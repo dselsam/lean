@@ -28,14 +28,14 @@ namespace lean {
 
 static pair<unsigned, inductive::intro_rule> get_nparam_intro_rule(environment const & env, name const & n) {
     optional<inductive::inductive_decl> decl = inductive::is_inductive_decl(env, n);
-    if (!decls)
+    if (!decl)
         throw exception(sstream() << "projection generation, '" << n << "' is not an inductive datatype");
     optional<unsigned> num_indices = inductive::get_num_indices(env, n);
     if (num_indices && *num_indices > 0)
         throw exception(sstream() << "projection generation, '"
                         << n << "' is an indexed inductive datatype family");
     unsigned num_params = decl->get_num_params();
-    auto intros = decl.get_intro_rules();
+    auto intros = decl->get_intro_rules();
     if (length(intros) != 1)
         throw exception(sstream() << "projection generation, '"
                         << n << "' does not have a single constructor");

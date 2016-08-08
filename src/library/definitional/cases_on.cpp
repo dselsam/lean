@@ -32,9 +32,9 @@ static expr mk_fun_unit(expr const & C, expr const & unit) {
     }
 }
 
-static bool is_type_former_arg(buffer<name> const & C_names, expr const & arg) {
+static bool is_type_former_arg(name const & C_name, expr const & arg) {
     expr const & fn = get_app_fn(arg);
-    return is_local(fn) && std::find(C_names.begin(), C_names.end(), mlocal_name(fn)) != C_names.end();
+    return is_local(fn) && mlocal_name(fn) == C_name;
 }
 
 /** \brief Given minor premise (Pi (a_1 : A_1) ... (a_n : A_n), B)
@@ -110,7 +110,7 @@ environment mk_cases_on(environment const & env, name const & n) {
 
     // Add indices and major-premise to rec_params
     for (unsigned i = 0; i < num_idx_major; i++)
-        cases_on_params.push_back(rec_params[num_params + num_types + num_minors + i]);
+        cases_on_params.push_back(rec_params[num_params + 1 + num_minors + i]);
     unsigned cases_on_major_idx = cases_on_params.size() - 1;
 
     // Add minor premises to rec_params and rec_args
@@ -149,7 +149,7 @@ environment mk_cases_on(environment const & env, name const & n) {
 
     // Add indices and major-premise to rec_args
     for (unsigned i = 0; i < num_idx_major; i++)
-        rec_args.push_back(rec_params[num_params + num_types + num_minors + i]);
+        rec_args.push_back(rec_params[num_params + 1 + num_minors + i]);
 
     expr cases_on_type  = Pi(cases_on_params, rec_type);
     expr cases_on_value = Fun(cases_on_params,  mk_app(rec_cnst, rec_args));
