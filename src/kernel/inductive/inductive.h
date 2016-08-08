@@ -33,15 +33,15 @@ inline expr const & intro_rule_type(intro_rule const & r) { return mlocal_type(r
 /** \brief Inductive datatype */
 struct inductive_decl {
     name               m_name;
+    expr               m_type;
     level_param_names  m_lp_names;
     unsigned           m_num_params;
-    expr               m_type;
     list<intro_rule>   m_intro_rules;
 
     inline name const & get_name() const { return m_name; }
     inline expr const & get_type() const { return m_type; }
     level_param_names const & get_lp_names() const { return m_lp_names; }
-    inline unsigned get_num_params() constn { return m_num_params; }
+    inline unsigned get_num_params() const { return m_num_params; }
     inline list<intro_rule> const & get_intro_rules() const { return m_intro_rules; }
 };
 
@@ -79,20 +79,19 @@ private:
         m_decl(decl), m_K_target(K_target), m_num_indices(num_indices), m_comp_rules(comp_rules),
         m_num_ACe(num_ACe), m_elim_lp_name(elim_lp_name), m_dep_elim(dep_elim), m_elim_type(elim_type) {}
 public:
-    level_param_names const & get_univ_params() const {
-        return m_elim_lp_name ? list(*m_elim_lp_name, m_decl.get_lp_names()) : m_decl.get_lp_names();
+    level_param_names get_elim_lp_names() const {
+        return m_elim_lp_name ? level_param_names(*m_elim_lp_name, m_decl.get_lp_names()) : m_decl.get_lp_names();
     }
 
     // TODO(dhs): more getters as necessary
     inductive_decl const & get_decl() const { return m_decl; }
-    unsigned get_num_params() const { return m_decl.get_num_params(); }
+    bool is_K_target() const { return m_K_target; }
+    unsigned get_num_indices() const { return m_num_indices; }
+    list<comp_rule> get_comp_rules() const { return m_comp_rules; }
     unsigned get_num_ACe() const { return m_num_ACe; }
-    bool elim_prop_only() const { return !m_elim_lp_name; }
+    optional<name> get_elim_lp_name() const { return m_elim_lp_name; }
     bool has_dep_elim() const { return m_dep_elim; }
     expr const & get_elim_type() const { return m_elim_type; }
-
-    list<expr> const & get_elim_types() const { return m_elim_types; }
-    list<data> const & get_decl_data() const { return m_decl_data; }
 
     /** \brief Update the environment with this "certified declaration"
         \remark If trust_level is 0, then declaration is rechecked.
@@ -133,7 +132,7 @@ bool is_elim_meta_app(type_checker & tc, expr const & e);
 */
 inline optional<unsigned> get_num_params(environment const & env, name const & n) {
     if (auto decl = is_inductive_decl(env, n))
-        return optional<unsigned>(decl.get_num_params());
+        return optional<unsigned>(decl->get_num_params());
     else
         return optional<unsigned>();
 }
