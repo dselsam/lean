@@ -8,6 +8,7 @@ Author: Daniel Selsam
 #include "frontends/lean/inductive/sizeof.h"
 #include "frontends/lean/inductive/injective.h"
 #include "frontends/lean/inductive/cidx.h"
+#include "frontends/lean/inductive/mutual.h"
 
 namespace lean {
 void initialize_frontend_inductive_module() {
@@ -15,11 +16,14 @@ void initialize_frontend_inductive_module() {
     initialize_inductive_sizeof();
     initialize_inductive_injective();
     initialize_inductive_cidx();
+    initialize_inductive_mutual();
 }
 
 void finalize_frontend_inductive_module() {
+    finalize_inductive_mutual();
+    finalize_inductive_cidx();
     finalize_inductive_injective();
     finalize_inductive_sizeof();
-    finalize_inductive_cidx();
+    finalize_inductive_cmds();
 }
 }

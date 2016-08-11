@@ -4,4 +4,5 @@ add_library(frontend_inductive OBJECT
   sizeof.cpp
   injective.cpp
   cidx.cpp
+  mutual.cpp
   )
