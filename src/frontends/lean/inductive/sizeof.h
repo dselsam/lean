@@ -6,11 +6,12 @@ Author: Daniel Selsam
 */
 #pragma once
 #include "kernel/environment.h"
+#include "library/type_context.h"
 
 namespace lean {
 
 /** \brief Given a basic inductive datatype `I` in `env`, add `I.sizeof`. */
-environment mk_basic_sizeof(environment const & env, name const & ind_name);
+environment mk_basic_sizeof(type_context & tctx, name const & ind_name);
 
 /** \brief Given a derived inductive datatype `I` in `env` with parent `J`,
     add `I.c.sizeof` to the environment for each intro rule of `I`.
@@ -22,7 +23,7 @@ environment mk_derived_sizeof(environment const & env, name const & ind_name);
     and make it an instance.
 
     \remark Should only be called on user-facing datatypes. */
-environment mk_has_sizeof(environment const & env, name const & ind_name);
+environment mk_has_sizeof_instance(environment const & env, name const & ind_name);
 
 
 /** \brief Given a basic inductive datatype `I` in `env`, add `I.c.sizeof_spec`
