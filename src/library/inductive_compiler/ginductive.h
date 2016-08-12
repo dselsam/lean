@@ -10,19 +10,21 @@ Author: Daniel Selsam
 
 namespace lean {
 
+using inductive::inductive_decl;
 /* \remark "g" is for "generalized" */
 class ginductive_decl {
     list<expr>                      m_params;
     level_param_names               m_lp_names;
-    list<inductive::inductive_decl> m_decls;
+    list<inductive_decl> m_decls;
 public:
     ginductive_decl(list<expr> const & params,
                     level_param_names const & lp_names,
                     list<inductive_decl> const & decls):
         m_params(params), m_lp_names(lp_names), m_decls(decls) {}
-    unsigned get_num_params() const { return m_num_params; }
+    unsigned get_num_params() const { return length(m_params); }
+    list<expr> get_params() const { return m_params; }
     level_param_names get_lp_names() const { return m_lp_names; }
-    list<inductive::inductive_decl> get_inductive_decls() const { return m_decls; }
+    list<inductive_decl> get_inductive_decls() const { return m_decls; }
 };
 
 /* \brief This procedure accepts "generalized" inductive declarations that may be

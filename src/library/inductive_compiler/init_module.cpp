@@ -5,7 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Author: Daniel Selsam
 */
 #include "library/inductive_compiler/init_module.h"
-#include "library/ginductive.h"
+#include "library/inductive_compiler/ginductive.h"
 
 namespace lean {
 
