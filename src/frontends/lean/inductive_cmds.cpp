@@ -64,11 +64,20 @@ class add_xinductive_fn {
 
     void parse_xinductive(buffer<name> & lp_names, buffer<expr> & params, buffer<expr> & all_exprs) {
         parser::local_scope scope(m_p);
-
         expr l_ind = parse_single_header(m_p, lp_names, params);
+
         if (is_placeholder(mlocal_type(l_ind))) {
             l_ind = update_mlocal(l_ind, mk_sort(mk_level_placeholder()));
         }
+
+        expr ty = mlocal_type(l_ind);
+        while (is_pi(ty))
+            ty = binding_body(ty);
+        if (!is_sort(ty))
+            throw parser_error("invalid inductive datatype, resultant type is not a sort", m_p.pos_of(l_ind));
+        if (!lp_names.empty() && is_placeholder(sort_level(ty)))
+            throw parser_error("resultant universe must be provided, when using explicit universe levels", m_p.pos_of(l_ind));
+
         name short_ind_name = mlocal_name(l_ind);
         l_ind = mk_local(get_namespace(m_p.env()) + short_ind_name, mlocal_type(l_ind));
         name ind_name = mlocal_name(l_ind);
@@ -149,8 +158,7 @@ public:
         lp_names.append(implicit_lp_names);
 
         for (expr const & e : params_and_exprs) {
-            lean_trace(name({"xinductive", "finalize"}),
-                       tout() << mlocal_name(e) << " : " << mlocal_type(e) << "\n";);
+            lean_trace(name({"xinductive", "finalize"}), tout() << mlocal_name(e) << " : " << mlocal_type(e) << "\n";);
         }
 
         for (name const & lp_name : lp_names) {
