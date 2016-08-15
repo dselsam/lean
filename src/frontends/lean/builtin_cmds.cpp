@@ -43,6 +43,7 @@ Author: Leonardo de Moura
 #include "frontends/lean/calc.h"
 #include "frontends/lean/notation_cmd.h"
 #include "frontends/lean/inductive_cmd.h"
+#include "frontends/lean/inductive_cmds.h"
 #include "frontends/lean/structure_cmd.h"
 #include "frontends/lean/print_cmd.h"
 // #include "frontends/lean/begin_end_annotation.h"
@@ -580,6 +581,7 @@ void init_cmd_table(cmd_table & r) {
 
     register_decl_cmds(r);
     register_inductive_cmd(r);
+    register_inductive_cmds(r);
     register_structure_cmd(r);
     register_notation_cmds(r);
     // register_tactic_hint_cmd(r);
