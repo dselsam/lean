@@ -169,13 +169,80 @@ public:
     }
 };
 
+class add_xmutual_inductive_fn {
+    parser &                      m_p;
+    name_map<implicit_infer_kind> m_implicit_infer_map; // implicit argument inference mode
+
+    void parse_xmutual_inductive(buffer<name> & lp_names, buffer<expr> & params, buffer<expr> & inds, buffer<buffer<expr> > & intro_rules) {
+        parser::local_scope scope(m_p);
+        buffer<expr> pre_inds;
+        parse_mutual_header(m_p, lp_names, pre_inds, params);
+        m_p.parse_local_notation_decl();
+
+        for (expr const & pre_ind : pre_inds) {
+            expr ind_type = parse_inner_header(m_p, local_pp_name(pre_ind));
+            lean_trace(name({"xinductive", "parse"}), tout() << mlocal_name(pre_ind) << " : " << ind_type << "\n";);
+
+            intro_rules.emplace_back();
+
+            // If the next token is not `|`, then the inductive type has no constructors
+            if (m_p.curr_is_token(get_bar_tk())) {
+                m_p.next();
+                while (true) {
+                    name ir_name = get_namespace(m_p.env()) + mlocal_name(pre_ind) + m_p.check_decl_id_next("invalid introduction rule, identifier expected");
+                    m_implicit_infer_map.insert(ir_name, parse_implicit_infer_modifier(m_p));
+                    expr ir_type;
+                    if (!params.empty() || m_p.curr_is_token(get_colon_tk())) {
+                        m_p.check_token_next(get_colon_tk(), "invalid introduction rule, ':' expected");
+                        ir_type = m_p.parse_expr();
+                    } else {
+                        ir_type = pre_ind;
+                    }
+                    intro_rules.back().push_back(mk_local(ir_name, ir_type));
+                    lean_trace(name({"xinductive", "parse"}), tout() << ir_name << " : " << ir_type << "\n";);
+                    if (!m_p.curr_is_token(get_bar_tk()) && !m_p.curr_is_token(get_comma_tk()))
+                        break;
+                    m_p.next();
+                }
+            }
+            expr ind = mk_local(get_namespace(m_p.env()) + mlocal_name(pre_ind), ind_type);
+            inds.push_back(ind);
+        }
+
+        buffer<expr> all_exprs;
+        all_exprs.append(inds);
+        for (buffer<expr> & irs : intro_rules) {
+            for (expr & ir : irs) {
+                ir = replace_locals(ir, pre_inds, inds);
+            }
+            all_exprs.append(irs);
+        }
+        collect_implicit_locals(m_p, lp_names, params, all_exprs);
+    }
+
+public:
+    add_xmutual_inductive_fn(parser & p): m_p(p) {}
+
+    environment operator()() {
+        buffer<name> lp_names;
+        buffer<expr> params;
+        buffer<expr> inds;
+        buffer<buffer<expr> > intro_rules;
+
+        parse_xmutual_inductive(lp_names, params, inds, intro_rules);
+
+
+        return m_p.env();
+    }
+};
+
+
 environment xinductive_cmd(parser & p) {
     return add_xinductive_fn(p)();
 }
 
 environment xmutual_inductive_cmd(parser & p) {
-    // TODO(dhs): implement
-    throw exception("xmutual_inductive_cmd not yet supported.");
+    return add_xmutual_inductive_fn(p)();
 }
 
 void register_inductive_cmds(cmd_table & r) {
