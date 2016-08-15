@@ -59,20 +59,31 @@ static void replace_params(buffer<expr> const & params, buffer<expr> const & new
     }
 }
 
+static void replace_params(buffer<expr> const & params, buffer<expr> const & new_params, buffer<expr> const & inds, buffer<expr> const & new_inds,
+                           buffer<expr> const & intro_rules, buffer<expr> & new_intro_rules) {
+    for (expr const & ir : intro_rules) {
+        expr new_type = replace_locals(mlocal_type(ir), params, new_params);
+        new_type = replace_locals(new_type, inds, new_inds);
+        new_intro_rules.push_back(update_mlocal(ir, new_type));
+    }
+}
+
 static expr replace_params(buffer<expr> const & params, buffer<expr> const & new_params, expr const & old_expr) {
     expr new_type = replace_locals(mlocal_type(old_expr), params, new_params);
     return update_mlocal(old_expr, new_type);
 }
 
-static void collect_all_exprs(expr const & ind, buffer<expr> const & intro_rules, buffer<expr> & all_exprs) {
-    all_exprs.push_back(ind);
-    all_exprs.append(intro_rules);
-}
-
-static void collect_all_exprs(buffer<expr> const & inds, buffer<buffer<expr> > const & intro_rules, buffer<expr> & all_exprs) {
+static void collect_all_exprs(buffer<expr> const & params, buffer<expr> const & inds, buffer<buffer<expr> > const & intro_rules, buffer<expr> & all_exprs) {
+    all_exprs.append(params);
     all_exprs.append(inds);
     for (buffer<expr> const & irs : intro_rules)
         all_exprs.append(irs);
+}
+
+static void collect_all_exprs(buffer<expr> const & params, expr const & ind, buffer<expr> const & intro_rules, buffer<expr> & all_exprs) {
+    all_exprs.append(params);
+    all_exprs.push_back(ind);
+    all_exprs.append(intro_rules);
 }
 
 static void check_ind_type(parser & p, expr const & ind, bool explicit_levels) {
@@ -85,19 +96,19 @@ static void check_ind_type(parser & p, expr const & ind, bool explicit_levels) {
         throw parser_error("resultant universe must be provided, when using explicit universe levels", p.pos_of(ind));
 }
 
-static void parse_intro_rules(parser & p, name_map<implicit_infer_kind> & implicit_infer_map, bool has_params, expr const & l_ind, buffer<expr> & intro_rules) {
+static void parse_intro_rules(parser & p, name_map<implicit_infer_kind> & implicit_infer_map, bool has_params, expr const & ind, buffer<expr> & intro_rules) {
     // If the next token is not `|`, then the inductive type has no constructors
     if (p.curr_is_token(get_bar_tk())) {
         p.next();
         while (true) {
-            name ir_name = mlocal_name(l_ind) + p.check_decl_id_next("invalid introduction rule, identifier expected");
+            name ir_name = mlocal_name(ind) + p.check_decl_id_next("invalid introduction rule, identifier expected");
             implicit_infer_map.insert(ir_name, parse_implicit_infer_modifier(p));
             expr ir_type;
             if (has_params || p.curr_is_token(get_colon_tk())) {
                 p.check_token_next(get_colon_tk(), "invalid introduction rule, ':' expected");
                 ir_type = p.parse_expr();
             } else {
-                ir_type = l_ind;
+                ir_type = ind;
             }
             intro_rules.push_back(mk_local(ir_name, ir_type));
             lean_trace(name({"xinductive", "parse"}), tout() << ir_name << " : " << ir_type << "\n";);
@@ -114,27 +125,27 @@ class add_xinductive_fn {
 
     expr parse_xinductive(buffer<name> & lp_names, buffer<expr> & params, buffer<expr> & intro_rules) {
         parser::local_scope scope(m_p);
-        expr l_ind = parse_single_header(m_p, lp_names, params);
+        expr ind = parse_single_header(m_p, lp_names, params);
 
-        if (is_placeholder(mlocal_type(l_ind))) {
-            l_ind = update_mlocal(l_ind, mk_sort(mk_level_placeholder()));
+        if (is_placeholder(mlocal_type(ind))) {
+            ind = update_mlocal(ind, mk_sort(mk_level_placeholder()));
         }
 
-        check_ind_type(m_p, l_ind, !lp_names.empty());
-        name short_ind_name = mlocal_name(l_ind);
-        l_ind = mk_local(get_namespace(m_p.env()) + short_ind_name, mlocal_type(l_ind));
-        name ind_name = mlocal_name(l_ind);
+        check_ind_type(m_p, ind, !lp_names.empty());
+        name short_ind_name = mlocal_name(ind);
+        ind = mk_local(get_namespace(m_p.env()) + short_ind_name, mlocal_type(ind));
+        name ind_name = mlocal_name(ind);
 
         lean_trace(name({"xinductive", "parse"}),
-                   tout() << mlocal_name(l_ind) << " : " << mlocal_type(l_ind) << "\n";);
+                   tout() << mlocal_name(ind) << " : " << mlocal_type(ind) << "\n";);
 
-        m_p.add_local_expr(short_ind_name, l_ind);
+        m_p.add_local_expr(short_ind_name, ind);
         m_p.parse_local_notation_decl();
 
-        parse_intro_rules(m_p, m_implicit_infer_map, !params.empty(), l_ind, intro_rules);
-        collect_implicit_locals(m_p, lp_names, params, l_ind);
+        parse_intro_rules(m_p, m_implicit_infer_map, !params.empty(), ind, intro_rules);
+        collect_implicit_locals(m_p, lp_names, params, ind);
         collect_implicit_locals(m_p, lp_names, params, intro_rules);
-        return l_ind;
+        return ind;
     }
 
 public:
@@ -169,14 +180,12 @@ public:
         }
 
         buffer<name> implicit_lp_names;
-        buffer<expr> params_and_exprs;
-        params_and_exprs.append(new_params);
-        params_and_exprs.push_back(new_ind);
-        params_and_exprs.append(new_intro_rules);
-        elab.finalize(params_and_exprs, implicit_lp_names, true, false);
+        buffer<expr> all_exprs;
+        collect_all_exprs(new_params, new_ind, new_intro_rules, all_exprs);
+        elab.finalize(all_exprs, implicit_lp_names, true, false);
         lp_names.append(implicit_lp_names);
 
-        for (expr const & e : params_and_exprs) {
+        for (expr const & e : all_exprs) {
             lean_trace(name({"xinductive", "finalize"}), tout() << mlocal_name(e) << " : " << mlocal_type(e) << "\n";);
         }
 
@@ -201,42 +210,24 @@ class add_xmutual_inductive_fn {
         for (expr const & pre_ind : pre_inds) {
             expr ind_type = parse_inner_header(m_p, local_pp_name(pre_ind));
             lean_trace(name({"xinductive", "parse"}), tout() << mlocal_name(pre_ind) << " : " << ind_type << "\n";);
-
             intro_rules.emplace_back();
-
-            // If the next token is not `|`, then the inductive type has no constructors
-            if (m_p.curr_is_token(get_bar_tk())) {
-                m_p.next();
-                while (true) {
-                    name ir_name = get_namespace(m_p.env()) + mlocal_name(pre_ind) + m_p.check_decl_id_next("invalid introduction rule, identifier expected");
-                    m_implicit_infer_map.insert(ir_name, parse_implicit_infer_modifier(m_p));
-                    expr ir_type;
-                    if (!params.empty() || m_p.curr_is_token(get_colon_tk())) {
-                        m_p.check_token_next(get_colon_tk(), "invalid introduction rule, ':' expected");
-                        ir_type = m_p.parse_expr();
-                    } else {
-                        ir_type = pre_ind;
-                    }
-                    intro_rules.back().push_back(mk_local(ir_name, ir_type));
-                    lean_trace(name({"xinductive", "parse"}), tout() << ir_name << " : " << ir_type << "\n";);
-                    if (!m_p.curr_is_token(get_bar_tk()) && !m_p.curr_is_token(get_comma_tk()))
-                        break;
-                    m_p.next();
-                }
-            }
+            parse_intro_rules(m_p, m_implicit_infer_map, !params.empty(), pre_ind, intro_rules.back());
             expr ind = mk_local(get_namespace(m_p.env()) + mlocal_name(pre_ind), ind_type);
             inds.push_back(ind);
         }
 
-        buffer<expr> all_exprs;
-        all_exprs.append(inds);
         for (buffer<expr> & irs : intro_rules) {
             for (expr & ir : irs) {
                 ir = replace_locals(ir, pre_inds, inds);
             }
-            all_exprs.append(irs);
-        }
-        collect_implicit_locals(m_p, lp_names, params, all_exprs);
+         }
+
+        buffer<expr> all_inds_intro_rules;
+        all_inds_intro_rules.append(inds);
+        for (buffer<expr> const & irs : intro_rules)
+            all_inds_intro_rules.append(irs);
+
+        collect_implicit_locals(m_p, lp_names, params, all_inds_intro_rules);
     }
 
 public:
@@ -258,15 +249,31 @@ public:
         convert_params_to_kernel(elab.ctx(), elab_params, new_params);
 
         buffer<expr> new_inds;
+        for (expr const & ind : inds)
+            new_inds.push_back(update_mlocal(ind, elab.elaborate(replace_params(params, new_params, mlocal_type(ind)))));
+
         buffer<buffer<expr> > new_intro_rules;
-//        replace_params(params, new_params, inds, new_inds);
         for (buffer<expr> & irs : intro_rules) {
             new_intro_rules.emplace_back();
-            //       replace_params(
+            replace_params(params, new_params, inds, new_inds, irs, new_intro_rules.back());
+            for (expr & new_ir : new_intro_rules.back())
+                new_ir = update_mlocal(new_ir, elab.elaborate(mlocal_type(new_ir)));
         }
 
-        buffer<expr> new_all_exprs;
+        buffer<name> implicit_lp_names;
+        buffer<expr> all_exprs;
+        collect_all_exprs(new_params, new_inds, new_intro_rules, all_exprs);
 
+        elab.finalize(all_exprs, implicit_lp_names, true, false);
+        lp_names.append(implicit_lp_names);
+
+        for (expr const & e : all_exprs) {
+            lean_trace(name({"xinductive", "finalize"}), tout() << mlocal_name(e) << " : " << mlocal_type(e) << "\n";);
+        }
+
+        for (name const & lp_name : lp_names) {
+            lean_trace(name({"xinductive", "lp_names"}), tout() << lp_name << "\n";);
+        }
 
         return m_p.env();
     }
