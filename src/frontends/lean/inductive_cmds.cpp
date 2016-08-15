@@ -40,6 +40,67 @@ Author: Daniel Selsam
 
 namespace lean {
 
+bool curr_is_intro_rule_prefix() const {
+    return m_p.curr_is_token(get_bar_tk()) || m_p.curr_is_token(get_comma_tk());
+}
+
+expr_pair parse_xinductive(parser & p, buffer<name> & lp_names, buffer<expr> & params) {
+    parser::local_scope scope(p);
+    auto header_pos = p.pos();
+    expr l_ind = parse_single_header(p, lp_names, params);
+    bool first = true;
+    m_p.parse_local_notation_decl();
+
+    buffer<expr> intro_rules;
+    if (m_p.curr_is_token(get_bar_tk())) {
+        m_p.next();
+        while (true) {
+            name intro_name = parse_intro_decl_name(ind_name);
+            implicit_infer_kind k = parse_implicit_infer_modifier(m_p);
+            m_implicit_infer_map.insert(intro_name, k);
+            if (!m_params.empty() || m_p.curr_is_token(get_colon_tk())) {
+                m_p.check_token_next(get_colon_tk(), "invalid introduction rule, ':' expected");
+                expr intro_type = m_p.parse_expr();
+                intro_rules.push_back(mk_intro_rule(intro_name, intro_type));
+            } else {
+                expr intro_type = mk_constant(ind_name);
+                intro_rules.push_back(mk_intro_rule(intro_name, intro_type));
+            }
+            if (!curr_is_intro_rule_prefix())
+                break;
+            m_p.next();
+        }
+    }
+    return to_list(intro_rules.begin(), intro_rules.end());
+}
+/*
+    if (p.curr_is_token(get_assign_tk())) {
+        p.next();
+        val = p.parse_expr();
+    } else if (p.curr_is_token(get_bar_tk())) {
+        p.add_local(fn);
+        buffer<expr> eqns;
+        if (p.curr_is_token(get_none_tk())) {
+            auto none_pos = p.pos();
+            p.next();
+            eqns.push_back(p.save_pos(mk_no_equation(), none_pos));
+        } else {
+            while (p.curr_is_token(get_bar_tk())) {
+                eqns.push_back(parse_equation(p, fn));
+            }
+        }
+        optional<expr_pair> R_Rwf = parse_using_well_founded(p);
+        buffer<expr> fns;
+        fns.push_back(fn);
+        val = mk_equations(p, fns, eqns, R_Rwf, header_pos);
+    } else {
+        throw parser_error("invalid definition, '|' or ':=' expected", p.pos());
+    }
+    collect_implicit_locals(p, lp_names, params, {fn, val});
+    return mk_pair(fn, val);
+}
+*/
+
 environment xinductive_cmd(parser & p) {
     // TODO(dhs): implement
     throw exception("xinductive_cmd not yet supported.");
