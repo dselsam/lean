@@ -43,6 +43,13 @@ Author: Daniel Selsam
 
 namespace lean {
 
+static void convert_params_to_kernel(type_context & tctx, buffer<expr> const & lctx_params, buffer<expr> & kernel_params) {
+    for (unsigned i = 0; i < lctx_params.size(); ++i) {
+        expr new_type = replace_locals(tctx.infer(lctx_params[i]), i, lctx_params.data(), kernel_params.data());
+        kernel_params.push_back(update_mlocal(lctx_params[i], new_type));
+    }
+}
+
 static void replace_params(buffer<expr> const & params, buffer<expr> const & new_params, buffer<expr> const & old_all_exprs, buffer<expr> & new_all_exprs) {
     for (unsigned i = 0; i < old_all_exprs.size(); ++i) {
         expr new_type = replace_locals(mlocal_type(old_all_exprs[i]), params, new_params);
@@ -113,13 +120,17 @@ public:
         }
 
         elaborator elab(m_p.env(), m_p.get_options(), metavar_context(), local_context());
+        buffer<expr> elab_params;
+        elaborate_params(elab, params, elab_params);
+
         buffer<expr> new_params;
-        elaborate_params(elab, params, new_params);
+        convert_params_to_kernel(elab.ctx(), elab_params, new_params);
 
         for (expr const & p : new_params) {
             lean_trace(name({"xinductive", "new_params"}),
                        tout() << local_pp_name(p) << " : " << mlocal_type(p) << "\n";);
         }
+
         buffer<expr> new_all_exprs;
         replace_params(params, new_params, all_exprs, new_all_exprs);
 
@@ -128,6 +139,22 @@ public:
             lean_trace(name({"xinductive", "elab"}),
                        tout() << "(" << mlocal_name(e) << ") " << mlocal_type(e) << " ==> " << new_type << "\n";);
             e = update_mlocal(e, new_type);
+        }
+
+        buffer<name> implicit_lp_names;
+        buffer<expr> params_and_exprs;
+        params_and_exprs.append(new_params);
+        params_and_exprs.append(new_all_exprs);
+        elab.finalize(params_and_exprs, implicit_lp_names, true, false);
+        lp_names.append(implicit_lp_names);
+
+        for (expr const & e : params_and_exprs) {
+            lean_trace(name({"xinductive", "finalize"}),
+                       tout() << mlocal_name(e) << " : " << mlocal_type(e) << "\n";);
+        }
+
+        for (name const & lp_name : lp_names) {
+            lean_trace(name({"xinductive", "lp_names"}), tout() << lp_name << "\n";);
         }
 
         return m_p.env();
@@ -154,6 +181,8 @@ void initialize_inductive_cmds() {
     register_trace_class(name({"xinductive", "elab"}));
     register_trace_class(name({"xinductive", "params"}));
     register_trace_class(name({"xinductive", "new_params"}));
+    register_trace_class(name({"xinductive", "finalize"}));
+    register_trace_class(name({"xinductive", "lp_names"}));
 }
 
 void finalize_inductive_cmds() {}
