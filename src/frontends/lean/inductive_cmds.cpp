@@ -304,7 +304,6 @@ class xinductive_cmd_fn {
 
     void elaborate_inductive_decls(buffer<expr> const & params, buffer<expr> const & inds, buffer<buffer<expr> > const & intro_rules,
                                    buffer<expr> & new_params, buffer<expr> & new_inds, buffer<buffer<expr> > & new_intro_rules) {
-
         elaborator elab(m_env, m_p.get_options(), metavar_context(), local_context());
 
         buffer<expr> params_no_inds;
