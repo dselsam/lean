@@ -94,6 +94,7 @@ class xinductive_cmd_fn {
     bool                            m_explicit_levels; // true if the user is providing explicit universe levels
     level                           m_u; // temporary auxiliary global universe used for inferring the result
                                          // universe of an inductive datatype declaration.
+    bool                            m_infer_result_universe{false};
 
     [[ noreturn ]] void throw_error(char const * error_msg) { throw parser_error(error_msg, m_pos); }
     [[ noreturn ]] void throw_error(sstream const & strm) { throw parser_error(strm, m_pos); }
@@ -108,8 +109,91 @@ class xinductive_cmd_fn {
             throw_error("resultant universe must be provided, when using explicit universe levels");
     }
 
+    level replace_u(level const & l, level const & rlvl) {
+        return replace(l, [&](level const & l) {
+                if (l == m_u) return some_level(rlvl);
+                else return none_level();
+            });
+    }
+
+    expr replace_u(expr const & type, level const & rlvl) {
+        return replace(type, [&](expr const & e) {
+                if (is_sort(e)) {
+                    return some_expr(update_sort(e, replace_u(sort_level(e), rlvl)));
+                } else if (is_constant(e)) {
+                    return some_expr(update_constant(e, map(const_levels(e),
+                                                            [&](level const & l) { return replace_u(l, rlvl); })));
+                } else {
+                    return none_expr();
+                }
+            });
+    }
+
+    /** \brief Create a local constant based on the given binding */
+    expr mk_local_for(expr const & b) {
+        return mk_local(mk_fresh_name(), binding_name(b), binding_domain(b), binding_info(b), b.get_tag());
+    }
+
+    /* \brief Add \c lvl to \c r_lvls (if it is not already there.
+
+       \pre lvl does not contain m_u.
+    */
+    void accumulate_level(level const & lvl, buffer<level> & r_lvls) {
+        if (occurs(m_u, lvl)) {
+            throw exception("failed to infer inductive datatype resultant universe, "
+                            "provide the universe levels explicitly");
+        } else if (std::find(r_lvls.begin(), r_lvls.end(), lvl) == r_lvls.end()) {
+            r_lvls.push_back(lvl);
+        }
+    }
+
+    /** \bried Accumulate the universe levels occurring in an introduction rule argument universe.
+        In general, the argument of an introduction rule has type
+                 Pi (a_1 : A_1) (a_2 : A_1[a_1]) ..., B[a_1, a_2, ...]
+        The universe associated with it will be
+                 imax(l_1, imax(l_2, ..., r))
+        where l_1 is the unvierse of A_1, l_2 of A_2, and r of B[a_1, ..., a_n].
+        The result placeholder m_u must only appear as r.
+    */
+    void accumulate_levels(level const & lvl, buffer<level> & r_lvls) {
+        if (lvl == m_u) {
+            // ignore this is the auxiliary lvl
+        } else if (is_imax(lvl)) {
+            level lhs = imax_lhs(lvl);
+            level rhs = imax_rhs(lvl);
+            accumulate_level(lhs, r_lvls);
+            accumulate_levels(rhs, r_lvls);
+        } else {
+            accumulate_level(lvl, r_lvls);
+        }
+    }
+
+    /** \brief Traverse the introduction rule type and collect the universes where arguments reside in \c r_lvls.
+        This information is used to compute the resultant universe level for the inductive datatype declaration.
+    */
+    void accumulate_levels(expr intro_type, buffer<level> & r_lvls) {
+        while (is_pi(intro_type)) {
+            level l = get_level(m_ctx, binding_domain(intro_type));
+            accumulate_levels(l, r_lvls);
+            intro_type = instantiate(binding_body(intro_type), mk_local_for(intro_type));
+        }
+    }
+
+    /** \brief Given a sequence of introduction rules (encoded as local constants), compute the resultant
+        universe for the inductive datatype declaration.
+    */
+    level infer_resultant_universe(unsigned num_intro_rules, expr const * intro_rules) {
+        lean_assert(m_infer_result_universe);
+        buffer<level> r_lvls;
+        for (unsigned i = 0; i < num_intro_rules; i++) {
+            accumulate_levels(mlocal_type(intro_rules[i]), r_lvls);
+        }
+        return mk_result_level(m_env, r_lvls);
+    }
+
     /** \brief Return the universe level of the given type, if it is not a sort, then raise an exception. */
     level get_datatype_result_level(expr d_type) {
+        d_type = m_ctx.relaxed_whnf(d_type);
         type_context::tmp_locals locals(m_ctx);
         while (is_pi(d_type)) {
             d_type = instantiate(binding_body(d_type), locals.push_local_from_binding(d_type));
@@ -118,6 +202,18 @@ class xinductive_cmd_fn {
         if (!is_sort(d_type))
             throw_error(sstream() << "invalid inductive datatype, resultant type is not a sort");
         return sort_level(d_type);
+    }
+
+    /** \brief Update the result sort of the given type */
+    expr update_result_sort(expr t, level const & l) {
+        t = m_ctx.whnf(t);
+        if (is_pi(t)) {
+            return update_binding(t, binding_domain(t), update_result_sort(binding_body(t), l));
+        } else if (is_sort(t)) {
+            return update_sort(t, l);
+        } else {
+            lean_unreachable();
+        }
     }
 
     void parse_intro_rules(bool has_params, expr const & ind, buffer<expr> & intro_rules, bool prepend_ns) {
@@ -154,8 +250,19 @@ class xinductive_cmd_fn {
 
         convert_params_to_kernel(elab.ctx(), elab_params, new_params);
 
-        for (expr const & ind : inds)
-            new_inds.push_back(update_mlocal(ind, elab.elaborate(replace_locals(mlocal_type(ind), params, new_params))));
+        for (expr const & ind : inds) {
+            expr new_ind_type = mlocal_type(ind);
+            if (is_placeholder(new_ind_type))
+                new_ind_type = mk_sort(mk_level_placeholder());
+            level l = get_datatype_result_level(new_ind_type);
+            if (is_placeholder(l)) {
+                if (m_explicit_levels)
+                    throw_error("resultant universe must be provided, when using explicit universe levels");
+                new_ind_type = update_result_sort(new_ind_type, m_u);
+                m_infer_result_universe = true;
+            }
+            new_inds.push_back(update_mlocal(ind, elab.elaborate(replace_locals(new_ind_type, params, new_params))));
+        }
 
         for (buffer<expr> const & irs : intro_rules) {
             new_intro_rules.emplace_back();
@@ -180,6 +287,17 @@ class xinductive_cmd_fn {
 
         elab.finalize(all_exprs, implicit_lp_names, true, false);
         m_lp_names.append(implicit_lp_names);
+
+        // compute resultant level
+        level resultant_level;
+        if (m_infer_result_universe) {
+            resultant_level = infer_resultant_universe(all_exprs.size() - offsets[0] - offsets[1], all_exprs.data() + offsets[0] + offsets[1]);
+
+            for (unsigned i = offsets[0]; i < offsets[0] + offsets[1]; ++i) {
+                expr ind_type = replace_u(mlocal_type(all_exprs[i]), resultant_level);
+                all_exprs[i] = update_mlocal(all_exprs[i], ind_type);
+            }
+        }
 
         new_params.clear();
         new_inds.clear();
@@ -212,7 +330,7 @@ class xinductive_cmd_fn {
         expr ind = parse_single_header(m_p, m_lp_names, params);
         m_explicit_levels = !m_lp_names.empty();
 
-        check_ind_type(ind);
+        check_ind_type(mlocal_type(ind));
         name short_ind_name = mlocal_name(ind);
         ind = mk_local(get_namespace(m_p.env()) + short_ind_name, mlocal_type(ind));
         name ind_name = mlocal_name(ind);
