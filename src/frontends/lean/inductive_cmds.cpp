@@ -68,11 +68,6 @@ static void replace_params(buffer<expr> const & params, buffer<expr> const & new
     }
 }
 
-static expr replace_params(buffer<expr> const & params, buffer<expr> const & new_params, expr const & old_expr) {
-    expr new_type = replace_locals(mlocal_type(old_expr), params, new_params);
-    return update_mlocal(old_expr, new_type);
-}
-
 static void collect_all_exprs(buffer<expr> const & params, buffer<expr> const & inds, buffer<buffer<expr> > const & intro_rules, buffer<expr> & all_exprs) {
     all_exprs.append(params);
     all_exprs.append(inds);
@@ -101,7 +96,7 @@ static void parse_intro_rules(parser & p, name_map<implicit_infer_kind> & implic
     if (p.curr_is_token(get_bar_tk())) {
         p.next();
         while (true) {
-            name ir_name = mlocal_name(ind) + p.check_decl_id_next("invalid introduction rule, identifier expected");
+            name ir_name = get_namespace(p.env()) + mlocal_name(ind) + p.check_decl_id_next("invalid introduction rule, identifier expected");
             implicit_infer_map.insert(ir_name, parse_implicit_infer_modifier(p));
             expr ir_type;
             if (has_params || p.curr_is_token(get_colon_tk())) {
@@ -170,7 +165,7 @@ public:
         buffer<expr> new_params;
         convert_params_to_kernel(elab.ctx(), elab_params, new_params);
 
-        expr new_ind = replace_params(params, new_params, update_mlocal(ind, elab.elaborate(mlocal_type(ind))));
+        expr new_ind = update_mlocal(ind, replace_locals(elab.elaborate(mlocal_type(ind)), params, new_params));
 
         buffer<expr> new_intro_rules;
         replace_params(params, new_params, ind, new_ind, intro_rules, new_intro_rules);
@@ -250,7 +245,7 @@ public:
 
         buffer<expr> new_inds;
         for (expr const & ind : inds)
-            new_inds.push_back(update_mlocal(ind, elab.elaborate(replace_params(params, new_params, mlocal_type(ind)))));
+            new_inds.push_back(update_mlocal(ind, elab.elaborate(replace_locals(mlocal_type(ind), params, new_params))));
 
         buffer<buffer<expr> > new_intro_rules;
         for (buffer<expr> & irs : intro_rules) {
