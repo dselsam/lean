@@ -119,6 +119,18 @@ class xinductive_cmd_fn {
         return d.get_num_univ_params() != r.get_num_univ_params();
     }
 
+    void remove_non_parameters(parser const & p, buffer<expr> & params) {
+        unsigned j = 0;
+        for (unsigned i = 0; i < params.size(); i++) {
+            expr const & param = params[i];
+            if (p.is_local_decl(param) && !p.is_local_variable(param)) {
+                params[j] = param;
+                j++;
+            }
+        }
+        params.shrink(j);
+    }
+
     /** \brief Add aliases for the inductive datatype, introduction and elimination rules */
     void add_aliases(buffer<expr> const & params, buffer<expr> const & inds, buffer<buffer<expr> > const & intro_rules) {
         buffer<expr> params_only(params);
