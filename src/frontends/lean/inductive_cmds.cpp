@@ -41,9 +41,12 @@ Author: Daniel Selsam
 #include "frontends/lean/parser.h"
 #include "frontends/lean/tokens.h"
 #include "frontends/lean/type_util.h"
+#include "frontends/lean/inductive_cmds.h"
 
 namespace lean {
 static name * g_tmp_prefix  = nullptr;
+
+static name tmp_global_univ_name() { return name(*g_tmp_prefix, "u"); }
 
 static void convert_params_to_kernel(type_context & tctx, buffer<expr> const & lctx_params, buffer<expr> & kernel_params) {
     for (unsigned i = 0; i < lctx_params.size(); ++i) {
@@ -59,6 +62,9 @@ static void replace_params(buffer<expr> const & params, buffer<expr> const & new
         new_type = replace_local(new_type, ind, new_ind);
         new_intro_rules.push_back(update_mlocal(ir, new_type));
     }
+}
+
+static void replace_params(buffer<expr> const & inds, buffer<expr> const & new_inds, unsigned offset1, unsigned offset2, buffer<expr> const & all_exprs, buffer<expr> & new_intro_rules) {
 }
 
 static void replace_params(buffer<expr> const & params, buffer<expr> const & new_params, buffer<expr> const & inds, buffer<expr> const & new_inds,
@@ -86,6 +92,8 @@ static void collect_all_exprs(buffer<expr> const & params, expr const & ind, buf
 class xinductive_cmd_fn {
     parser &                        m_p;
     environment                     m_env;
+    decl_attributes                 m_attrs;
+    buffer<decl_attributes>         m_mut_attrs;
     aux_type_context                m_aux_ctx;
     type_context &                  m_ctx;
     buffer<name>                    m_lp_names;
@@ -95,21 +103,12 @@ class xinductive_cmd_fn {
     level                           m_u; // temporary auxiliary global universe used for inferring the result
                                          // universe of an inductive datatype declaration.
     bool                            m_infer_result_universe{false};
-    name_map<type_modifiers>        m_mods;
 
-    [[ noreturn ]] void throw_error(char const * error_msg) { throw parser_error(error_msg, m_pos); }
-    [[ noreturn ]] void throw_error(sstream const & strm) { throw parser_error(strm, m_pos); }
+    [[ noreturn ]] void throw_error(char const * error_msg) const { throw parser_error(error_msg, m_pos); }
+    [[ noreturn ]] void throw_error(sstream const & strm) const { throw parser_error(strm, m_pos); }
 
     name mk_rec_name(name const & n) {
         return ::lean::inductive::get_elim_name(n);
-    }
-
-    void apply_modifiers() {
-        m_mods.for_each([&](name const & n, type_modifiers const & m) {
-                if (m.is_class())
-                    m_env = set_attribute(m_env, get_dummy_ios(), "class", n, LEAN_DEFAULT_PRIORITY, list<unsigned>(),
-                                          true);
-            });
     }
 
     /** \brief Return true if eliminator/recursor can eliminate into any universe */
@@ -348,7 +347,15 @@ class xinductive_cmd_fn {
         }
 
         elab.finalize(all_exprs, implicit_lp_names, true, false);
+        m_env = elab.env();
         m_lp_names.append(implicit_lp_names);
+
+        new_params.clear();
+        new_inds.clear();
+        new_intro_rules.clear();
+
+        for (unsigned i = 0; i < offsets[0]; ++i)
+            new_params.push_back(all_exprs[i]);
 
         // compute resultant level
         level resultant_level;
@@ -357,23 +364,18 @@ class xinductive_cmd_fn {
 
             for (unsigned i = offsets[0]; i < offsets[0] + offsets[1]; ++i) {
                 expr ind_type = replace_u(mlocal_type(all_exprs[i]), resultant_level);
-                all_exprs[i] = update_mlocal(all_exprs[i], ind_type);
+                new_inds.push_back(update_mlocal(all_exprs[i], ind_type));
             }
         }
 
-        new_params.clear();
-        new_inds.clear();
-        new_intro_rules.clear();
+        // TODO(dhs): I don't think we actually need to keep replacing all the locals, as long as the names are the same
+        m_env = m_env.remove_universe(tmp_global_univ_name());
 
-        for (unsigned i = 0; i < offsets[0]; ++i)
-            new_params.push_back(all_exprs[i]);
-        for (unsigned i = 0; i < offsets[1]; ++i)
-            new_inds.push_back(all_exprs[offsets[0] + i]);
         for (unsigned i = 2; i < offsets.size(); ++i) {
             new_intro_rules.emplace_back();
             unsigned offset = offsets[0] + offsets[1];
             for (unsigned j = 0; j < offsets[i]; ++j) {
-                new_intro_rules.back().push_back(all_exprs[offset + j]);
+                new_intro_rules.back().push_back(replace_locals(all_exprs[offset+j], offsets[1], all_exprs.data() + offsets[0], new_inds.data()));
             }
             offset += offsets[i];
         }
@@ -382,23 +384,19 @@ class xinductive_cmd_fn {
             lean_trace(name({"xinductive", "finalize"}),
                        tout() << mlocal_name(e) << " (" << local_pp_name(e) << ") : " << mlocal_type(e) << "\n";);
         }
-
-        m_env = elab.env();
     }
 
     expr parse_xinductive(buffer<expr> & params, buffer<expr> & intro_rules) {
         parser::local_scope scope(m_p);
         m_pos = m_p.pos();
 
-        type_modifiers mods;
-        mods.parse(m_p);
+        m_attrs.parse(m_p);
+        check_attrs(m_attrs);
 
         expr ind = parse_single_header(m_p, m_lp_names, params);
         m_explicit_levels = !m_lp_names.empty();
 
         ind = mk_local(get_namespace(m_p.env()) + mlocal_name(ind), mlocal_name(ind), mlocal_type(ind), local_info(ind));
-
-        m_mods.insert(mlocal_name(ind), mods);
 
         lean_trace(name({"xinductive", "parse"}),
                    tout() << mlocal_name(ind) << " : " << mlocal_type(ind) << "\n";);
@@ -425,7 +423,8 @@ class xinductive_cmd_fn {
     void parse_xmutual_inductive(buffer<expr> & params, buffer<expr> & inds, buffer<buffer<expr> > & intro_rules) {
         parser::local_scope scope(m_p);
 
-        // TODO(dhs): do we support modifiers for mutually inductive types?
+        m_attrs.parse(m_p);
+        check_attrs(m_attrs);
 
         buffer<expr> pre_inds;
         parse_mutual_header(m_p, m_lp_names, pre_inds, params);
@@ -434,7 +433,10 @@ class xinductive_cmd_fn {
 
         for (expr const & pre_ind : pre_inds) {
             m_pos = m_p.pos();
-            expr ind_type = parse_inner_header(m_p, local_pp_name(pre_ind));
+            expr ind_type; decl_attributes attrs;
+            std::tie(ind_type, attrs) = parse_inner_header(m_p, local_pp_name(pre_ind));
+            check_attrs(attrs);
+            m_mut_attrs.push_back(attrs);
             lean_trace(name({"xinductive", "parse"}), tout() << mlocal_name(pre_ind) << " : " << ind_type << "\n";);
             intro_rules.emplace_back();
             parse_intro_rules(!params.empty(), pre_ind, intro_rules.back(), true);
@@ -456,17 +458,27 @@ class xinductive_cmd_fn {
         collect_implicit_locals(m_p, m_lp_names, params, all_inds_intro_rules);
     }
 
+    void check_attrs(decl_attributes const & attrs) const {
+        if (!attrs.ok_for_inductive_type())
+            throw_error("only attribute [class] accepted for inductive types");
+    }
 public:
-    xinductive_cmd_fn(parser & p): m_p(p), m_env(p.env()), m_aux_ctx(p.env()), m_ctx(m_aux_ctx.get()) {
-        name u_name(*g_tmp_prefix, "u");
-        m_env = m_env.add_universe(name(*g_tmp_prefix, "u"));
-        m_u = mk_global_univ(u_name);
+    xinductive_cmd_fn(parser & p, decl_attributes const & attrs): m_p(p), m_env(p.env()), m_attrs(attrs), m_aux_ctx(p.env()), m_ctx(m_aux_ctx.get()) {
+        m_env = m_env.add_universe(tmp_global_univ_name());
+        m_u = mk_global_univ(tmp_global_univ_name());
+        check_attrs(m_attrs);
     }
 
     void post_process(buffer<expr> const & new_params, buffer<expr> const & new_inds, buffer<buffer<expr> > const & new_intro_rules) {
         add_aliases(new_params, new_inds, new_intro_rules);
         add_namespaces(new_inds);
-        apply_modifiers();
+        for (expr const & ind : new_inds)
+            m_env = m_attrs.apply(m_env, m_p.ios(), mlocal_name(ind));
+        if (!m_mut_attrs.empty()) {
+            lean_assert(new_inds.size() == m_mut_attrs.size());
+            for (unsigned i = 0; i < new_inds.size(); ++i)
+                m_env = m_mut_attrs[i].apply(m_env, m_p.ios(), mlocal_name(new_inds[i]));
+        }
     }
 
     environment shared_inductive_cmd(buffer<expr> const & params, buffer<expr> const & inds, buffer<buffer<expr> > const & intro_rules) {
@@ -474,7 +486,8 @@ public:
         buffer<expr> new_inds;
         buffer<buffer<expr> > new_intro_rules;
         elaborate_inductive_decls(params, inds, intro_rules, new_params, new_inds, new_intro_rules);
-        m_env = add_inductive_declaration(m_env, m_lp_names, new_params, new_inds, new_intro_rules);
+        // Note: we do not want the global universe any more
+        m_env = add_inductive_declaration(m_p.env(), m_lp_names, new_params, new_inds, new_intro_rules);
         post_process(new_params, new_inds, new_intro_rules);
         return m_env;
     }
@@ -497,13 +510,20 @@ public:
     }
 };
 
+environment inductive_cmd_ex(parser & p, decl_attributes const & attrs) {
+    return xinductive_cmd_fn(p, attrs).inductive_cmd();
+}
+
+environment mutual_inductive_cmd_ex(parser & p, decl_attributes const & attrs) {
+    return xinductive_cmd_fn(p, attrs).mutual_inductive_cmd();
+}
+
 environment xinductive_cmd(parser & p) {
-    xinductive_cmd_fn fn(p);
-    return fn.inductive_cmd();
+    return inductive_cmd_ex(p, {});
 }
 
 environment xmutual_inductive_cmd(parser & p) {
-    return xinductive_cmd_fn(p).mutual_inductive_cmd();
+    return mutual_inductive_cmd_ex(p, {});
 }
 
 void register_inductive_cmds(cmd_table & r) {

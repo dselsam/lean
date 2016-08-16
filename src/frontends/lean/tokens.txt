@@ -139,3 +139,5 @@ key_equivalences key_equivalences
 using_well_founded using_well_founded
 mutual_definition mutual_definition
 mutual_meta_definition mutual_meta_definition
+xinductive xinductive
+xmutual_inductive xmutual_inductive

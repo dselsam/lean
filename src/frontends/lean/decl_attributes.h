@@ -27,6 +27,7 @@ public:
     void parse(parser & p);
     environment apply(environment env, io_state const & ios, name const & d) const;
     bool is_parsing_only() const { return m_parsing_only; }
+    bool ok_for_inductive_type() const;
     operator bool() const { return static_cast<bool>(m_entries); }
 };
 }

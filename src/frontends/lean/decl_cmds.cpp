@@ -37,6 +37,7 @@ Author: Leonardo de Moura
 #include "frontends/lean/nested_declaration.h"
 #include "frontends/lean/structure_cmd.h"
 #include "frontends/lean/definition_cmds.h"
+#include "frontends/lean/inductive_cmds.h"
 
 // We don't display profiling information for declarations that take less than 0.01 secs
 #ifndef LEAN_PROFILE_THRESHOLD
@@ -1236,8 +1237,17 @@ static environment attribute_cmd_core(parser & p, bool persistent) {
         attributes.parse(p);
         parsed_attrs  = true;
         // 'attribute [attr] definition ...'
-        if (p.curr_is_command())
-            return definition_cmd_ex(p, attributes);
+        if (p.curr_is_command()) {
+            if (p.curr_is_token_or_id(get_xinductive_tk())) {
+                p.next();
+                return inductive_cmd_ex(p, attributes);
+            } else if (p.curr_is_token_or_id(get_xmutual_inductive_tk())) {
+                p.next();
+                return mutual_inductive_cmd_ex(p, attributes);
+            } else {
+                return definition_cmd_ex(p, attributes);
+            }
+        }
     }
     name d          = p.check_constant_next("invalid 'attribute' command, constant expected");
     ds.push_back(d);
