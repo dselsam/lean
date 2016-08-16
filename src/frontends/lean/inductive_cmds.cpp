@@ -99,16 +99,6 @@ class xinductive_cmd_fn {
     [[ noreturn ]] void throw_error(char const * error_msg) { throw parser_error(error_msg, m_pos); }
     [[ noreturn ]] void throw_error(sstream const & strm) { throw parser_error(strm, m_pos); }
 
-    void check_ind_type(expr const & ind_type) {
-        expr ty = ind_type;
-        while (is_pi(ty))
-            ty = binding_body(ty);
-        if (!is_sort(ty))
-            throw_error("invalid inductive datatype, resultant type is not a sort");
-        if (m_explicit_levels && is_placeholder(sort_level(ty)))
-            throw_error("resultant universe must be provided, when using explicit universe levels");
-    }
-
     level replace_u(level const & l, level const & rlvl) {
         return replace(l, [&](level const & l) {
                 if (l == m_u) return some_level(rlvl);
@@ -330,7 +320,6 @@ class xinductive_cmd_fn {
         expr ind = parse_single_header(m_p, m_lp_names, params);
         m_explicit_levels = !m_lp_names.empty();
 
-        check_ind_type(mlocal_type(ind));
         name short_ind_name = mlocal_name(ind);
         ind = mk_local(get_namespace(m_p.env()) + short_ind_name, mlocal_type(ind));
         name ind_name = mlocal_name(ind);
@@ -360,7 +349,6 @@ class xinductive_cmd_fn {
         for (expr const & pre_ind : pre_inds) {
             m_pos = m_p.pos();
             expr ind_type = parse_inner_header(m_p, local_pp_name(pre_ind));
-            check_ind_type(ind_type);
             lean_trace(name({"xinductive", "parse"}), tout() << mlocal_name(pre_ind) << " : " << ind_type << "\n";);
             intro_rules.emplace_back();
             parse_intro_rules(!params.empty(), pre_ind, intro_rules.back(), true);
