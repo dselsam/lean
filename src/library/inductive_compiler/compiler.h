@@ -12,6 +12,7 @@ Author: Daniel Selsam
 namespace lean {
 
 environment add_inductive_declaration(environment const & env,
+                                      name_map<implicit_infer_kind> implicit_infer_map,
                                       buffer<name> const & lp_names, buffer<expr> const & params,
                                       buffer<expr> const & inds, buffer<buffer<expr> > const & intro_rules);
 

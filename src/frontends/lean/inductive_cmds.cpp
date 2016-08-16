@@ -107,6 +107,13 @@ class xinductive_cmd_fn {
     [[ noreturn ]] void throw_error(char const * error_msg) const { throw parser_error(error_msg, m_pos); }
     [[ noreturn ]] void throw_error(sstream const & strm) const { throw parser_error(strm, m_pos); }
 
+    implicit_infer_kind get_implicit_infer_kind(name const & n) {
+        if (auto it = m_implicit_infer_map.find(n))
+            return *it;
+        else
+            return implicit_infer_kind::Implicit;
+    }
+
     name mk_rec_name(name const & n) {
         return ::lean::inductive::get_elim_name(n);
     }
@@ -361,10 +368,13 @@ class xinductive_cmd_fn {
         level resultant_level;
         if (m_infer_result_universe) {
             resultant_level = infer_resultant_universe(all_exprs.size() - offsets[0] - offsets[1], all_exprs.data() + offsets[0] + offsets[1]);
-
             for (unsigned i = offsets[0]; i < offsets[0] + offsets[1]; ++i) {
                 expr ind_type = replace_u(mlocal_type(all_exprs[i]), resultant_level);
                 new_inds.push_back(update_mlocal(all_exprs[i], ind_type));
+            }
+        } else {
+            for (unsigned i = offsets[0]; i < offsets[0] + offsets[1]; ++i) {
+                new_inds.push_back(all_exprs[i]);
             }
         }
 
@@ -487,7 +497,7 @@ public:
         buffer<buffer<expr> > new_intro_rules;
         elaborate_inductive_decls(params, inds, intro_rules, new_params, new_inds, new_intro_rules);
         // Note: we do not want the global universe any more
-        m_env = add_inductive_declaration(m_p.env(), m_lp_names, new_params, new_inds, new_intro_rules);
+        m_env = add_inductive_declaration(m_p.env(), m_implicit_infer_map, m_lp_names, new_params, new_inds, new_intro_rules);
         post_process(new_params, new_inds, new_intro_rules);
         return m_env;
     }

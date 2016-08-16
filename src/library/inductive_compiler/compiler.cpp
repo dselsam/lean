@@ -15,13 +15,14 @@ Author: Daniel Selsam
 namespace lean {
 
 environment add_inductive_declaration(environment const & old_env,
+                                      name_map<implicit_infer_kind> implicit_infer_map,
                                       buffer<name> const & lp_names, buffer<expr> const & params,
                                       buffer<expr> const & inds, buffer<buffer<expr> > const & intro_rules) {
     // TODO(dhs): mutual and nested inductive types
     lean_assert(inds.size() == 1);
     lean_assert(intro_rules.size() == 1);
 
-    environment env = tmp_add_kernel_inductive(old_env, lp_names, params, inds[0], intro_rules[0]);
+    environment env = tmp_add_kernel_inductive(old_env, implicit_infer_map, lp_names, params, inds[0], intro_rules[0]);
     return env;
 }
 

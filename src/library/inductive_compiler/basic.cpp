@@ -45,7 +45,8 @@ using inductive::inductive_decl;
 using inductive::intro_rule;
 using inductive::mk_intro_rule;
 
-environment tmp_add_kernel_inductive(environment const & env, buffer<name> const & lp_names,
+environment tmp_add_kernel_inductive(environment const & env, name_map<implicit_infer_kind> implicit_infer_map,
+                                     buffer<name> const & lp_names,
                                      buffer<expr> const & params, expr const & ind, buffer<expr> const & intro_rules) {
     expr new_ind_type = Pi(params, mlocal_type(ind));
     expr c_ind = mk_app(mk_constant(mlocal_name(ind), param_names_to_levels(to_list(lp_names))), params);
@@ -53,7 +54,8 @@ environment tmp_add_kernel_inductive(environment const & env, buffer<name> const
     buffer<intro_rule> new_intro_rules;
     for (expr const & ir : intro_rules) {
         expr new_ir_type = Pi(params, replace_local(mlocal_type(ir), ind, c_ind));
-        new_intro_rules.push_back(mk_intro_rule(mlocal_name(ir), new_ir_type));
+        implicit_infer_kind k = *implicit_infer_map.find(mlocal_name(ir));
+        new_intro_rules.push_back(mk_intro_rule(mlocal_name(ir), infer_implicit_params(new_ir_type, params.size(), k)));
     }
     inductive_decl decl(mlocal_name(ind), new_ind_type, to_list(new_intro_rules));
     return module::add_inductive(env, to_list(lp_names), params.size(), list<inductive_decl>(decl));
