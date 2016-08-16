@@ -826,7 +826,8 @@ struct inductive_cmd_fn {
                     env = mk_cases_on(env, n);
                     save_def_info(name(n, "cases_on"), pos);
                 }
-                if (gen_cases_on && gen_no_confusion && has_eq && ((env.prop_proof_irrel() && has_heq) || (!env.prop_proof_irrel() && has_lift))) {
+                if (gen_cases_on && gen_no_confusion && has_eq
+                    && ((env.prop_proof_irrel() && has_heq) || (!env.prop_proof_irrel() && has_lift))) {
                     env = mk_no_confusion(env, n);
                     save_if_defined(name{n, "no_confusion_type"}, pos);
                     save_if_defined(name(n, "no_confusion"), pos);

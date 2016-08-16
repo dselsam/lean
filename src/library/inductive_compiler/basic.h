@@ -9,12 +9,6 @@ Author: Daniel Selsam
 
 namespace lean {
 
-environment tmp_add_kernel_inductive(environment const & env, name_map<implicit_infer_kind> implicit_infer_map,
-                                     buffer<name> const & lp_names,
-                                     buffer<expr> const & params, expr const & ind, buffer<expr> const & intro_rules);
-
-environment mk_basic_aux_decls(environment env, options const & opts, name const & ind_name);
-
 void initialize_inductive_compiler_basic();
 void finalize_inductive_compiler_basic();
 

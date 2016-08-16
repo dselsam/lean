@@ -7,7 +7,7 @@ prelude
 import init.meta.name init.meta.format
 
 /- Reflect a C++ level object. The VM replaces it with the C++ implementation. -/
-inductive level :=
+xinductive level
 | zero   : level
 | succ   : level → level
 | max    : level → level → level

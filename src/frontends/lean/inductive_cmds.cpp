@@ -496,8 +496,7 @@ public:
         buffer<expr> new_inds;
         buffer<buffer<expr> > new_intro_rules;
         elaborate_inductive_decls(params, inds, intro_rules, new_params, new_inds, new_intro_rules);
-        // Note: we do not want the global universe any more
-        m_env = add_inductive_declaration(m_p.env(), m_implicit_infer_map, m_lp_names, new_params, new_inds, new_intro_rules);
+        m_env = add_inductive_declaration(m_p.env(), m_p.get_options(), m_implicit_infer_map, m_lp_names, new_params, new_inds, new_intro_rules);
         post_process(new_params, new_inds, new_intro_rules);
         return m_env;
     }

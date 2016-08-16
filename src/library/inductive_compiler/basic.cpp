@@ -41,58 +41,6 @@ Author: Daniel Selsam
 
 namespace lean {
 
-using inductive::inductive_decl;
-using inductive::intro_rule;
-using inductive::mk_intro_rule;
-
-environment tmp_add_kernel_inductive(environment const & env, name_map<implicit_infer_kind> implicit_infer_map,
-                                     buffer<name> const & lp_names,
-                                     buffer<expr> const & params, expr const & ind, buffer<expr> const & intro_rules) {
-    expr new_ind_type = Pi(params, mlocal_type(ind));
-    expr c_ind = mk_app(mk_constant(mlocal_name(ind), param_names_to_levels(to_list(lp_names))), params);
-
-    buffer<intro_rule> new_intro_rules;
-    for (expr const & ir : intro_rules) {
-        expr new_ir_type = Pi(params, replace_local(mlocal_type(ir), ind, c_ind));
-        implicit_infer_kind k = *implicit_infer_map.find(mlocal_name(ir));
-        new_intro_rules.push_back(mk_intro_rule(mlocal_name(ir), infer_implicit_params(new_ir_type, params.size(), k)));
-    }
-    inductive_decl decl(mlocal_name(ind), new_ind_type, to_list(new_intro_rules));
-    return module::add_inductive(env, to_list(lp_names), params.size(), list<inductive_decl>(decl));
-}
-
-environment mk_basic_aux_decls(environment env, options const & opts, name const & ind_name) {
-    bool has_unit = has_poly_unit_decls(env);
-    bool has_eq   = has_eq_decls(env);
-    bool has_heq  = has_heq_decls(env);
-    bool has_prod = has_prod_decls(env);
-    bool has_lift = has_lift_decls(env);
-
-    env = mk_rec_on(env, ind_name);
-    if (env.impredicative())
-        env = mk_induction_on(env, ind_name);
-
-    if (has_unit) {
-        env = mk_cases_on(env, ind_name);
-        if (has_eq && ((env.prop_proof_irrel() && has_heq) || (!env.prop_proof_irrel() && has_lift))) {
-                env = mk_no_confusion(env, ind_name);
-            if (has_prod) {
-                env = mk_below(env, ind_name);
-                if (env.impredicative()) {
-                    env = mk_ibelow(env, ind_name);
-                }
-            }
-        }
-    }
-
-    if (has_unit && has_prod) {
-        env = mk_brec_on(env, ind_name);
-        if (env.impredicative()) {
-            env = mk_binduction_on(env, ind_name);
-        }
-    }
-    return env;
-}
 
 void initialize_inductive_compiler_basic() {}
 void finalize_inductive_compiler_basic() {}

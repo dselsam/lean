@@ -86,7 +86,7 @@ namespace pos_num
   pos_num.rec_on a (bit0 one) (λn r, bit0 r) (λn r, bit1 n)
 end pos_num
 
-inductive num : Type :=
+xinductive num : Type
 | zero  : num
 | pos   : pos_num → num
 
@@ -96,25 +96,25 @@ namespace num
   num.rec_on a (pos one) (λp, pos (succ p))
 end num
 
-inductive bool : Type :=
+xinductive bool : Type
 | ff : bool
 | tt : bool
 
-inductive option (A : Type) : Type :=
-| none {} : option A
-| some    : A → option A
+xinductive option (A : Type) : Type
+| none {} : option
+| some    : A → option
 
 export option (none some)
 export bool (ff tt)
 
-inductive list (T : Type) : Type :=
-| nil {} : list T
-| cons   : T → list T → list T
+xinductive list (T : Type) : Type
+| nil {} : list
+| cons   : T → list → list
 
 -- Remark: we manually generate the nat.rec_on, nat.induction_on, nat.cases_on and nat.no_confusion.
 -- We do that because we want 0 instead of nat.zero in these eliminators.
-set_option inductive.rec_on   false
-set_option inductive.cases_on false
-inductive nat :=
+set_option xinductive.rec_on   false
+set_option xinductive.cases_on false
+xinductive nat
 | zero : nat
 | succ : nat → nat
