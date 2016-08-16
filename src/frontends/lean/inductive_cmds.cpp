@@ -308,7 +308,7 @@ class xinductive_cmd_fn {
 
         for (expr const & e : all_exprs) {
             lean_trace(name({"xinductive", "finalize"}),
-                       tout() << mlocal_name(e) << " : " << mlocal_type(e) << "\n";);
+                       tout() << mlocal_name(e) << " (" << local_pp_name(e) << ") : " << mlocal_type(e) << "\n";);
         }
 
         m_env = elab.env();
@@ -317,17 +317,16 @@ class xinductive_cmd_fn {
     expr parse_xinductive(buffer<expr> & params, buffer<expr> & intro_rules) {
         parser::local_scope scope(m_p);
         m_pos = m_p.pos();
+
         expr ind = parse_single_header(m_p, m_lp_names, params);
         m_explicit_levels = !m_lp_names.empty();
 
-        name short_ind_name = mlocal_name(ind);
-        ind = mk_local(get_namespace(m_p.env()) + short_ind_name, mlocal_type(ind));
-        name ind_name = mlocal_name(ind);
+        ind = mk_local(get_namespace(m_p.env()) + mlocal_name(ind), short_ind_name, mlocal_type(ind), local_info(ind));
 
         lean_trace(name({"xinductive", "parse"}),
                    tout() << mlocal_name(ind) << " : " << mlocal_type(ind) << "\n";);
 
-        m_p.add_local_expr(short_ind_name, ind);
+        m_p.add_local(ind);
         m_p.parse_local_notation_decl();
 
         parse_intro_rules(!params.empty(), ind, intro_rules, false);
@@ -335,7 +334,14 @@ class xinductive_cmd_fn {
         buffer<expr> ind_intro_rules;
         ind_intro_rules.push_back(ind);
         ind_intro_rules.append(intro_rules);
+
         collect_implicit_locals(m_p, m_lp_names, params, ind_intro_rules);
+
+        for (expr const & e : params) {
+            lean_trace(name({"xinductive", "params"}),
+                       tout() << mlocal_name(e) << " (" << local_pp_name(e) << ") : " << mlocal_type(e) << "\n";);
+        }
+
         return ind;
     }
 
