@@ -4,7 +4,6 @@ Released under Apache 2.0 license as described in the file LICENSE.
 
 Author: Daniel Selsam
 */
-#pragma once
 #include <algorithm>
 #include <library/attribute_manager.h>
 #include "util/sstream.h"
@@ -42,60 +41,54 @@ Author: Daniel Selsam
 
 namespace lean {
 
-environment mk_basic_aux_decls(environment env, buffer<name> const & lp_names, buffer<expr> const & params, expr const & ind, buffer<expr> const & intro_rules) {
-    /*
+using inductive::inductive_decl;
+using inductive::intro_rule;
+using inductive::mk_intro_rule;
+
+environment tmp_add_kernel_inductive(environment const & env, buffer<name> const & lp_names,
+                                     buffer<expr> const & params, expr const & ind, buffer<expr> const & intro_rules) {
+    expr new_ind_type = Pi(params, mlocal_type(ind));
+    expr c_ind = mk_app(mk_constant(mlocal_name(ind), param_names_to_levels(to_list(lp_names))), params);
+
+    buffer<intro_rule> new_intro_rules;
+    for (expr const & ir : intro_rules) {
+        expr new_ir_type = Pi(params, replace_local(mlocal_type(ir), ind, c_ind));
+        new_intro_rules.push_back(mk_intro_rule(mlocal_name(ir), new_ir_type));
+    }
+    inductive_decl decl(mlocal_name(ind), new_ind_type, to_list(new_intro_rules));
+    return module::add_inductive(env, to_list(lp_names), params.size(), list<inductive_decl>(decl));
+}
+
+environment mk_basic_aux_decls(environment env, options const & opts, name const & ind_name) {
     bool has_unit = has_poly_unit_decls(env);
     bool has_eq   = has_eq_decls(env);
     bool has_heq  = has_heq_decls(env);
     bool has_prod = has_prod_decls(env);
     bool has_lift = has_lift_decls(env);
-    options opts  = m_p.get_options();
 
+    env = mk_rec_on(env, ind_name);
+    if (env.impredicative())
+        env = mk_induction_on(env, ind_name);
 
-    for (inductive_decl const & d : decls) {
-        name const & n = inductive_decl_name(d);
-        pos_info pos   = *m_decl_pos_map.find(n);
-        if (gen_rec_on) {
-            env = mk_rec_on(env, n);
-            save_def_info(name(n, "rec_on"), pos);
-        }
-        if (gen_rec_on && env.impredicative()) {
-            env = mk_induction_on(env, n);
-            save_def_info(name(n, "induction_on"), pos);
-        }
-        if (has_unit) {
-            if (gen_cases_on) {
-                env = mk_cases_on(env, n);
-                save_def_info(name(n, "cases_on"), pos);
-            }
-            if (gen_cases_on && gen_no_confusion && has_eq && ((env.prop_proof_irrel() && has_heq) || (!env.prop_proof_irrel() && has_lift))) {
-                env = mk_no_confusion(env, n);
-                save_if_defined(name{n, "no_confusion_type"}, pos);
-                save_if_defined(name(n, "no_confusion"), pos);
-            }
-            if (gen_brec_on && has_prod) {
-                env = mk_below(env, n);
-                save_if_defined(name{n, "below"}, pos);
+    if (has_unit) {
+        env = mk_cases_on(env, ind_name);
+        if (has_eq && ((env.prop_proof_irrel() && has_heq) || (!env.prop_proof_irrel() && has_lift))) {
+                env = mk_no_confusion(env, ind_name);
+            if (has_prod) {
+                env = mk_below(env, ind_name);
                 if (env.impredicative()) {
-                    env = mk_ibelow(env, n);
-                    save_if_defined(name(n, "ibelow"), pos);
+                    env = mk_ibelow(env, ind_name);
                 }
             }
         }
     }
-    for (inductive_decl const & d : decls) {
-        name const & n = inductive_decl_name(d);
-        pos_info pos   = *m_decl_pos_map.find(n);
-        if (gen_brec_on && has_unit && has_prod) {
-            env = mk_brec_on(env, n);
-            save_if_defined(name{n, "brec_on"}, pos);
-            if (env.impredicative()) {
-                env = mk_binduction_on(env, n);
-                save_if_defined(name(n, "binduction_on"), pos);
-            }
+
+    if (has_unit && has_prod) {
+        env = mk_brec_on(env, ind_name);
+        if (env.impredicative()) {
+            env = mk_binduction_on(env, ind_name);
         }
     }
-    */
     return env;
 }
 

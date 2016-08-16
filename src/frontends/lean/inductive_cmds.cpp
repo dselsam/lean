@@ -100,6 +100,50 @@ class xinductive_cmd_fn {
     [[ noreturn ]] void throw_error(char const * error_msg) { throw parser_error(error_msg, m_pos); }
     [[ noreturn ]] void throw_error(sstream const & strm) { throw parser_error(strm, m_pos); }
 
+    name mk_rec_name(name const & n) {
+        return ::lean::inductive::get_elim_name(n);
+    }
+
+    void apply_modifiers() {
+        m_mods.for_each([&](name const & n, type_modifiers const & m) {
+                if (m.is_class())
+                    m_env = set_attribute(m_env, get_dummy_ios(), "class", n, LEAN_DEFAULT_PRIORITY, list<unsigned>(),
+                                          true);
+            });
+    }
+
+    /** \brief Return true if eliminator/recursor can eliminate into any universe */
+    bool has_general_eliminator(name const & d_name) {
+        declaration d = m_env.get(d_name);
+        declaration r = m_env.get(mk_rec_name(d_name));
+        return d.get_num_univ_params() != r.get_num_univ_params();
+    }
+
+    /** \brief Add aliases for the inductive datatype, introduction and elimination rules */
+    void add_aliases(buffer<expr> const & params, buffer<expr> const & inds, buffer<buffer<expr> > const & intro_rules) {
+        buffer<expr> params_only(params);
+        remove_local_vars(m_p, params_only);
+        // Create aliases/local refs
+        levels ctx_levels = collect_local_nonvar_levels(m_p, to_list(m_lp_names));
+        for (expr const & ind : inds) {
+            name d_name = mlocal_name(ind);
+            name d_short_name(d_name.get_string());
+            m_env = add_alias(m_p, m_env, false, d_name, ctx_levels, params_only);
+            name rec_name = mk_rec_name(d_name);
+            levels rec_ctx_levels = ctx_levels;
+            if (ctx_levels && has_general_eliminator(d_name))
+                rec_ctx_levels = levels(mk_level_placeholder(), rec_ctx_levels);
+            m_env = add_alias(m_p, m_env, true, rec_name, rec_ctx_levels, params_only);
+            m_env = add_protected(m_env, rec_name);
+        }
+        for (buffer<expr> const & irs : intro_rules) {
+            for (expr const & ir : irs) {
+                name ir_name = mlocal_name(ir);
+                m_env = add_alias(m_p, m_env, true, ir_name, ctx_levels, params_only);
+            }
+        }
+    }
+
     level replace_u(level const & l, level const & rlvl) {
         return replace(l, [&](level const & l) {
                 if (l == m_u) return some_level(rlvl);
@@ -230,6 +274,13 @@ class xinductive_cmd_fn {
                     break;
                 m_p.next();
             }
+        }
+    }
+
+    /** \brief Add a namespace for each inductive datatype */
+    void add_namespaces(buffer<expr> const & inds) {
+        for (expr const & ind : inds) {
+            m_env = add_namespace(m_env, mlocal_name(ind));
         }
     }
 
@@ -400,6 +451,12 @@ public:
         m_u = mk_global_univ(u_name);
     }
 
+    void post_process(buffer<expr> const & new_params, buffer<expr> const & new_inds, buffer<buffer<expr> > const & new_intro_rules) {
+        add_aliases(new_params, new_inds, new_intro_rules);
+        add_namespaces(new_inds);
+        apply_modifiers();
+    }
+
     environment inductive_cmd() {
         buffer<expr> params;
         buffer<expr> inds;
@@ -412,7 +469,9 @@ public:
         buffer<buffer<expr> > new_intro_rules;
         elaborate_inductive_decls(params, inds, intro_rules, new_params, new_inds, new_intro_rules);
 
-        return add_inductive_declaration(m_env, m_implicit_infer_map, m_mods, m_lp_names, new_params, new_inds, new_intro_rules);
+        m_env = add_inductive_declaration(m_env, m_lp_names, new_params, new_inds, new_intro_rules);
+        post_process(new_params, new_inds, new_intro_rules);
+        return m_env;
     }
 
     environment mutual_inductive_cmd() {
@@ -426,7 +485,10 @@ public:
         buffer<expr> new_inds;
         buffer<buffer<expr> > new_intro_rules;
         elaborate_inductive_decls(params, inds, intro_rules, new_params, new_inds, new_intro_rules);
-        return add_inductive_declaration(m_env, m_implicit_infer_map, m_mods, m_lp_names, new_params, new_inds, new_intro_rules);
+
+        m_env = add_inductive_declaration(m_env, m_lp_names, new_params, new_inds, new_intro_rules);
+        post_process(new_params, new_inds, new_intro_rules);
+        return m_env;
     }
 };
 
