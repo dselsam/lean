@@ -2,7 +2,7 @@
 Copyright (c) 2016 Microsoft Corporation. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 
-Author: Daniel Selsam
+Authors: Daniel Selsam, Leonardo de Moura
 */
 #include <algorithm>
 #include <library/attribute_manager.h>
@@ -361,9 +361,6 @@ class xinductive_cmd_fn {
         new_inds.clear();
         new_intro_rules.clear();
 
-        for (unsigned i = 0; i < offsets[0]; ++i)
-            new_params.push_back(all_exprs[i]);
-
         // compute resultant level
         level resultant_level;
         if (m_infer_result_universe) {
@@ -376,6 +373,13 @@ class xinductive_cmd_fn {
             for (unsigned i = offsets[0]; i < offsets[0] + offsets[1]; ++i) {
                 new_inds.push_back(all_exprs[i]);
             }
+        }
+
+        for (unsigned i = 0; i < offsets[0]; ++i) {
+            if (m_infer_result_universe)
+                new_params.push_back(replace_u(all_exprs[i], resultant_level));
+            else
+                new_params.push_back(all_exprs[i]);
         }
 
         // TODO(dhs): I don't think we actually need to keep replacing all the locals, as long as the names are the same

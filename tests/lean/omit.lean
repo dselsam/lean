@@ -14,8 +14,8 @@ prelude section
   include c
   definition foo := b
 
-  inductive tst (C : Type) :=
-  mk : tst C
+  xinductive tst (C : Type)
+  | mk : tst
 end
 
 check foo

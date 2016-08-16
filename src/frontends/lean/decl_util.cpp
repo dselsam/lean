@@ -36,7 +36,7 @@ bool parse_univ_params(parser & p, buffer<name> & lp_names) {
 
 expr parse_single_header(parser & p, buffer<name> & lp_names, buffer<expr> & params) {
     auto c_pos  = p.pos();
-    name c_name = p.check_id_next("invalid declaration, identifier expected");
+    name c_name = p.check_decl_id_next("invalid declaration, identifier expected");
     parse_univ_params(p, lp_names);
     p.parse_optional_binders(params);
     for (expr const & param : params)
@@ -64,7 +64,7 @@ void parse_mutual_header(parser & p, buffer<name> & lp_names, buffer<expr> & cs,
     }
     while (true) {
         auto c_pos  = p.pos();
-        name c_name = p.check_id_next("invalid mutual declaration, identifier expected");
+        name c_name = p.check_decl_id_next("invalid mutual declaration, identifier expected");
         cs.push_back(p.save_pos(mk_local(c_name, mk_expr_placeholder()), c_pos));
         if (!p.curr_is_token(get_comma_tk()))
             break;
@@ -82,7 +82,7 @@ pair<expr, decl_attributes> parse_inner_header(parser & p, name const & c_expect
     p.check_token_next(get_with_tk(), "invalid mutual declaration, 'with' expected");
     attrs.parse(p);
     auto id_pos = p.pos();
-    name n = p.check_id_next("invalid mutual declaration, identifier expected");
+    name n = p.check_decl_id_next("invalid mutual declaration, identifier expected");
     if (c_expected != n)
         throw parser_error(sstream() << "invalid mutual declaration, '" << c_expected << "' expected",
                            id_pos);
