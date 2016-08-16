@@ -234,9 +234,17 @@ class xinductive_cmd_fn {
 
     void elaborate_inductive_decls(buffer<expr> const & params, buffer<expr> const & inds, buffer<buffer<expr> > const & intro_rules,
                                    buffer<expr> & new_params, buffer<expr> & new_inds, buffer<buffer<expr> > & new_intro_rules) {
+
         elaborator elab(m_env, m_p.get_options(), metavar_context(), local_context());
+
+        buffer<expr> params_no_inds;
+        for (expr const & p : params) {
+            if (std::find(inds.begin(), inds.end(), p) == inds.end())
+                params_no_inds.push_back(p);
+        }
+
         buffer<expr> elab_params;
-        elaborate_params(elab, params, elab_params);
+        elaborate_params(elab, params_no_inds, elab_params);
 
         convert_params_to_kernel(elab.ctx(), elab_params, new_params);
 
@@ -251,12 +259,12 @@ class xinductive_cmd_fn {
                 new_ind_type = update_result_sort(new_ind_type, m_u);
                 m_infer_result_universe = true;
             }
-            new_inds.push_back(update_mlocal(ind, elab.elaborate(replace_locals(new_ind_type, params, new_params))));
+            new_inds.push_back(update_mlocal(ind, elab.elaborate(replace_locals(new_ind_type, params_no_inds, new_params))));
         }
 
         for (buffer<expr> const & irs : intro_rules) {
             new_intro_rules.emplace_back();
-            replace_params(params, new_params, inds, new_inds, irs, new_intro_rules.back());
+            replace_params(params_no_inds, new_params, inds, new_inds, irs, new_intro_rules.back());
             for (expr & new_ir : new_intro_rules.back())
                 new_ir = update_mlocal(new_ir, elab.elaborate(mlocal_type(new_ir)));
         }
@@ -321,7 +329,7 @@ class xinductive_cmd_fn {
         expr ind = parse_single_header(m_p, m_lp_names, params);
         m_explicit_levels = !m_lp_names.empty();
 
-        ind = mk_local(get_namespace(m_p.env()) + mlocal_name(ind), short_ind_name, mlocal_type(ind), local_info(ind));
+        ind = mk_local(get_namespace(m_p.env()) + mlocal_name(ind), mlocal_name(ind), mlocal_type(ind), local_info(ind));
 
         lean_trace(name({"xinductive", "parse"}),
                    tout() << mlocal_name(ind) << " : " << mlocal_type(ind) << "\n";);
