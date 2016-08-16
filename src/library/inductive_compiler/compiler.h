@@ -6,11 +6,13 @@ Author: Daniel Selsam
 */
 #pragma once
 #include "kernel/environment.h"
+#include "frontends/lean/type_util.h"
 #include "library/util.h"
 
 namespace lean {
 
 environment add_inductive_declaration(environment const & env, name_map<implicit_infer_kind> const & implicit_infer_map,
+                                      name_map<type_modifiers> const & mods,
                                       buffer<name> const & lp_names, buffer<expr> const & params,
                                       buffer<expr> const & inds, buffer<buffer<expr> > const & intro_rules);
 

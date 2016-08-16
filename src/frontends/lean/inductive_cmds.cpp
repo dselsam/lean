@@ -95,6 +95,7 @@ class xinductive_cmd_fn {
     level                           m_u; // temporary auxiliary global universe used for inferring the result
                                          // universe of an inductive datatype declaration.
     bool                            m_infer_result_universe{false};
+    name_map<type_modifiers>        m_mods;
 
     [[ noreturn ]] void throw_error(char const * error_msg) { throw parser_error(error_msg, m_pos); }
     [[ noreturn ]] void throw_error(sstream const & strm) { throw parser_error(strm, m_pos); }
@@ -326,10 +327,15 @@ class xinductive_cmd_fn {
         parser::local_scope scope(m_p);
         m_pos = m_p.pos();
 
+        type_modifiers mods;
+        mods.parse(m_p);
+
         expr ind = parse_single_header(m_p, m_lp_names, params);
         m_explicit_levels = !m_lp_names.empty();
 
         ind = mk_local(get_namespace(m_p.env()) + mlocal_name(ind), mlocal_name(ind), mlocal_type(ind), local_info(ind));
+
+        m_mods.insert(mlocal_name(ind), mods);
 
         lean_trace(name({"xinductive", "parse"}),
                    tout() << mlocal_name(ind) << " : " << mlocal_type(ind) << "\n";);
@@ -355,6 +361,9 @@ class xinductive_cmd_fn {
 
     void parse_xmutual_inductive(buffer<expr> & params, buffer<expr> & inds, buffer<buffer<expr> > & intro_rules) {
         parser::local_scope scope(m_p);
+
+        // TODO(dhs): do we support modifiers for mutually inductive types?
+
         buffer<expr> pre_inds;
         parse_mutual_header(m_p, m_lp_names, pre_inds, params);
         m_explicit_levels = !m_lp_names.empty();
@@ -403,7 +412,7 @@ public:
         buffer<buffer<expr> > new_intro_rules;
         elaborate_inductive_decls(params, inds, intro_rules, new_params, new_inds, new_intro_rules);
 
-        return add_inductive_declaration(m_env, m_implicit_infer_map, m_lp_names, new_params, new_inds, new_intro_rules);
+        return add_inductive_declaration(m_env, m_implicit_infer_map, m_mods, m_lp_names, new_params, new_inds, new_intro_rules);
     }
 
     environment mutual_inductive_cmd() {
@@ -417,7 +426,7 @@ public:
         buffer<expr> new_inds;
         buffer<buffer<expr> > new_intro_rules;
         elaborate_inductive_decls(params, inds, intro_rules, new_params, new_inds, new_intro_rules);
-        return add_inductive_declaration(m_env, m_implicit_infer_map, m_lp_names, new_params, new_inds, new_intro_rules);
+        return add_inductive_declaration(m_env, m_implicit_infer_map, m_mods, m_lp_names, new_params, new_inds, new_intro_rules);
     }
 };
 

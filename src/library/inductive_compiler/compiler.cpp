@@ -8,6 +8,7 @@ Author: Daniel Selsam
 #include "kernel/abstract.h"
 #include "library/locals.h"
 #include "library/module.h"
+#include "library/attribute_manager.h"
 #include "library/inductive_compiler/compiler.h"
 
 namespace lean {
@@ -29,7 +30,17 @@ environment tmp_add_kernel_inductive(environment const & env, buffer<name> const
     return module::add_inductive(env, to_list(lp_names), params.size(), list<inductive_decl>(decl));
 }
 
+environment apply_modifiers(environment env, name_map<type_modifiers> const & mods) {
+    mods.for_each([&](name const & n, type_modifiers const & m) {
+            if (m.is_class())
+                env = set_attribute(env, get_dummy_ios(), "class", n, LEAN_DEFAULT_PRIORITY, list<unsigned>(),
+                                    true);
+        });
+    return env;
+}
+
 environment add_inductive_declaration(environment const & old_env, name_map<implicit_infer_kind> const & implicit_infer_map,
+                                      name_map<type_modifiers> const & mods,
                                       buffer<name> const & lp_names, buffer<expr> const & params,
                                       buffer<expr> const & inds, buffer<buffer<expr> > const & intro_rules) {
     // TODO(dhs): mutual and nested inductive types
@@ -41,7 +52,7 @@ environment add_inductive_declaration(environment const & old_env, name_map<impl
     // update_declaration_index(env);
     // env = add_aliases(env, ls, locals, decls);
     // env = add_namespaces(env, decls);
-    // env = apply_modifiers(env);
+    env = apply_modifiers(env, mods);
     return env;
 }
 
