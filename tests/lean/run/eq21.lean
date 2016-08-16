@@ -1,4 +1,4 @@
-inductive formula :=
+xinductive formula
 | eqf  : nat → nat → formula
 | impf : formula → formula → formula
 

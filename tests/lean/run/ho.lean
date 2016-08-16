@@ -1,4 +1,4 @@
-inductive star : Type₁ :=
+xinductive star : Type₁
 | z  : star
 | s  : (nat → star) → star
 

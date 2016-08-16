@@ -1,4 +1,4 @@
-inductive N :=
+xinductive N
 | O : N
 | S : N → N
 

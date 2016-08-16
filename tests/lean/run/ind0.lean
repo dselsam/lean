@@ -1,5 +1,5 @@
 prelude
-inductive nat : Type :=
+xinductive nat : Type
 | zero : nat
 | succ : nat → nat
 

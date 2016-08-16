@@ -1,7 +1,7 @@
 open decidable
 open eq
 namespace experiment
-inductive nat : Type :=
+xinductive nat : Type
 | zero : nat
 | succ : nat → nat
 definition refl := @eq.refl

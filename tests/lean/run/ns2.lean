@@ -3,7 +3,7 @@ constant foo.T : Type.{1}
 check foo.id
 check foo.T
 
-inductive foo.v.I := unit : foo.v.I
+xinductive foo.v.I | unit : foo.v.I
 
 check foo.v.I
 check foo.v.I.unit
@@ -23,7 +23,7 @@ check bla.vvv.pr
 namespace bla
 namespace vvv
   check pr
-  inductive my.empty : Type
+  xinductive my.empty : Type
 end vvv
 end bla
 check bla.vvv.my.empty

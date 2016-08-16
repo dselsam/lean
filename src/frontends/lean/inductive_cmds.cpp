@@ -388,7 +388,10 @@ class xinductive_cmd_fn {
             new_intro_rules.emplace_back();
             unsigned offset = offsets[0] + offsets[1];
             for (unsigned j = 0; j < offsets[i]; ++j) {
-                new_intro_rules.back().push_back(replace_locals(all_exprs[offset+j], offsets[1], all_exprs.data() + offsets[0], new_inds.data()));
+                expr new_ir = replace_locals(all_exprs[offset+j], offsets[1], all_exprs.data() + offsets[0], new_inds.data());
+                if (m_infer_result_universe)
+                    new_ir = update_mlocal(new_ir, replace_u(mlocal_type(new_ir), resultant_level));
+                new_intro_rules.back().push_back(new_ir);
             }
             offset += offsets[i];
         }
