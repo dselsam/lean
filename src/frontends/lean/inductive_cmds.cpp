@@ -119,11 +119,11 @@ class xinductive_cmd_fn {
         return d.get_num_univ_params() != r.get_num_univ_params();
     }
 
-    void remove_non_parameters(parser const & p, buffer<expr> & params) {
+    void remove_non_parameters(buffer<expr> & params) {
         unsigned j = 0;
         for (unsigned i = 0; i < params.size(); i++) {
             expr const & param = params[i];
-            if (p.is_local_decl(param) && !p.is_local_variable(param)) {
+            if (m_p.is_local_decl(param) && !m_p.is_local_variable(param)) {
                 params[j] = param;
                 j++;
             }
@@ -134,7 +134,7 @@ class xinductive_cmd_fn {
     /** \brief Add aliases for the inductive datatype, introduction and elimination rules */
     void add_aliases(buffer<expr> const & params, buffer<expr> const & inds, buffer<buffer<expr> > const & intro_rules) {
         buffer<expr> params_only(params);
-        remove_local_vars(m_p, params_only);
+        remove_non_parameters(params_only);
         // Create aliases/local refs
         levels ctx_levels = collect_local_nonvar_levels(m_p, to_list(m_lp_names));
         for (expr const & ind : inds) {
