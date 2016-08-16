@@ -52,24 +52,6 @@ static void convert_params_to_kernel(type_context & tctx, buffer<expr> const & l
     }
 }
 
-static void replace_params(buffer<expr> const & params, buffer<expr> const & new_params, expr const & ind, expr const & new_ind,
-                           buffer<expr> const & intro_rules, buffer<expr> & new_intro_rules) {
-    for (expr const & ir : intro_rules) {
-        expr new_type = replace_locals(mlocal_type(ir), params, new_params);
-        new_type = replace_local(new_type, ind, new_ind);
-        new_intro_rules.push_back(update_mlocal(ir, new_type));
-    }
-}
-
-static void replace_params(buffer<expr> const & params, buffer<expr> const & new_params, buffer<expr> const & inds, buffer<expr> const & new_inds,
-                           buffer<expr> const & intro_rules, buffer<expr> & new_intro_rules) {
-    for (expr const & ir : intro_rules) {
-        expr new_type = replace_locals(mlocal_type(ir), params, new_params);
-        new_type = replace_locals(new_type, inds, new_inds);
-        new_intro_rules.push_back(update_mlocal(ir, new_type));
-    }
-}
-
 static void collect_all_exprs(buffer<expr> const & params, buffer<expr> const & inds, buffer<buffer<expr> > const & intro_rules, buffer<expr> & all_exprs) {
     all_exprs.append(params);
     all_exprs.append(inds);
@@ -95,6 +77,7 @@ class xinductive_cmd_fn {
     level                           m_u; // temporary auxiliary global universe used for inferring the result
                                          // universe of an inductive datatype declaration.
     bool                            m_infer_result_universe{false};
+    unsigned                        m_num_mutual;
 
     [[ noreturn ]] void throw_error(char const * error_msg) { throw parser_error(error_msg, m_pos); }
     [[ noreturn ]] void throw_error(sstream const & strm) { throw parser_error(strm, m_pos); }
@@ -103,6 +86,26 @@ class xinductive_cmd_fn {
         expr ty = ind_type;
         while (is_pi(ty))
             ty = binding_body(ty);
+    }
+
+    void replace_params(buffer<expr> const & params, buffer<expr> const & new_params, expr const & ind, expr const & new_ind,
+                        buffer<expr> const & intro_rules, buffer<expr> & new_intro_rules) {
+        for (expr const & ir : intro_rules) {
+            expr new_type = replace_locals(mlocal_type(ir), params.size() - m_num_mutual,
+                                           params.data() + m_num_mutual, new_params.data() + m_num_mutual);
+            new_type = replace_local(new_type, ind, new_ind);
+            new_intro_rules.push_back(update_mlocal(ir, new_type));
+        }
+    }
+
+    void replace_params(buffer<expr> const & params, buffer<expr> const & new_params, buffer<expr> const & inds, buffer<expr> const & new_inds,
+                        buffer<expr> const & intro_rules, buffer<expr> & new_intro_rules) {
+        for (expr const & ir : intro_rules) {
+            expr new_type = replace_locals(mlocal_type(ir), params.size() - m_num_mutual,
+                                           params.data() + m_num_mutual, new_params.data() + m_num_mutual);
+            new_type = replace_locals(new_type, inds, new_inds);
+            new_intro_rules.push_back(update_mlocal(ir, new_type));
+        }
     }
 
     level replace_u(level const & l, level const & rlvl) {
@@ -332,6 +335,8 @@ class xinductive_cmd_fn {
         parser::local_scope scope(m_p);
         m_pos = m_p.pos();
         expr ind = parse_single_header(m_p, m_lp_names, params);
+        m_num_mutual = 1;
+
         m_explicit_levels = !m_lp_names.empty();
 
         check_ind_type(mlocal_type(ind));
@@ -348,8 +353,9 @@ class xinductive_cmd_fn {
         parse_intro_rules(!params.empty(), ind, intro_rules, false);
 
         buffer<expr> ind_intro_rules;
-        ind_intro_rules.push_back(ind);
-        ind_intro_rules.append(intro_rules);
+        ind_intro_rules.push_back(mlocal_type(ind));
+        for (expr const & ir : intro_rules)
+            ind_intro_rules.push_back(mlocal_type(ir));
         collect_implicit_locals(m_p, m_lp_names, params, ind_intro_rules);
         return ind;
     }
@@ -358,6 +364,7 @@ class xinductive_cmd_fn {
         parser::local_scope scope(m_p);
         buffer<expr> pre_inds;
         parse_mutual_header(m_p, m_lp_names, pre_inds, params);
+        m_num_mutual = pre_inds.size();
         m_explicit_levels = !m_lp_names.empty();
         m_p.parse_local_notation_decl();
 
