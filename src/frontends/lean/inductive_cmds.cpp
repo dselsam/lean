@@ -43,6 +43,7 @@ Author: Daniel Selsam
 #include "frontends/lean/type_util.h"
 
 namespace lean {
+static name * g_tmp_prefix  = nullptr;
 
 static void convert_params_to_kernel(type_context & tctx, buffer<expr> const & lctx_params, buffer<expr> & kernel_params) {
     for (unsigned i = 0; i < lctx_params.size(); ++i) {
@@ -84,20 +85,39 @@ static void collect_all_exprs(buffer<expr> const & params, expr const & ind, buf
 
 class xinductive_cmd_fn {
     parser &                        m_p;
+    environment                     m_env;
+    aux_type_context                m_aux_ctx;
+    type_context &                  m_ctx;
     buffer<name>                    m_lp_names;
+    pos_info                        m_pos;
     name_map<implicit_infer_kind>   m_implicit_infer_map;
     bool                            m_explicit_levels; // true if the user is providing explicit universe levels
     level                           m_u; // temporary auxiliary global universe used for inferring the result
                                          // universe of an inductive datatype declaration.
 
-    void check_ind_type(expr const & ind) {
-        expr ty = mlocal_type(ind);
+    [[ noreturn ]] void throw_error(char const * error_msg) { throw parser_error(error_msg, m_pos); }
+    [[ noreturn ]] void throw_error(sstream const & strm) { throw parser_error(strm, m_pos); }
+
+    void check_ind_type(expr const & ind_type) {
+        expr ty = ind_type;
         while (is_pi(ty))
             ty = binding_body(ty);
         if (!is_sort(ty))
-            throw parser_error("invalid inductive datatype, resultant type is not a sort", m_p.pos_of(ind));
+            throw_error("invalid inductive datatype, resultant type is not a sort");
         if (m_explicit_levels && is_placeholder(sort_level(ty)))
-            throw parser_error("resultant universe must be provided, when using explicit universe levels", m_p.pos_of(ind));
+            throw_error("resultant universe must be provided, when using explicit universe levels");
+    }
+
+    /** \brief Return the universe level of the given type, if it is not a sort, then raise an exception. */
+    level get_datatype_result_level(expr d_type) {
+        type_context::tmp_locals locals(m_ctx);
+        while (is_pi(d_type)) {
+            d_type = instantiate(binding_body(d_type), locals.push_local_from_binding(d_type));
+            d_type = m_ctx.relaxed_whnf(d_type);
+        }
+        if (!is_sort(d_type))
+            throw_error(sstream() << "invalid inductive datatype, resultant type is not a sort");
+        return sort_level(d_type);
     }
 
     void parse_intro_rules(bool has_params, expr const & ind, buffer<expr> & intro_rules, bool prepend_ns) {
@@ -105,9 +125,10 @@ class xinductive_cmd_fn {
         if (m_p.curr_is_token(get_bar_tk())) {
             m_p.next();
             while (true) {
+                m_pos = m_p.pos();
                 name ir_name = mlocal_name(ind) + m_p.check_decl_id_next("invalid introduction rule, identifier expected");
                 if (prepend_ns)
-                    ir_name = get_namespace(m_p.env()) + ir_name;
+                    ir_name = get_namespace(m_env) + ir_name;
                 m_implicit_infer_map.insert(ir_name, parse_implicit_infer_modifier(m_p));
                 expr ir_type;
                 if (has_params || m_p.curr_is_token(get_colon_tk())) {
@@ -125,9 +146,9 @@ class xinductive_cmd_fn {
         }
     }
 
-    environment elaborate_inductive_decls(buffer<expr> const & params, buffer<expr> const & inds, buffer<buffer<expr> > const & intro_rules,
-                                          buffer<expr> & new_params, buffer<expr> & new_inds, buffer<buffer<expr> > & new_intro_rules) {
-        elaborator elab(m_p.env(), m_p.get_options(), metavar_context(), local_context());
+    void elaborate_inductive_decls(buffer<expr> const & params, buffer<expr> const & inds, buffer<buffer<expr> > const & intro_rules,
+                                   buffer<expr> & new_params, buffer<expr> & new_inds, buffer<buffer<expr> > & new_intro_rules) {
+        elaborator elab(m_env, m_p.get_options(), metavar_context(), local_context());
         buffer<expr> elab_params;
         elaborate_params(elab, params, elab_params);
 
@@ -182,18 +203,14 @@ class xinductive_cmd_fn {
                        tout() << mlocal_name(e) << " : " << mlocal_type(e) << "\n";);
         }
 
-        return elab.env();
+        m_env = elab.env();
     }
 
     expr parse_xinductive(buffer<expr> & params, buffer<expr> & intro_rules) {
         parser::local_scope scope(m_p);
+        m_pos = m_p.pos();
         expr ind = parse_single_header(m_p, m_lp_names, params);
         m_explicit_levels = !m_lp_names.empty();
-
-        // TODO(dhs): do this later?
-//        if (is_placeholder(mlocal_type(ind))) {
-//            ind = update_mlocal(ind, mk_sort(mk_level_placeholder()));
-//       }
 
         check_ind_type(ind);
         name short_ind_name = mlocal_name(ind);
@@ -223,8 +240,9 @@ class xinductive_cmd_fn {
         m_p.parse_local_notation_decl();
 
         for (expr const & pre_ind : pre_inds) {
+            m_pos = m_p.pos();
             expr ind_type = parse_inner_header(m_p, local_pp_name(pre_ind));
-            check_ind_type(update_mlocal(pre_ind, ind_type));
+            check_ind_type(ind_type);
             lean_trace(name({"xinductive", "parse"}), tout() << mlocal_name(pre_ind) << " : " << ind_type << "\n";);
             intro_rules.emplace_back();
             parse_intro_rules(!params.empty(), pre_ind, intro_rules.back(), true);
@@ -245,11 +263,12 @@ class xinductive_cmd_fn {
 
         collect_implicit_locals(m_p, m_lp_names, params, all_inds_intro_rules);
     }
+
 public:
-    xinductive_cmd_fn(parser & p): m_p(p) {
-        lean_assert(m_p.curr() == p.curr());
-        unsigned i = 0;
-        unsigned j = 0;
+    xinductive_cmd_fn(parser & p): m_p(p), m_env(p.env()), m_aux_ctx(p.env()), m_ctx(m_aux_ctx.get()) {
+        name u_name(*g_tmp_prefix, "u");
+        m_env = m_env.add_universe(name(*g_tmp_prefix, "u"));
+        m_u = mk_global_univ(u_name);
     }
 
     environment inductive_cmd() {
@@ -262,9 +281,9 @@ public:
         buffer<expr> new_params;
         buffer<expr> new_inds;
         buffer<buffer<expr> > new_intro_rules;
-        environment env = elaborate_inductive_decls(params, inds, intro_rules, new_params, new_inds, new_intro_rules);
+        elaborate_inductive_decls(params, inds, intro_rules, new_params, new_inds, new_intro_rules);
 
-        return add_inductive_declaration(env, m_implicit_infer_map, m_lp_names, new_params, new_inds, new_intro_rules);
+        return add_inductive_declaration(m_env, m_implicit_infer_map, m_lp_names, new_params, new_inds, new_intro_rules);
     }
 
     environment mutual_inductive_cmd() {
@@ -277,8 +296,8 @@ public:
         buffer<expr> new_params;
         buffer<expr> new_inds;
         buffer<buffer<expr> > new_intro_rules;
-        environment env = elaborate_inductive_decls(params, inds, intro_rules, new_params, new_inds, new_intro_rules);
-        return add_inductive_declaration(env, m_implicit_infer_map, m_lp_names, new_params, new_inds, new_intro_rules);
+        elaborate_inductive_decls(params, inds, intro_rules, new_params, new_inds, new_intro_rules);
+        return add_inductive_declaration(m_env, m_implicit_infer_map, m_lp_names, new_params, new_inds, new_intro_rules);
     }
 };
 
@@ -304,6 +323,8 @@ void initialize_inductive_cmds() {
     register_trace_class(name({"xinductive", "new_params"}));
     register_trace_class(name({"xinductive", "finalize"}));
     register_trace_class(name({"xinductive", "lp_names"}));
+
+    g_tmp_prefix = new name(name::mk_internal_unique_name());
 }
 
 void finalize_inductive_cmds() {}
