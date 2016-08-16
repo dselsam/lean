@@ -82,7 +82,7 @@ static void collect_all_exprs(buffer<expr> const & params, expr const & ind, buf
     all_exprs.append(intro_rules);
 }
 
-class inductive_cmd_fn {
+class xinductive_cmd_fn {
     parser &                        m_p;
     buffer<name>                    m_lp_names;
     name_map<implicit_infer_kind>   m_implicit_infer_map;
@@ -246,7 +246,11 @@ class inductive_cmd_fn {
         collect_implicit_locals(m_p, m_lp_names, params, all_inds_intro_rules);
     }
 public:
-    inductive_cmd_fn(parser & p): m_p(p) {}
+    xinductive_cmd_fn(parser & p): m_p(p) {
+        lean_assert(m_p.curr() == p.curr());
+        unsigned i = 0;
+        unsigned j = 0;
+    }
 
     environment inductive_cmd() {
         buffer<expr> params;
@@ -279,11 +283,12 @@ public:
 };
 
 environment xinductive_cmd(parser & p) {
-    return inductive_cmd_fn(p).inductive_cmd();
+    xinductive_cmd_fn fn(p);
+    return fn.inductive_cmd();
 }
 
 environment xmutual_inductive_cmd(parser & p) {
-    return inductive_cmd_fn(p).mutual_inductive_cmd();
+    return xinductive_cmd_fn(p).mutual_inductive_cmd();
 }
 
 void register_inductive_cmds(cmd_table & r) {
