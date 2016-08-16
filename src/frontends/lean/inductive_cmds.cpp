@@ -114,173 +114,133 @@ static void parse_intro_rules(parser & p, name_map<implicit_infer_kind> & implic
     }
 }
 
-class add_xinductive_fn {
-    parser &                      m_p;
-    name_map<implicit_infer_kind> m_implicit_infer_map; // implicit argument inference mode
+static environment elaborate_inductive_decls(environment const & env, options const & opts,
+                                             buffer<name> & lp_names,
+                                             buffer<expr> const & params, buffer<expr> const & inds, buffer<buffer<expr> > const & intro_rules,
+                                             buffer<expr> & new_params, buffer<expr> & new_inds, buffer<buffer<expr> > & new_intro_rules) {
+    elaborator elab(env, opts, metavar_context(), local_context());
+    buffer<expr> elab_params;
+    elaborate_params(elab, params, elab_params);
 
-    expr parse_xinductive(buffer<name> & lp_names, buffer<expr> & params, buffer<expr> & intro_rules) {
-        parser::local_scope scope(m_p);
-        expr ind = parse_single_header(m_p, lp_names, params);
+    convert_params_to_kernel(elab.ctx(), elab_params, new_params);
 
-        if (is_placeholder(mlocal_type(ind))) {
-            ind = update_mlocal(ind, mk_sort(mk_level_placeholder()));
-        }
+    for (expr const & ind : inds)
+        new_inds.push_back(update_mlocal(ind, elab.elaborate(replace_locals(mlocal_type(ind), params, new_params))));
 
-        check_ind_type(m_p, ind, !lp_names.empty());
-        name short_ind_name = mlocal_name(ind);
-        ind = mk_local(get_namespace(m_p.env()) + short_ind_name, mlocal_type(ind));
-        name ind_name = mlocal_name(ind);
-
-        lean_trace(name({"xinductive", "parse"}),
-                   tout() << mlocal_name(ind) << " : " << mlocal_type(ind) << "\n";);
-
-        m_p.add_local_expr(short_ind_name, ind);
-        m_p.parse_local_notation_decl();
-
-        parse_intro_rules(m_p, m_implicit_infer_map, !params.empty(), ind, intro_rules);
-        collect_implicit_locals(m_p, lp_names, params, ind);
-        collect_implicit_locals(m_p, lp_names, params, intro_rules);
-        return ind;
+    for (buffer<expr> const & irs : intro_rules) {
+        new_intro_rules.emplace_back();
+        replace_params(params, new_params, inds, new_inds, irs, new_intro_rules.back());
+        for (expr & new_ir : new_intro_rules.back())
+            new_ir = update_mlocal(new_ir, elab.elaborate(mlocal_type(new_ir)));
     }
 
-public:
-    add_xinductive_fn(parser & p): m_p(p) {}
+    buffer<name> implicit_lp_names;
+    buffer<expr> all_exprs;
+    collect_all_exprs(new_params, new_inds, new_intro_rules, all_exprs);
 
-    environment operator()() {
-        buffer<name> lp_names;
-        buffer<expr> params;
-        buffer<expr> intro_rules;
+    elab.finalize(all_exprs, implicit_lp_names, true, false);
+    lp_names.append(implicit_lp_names);
 
-        expr ind = parse_xinductive(lp_names, params, intro_rules);
-
-        for (expr const & p : params) {
-            lean_trace(name({"xinductive", "params"}),
-                       tout() << local_pp_name(p) << " : " << mlocal_type(p) << "\n";);
-        }
-
-        elaborator elab(m_p.env(), m_p.get_options(), metavar_context(), local_context());
-        buffer<expr> elab_params;
-        elaborate_params(elab, params, elab_params);
-
-        buffer<expr> new_params;
-        convert_params_to_kernel(elab.ctx(), elab_params, new_params);
-
-        expr new_ind = update_mlocal(ind, replace_locals(elab.elaborate(mlocal_type(ind)), params, new_params));
-
-        buffer<expr> new_intro_rules;
-        replace_params(params, new_params, ind, new_ind, intro_rules, new_intro_rules);
-
-        for (expr & ir : new_intro_rules) {
-            ir = update_mlocal(ir, elab.elaborate(mlocal_type(ir)));
-        }
-
-        buffer<name> implicit_lp_names;
-        buffer<expr> all_exprs;
-        collect_all_exprs(new_params, new_ind, new_intro_rules, all_exprs);
-        elab.finalize(all_exprs, implicit_lp_names, true, false);
-        lp_names.append(implicit_lp_names);
-
-        for (expr const & e : all_exprs) {
-            lean_trace(name({"xinductive", "finalize"}), tout() << mlocal_name(e) << " : " << mlocal_type(e) << "\n";);
-        }
-
-        for (name const & lp_name : lp_names) {
-            lean_trace(name({"xinductive", "lp_names"}), tout() << lp_name << "\n";);
-        }
-
-        return m_p.env();
-    }
-};
-
-class add_xmutual_inductive_fn {
-    parser &                      m_p;
-    name_map<implicit_infer_kind> m_implicit_infer_map; // implicit argument inference mode
-
-    void parse_xmutual_inductive(buffer<name> & lp_names, buffer<expr> & params, buffer<expr> & inds, buffer<buffer<expr> > & intro_rules) {
-        parser::local_scope scope(m_p);
-        buffer<expr> pre_inds;
-        parse_mutual_header(m_p, lp_names, pre_inds, params);
-        m_p.parse_local_notation_decl();
-
-        for (expr const & pre_ind : pre_inds) {
-            expr ind_type = parse_inner_header(m_p, local_pp_name(pre_ind));
-            lean_trace(name({"xinductive", "parse"}), tout() << mlocal_name(pre_ind) << " : " << ind_type << "\n";);
-            intro_rules.emplace_back();
-            parse_intro_rules(m_p, m_implicit_infer_map, !params.empty(), pre_ind, intro_rules.back());
-            expr ind = mk_local(get_namespace(m_p.env()) + mlocal_name(pre_ind), ind_type);
-            inds.push_back(ind);
-        }
-
-        for (buffer<expr> & irs : intro_rules) {
-            for (expr & ir : irs) {
-                ir = replace_locals(ir, pre_inds, inds);
-            }
-         }
-
-        buffer<expr> all_inds_intro_rules;
-        all_inds_intro_rules.append(inds);
-        for (buffer<expr> const & irs : intro_rules)
-            all_inds_intro_rules.append(irs);
-
-        collect_implicit_locals(m_p, lp_names, params, all_inds_intro_rules);
+    for (expr const & e : all_exprs) {
+        lean_trace(name({"xinductive", "finalize"}), tout() << mlocal_name(e) << " : " << mlocal_type(e) << "\n";);
     }
 
-public:
-    add_xmutual_inductive_fn(parser & p): m_p(p) {}
-
-    environment operator()() {
-        buffer<name> lp_names;
-        buffer<expr> params;
-        buffer<expr> inds;
-        buffer<buffer<expr> > intro_rules;
-
-        parse_xmutual_inductive(lp_names, params, inds, intro_rules);
-
-        elaborator elab(m_p.env(), m_p.get_options(), metavar_context(), local_context());
-        buffer<expr> elab_params;
-        elaborate_params(elab, params, elab_params);
-
-        buffer<expr> new_params;
-        convert_params_to_kernel(elab.ctx(), elab_params, new_params);
-
-        buffer<expr> new_inds;
-        for (expr const & ind : inds)
-            new_inds.push_back(update_mlocal(ind, elab.elaborate(replace_locals(mlocal_type(ind), params, new_params))));
-
-        buffer<buffer<expr> > new_intro_rules;
-        for (buffer<expr> & irs : intro_rules) {
-            new_intro_rules.emplace_back();
-            replace_params(params, new_params, inds, new_inds, irs, new_intro_rules.back());
-            for (expr & new_ir : new_intro_rules.back())
-                new_ir = update_mlocal(new_ir, elab.elaborate(mlocal_type(new_ir)));
-        }
-
-        buffer<name> implicit_lp_names;
-        buffer<expr> all_exprs;
-        collect_all_exprs(new_params, new_inds, new_intro_rules, all_exprs);
-
-        elab.finalize(all_exprs, implicit_lp_names, true, false);
-        lp_names.append(implicit_lp_names);
-
-        for (expr const & e : all_exprs) {
-            lean_trace(name({"xinductive", "finalize"}), tout() << mlocal_name(e) << " : " << mlocal_type(e) << "\n";);
-        }
-
-        for (name const & lp_name : lp_names) {
-            lean_trace(name({"xinductive", "lp_names"}), tout() << lp_name << "\n";);
-        }
-
-        return m_p.env();
+    for (name const & lp_name : lp_names) {
+        lean_trace(name({"xinductive", "lp_names"}), tout() << lp_name << "\n";);
     }
-};
 
+    return elab.env();
+}
+
+static expr parse_xinductive(parser & p, name_map<implicit_infer_kind> & implicit_infer_map, buffer<name> & lp_names, buffer<expr> & params, buffer<expr> & intro_rules) {
+    parser::local_scope scope(p);
+    expr ind = parse_single_header(p, lp_names, params);
+
+    if (is_placeholder(mlocal_type(ind))) {
+        ind = update_mlocal(ind, mk_sort(mk_level_placeholder()));
+    }
+
+    check_ind_type(p, ind, !lp_names.empty());
+    name short_ind_name = mlocal_name(ind);
+    ind = mk_local(get_namespace(p.env()) + short_ind_name, mlocal_type(ind));
+    name ind_name = mlocal_name(ind);
+
+    lean_trace(name({"xinductive", "parse"}),
+               tout() << mlocal_name(ind) << " : " << mlocal_type(ind) << "\n";);
+
+    p.add_local_expr(short_ind_name, ind);
+    p.parse_local_notation_decl();
+
+    parse_intro_rules(p, implicit_infer_map, !params.empty(), ind, intro_rules);
+
+    buffer<expr> ind_intro_rules;
+    ind_intro_rules.push_back(ind);
+    ind_intro_rules.append(intro_rules);
+    collect_implicit_locals(p, lp_names, params, ind_intro_rules);
+    return ind;
+}
+
+static void parse_xmutual_inductive(parser & p, name_map<implicit_infer_kind> & implicit_infer_map,
+                                    buffer<name> & lp_names, buffer<expr> & params, buffer<expr> & inds, buffer<buffer<expr> > & intro_rules) {
+    parser::local_scope scope(p);
+    buffer<expr> pre_inds;
+    parse_mutual_header(p, lp_names, pre_inds, params);
+    p.parse_local_notation_decl();
+
+    for (expr const & pre_ind : pre_inds) {
+        expr ind_type = parse_inner_header(p, local_pp_name(pre_ind));
+        lean_trace(name({"xinductive", "parse"}), tout() << mlocal_name(pre_ind) << " : " << ind_type << "\n";);
+        intro_rules.emplace_back();
+        parse_intro_rules(p, implicit_infer_map, !params.empty(), pre_ind, intro_rules.back());
+        expr ind = mk_local(get_namespace(p.env()) + mlocal_name(pre_ind), ind_type);
+        inds.push_back(ind);
+    }
+
+    for (buffer<expr> & irs : intro_rules) {
+        for (expr & ir : irs) {
+            ir = replace_locals(ir, pre_inds, inds);
+        }
+    }
+
+    buffer<expr> all_inds_intro_rules;
+    all_inds_intro_rules.append(inds);
+    for (buffer<expr> const & irs : intro_rules)
+        all_inds_intro_rules.append(irs);
+
+    collect_implicit_locals(p, lp_names, params, all_inds_intro_rules);
+}
 
 environment xinductive_cmd(parser & p) {
-    return add_xinductive_fn(p)();
+    name_map<implicit_infer_kind> implicit_infer_map;
+    buffer<name> lp_names;
+    buffer<expr> params;
+    buffer<expr> inds;
+    buffer<buffer<expr> > intro_rules;
+    intro_rules.emplace_back();
+    inds.push_back(parse_xinductive(p, implicit_infer_map, lp_names, params, intro_rules.back()));
+
+    buffer<expr> new_params;
+    buffer<expr> new_inds;
+    buffer<buffer<expr> > new_intro_rules;
+    environment env = elaborate_inductive_decls(p.env(), p.get_options(), lp_names, params, inds, intro_rules, new_params, new_inds, new_intro_rules);
+    return env;
 }
 
 environment xmutual_inductive_cmd(parser & p) {
-    return add_xmutual_inductive_fn(p)();
+    name_map<implicit_infer_kind> implicit_infer_map;
+    buffer<name> lp_names;
+    buffer<expr> params;
+    buffer<expr> inds;
+    buffer<buffer<expr> > intro_rules;
+
+    parse_xmutual_inductive(p, implicit_infer_map, lp_names, params, inds, intro_rules);
+
+    buffer<expr> new_params;
+    buffer<expr> new_inds;
+    buffer<buffer<expr> > new_intro_rules;
+    environment env = elaborate_inductive_decls(p.env(), p.get_options(), lp_names, params, inds, intro_rules, new_params, new_inds, new_intro_rules);
+
+    return env;
 }
 
 void register_inductive_cmds(cmd_table & r) {
