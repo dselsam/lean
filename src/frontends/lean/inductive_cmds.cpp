@@ -103,10 +103,6 @@ class xinductive_cmd_fn {
         expr ty = ind_type;
         while (is_pi(ty))
             ty = binding_body(ty);
-        if (!is_sort(ty))
-            throw_error("invalid inductive datatype, resultant type is not a sort");
-        if (m_explicit_levels && is_placeholder(sort_level(ty)))
-            throw_error("resultant universe must be provided, when using explicit universe levels");
     }
 
     level replace_u(level const & l, level const & rlvl) {
@@ -250,6 +246,11 @@ class xinductive_cmd_fn {
 
         convert_params_to_kernel(elab.ctx(), elab_params, new_params);
 
+        for (expr const & e : new_params) {
+            lean_trace(name({"xinductive", "params"}),
+                       tout() << mlocal_name(e) << " (" << local_pp_name(e) << ") : " << mlocal_type(e) << "\n";);
+        }
+
         for (expr const & ind : inds) {
             expr new_ind_type = mlocal_type(ind);
             if (is_placeholder(new_ind_type))
@@ -267,8 +268,11 @@ class xinductive_cmd_fn {
         for (buffer<expr> const & irs : intro_rules) {
             new_intro_rules.emplace_back();
             replace_params(params, new_params, inds, new_inds, irs, new_intro_rules.back());
-            for (expr & new_ir : new_intro_rules.back())
+            for (expr & new_ir : new_intro_rules.back()) {
+                lean_trace(name({"xinductive", "replace"}),
+                           tout() << mlocal_name(new_ir) << " (" << local_pp_name(new_ir) << ") : " << mlocal_type(new_ir) << "\n";);
                 new_ir = update_mlocal(new_ir, elab.elaborate(mlocal_type(new_ir)));
+            }
         }
 
         buffer<name> implicit_lp_names;
@@ -439,6 +443,7 @@ void initialize_inductive_cmds() {
     register_trace_class(name({"xinductive", "elab"}));
     register_trace_class(name({"xinductive", "params"}));
     register_trace_class(name({"xinductive", "new_params"}));
+    register_trace_class(name({"xinductive", "replace"}));
     register_trace_class(name({"xinductive", "finalize"}));
     register_trace_class(name({"xinductive", "lp_names"}));
 
