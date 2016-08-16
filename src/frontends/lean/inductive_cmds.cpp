@@ -469,38 +469,31 @@ public:
         apply_modifiers();
     }
 
+    environment shared_inductive_cmd(buffer<expr> const & params, buffer<expr> const & inds, buffer<buffer<expr> > const & intro_rules) {
+        buffer<expr> new_params;
+        buffer<expr> new_inds;
+        buffer<buffer<expr> > new_intro_rules;
+        elaborate_inductive_decls(params, inds, intro_rules, new_params, new_inds, new_intro_rules);
+        m_env = add_inductive_declaration(m_env, m_lp_names, new_params, new_inds, new_intro_rules);
+        post_process(new_params, new_inds, new_intro_rules);
+        return m_env;
+    }
+
     environment inductive_cmd() {
         buffer<expr> params;
         buffer<expr> inds;
         buffer<buffer<expr> > intro_rules;
         intro_rules.emplace_back();
         inds.push_back(parse_xinductive(params, intro_rules.back()));
-
-        buffer<expr> new_params;
-        buffer<expr> new_inds;
-        buffer<buffer<expr> > new_intro_rules;
-        elaborate_inductive_decls(params, inds, intro_rules, new_params, new_inds, new_intro_rules);
-
-        m_env = add_inductive_declaration(m_env, m_lp_names, new_params, new_inds, new_intro_rules);
-        post_process(new_params, new_inds, new_intro_rules);
-        return m_env;
+        return shared_inductive_cmd(params, inds, intro_rules);
     }
 
     environment mutual_inductive_cmd() {
         buffer<expr> params;
         buffer<expr> inds;
         buffer<buffer<expr> > intro_rules;
-
         parse_xmutual_inductive(params, inds, intro_rules);
-
-        buffer<expr> new_params;
-        buffer<expr> new_inds;
-        buffer<buffer<expr> > new_intro_rules;
-        elaborate_inductive_decls(params, inds, intro_rules, new_params, new_inds, new_intro_rules);
-
-        m_env = add_inductive_declaration(m_env, m_lp_names, new_params, new_inds, new_intro_rules);
-        post_process(new_params, new_inds, new_intro_rules);
-        return m_env;
+        return shared_inductive_cmd(params, inds, intro_rules);
     }
 };
 
