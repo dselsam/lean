@@ -2,7 +2,7 @@ variable {A : Type}
 
 check @id
 
-inductive List :=
+xinductive List
 | nil : List
 | cons : A → List → List
 
