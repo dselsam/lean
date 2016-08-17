@@ -306,6 +306,7 @@ name const * g_subsingleton_helim = nullptr;
 name const * g_subtype_tag = nullptr;
 name const * g_subtype_elt_of = nullptr;
 name const * g_subtype_rec = nullptr;
+name const * g_sum = nullptr;
 name const * g_tactic = nullptr;
 name const * g_to_string = nullptr;
 name const * g_to_int = nullptr;
@@ -631,6 +632,7 @@ void initialize_constants() {
     g_subtype_tag = new name{"subtype", "tag"};
     g_subtype_elt_of = new name{"subtype", "elt_of"};
     g_subtype_rec = new name{"subtype", "rec"};
+    g_sum = new name{"sum"};
     g_tactic = new name{"tactic"};
     g_to_string = new name{"to_string"};
     g_to_int = new name{"to_int"};
@@ -957,6 +959,7 @@ void finalize_constants() {
     delete g_subtype_tag;
     delete g_subtype_elt_of;
     delete g_subtype_rec;
+    delete g_sum;
     delete g_tactic;
     delete g_to_string;
     delete g_to_int;
@@ -1282,6 +1285,7 @@ name const & get_subsingleton_helim_name() { return *g_subsingleton_helim; }
 name const & get_subtype_tag_name() { return *g_subtype_tag; }
 name const & get_subtype_elt_of_name() { return *g_subtype_elt_of; }
 name const & get_subtype_rec_name() { return *g_subtype_rec; }
+name const & get_sum_name() { return *g_sum; }
 name const & get_tactic_name() { return *g_tactic; }
 name const & get_to_string_name() { return *g_to_string; }
 name const & get_to_int_name() { return *g_to_int; }

@@ -301,6 +301,7 @@ subsingleton.helim
 subtype.tag
 subtype.elt_of
 subtype.rec
+sum
 tactic
 to_string
 to_int
