@@ -130,7 +130,10 @@ class xinductive_cmd_fn {
         for (unsigned i = 0; i < params.size(); i++) {
             expr const & param = params[i];
             if (m_p.is_local_decl(param) && !m_p.is_local_variable(param)) {
-                params[j] = param;
+                // TODO(dhs): need to convert to kernel local explicitly?
+                expr const * klocal = m_p.get_local(local_pp_name(param));
+                lean_assert(klocal);
+                params[j] = *klocal;
                 j++;
             }
         }

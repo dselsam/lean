@@ -1,9 +1,8 @@
 xinductive one1.{l} : Type.{max 1 l}
-| unit : one1.{l}
+| unit : one1
 
 set_option pp.universes true
 check one1
-
 
 xinductive one2.{l} : Type.{max 1 l}
 | unit : one2
@@ -15,7 +14,7 @@ section foo
   parameter A : Type.{l2}
 
   xinductive wrapper.{l} : Type.{max 1 l l2}
-  | mk : A → wrapper.{l2 l}
+  | mk : A → wrapper
   check wrapper
 end foo
 
