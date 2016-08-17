@@ -64,9 +64,6 @@ static void replace_params(buffer<expr> const & params, buffer<expr> const & new
     }
 }
 
-static void replace_params(buffer<expr> const & inds, buffer<expr> const & new_inds, unsigned offset1, unsigned offset2, buffer<expr> const & all_exprs, buffer<expr> & new_intro_rules) {
-}
-
 static void replace_params(buffer<expr> const & params, buffer<expr> const & new_params, buffer<expr> const & inds, buffer<expr> const & new_inds,
                            buffer<expr> const & intro_rules, buffer<expr> & new_intro_rules) {
     for (expr const & ir : intro_rules) {
@@ -89,7 +86,7 @@ static void collect_all_exprs(buffer<expr> const & params, expr const & ind, buf
     all_exprs.append(intro_rules);
 }
 
-class xinductive_cmd_fn {
+class inductive_cmd_fn {
     parser &                        m_p;
     environment                     m_env;
     decl_attributes                 m_attrs;
@@ -290,7 +287,7 @@ class xinductive_cmd_fn {
                     ir_type = ind;
                 }
                 intro_rules.push_back(mk_local(ir_name, ir_type));
-                lean_trace(name({"xinductive", "parse"}), tout() << ir_name << " : " << ir_type << "\n";);
+                lean_trace(name({"inductive", "parse"}), tout() << ir_name << " : " << ir_type << "\n";);
                 if (!m_p.curr_is_token(get_bar_tk()) && !m_p.curr_is_token(get_comma_tk()))
                     break;
                 m_p.next();
@@ -400,12 +397,12 @@ class xinductive_cmd_fn {
         }
 
         for (expr const & e : all_exprs) {
-            lean_trace(name({"xinductive", "finalize"}),
+            lean_trace(name({"inductive", "finalize"}),
                        tout() << mlocal_name(e) << " (" << local_pp_name(e) << ") : " << mlocal_type(e) << "\n";);
         }
     }
 
-    expr parse_xinductive(buffer<expr> & params, buffer<expr> & intro_rules) {
+    expr parse_inductive(buffer<expr> & params, buffer<expr> & intro_rules) {
         parser::local_scope scope(m_p);
         m_pos = m_p.pos();
 
@@ -417,7 +414,7 @@ class xinductive_cmd_fn {
 
         ind = mk_local(get_namespace(m_p.env()) + mlocal_name(ind), mlocal_name(ind), mlocal_type(ind), local_info(ind));
 
-        lean_trace(name({"xinductive", "parse"}),
+        lean_trace(name({"inductive", "parse"}),
                    tout() << mlocal_name(ind) << " : " << mlocal_type(ind) << "\n";);
 
         m_p.add_local(ind);
@@ -432,14 +429,14 @@ class xinductive_cmd_fn {
         collect_implicit_locals(m_p, m_lp_names, params, ind_intro_rules);
 
         for (expr const & e : params) {
-            lean_trace(name({"xinductive", "params"}),
+            lean_trace(name({"inductive", "params"}),
                        tout() << mlocal_name(e) << " (" << local_pp_name(e) << ") : " << mlocal_type(e) << "\n";);
         }
 
         return ind;
     }
 
-    void parse_xmutual_inductive(buffer<expr> & params, buffer<expr> & inds, buffer<buffer<expr> > & intro_rules) {
+    void parse_mutual_inductive(buffer<expr> & params, buffer<expr> & inds, buffer<buffer<expr> > & intro_rules) {
         parser::local_scope scope(m_p);
 
         m_attrs.parse(m_p);
@@ -456,7 +453,7 @@ class xinductive_cmd_fn {
             std::tie(ind_type, attrs) = parse_inner_header(m_p, local_pp_name(pre_ind));
             check_attrs(attrs);
             m_mut_attrs.push_back(attrs);
-            lean_trace(name({"xinductive", "parse"}), tout() << mlocal_name(pre_ind) << " : " << ind_type << "\n";);
+            lean_trace(name({"inductive", "parse"}), tout() << mlocal_name(pre_ind) << " : " << ind_type << "\n";);
             intro_rules.emplace_back();
             parse_intro_rules(!params.empty(), pre_ind, intro_rules.back(), true);
             expr ind = mk_local(get_namespace(m_p.env()) + mlocal_name(pre_ind), ind_type);
@@ -482,7 +479,7 @@ class xinductive_cmd_fn {
             throw_error("only attribute [class] accepted for inductive types");
     }
 public:
-    xinductive_cmd_fn(parser & p, decl_attributes const & attrs): m_p(p), m_env(p.env()), m_attrs(attrs), m_aux_ctx(p.env()), m_ctx(m_aux_ctx.get()) {
+    inductive_cmd_fn(parser & p, decl_attributes const & attrs): m_p(p), m_env(p.env()), m_attrs(attrs), m_aux_ctx(p.env()), m_ctx(m_aux_ctx.get()) {
         m_env = m_env.add_universe(tmp_global_univ_name());
         m_u = mk_global_univ(tmp_global_univ_name());
         check_attrs(m_attrs);
@@ -515,7 +512,7 @@ public:
         buffer<expr> inds;
         buffer<buffer<expr> > intro_rules;
         intro_rules.emplace_back();
-        inds.push_back(parse_xinductive(params, intro_rules.back()));
+        inds.push_back(parse_inductive(params, intro_rules.back()));
         return shared_inductive_cmd(params, inds, intro_rules);
     }
 
@@ -523,40 +520,40 @@ public:
         buffer<expr> params;
         buffer<expr> inds;
         buffer<buffer<expr> > intro_rules;
-        parse_xmutual_inductive(params, inds, intro_rules);
+        parse_mutual_inductive(params, inds, intro_rules);
         return shared_inductive_cmd(params, inds, intro_rules);
     }
 };
 
 environment inductive_cmd_ex(parser & p, decl_attributes const & attrs) {
-    return xinductive_cmd_fn(p, attrs).inductive_cmd();
+    return inductive_cmd_fn(p, attrs).inductive_cmd();
 }
 
 environment mutual_inductive_cmd_ex(parser & p, decl_attributes const & attrs) {
-    return xinductive_cmd_fn(p, attrs).mutual_inductive_cmd();
+    return inductive_cmd_fn(p, attrs).mutual_inductive_cmd();
 }
 
-environment xinductive_cmd(parser & p) {
+environment inductive_cmd(parser & p) {
     return inductive_cmd_ex(p, {});
 }
 
-environment xmutual_inductive_cmd(parser & p) {
+environment mutual_inductive_cmd(parser & p) {
     return mutual_inductive_cmd_ex(p, {});
 }
 
 void register_inductive_cmds(cmd_table & r) {
-    add_cmd(r, cmd_info("xinductive",        "declare an inductive datatype",        xinductive_cmd));
-    add_cmd(r, cmd_info("xmutual_inductive", "declare mutually inductive datatypes", xmutual_inductive_cmd));
+    add_cmd(r, cmd_info("inductive",        "declare an inductive datatype",        inductive_cmd));
+    add_cmd(r, cmd_info("mutual_inductive", "declare mutually inductive datatypes", mutual_inductive_cmd));
 }
 
 void initialize_inductive_cmds() {
-    register_trace_class("xinductive");
-    register_trace_class(name({"xinductive", "parse"}));
-    register_trace_class(name({"xinductive", "elab"}));
-    register_trace_class(name({"xinductive", "params"}));
-    register_trace_class(name({"xinductive", "new_params"}));
-    register_trace_class(name({"xinductive", "finalize"}));
-    register_trace_class(name({"xinductive", "lp_names"}));
+    register_trace_class("inductive");
+    register_trace_class(name({"inductive", "parse"}));
+    register_trace_class(name({"inductive", "elab"}));
+    register_trace_class(name({"inductive", "params"}));
+    register_trace_class(name({"inductive", "new_params"}));
+    register_trace_class(name({"inductive", "finalize"}));
+    register_trace_class(name({"inductive", "lp_names"}));
 
     g_tmp_prefix = new name(name::mk_internal_unique_name());
 }
