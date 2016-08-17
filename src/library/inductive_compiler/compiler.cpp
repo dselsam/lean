@@ -11,7 +11,6 @@ Author: Daniel Selsam
 #include "library/module.h"
 #include "library/attribute_manager.h"
 #include "library/inductive_compiler/compiler.h"
-#include "library/inductive_compiler/basic.h"
 #include "library/constructions/rec_on.h"
 #include "library/constructions/induction_on.h"
 #include "library/constructions/cases_on.h"
