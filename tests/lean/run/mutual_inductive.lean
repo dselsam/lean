@@ -1,4 +1,4 @@
-set_option trace.inductive_compiler.mutual.putters true
+set_option trace.inductive_compiler.mutual.new_ind true
 set_option pp.binder_types true
 set_option trace.app_builder true
 
