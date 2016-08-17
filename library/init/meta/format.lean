@@ -6,7 +6,7 @@ Authors: Leonardo de Moura
 prelude
 import init.meta.options
 
-xinductive format.color
+inductive format.color
 | red | green | orange | blue | pink | cyan | grey
 
 meta_constant format : Type₁

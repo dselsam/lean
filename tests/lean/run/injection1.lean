@@ -1,6 +1,6 @@
 open nat tactic
 
-xinductive vec (A : Type) : nat → Type
+inductive vec (A : Type) : nat → Type
 | nil  : vec nat.zero
 | cons : ∀ {n}, A → vec n → vec (succ n)
 

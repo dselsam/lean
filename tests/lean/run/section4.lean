@@ -11,7 +11,7 @@ section
     parameter B : Type
     definition foo (a : A) (b : B) := b
 
-    xinductive mypair
+    inductive mypair
     | mk : A → B → mypair
 
     definition pr1' (p : mypair) : A := mypair.rec (λ a b, a) p

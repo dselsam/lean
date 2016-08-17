@@ -1,7 +1,7 @@
 open bool nat
 open function
 
-xinductive univ
+inductive univ
 | ubool  : univ
 | unat   : univ
 | uarrow : univ → univ → univ

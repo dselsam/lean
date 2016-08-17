@@ -1,10 +1,10 @@
 prelude
-xinductive nat : Type
+inductive nat : Type
 | zero : nat
 | succ : nat → nat
 namespace nat end nat open nat
 
-xinductive list (A : Type) : Type
+inductive list (A : Type) : Type
 | nil {} : list
 | cons   : A → list → list
 namespace list end list open list
@@ -16,7 +16,7 @@ check @nil nat
 
 check cons zero nil
 
-xinductive vector (A : Type) : nat → Type
+inductive vector (A : Type) : nat → Type
 | vnil {} : vector zero
 | vcons   : forall {n : nat}, A → vector n → vector (succ n)
 namespace vector end vector open vector

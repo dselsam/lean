@@ -1,6 +1,6 @@
 open nat
 
-xinductive type : Type
+inductive type : Type
 | Nat  : type
 | Func : type → type → type
 
@@ -9,7 +9,7 @@ open type
 section var
 variable {var : type → Type}
 
-xinductive term : type → Type
+inductive term : type → Type
 | Var   : ∀ {t}, var t → term t
 | Const : nat → term Nat
 | Plus  : term Nat → term Nat → term Nat

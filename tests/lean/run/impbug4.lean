@@ -8,7 +8,7 @@ infix `=`:50 := eq
 constant ob  : Type.{1}
 constant mor : ob → ob → Type.{1}
 
-xinductive category : Type
+inductive category : Type
 | mk : Π (id : Π (A : ob), mor A A),
       (Π (A B : ob) (f : mor A A), id A = f) → category
 

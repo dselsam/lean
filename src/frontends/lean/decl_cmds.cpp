@@ -1238,10 +1238,10 @@ static environment attribute_cmd_core(parser & p, bool persistent) {
         parsed_attrs  = true;
         // 'attribute [attr] definition ...'
         if (p.curr_is_command()) {
-            if (p.curr_is_token_or_id(get_xinductive_tk())) {
+            if (p.curr_is_token_or_id(get_inductive_tk())) {
                 p.next();
                 return inductive_cmd_ex(p, attributes);
-            } else if (p.curr_is_token_or_id(get_xmutual_inductive_tk())) {
+            } else if (p.curr_is_token_or_id(get_mutual_inductive_tk())) {
                 p.next();
                 return mutual_inductive_cmd_ex(p, attributes);
             } else {

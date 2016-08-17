@@ -1,4 +1,4 @@
-xinductive day
+inductive day
 | monday | tuesday | wednesday | thursday | friday | saturday | sunday
 
 namespace day

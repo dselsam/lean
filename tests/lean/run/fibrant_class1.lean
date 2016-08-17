@@ -1,7 +1,7 @@
-xinductive [class] fibrant (T : Type) : Type
+inductive [class] fibrant (T : Type) : Type
 | fibrant_mk : fibrant
 
-xinductive path {A : Type'} [fA : fibrant A] (a : A) : A → Type
+inductive path {A : Type'} [fA : fibrant A] (a : A) : A → Type
 | idpath : path a
 
 notation a ≈ b := path a b

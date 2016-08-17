@@ -1,11 +1,11 @@
 prelude
-xinductive list (A : Type) : Type
+inductive list (A : Type) : Type
 | nil {} : list
 | cons   : A → list → list
 
 section
   variable A : Type
-  xinductive list2 : Type
+  inductive list2 : Type
   | nil2 {} : list2
   | cons2   : A → list2 → list2
 end

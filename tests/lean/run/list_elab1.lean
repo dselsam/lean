@@ -10,7 +10,7 @@
 -- Basic properties of Lists.
 
 open nat
-xinductive List (T : Type) : Type
+inductive List (T : Type) : Type
 | nil {} : List
 | cons : T → List → List
 

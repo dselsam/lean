@@ -14,9 +14,9 @@ namespace algebra
 -- classes for notation
 -- --------------------
 
-xinductive [class] has_mul (A : Type) : Type | mk : (A → A → A) → has_mul
-xinductive [class] has_one (A : Type) : Type | mk : A → has_one
-xinductive [class] has_inv (A : Type) : Type | mk : (A → A) → has_inv
+inductive [class] has_mul (A : Type) : Type | mk : (A → A → A) → has_mul
+inductive [class] has_one (A : Type) : Type | mk : A → has_one
+inductive [class] has_inv (A : Type) : Type | mk : (A → A) → has_inv
 
 definition mul {A : Type} [s : has_mul A] (a b : A) : A := has_mul.rec (λf, f) s a b
 definition one {A : Type} [s : has_one A] : A := has_one.rec (λo, o) s
@@ -29,7 +29,7 @@ notation 1   := one
 -- semigroup
 -- ---------
 
-xinductive [class] semigroup (A : Type) : Type
+inductive [class] semigroup (A : Type) : Type
 | mk : Π mul: A → A → A,
       (∀a b c : A, (mul (mul a b) c = mul a (mul b c))) →
       semigroup
@@ -56,7 +56,7 @@ end
 -- comm_semigroup
 -- --------------
 
-xinductive [class] comm_semigroup (A : Type) : Type
+inductive [class] comm_semigroup (A : Type) : Type
 | mk : Π (mul: A → A → A)
        (infixl `*` := mul),
        (∀a b c, (a * b) * c = a * (b * c)) →
@@ -75,7 +75,7 @@ end comm_semigroup
 -- monoid
 -- ------
 
-xinductive [class] monoid (A : Type) : Type
+inductive [class] monoid (A : Type) : Type
 | mk : Π (mul: A → A → A) (one : A)
        (infixl `*` := mul) (notation 1 := one),
        (∀a b c, (a * b) * c = a * (b * c)) →

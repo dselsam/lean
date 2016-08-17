@@ -1,10 +1,10 @@
 prelude
-xinductive nat : Type
+inductive nat : Type
 | zero : nat
 | succ : nat → nat
 namespace nat end nat open nat
 
-xinductive vector (A : Type) : nat → Type
+inductive vector (A : Type) : nat → Type
 | vnil  : vector zero
 | vcons : Π {n : nat}, A → vector n → vector (succ n)
 namespace vector end vector open vector

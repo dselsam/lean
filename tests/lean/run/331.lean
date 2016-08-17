@@ -1,5 +1,5 @@
 namespace nat
-  xinductive less (a : nat) : nat → Prop
+  inductive less (a : nat) : nat → Prop
   | base : less (succ a)
   | step : Π {b}, less b → less (succ b)
 

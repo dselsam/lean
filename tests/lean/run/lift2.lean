@@ -1,5 +1,5 @@
 namespace test
-xinductive lift.{l₁ l₂} (A : Type.{l₁}) : Type.{(max 1 l₁ l₂)}
+inductive lift.{l₁ l₂} (A : Type.{l₁}) : Type.{(max 1 l₁ l₂)}
 | inj : A → lift
 
 set_option pp.universes true

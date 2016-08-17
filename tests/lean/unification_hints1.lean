@@ -36,7 +36,7 @@ print [unify]
 end add
 
 namespace canonical
-xinductive Canonical
+inductive Canonical
 | mk : Π (carrier : Type) (op : carrier → carrier), Canonical
 
 attribute [irreducible]

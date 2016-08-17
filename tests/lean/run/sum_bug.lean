@@ -4,7 +4,7 @@
 open inhabited decidable
 namespace play
 -- TODO: take this outside the namespace when the inductive package handles it better
-xinductive sum (A B : Type) : Type
+inductive sum (A B : Type) : Type
 | inl : A → sum
 | inr : B → sum
 

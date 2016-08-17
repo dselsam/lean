@@ -1,7 +1,7 @@
 prelude
 definition Prop : Type.{1} := Type.{0}
 
-xinductive or (A B : Prop) : Prop
+inductive or (A B : Prop) : Prop
 | intro_left  : A → or
 | intro_right : B → or
 

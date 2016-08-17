@@ -1,6 +1,6 @@
 open nat
 
-xinductive tree (A : Type)
+inductive tree (A : Type)
 | leaf : A → tree
 | node : tree → tree → tree
 

@@ -7,7 +7,7 @@ prelude
 import init.ordering init.coe
 
 /- Reflect a C++ name object. The VM replaces it with the C++ implementation. -/
-xinductive name
+inductive name
 | anonymous  : name
 | mk_string  : string → name → name
 | mk_numeral : unsigned → name → name

@@ -3,7 +3,7 @@
 open tactic
 --
 
-xinductive vector (A : Type) : nat → Type
+inductive vector (A : Type) : nat → Type
   | nil {} : vector 0
   | cons : Π {n}, A -> vector n -> vector (nat.succ n)
 

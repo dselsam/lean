@@ -2,7 +2,7 @@ variables (A : Type)
 
 definition f (A : Type) (a : A) := a
 
-xinductive bla (A : Type)
+inductive bla (A : Type)
 | mk : A → bla
 
 structure foo (A : Type) (f : A → A) :=

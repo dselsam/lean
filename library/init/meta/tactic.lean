@@ -23,7 +23,7 @@ attribute [instance]
 meta_definition tactic_state.has_to_format : has_to_format tactic_state :=
 has_to_format.mk tactic_state.to_format
 
-xinductive tactic_result (A : Type)
+inductive tactic_result (A : Type)
 | success   : A → tactic_state → tactic_result
 | exception : (unit → format) → tactic_state → tactic_result
 
@@ -199,7 +199,7 @@ meta_definition trace_state : tactic unit :=
 do s ← read,
    trace $ to_fmt s
 
-xinductive transparency
+inductive transparency
 | all | semireducible | reducible | none
 
 export transparency (reducible semireducible)

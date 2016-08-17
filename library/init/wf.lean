@@ -6,7 +6,7 @@ Author: Leonardo de Moura
 prelude
 import init.relation init.nat init.prod
 
-xinductive acc {A : Type} (R : A → A → Prop) : A → Prop
+inductive acc {A : Type} (R : A → A → Prop) : A → Prop
 | intro : ∀x, (∀ y, R y x → acc y) → acc x
 
 namespace acc
@@ -29,7 +29,7 @@ namespace acc
     h₂
 end acc
 
-xinductive well_founded {A : Type} (R : A → A → Prop) : Prop
+inductive well_founded {A : Type} (R : A → A → Prop) : Prop
 | intro : (∀ a, acc R a) → well_founded
 
 namespace well_founded
@@ -187,12 +187,12 @@ namespace prod
   variable  (Rb  : B → B → Prop)
 
   -- Lexicographical order based on Ra and Rb
-  xinductive lex : A × B → A × B → Prop
+  inductive lex : A × B → A × B → Prop
   | left  : ∀{a₁ b₁} a₂ b₂, Ra a₁ a₂ → lex (a₁, b₁) (a₂, b₂)
   | right : ∀a {b₁ b₂},     Rb b₁ b₂ → lex (a, b₁)  (a, b₂)
 
   -- Relational product based on Ra and Rb
-  xinductive rprod : A × B → A × B → Prop
+  inductive rprod : A × B → A × B → Prop
   | intro : ∀{a₁ b₁ a₂ b₂}, Ra a₁ a₂ → Rb b₁ b₂ → rprod (a₁, b₁) (a₂, b₂)
   end
 

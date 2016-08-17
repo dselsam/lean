@@ -1,6 +1,6 @@
 --
 
-xinductive prod2 (A B : Type₊)
+inductive prod2 (A B : Type₊)
 | mk : A → B → prod2
 
 set_option pp.universes true

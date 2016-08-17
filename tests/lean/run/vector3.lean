@@ -1,6 +1,6 @@
 open nat
 
-xinductive vector (A : Type) : nat → Type
+inductive vector (A : Type) : nat → Type
 | vnil  : vector nat.zero
 | vcons : Π {n : nat}, A → vector n → vector (succ n)
 

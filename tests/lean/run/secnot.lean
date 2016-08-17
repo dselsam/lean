@@ -6,7 +6,7 @@ variables a b : A
 check a ◀ b
 end
 
-xinductive List (T : Type) : Type
+inductive List (T : Type) : Type
 | nil {} : List
 | cons   : T → List → List
 

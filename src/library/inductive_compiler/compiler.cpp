@@ -136,10 +136,10 @@ environment add_inductive_declaration(environment const & old_env, options const
 
 
 void initialize_inductive_compiler() {
-    g_inductive_rec_on       = new name{"xinductive", "rec_on"};
-    g_inductive_cases_on     = new name{"xinductive", "cases_on"};
-    g_inductive_brec_on      = new name{"xinductive", "brec_on"};
-    g_inductive_no_confusion = new name{"xinductive", "no_confusion"};
+    g_inductive_rec_on       = new name{"inductive", "rec_on"};
+    g_inductive_cases_on     = new name{"inductive", "cases_on"};
+    g_inductive_brec_on      = new name{"inductive", "brec_on"};
+    g_inductive_no_confusion = new name{"inductive", "no_confusion"};
 
     register_bool_option(*g_inductive_rec_on, LEAN_DEFAULT_XINDUCTIVE_REC_ON,
                          "(inductive) automatically generate the auxiliary declarations C.rec_on and C.induction_on  for each inductive datatype C");

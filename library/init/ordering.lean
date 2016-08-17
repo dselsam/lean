@@ -6,7 +6,7 @@ Authors: Leonardo de Moura
 prelude
 import init.to_string init.prod
 
-xinductive ordering
+inductive ordering
 | lt | eq | gt
 
 open ordering

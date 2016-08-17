@@ -43,7 +43,7 @@ namespace nat
   this H
 
   /- basic definitions on natural numbers -/
-  xinductive le (a : ℕ) : ℕ → Prop
+  inductive le (a : ℕ) : ℕ → Prop
   | nat_refl : le a    -- use nat_refl to avoid overloading le.refl
   | step : Π {b}, le b → le (succ b)
 

@@ -1,7 +1,7 @@
-xinductive point (A B : Type)
+inductive point (A B : Type)
 | mk : Π (x : A) (y : B), point
 
-xinductive [class] color
+inductive [class] color
 | red | green | blue
 
 constant foo.{l} (A : Type.{l}) [H : decidable_eq A] : Type.{l}

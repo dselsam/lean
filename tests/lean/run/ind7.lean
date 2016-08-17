@@ -1,5 +1,5 @@
 namespace list
-  xinductive list (A : Type) : Type
+  inductive list (A : Type) : Type
   | nil  : list
   | cons : A → list → list
 

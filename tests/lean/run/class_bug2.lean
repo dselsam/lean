@@ -1,4 +1,4 @@
-xinductive category (ob : Type) (mor : ob → ob → Type) : Type
+inductive category (ob : Type) (mor : ob → ob → Type) : Type
 | mk : Π (comp : Π⦃A B C : ob⦄, mor B C → mor A B → mor A C)
            (id : Π {A : ob}, mor A A),
             (Π {A B C D : ob} {f : mor A B} {g : mor B C} {h : mor C D},
@@ -11,7 +11,7 @@ attribute category [class]
 namespace category
 section sec_cat
   variable A : Type
-  xinductive foo | smk : A → foo
+  inductive foo | smk : A → foo
 
   attribute foo [class]
   variables {ob : Type} {mor : ob → ob → Type} {Cat : category ob mor}

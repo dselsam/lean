@@ -1,9 +1,9 @@
 open prod
 
-xinductive t1 : Type
+inductive t1 : Type
 | mk1 : t1
 
-xinductive t2 : Type
+inductive t2 : Type
 | mk2 : t2
 
 theorem inhabited_t1 : inhabited t1

@@ -3,19 +3,19 @@ prelude
 notation `assume` binders `,` r:(scoped f, f) := r
 notation `take`   binders `,` r:(scoped f, f) := r
 
-xinductive empty : Type
-xinductive unit : Type
+inductive empty : Type
+inductive unit : Type
 | tt : unit
 definition tt := @unit.tt
-xinductive nat : Type
+inductive nat : Type
 | O : nat
 | S : nat → nat
 
-xinductive paths {A : Type} (a : A) : A → Type
+inductive paths {A : Type} (a : A) : A → Type
 | idpath : paths a
 definition idpath := @paths.idpath
 
-xinductive sum (A : Type) (B : Type) : Type
+inductive sum (A : Type) (B : Type) : Type
 | inl : A -> sum
 | inr : B -> sum
 
@@ -25,7 +25,7 @@ definition ii2fun (A : Type) {B : Type} (b : B) := sum.inr A b
 definition ii1 {A : Type} {B : Type} (a : A) := sum.inl B a
 definition ii2 {A : Type} {B : Type} (b : B) := sum.inl A b
 
-xinductive total2 {T: Type} (P: T → Type) : Type
+inductive total2 {T: Type} (P: T → Type) : Type
 | tpair : Π (t : T) (tp : P t), total2
 definition tpair := @total2.tpair
 
@@ -34,7 +34,7 @@ definition pr1 {T : Type} {P : T → Type} (tp : total2 P) : T
 definition pr2 {T : Type} {P : T → Type} (tp : total2 P) : P (pr1 tp)
 := total2.rec (λ a b, b) tp
 
-xinductive Phant (T : Type) : Type
+inductive Phant (T : Type) : Type
 | phant : Phant
 
 definition fromempty {X : Type} : empty → X

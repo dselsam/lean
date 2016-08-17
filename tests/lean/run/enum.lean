@@ -1,4 +1,4 @@
-xinductive Three
+inductive Three
 | zero : Three
 | one  : Three
 | two  : Three

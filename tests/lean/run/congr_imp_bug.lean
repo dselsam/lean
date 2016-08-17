@@ -7,7 +7,7 @@ open function
 
 namespace congr
 
-xinductive [class] struc {T1 : Type} {T2 : Type} (R1 : T1 → T1 → Prop) (R2 : T2 → T2 → Prop)
+inductive [class] struc {T1 : Type} {T2 : Type} (R1 : T1 → T1 → Prop) (R2 : T2 → T2 → Prop)
     (f : T1 → T2) : Prop
 | mk : (∀x y : T1, R1 x y → R2 (f x) (f y)) → struc
 
@@ -15,7 +15,7 @@ definition app {T1 : Type} {T2 : Type} {R1 : T1 → T1 → Prop} {R2 : T2 → T2
     {f : T1 → T2} (C : struc R1 R2 f) {x y : T1} : R1 x y → R2 (f x) (f y) :=
 struc.rec id C x y
 
-xinductive struc2 {T1 : Type} {T2 : Type} {T3 : Type} (R1 : T1 → T1 → Prop)
+inductive struc2 {T1 : Type} {T2 : Type} {T3 : Type} (R1 : T1 → T1 → Prop)
     (R2 : T2 → T2 → Prop) (R3 : T3 → T3 → Prop) (f : T1 → T2 → T3) : Prop
 | mk2 : (∀(x1 y1 : T1) (x2 y2 : T2), R1 x1 y1 → R2 x2 y2 → R3 (f x1 x2) (f y1 y2)) →
     struc2

@@ -144,8 +144,8 @@ static name const * g_key_equivalences_tk = nullptr;
 static name const * g_using_well_founded_tk = nullptr;
 static name const * g_mutual_definition_tk = nullptr;
 static name const * g_mutual_meta_definition_tk = nullptr;
-static name const * g_xinductive_tk = nullptr;
-static name const * g_xmutual_inductive_tk = nullptr;
+static name const * g_inductive_tk = nullptr;
+static name const * g_mutual_inductive_tk = nullptr;
 void initialize_tokens() {
     g_aliases_tk = new name{"aliases"};
     g_period_tk = new name{"."};
@@ -288,8 +288,8 @@ void initialize_tokens() {
     g_using_well_founded_tk = new name{"using_well_founded"};
     g_mutual_definition_tk = new name{"mutual_definition"};
     g_mutual_meta_definition_tk = new name{"mutual_meta_definition"};
-    g_xinductive_tk = new name{"xinductive"};
-    g_xmutual_inductive_tk = new name{"xmutual_inductive"};
+    g_inductive_tk = new name{"inductive"};
+    g_mutual_inductive_tk = new name{"mutual_inductive"};
 }
 void finalize_tokens() {
     delete g_aliases_tk;
@@ -433,8 +433,8 @@ void finalize_tokens() {
     delete g_using_well_founded_tk;
     delete g_mutual_definition_tk;
     delete g_mutual_meta_definition_tk;
-    delete g_xinductive_tk;
-    delete g_xmutual_inductive_tk;
+    delete g_inductive_tk;
+    delete g_mutual_inductive_tk;
 }
 name const & get_aliases_tk() { return *g_aliases_tk; }
 name const & get_period_tk() { return *g_period_tk; }
@@ -577,6 +577,6 @@ name const & get_key_equivalences_tk() { return *g_key_equivalences_tk; }
 name const & get_using_well_founded_tk() { return *g_using_well_founded_tk; }
 name const & get_mutual_definition_tk() { return *g_mutual_definition_tk; }
 name const & get_mutual_meta_definition_tk() { return *g_mutual_meta_definition_tk; }
-name const & get_xinductive_tk() { return *g_xinductive_tk; }
-name const & get_xmutual_inductive_tk() { return *g_xmutual_inductive_tk; }
+name const & get_inductive_tk() { return *g_inductive_tk; }
+name const & get_mutual_inductive_tk() { return *g_mutual_inductive_tk; }
 }

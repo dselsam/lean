@@ -1,8 +1,8 @@
-xinductive List (T : Type) : Type | nil {} : List | cons   : T → List → List
+inductive List (T : Type) : Type | nil {} : List | cons   : T → List → List
 
 namespace explicit
 
-xinductive ftree.{l₁ l₂} (A : Type.{l₁}) (B : Type.{l₂}) : Type.{max 1 l₁ l₂}
+inductive ftree.{l₁ l₂} (A : Type.{l₁}) (B : Type.{l₂}) : Type.{max 1 l₁ l₂}
 | leafa : A → ftree
 | leafb : B → ftree
 | node  : (A → ftree) → (B → ftree) → ftree
@@ -11,7 +11,7 @@ end explicit
 
 namespace implicit
 
-xinductive ftree (A : Type) (B : Type) : Type
+inductive ftree (A : Type) (B : Type) : Type
 | leafa : ftree
 | node  : (A → B → ftree) → (B → ftree) → ftree
 
@@ -22,7 +22,7 @@ end implicit
 
 namespace implicit2
 
-xinductive ftree (A : Type) (B : Type) : Type
+inductive ftree (A : Type) (B : Type) : Type
 | leafa : A → ftree
 | leafb : B → ftree
 | node  : (List A → ftree) → (B → ftree) → ftree

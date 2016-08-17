@@ -5,7 +5,7 @@ structure p1 :=
 
 check @p1.induction_on
 
-xinductive p2
+inductive p2
 | mk : nat → p2
 
 check @p2.induction_on

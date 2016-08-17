@@ -146,6 +146,6 @@ name const & get_key_equivalences_tk();
 name const & get_using_well_founded_tk();
 name const & get_mutual_definition_tk();
 name const & get_mutual_meta_definition_tk();
-name const & get_xinductive_tk();
-name const & get_xmutual_inductive_tk();
+name const & get_inductive_tk();
+name const & get_mutual_inductive_tk();
 }

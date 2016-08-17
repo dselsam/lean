@@ -1,17 +1,17 @@
-xinductive one1.{l} : Type.{l}
+inductive one1.{l} : Type.{l}
 | unit : one1
 
-xinductive pone : Type.{0}
+inductive pone : Type.{0}
 | unit : pone
 
-xinductive two.{l} : Type.{max 1 l}
+inductive two.{l} : Type.{max 1 l}
 | o : two
 | u : two
 
-xinductive wrap.{l} : Type.{max 1 l}
+inductive wrap.{l} : Type.{max 1 l}
 | mk : true → wrap
 
-xinductive wrap2.{l} (A : Type.{l}) : Type.{max 1 l}
+inductive wrap2.{l} (A : Type.{l}) : Type.{max 1 l}
 | mk : A → wrap2
 
 set_option pp.universes true
