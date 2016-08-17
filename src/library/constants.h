@@ -309,6 +309,8 @@ name const & get_subtype_tag_name();
 name const & get_subtype_elt_of_name();
 name const & get_subtype_rec_name();
 name const & get_sum_name();
+name const & get_sum_inl_name();
+name const & get_sum_inr_name();
 name const & get_tactic_name();
 name const & get_to_string_name();
 name const & get_to_int_name();
