@@ -69,7 +69,7 @@ list<expr> induction(environment const & env, options const & opts, transparency
     optional<metavar_decl> g = mctx.get_metavar_decl(mvar);
     lean_assert(g);
     type_context ctx1 = mk_type_context_for(env, opts, mctx, g->get_context(), m);
-    expr H_type = ctx1.infer(H);
+    expr H_type = ctx1.whnf(ctx1.infer(H));
     recursor_info rec_info = get_recursor_info(env, rec_name);
     buffer<expr> H_type_args;
     get_app_args(H_type, H_type_args);

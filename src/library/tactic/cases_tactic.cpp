@@ -73,7 +73,7 @@ struct cases_tactic_fn {
 
     bool is_cases_applicable(expr const & mvar, expr const & H) {
         type_context ctx = mk_type_context_for(mvar);
-        expr t = ctx.infer(H);
+        expr t = ctx.whnf(ctx.infer(H));
         buffer<expr> args;
         expr const & fn = get_app_args(t, args);
         if (!is_constant(fn))
