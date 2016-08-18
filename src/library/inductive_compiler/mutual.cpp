@@ -16,7 +16,6 @@ Author: Daniel Selsam
 #include "library/trace.h"
 #include "library/type_context.h"
 #include "library/attribute_manager.h"
-#include "library/inductive_compiler/ginductive.h"
 #include "library/inductive_compiler/compiler.h"
 #include "library/inductive_compiler/basic.h"
 #include "library/inductive_compiler/mutual.h"
