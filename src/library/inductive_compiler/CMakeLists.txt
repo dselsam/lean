@@ -3,4 +3,5 @@ add_library(inductive_compiler OBJECT
   compiler.cpp
   basic.cpp
   mutual.cpp
+  util.cpp
   )

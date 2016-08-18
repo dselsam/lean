@@ -17,6 +17,8 @@ class ginductive_decl {
     buffer<expr> m_inds;
     buffer<buffer<expr> > m_intro_rules;
 public:
+    ginductive_decl(buffer<name> const & lp_names, buffer<expr> const & params):
+        m_lp_names(lp_names), m_params(params) {}
     ginductive_decl(buffer<name> const & lp_names, buffer<expr> const & params,
                     buffer<expr> const & inds, buffer<buffer<expr> > const & intro_rules):
         m_lp_names(lp_names), m_params(params), m_inds(inds), m_intro_rules(intro_rules) {}
@@ -26,6 +28,11 @@ public:
     buffer<expr> const & get_params() const { return m_params; }
     buffer<expr> const & get_inds() const { return m_inds; }
     buffer<buffer<expr> > const & get_intro_rules() const { return m_intro_rules; }
+
+    buffer<name> & get_lp_names() { return m_lp_names; }
+    buffer<expr> & get_params() { return m_params; }
+    buffer<expr> & get_inds() { return m_inds; }
+    buffer<buffer<expr> > & get_intro_rules() { return m_intro_rules; }
 };
 
 }

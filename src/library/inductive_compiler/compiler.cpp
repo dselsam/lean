@@ -17,24 +17,16 @@ Author: Daniel Selsam
 
 namespace lean {
 
-environment compile_ginductive_decl(environment const & old_env, options const & opts,
-                                    name_map<implicit_infer_kind> implicit_infer_map,
-                                    ginductive_decl const & decl) {
+environment add_inner_inductive_declaration(environment const & env, options const & opts,
+                                            name_map<implicit_infer_kind> implicit_infer_map,
+                                            ginductive_decl const & decl) {
     lean_assert(decl.get_inds().size() == decl.get_intro_rules().size());
     if (decl.get_inds().size() == 1) {
         // TODO(dhs): nested inductive types
-        environment env = add_basic_to_kernel(old_env, implicit_infer_map, decl);
-        return post_process_basic(env, opts, decl);
+        return add_basic_inductive_decl(env, opts, implicit_infer_map, decl);
     } else {
-        // Mutual, for now
         lean_assert(decl.is_mutual());
-        auto basic_decl_aux = compile_mutual_to_basic(old_env, decl);
-        ginductive_decl & basic_decl = basic_decl_aux.first;
-        mutual_decl_aux & mutual_aux = basic_decl_aux.second;
-
-        lean_assert(!basic_decl.is_mutual());
-        environment env = compile_ginductive_decl(old_env, opts, implicit_infer_map, basic_decl);
-        return post_process_mutual(env, opts, implicit_infer_map, decl, basic_decl, mutual_aux);
+        return add_mutual_inductive_decl(env, opts, implicit_infer_map, decl);
     }
 }
 
@@ -42,7 +34,9 @@ environment add_inductive_declaration(environment const & old_env, options const
                                       name_map<implicit_infer_kind> implicit_infer_map,
                                       buffer<name> const & lp_names, buffer<expr> const & params,
                                       buffer<expr> const & inds, buffer<buffer<expr> > const & intro_rules) {
-    return compile_ginductive_decl(old_env, opts, implicit_infer_map, ginductive_decl(lp_names, params, inds, intro_rules));
+    environment env = add_inner_inductive_declaration(old_env, opts, implicit_infer_map, ginductive_decl(lp_names, params, inds, intro_rules));
+    // TODO(dhs): register it with library/inductive
+    return env;
 }
 
 void initialize_inductive_compiler() {}

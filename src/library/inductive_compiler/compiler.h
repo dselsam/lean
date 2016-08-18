@@ -8,8 +8,13 @@ Author: Daniel Selsam
 #include "kernel/environment.h"
 #include "frontends/lean/type_util.h"
 #include "library/util.h"
+#include "library/inductive_compiler/ginductive.h"
 
 namespace lean {
+
+environment add_inner_inductive_declaration(environment const & env, options const & opts,
+                                            name_map<implicit_infer_kind> implicit_infer_map,
+                                            ginductive_decl const & decl);
 
 environment add_inductive_declaration(environment const & env, options const & opts,
                                       name_map<implicit_infer_kind> implicit_infer_map,

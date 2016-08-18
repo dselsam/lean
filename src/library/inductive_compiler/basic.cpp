@@ -12,6 +12,7 @@ Author: Daniel Selsam
 #include "library/attribute_manager.h"
 #include "library/inductive_compiler/compiler.h"
 #include "library/inductive_compiler/basic.h"
+#include "library/inductive_compiler/util.h"
 #include "library/constructions/rec_on.h"
 #include "library/constructions/induction_on.h"
 #include "library/constructions/cases_on.h"
@@ -61,79 +62,91 @@ using inductive::inductive_decl;
 using inductive::intro_rule;
 using inductive::mk_intro_rule;
 
-static implicit_infer_kind get_implicit_infer_kind(name_map<implicit_infer_kind> const & implicit_infer_map, name const & n) {
-    if (auto it = implicit_infer_map.find(n))
-        return *it;
-    else
-        return implicit_infer_kind::Implicit;
-}
+class add_basic_inductive_decl_fn {
+    environment m_env;
+    options const & m_opts;
+    name_map<implicit_infer_kind> const & m_implicit_infer_map;
+    ginductive_decl const & m_decl;
 
-environment add_basic_to_kernel(environment const & env, name_map<implicit_infer_kind> implicit_infer_map,
-                                ginductive_decl const & gdecl) {
-    buffer<name> const & lp_names = gdecl.get_lp_names();
-    buffer<expr> const & params = gdecl.get_params();
-    expr const & ind = gdecl.get_inds()[0];
-    buffer<expr> const & intro_rules = gdecl.get_intro_rules()[0];
+    void mk_basic_aux_decls() {
+        name ind_name = mlocal_name(m_decl.get_inds()[0]);
 
-    expr new_ind_type = Pi(params, mlocal_type(ind));
-    expr c_ind = mk_app(mk_constant(mlocal_name(ind), param_names_to_levels(to_list(lp_names))), params);
+        bool has_unit = has_poly_unit_decls(m_env);
+        bool has_eq   = has_eq_decls(m_env);
+        bool has_heq  = has_heq_decls(m_env);
+        bool has_prod = has_prod_decls(m_env);
+        bool has_lift = has_lift_decls(m_env);
 
-    buffer<intro_rule> new_intro_rules;
-    for (expr const & ir : intro_rules) {
-        expr new_ir_type = Pi(params, replace_local(mlocal_type(ir), ind, c_ind));
-        implicit_infer_kind k = get_implicit_infer_kind(implicit_infer_map, mlocal_name(ir));
-        new_intro_rules.push_back(mk_intro_rule(mlocal_name(ir), infer_implicit_params(new_ir_type, params.size(), k)));
-    }
-    inductive_decl decl(mlocal_name(ind), new_ind_type, to_list(new_intro_rules));
-    return module::add_inductive(env, to_list(lp_names), params.size(), list<inductive_decl>(decl));
-}
+        bool gen_rec_on       = get_inductive_rec_on(m_opts);
+        bool gen_brec_on      = get_inductive_brec_on(m_opts);
+        bool gen_cases_on     = get_inductive_cases_on(m_opts);
+        bool gen_no_confusion = get_inductive_no_confusion(m_opts);
 
-environment mk_basic_aux_decls(environment env, options const & opts, name const & ind_name) {
-    bool has_unit = has_poly_unit_decls(env);
-    bool has_eq   = has_eq_decls(env);
-    bool has_heq  = has_heq_decls(env);
-    bool has_prod = has_prod_decls(env);
-    bool has_lift = has_lift_decls(env);
+        if (gen_rec_on)
+            m_env = mk_rec_on(m_env, ind_name);
 
-    bool gen_rec_on       = get_inductive_rec_on(opts);
-    bool gen_brec_on      = get_inductive_brec_on(opts);
-    bool gen_cases_on     = get_inductive_cases_on(opts);
-    bool gen_no_confusion = get_inductive_no_confusion(opts);
+        if (gen_rec_on && m_env.impredicative())
+            m_env = mk_induction_on(m_env, ind_name);
 
-    if (gen_rec_on)
-        env = mk_rec_on(env, ind_name);
+        if (has_unit) {
+            if (gen_cases_on)
+                m_env = mk_cases_on(m_env, ind_name);
 
-    if (gen_rec_on && env.impredicative())
-        env = mk_induction_on(env, ind_name);
+            if (gen_cases_on && gen_no_confusion && has_eq
+                && ((m_env.prop_proof_irrel() && has_heq) || (!m_env.prop_proof_irrel() && has_lift))) {
+                m_env = mk_no_confusion(m_env, ind_name);
+            }
 
-    if (has_unit) {
-        if (gen_cases_on)
-            env = mk_cases_on(env, ind_name);
-
-        if (gen_cases_on && gen_no_confusion && has_eq
-            && ((env.prop_proof_irrel() && has_heq) || (!env.prop_proof_irrel() && has_lift))) {
-                env = mk_no_confusion(env, ind_name);
+            if (gen_brec_on && has_prod) {
+                m_env = mk_below(m_env, ind_name);
+                if (m_env.impredicative()) {
+                    m_env = mk_ibelow(m_env, ind_name);
+                }
+            }
         }
 
-        if (gen_brec_on && has_prod) {
-            env = mk_below(env, ind_name);
-            if (env.impredicative()) {
-                env = mk_ibelow(env, ind_name);
+        if (gen_brec_on && has_unit && has_prod) {
+            m_env = mk_brec_on(m_env, ind_name);
+            if (m_env.impredicative()) {
+                m_env = mk_binduction_on(m_env, ind_name);
             }
         }
     }
 
-    if (gen_brec_on && has_unit && has_prod) {
-        env = mk_brec_on(env, ind_name);
-        if (env.impredicative()) {
-            env = mk_binduction_on(env, ind_name);
-        }
-    }
-    return env;
-}
+    void send_to_kernel() {
+        buffer<name> const & lp_names = m_decl.get_lp_names();
+        buffer<expr> const & params = m_decl.get_params();
+        expr const & ind = m_decl.get_inds()[0];
+        buffer<expr> const & intro_rules = m_decl.get_intro_rules()[0];
 
-environment post_process_basic(environment const & env, options const & opts, ginductive_decl const & decl) {
-    return mk_basic_aux_decls(env, opts, mlocal_name(decl.get_inds()[0]));
+        expr new_ind_type = Pi(params, mlocal_type(ind));
+        expr c_ind = mk_app(mk_constant(mlocal_name(ind), param_names_to_levels(to_list(lp_names))), params);
+
+        buffer<intro_rule> new_intro_rules;
+        for (expr const & ir : intro_rules) {
+            expr new_ir_type = Pi(params, replace_local(mlocal_type(ir), ind, c_ind));
+            implicit_infer_kind k = get_implicit_infer_kind(m_implicit_infer_map, mlocal_name(ir));
+            new_intro_rules.push_back(mk_intro_rule(mlocal_name(ir), infer_implicit_params(new_ir_type, params.size(), k)));
+        }
+        inductive_decl kdecl(mlocal_name(ind), new_ind_type, to_list(new_intro_rules));
+        m_env = module::add_inductive(m_env, to_list(lp_names), params.size(), list<inductive_decl>(kdecl));
+    }
+
+public:
+    add_basic_inductive_decl_fn(environment const & env, options const & opts, name_map<implicit_infer_kind> implicit_infer_map,
+                                ginductive_decl const & decl):
+        m_env(env), m_opts(opts), m_implicit_infer_map(implicit_infer_map), m_decl(decl) {}
+
+    environment operator()() {
+        send_to_kernel();
+        mk_basic_aux_decls();
+        return m_env;
+    }
+};
+
+environment add_basic_inductive_decl(environment const & env, options const & opts, name_map<implicit_infer_kind> implicit_infer_map,
+                                     ginductive_decl const & decl) {
+    return add_basic_inductive_decl_fn(env, opts, implicit_infer_map, decl)();
 }
 
 void initialize_inductive_compiler_basic() {
