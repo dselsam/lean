@@ -34,7 +34,7 @@ environment compile_ginductive_decl(environment const & old_env, options const &
 
         lean_assert(!basic_decl.is_mutual());
         environment env = compile_ginductive_decl(old_env, opts, implicit_infer_map, basic_decl);
-        return post_process_mutual(env, opts, implicit_infer_map, decl, mutual_aux);
+        return post_process_mutual(env, opts, implicit_infer_map, decl, basic_decl, mutual_aux);
     }
 }
 

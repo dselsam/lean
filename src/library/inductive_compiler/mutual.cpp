@@ -7,6 +7,7 @@ Author: Daniel Selsam
 #include "kernel/inductive/inductive.h"
 #include "kernel/abstract.h"
 #include "kernel/instantiate.h"
+#include "kernel/type_checker.h"
 #include "util/sexpr/option_declarations.h"
 #include "library/locals.h"
 #include "library/app_builder.h"
@@ -23,6 +24,18 @@ Author: Daniel Selsam
 namespace lean {
 
 static name * g_mutual_prefix = nullptr;
+
+// TODO(dhs): move to util
+static expr get_ind_result_type(type_context & tctx, expr const & ind) {
+    expr ind_type = tctx.relaxed_whnf(mlocal_type(ind));
+    type_context::tmp_locals locals(tctx);
+    while (is_pi(ind_type)) {
+        ind_type = instantiate(binding_body(ind_type), locals.push_local_from_binding(ind_type));
+        ind_type = tctx.relaxed_whnf(ind_type);
+    }
+    lean_assert(is_sort(ind_type));
+    return ind_type;
+}
 
 class compile_mutual_to_basic_fn {
     environment const     & m_env;
@@ -131,19 +144,8 @@ class compile_mutual_to_basic_fn {
         return n;
     }
 
-    expr get_ind_result_type() {
-        expr ind_type = m_tctx.relaxed_whnf(mlocal_type(m_mut_decl.get_inds()[0]));
-        type_context::tmp_locals locals(m_tctx);
-        while (is_pi(ind_type)) {
-            ind_type = instantiate(binding_body(ind_type), locals.push_local_from_binding(ind_type));
-            ind_type = m_tctx.relaxed_whnf(ind_type);
-        }
-        lean_assert(is_sort(ind_type));
-        return ind_type;
-    }
-
     void compute_new_ind() {
-        expr ind = mk_local(mk_single_name(), mk_arrow(m_full_index_type, get_ind_result_type()));
+        expr ind = mk_local(mk_single_name(), mk_arrow(m_full_index_type, get_ind_result_type(m_tctx, m_mut_decl.get_inds()[0])));
         lean_trace(name({"inductive_compiler", "mutual", "new_ind"}), tout() << mlocal_name(ind) << " : " << mlocal_type(ind) << "\n";);
         m_new_inds.push_back(ind);
     }
@@ -176,7 +178,7 @@ class compile_mutual_to_basic_fn {
         name ir_name = mk_single_name() + mlocal_name(ir);
         type_context::tmp_locals locals(m_tctx);
         expr ty = m_tctx.relaxed_whnf(mlocal_type(ir));
-        if (is_pi(ty)) {
+        while (is_pi(ty)) {
             expr arg_type = binding_domain(ty);
             expr l;
             if (auto new_arg_type = translate_ir_arg(arg_type)) {
@@ -232,43 +234,74 @@ pair<ginductive_decl, mutual_decl_aux> compile_mutual_to_basic(environment const
 
 // TODO(dhs): need to take the basic ginductive_decl as well (if only for names)
 class postprocess_mutual_fn {
-    environment const     & m_env;
+    environment             m_env;
     ginductive_decl const & m_mut_decl;
     ginductive_decl const & m_basic_decl;
-    mutual_aux const &      m_mut_aux;
+    mutual_decl_aux const & m_mut_aux;
 
     aux_type_context        m_aux_tctx;
     type_context &          m_tctx;
 
+    buffer<expr>            m_c_inds;
+
 public:
-    postprocess_mutual_fn(environment const & env, ginductive_decl const & mut_decl, ginductive_decl const & basic_decl, mutual_aux const & mut_aux):
+    postprocess_mutual_fn(environment const & env, ginductive_decl const & mut_decl, ginductive_decl const & basic_decl, mutual_decl_aux const & mut_aux):
         m_env(env), m_mut_decl(mut_decl), m_basic_decl(basic_decl), m_mut_aux(mut_aux), m_aux_tctx(env), m_tctx(m_aux_tctx.get()) {}
 
     void define_ind_types() {
         for (unsigned ind_idx = 0; ind_idx < m_mut_decl.get_inds().size(); ++ind_idx) {
             expr const & ind = m_mut_decl.get_inds()[ind_idx];
-            expr ty = mlocal_type(ind);
-
             type_context::tmp_locals locals(m_tctx);
             expr ty = m_tctx.relaxed_whnf(mlocal_type(ind));
             while (is_pi(ty)) {
                 expr l = locals.push_local(binding_name(ty), binding_domain(ty), binding_info(ty));
                 ty = m_tctx.relaxed_whnf(instantiate(binding_body(ty), l));
             }
-            // TODO(dhs): current spot
-            // definition foo (A : Type) (n₁ n₂ : nat) := FBR A (put₁ $ mk₁ n₁ n₂)
-//            buffer<expr> args(m_
+            buffer<expr> args(m_mut_decl.get_params());
+            args.push_back(mk_app(m_mut_aux.get_putters()[ind_idx],
+                                  mk_app(m_mut_aux.get_makers()[ind_idx], locals.as_buffer())));
+            expr new_ind_val = locals.mk_lambda(mk_app(mk_constant(mlocal_name(m_basic_decl.get_inds()[0]), param_names_to_levels(to_list(m_mut_decl.get_lp_names()))),
+                                                       args));
+            expr new_ind_type = mlocal_type(ind);
+            new_ind_val = Fun(m_mut_decl.get_params(), new_ind_val);
+            new_ind_type = Pi(m_mut_decl.get_params(), new_ind_type);
 
-//            expr new_ind_type = mk_app(m_tctx, mlocal_name(m_basic_decl.get_inds()[0]),
-//                                       mk_app(m_mut_aux.get_putters()[i],
-//                                              mk_app(m_mut_aux.get_makers()[i],
-//            definition foo (A : Type) (n₁ n₂ : nat) := FBR A (put₁ $ mk₁ n₁ n₂)
-        return locals.mk_lambda(new_ind_type);
+            lean_trace(name({"inductive_compiler", "mutual", "new_inds"}), tout()
+                       << mlocal_name(ind) << " : " << new_ind_type << " :=\n  " << new_ind_val << "\n";);
+            // TODO(dhs): set attributes? irreducible? constructor-like? no-pattern?
+            m_env = module::add(m_env, check(m_env, mk_definition(m_env, mlocal_name(ind), to_list(m_mut_decl.get_lp_names()), new_ind_type, new_ind_val)));
+        }
     }
 
-    environment operator() {
+    void compute_c_inds() {
+        for (expr const & ind : m_mut_decl.get_inds()) {
+            m_c_inds.push_back(mk_app(mk_constant(mlocal_name(ind), param_names_to_levels(to_list(m_mut_decl.get_lp_names()))),
+                                      m_mut_decl.get_params()));
+        }
+    }
+
+    void define_intro_rules() {
+        compute_c_inds();
+        // definition foo.mk (A : Type) := @FBR.fmk A
+        unsigned basic_ir_idx = 0;
+        for (unsigned ind_idx = 0; ind_idx < m_mut_decl.get_inds().size(); ++ind_idx) {
+            buffer<expr> const & irs = m_mut_decl.get_intro_rules()[ind_idx];
+            for (expr const & ir : irs) {
+                expr new_ir_val = Fun(m_mut_decl.get_params(), mk_app(mk_constant(mlocal_name(m_basic_decl.get_intro_rules()[0][basic_ir_idx]),
+                                                                                  param_names_to_levels(to_list(m_mut_decl.get_lp_names()))),
+                                                                      m_mut_decl.get_params()));
+                expr new_ir_type = Pi(m_mut_decl.get_params(), replace_locals(mlocal_type(ir), m_mut_decl.get_inds(), m_c_inds));
+                lean_trace(name({"inductive_compiler", "mutual", "new_irs"}), tout()
+                           << mlocal_name(ir) << " : " << new_ir_type << " :=\n  " << new_ir_val << "\n";);
+                m_env = module::add(m_env, check(m_env, mk_definition(m_env, mlocal_name(ir), to_list(m_mut_decl.get_lp_names()), new_ir_type, new_ir_val)));
+                basic_ir_idx++;
+            }
+        }
+    }
+
+    environment operator()() {
         define_ind_types();
-        //define_intro_rules();
+        define_intro_rules();
 //        define_cases_on();
         return m_env;
     }
@@ -297,16 +330,8 @@ environment define_ind_types(environment const & env, ginductive_decl const & mu
         return locals.mk_lambda(maker);
 */
 environment post_process_mutual(environment const & env, options const & opts, name_map<implicit_infer_kind> const & implicit_infer_map,
-                                ginductive_decl const & mut_decl, mutual_decl_aux const & mut_aux) {
-    // TODO(dhs): implement
-    // 1. define inductive types
-    // 2. define introduction rules
-    // 3. cases_on
-    // 4. ...
-
-
-
-    return env;
+                                ginductive_decl const & mut_decl, ginductive_decl const & basic_decl, mutual_decl_aux const & mut_aux) {
+    return postprocess_mutual_fn(env, mut_decl, basic_decl, mut_aux)();
 }
 
 void initialize_inductive_compiler_mutual() {
@@ -317,6 +342,7 @@ void initialize_inductive_compiler_mutual() {
     register_trace_class(name({"inductive_compiler", "mutual", "putters"}));
     register_trace_class(name({"inductive_compiler", "mutual", "new_ind"}));
     register_trace_class(name({"inductive_compiler", "mutual", "new_irs"}));
+    register_trace_class(name({"inductive_compiler", "mutual", "new_inds"}));
 
     g_mutual_prefix = new name(name::mk_internal_unique_name());
 }

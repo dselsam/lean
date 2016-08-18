@@ -31,7 +31,7 @@ public:
 pair<ginductive_decl, mutual_decl_aux> compile_mutual_to_basic(environment const & env, ginductive_decl const & mut_decl);
 
 environment post_process_mutual(environment const & env, options const & opts, name_map<implicit_infer_kind> const & implicit_infer_map,
-                                ginductive_decl const & mut_decl, mutual_decl_aux const & mut_aux);
+                                ginductive_decl const & mut_decl, ginductive_decl const & basic_decl, mutual_decl_aux const & mut_aux);
 
 void initialize_inductive_compiler_mutual();
 void finalize_inductive_compiler_mutual();
