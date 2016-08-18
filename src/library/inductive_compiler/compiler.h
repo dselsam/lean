@@ -16,11 +16,6 @@ environment add_inner_inductive_declaration(environment const & env, options con
                                             name_map<implicit_infer_kind> implicit_infer_map,
                                             ginductive_decl const & decl);
 
-environment add_inductive_declaration(environment const & env, options const & opts,
-                                      name_map<implicit_infer_kind> implicit_infer_map,
-                                      buffer<name> const & lp_names, buffer<expr> const & params,
-                                      buffer<expr> const & inds, buffer<buffer<expr> > const & intro_rules);
-
 void initialize_inductive_compiler();
 void finalize_inductive_compiler();
 
