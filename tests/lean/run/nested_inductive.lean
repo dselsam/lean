@@ -200,6 +200,25 @@ check @foo.mk₂
 
 end X16
 
+namespace X16b
+print "capstone in Prop II"
+inductive even (A : Type) : nat -> Prop
+| z : A -> even 0
+| s : Pi n, A -> even n -> even (n+2)
+
+inductive foo (A B : Prop) : nat -> nat -> Prop
+| mk₁ : Pi (n₁ : nat), and (foo 5 n₁) (foo 5 (n₁ + 1)) -> or (foo 5 0) (foo 5 n₁) -> foo 5 (n₁ + 5)
+| mk₂ : Pi (n₁ : nat), (Pi (n₂ : nat), and (foo 5 n₂) (foo 5 n₁)) -> foo 5 (n₁ + 6)
+| mk₃ : Pi (n₁ : nat), or (foo 5 n₁) (foo 5 (n₁ + 1)) -> and (foo 5 0) (foo 5 n₁) -> foo 5 (n₁ + 5)
+| mk₄ : Pi (n₁ : nat), (Pi (n₂ : nat), or (foo 5 n₂) (foo 5 n₁)) -> foo 5 (n₁ + 6)
+| mk₅ : Pi (n₁ : nat), (Pi (n₂ : nat), even (foo 5 (n₁ + n₂)) (n₁ + n₂)) -> even (foo 5 n₁) n₁ -> foo 5 (n₁ + 6)
+
+check @foo
+check @foo.mk₁
+check @foo.mk₂
+
+end X16b
+
 -- Now we start with nested-nested inductives
 namespace X17
 
