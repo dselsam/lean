@@ -86,6 +86,8 @@ class add_mutual_inductive_decl_fn {
         return sum;
     }
 
+    bool dep_elim() { return inductive::has_dep_elim(m_env, mlocal_name(m_basic_decl.get_inds()[0])); }
+
     void compute_index_types() {
         for (expr const & ind : m_mut_decl.get_inds()) {
             m_index_types.push_back(to_sigma_type(mlocal_type(ind)));
@@ -343,7 +345,7 @@ class add_mutual_inductive_decl_fn {
             buffer<expr> indices;
             to_buffer(reverse(rev_unpacked_sigma_args), indices);
             indices.push_back(idx);
-            return Fun(x, mk_app(mk_app(C, indices), x));
+            return dep_elim() ? Fun(x, mk_app(mk_app(C, indices), x)) : Fun(x, mk_app(C, indices));
         }
         lean_assert(is_pi(binding_body(ty)));
 
@@ -382,6 +384,8 @@ class add_mutual_inductive_decl_fn {
         expr const & ind = m_mut_decl.get_inds()[ind_idx];
         expr ind_ty = mlocal_type(ind);
         if (!is_pi(ind_ty)) {
+            if (!dep_elim())
+                return C;
             expr u = mk_local_pp("u", mk_constant(get_unit_name()));
             expr x_u = mk_local_pp("x_u", mk_app(m_basic_decl.get_inds()[0], mk_app(m_putters[ind_idx], u)));
             expr unit_C = Fun(u, Pi(x_u, mk_sort(m_elim_level)));
@@ -395,7 +399,7 @@ class add_mutual_inductive_decl_fn {
         }
         if (!is_pi(binding_body(ind_ty))) {
             expr x = mk_local_pp("x", mk_app(ind, idx));
-            return Fun(x, mk_app(C, {idx, x}));
+            return dep_elim() ? Fun(x, mk_app(C, {idx, x})) : Fun(x, mk_app(C, {idx}));
         }
         expr ty = mlocal_type(m_mut_decl.get_inds()[ind_idx]);
         list<expr> rev_unpacked_sigma_args;
@@ -405,13 +409,19 @@ class add_mutual_inductive_decl_fn {
     expr construct_inner_C_core(expr const & C, expr const & index, unsigned i, unsigned ind_idx) {
         expr A = m_index_types[i];
         expr B = mk_sum(m_index_types.size() - (i+1), m_index_types.data() + (i+1));
+
         expr motive;
         level motive_level;
         {
             expr c = mk_local_pp("c", mk_sum(A, B));
-            expr x = mk_local_pp("x", mk_app(m_basic_decl.get_inds()[0], mk_app(mk_put_rest(i), c)));
-            motive = Fun(c, Pi(x, mk_sort(m_elim_level)));
-            motive_level = get_level(m_tctx, Pi(x, mk_sort(m_elim_level)));
+            if (dep_elim()) {
+                expr x = mk_local_pp("x", mk_app(m_basic_decl.get_inds()[0], mk_app(mk_put_rest(i), c)));
+                motive = Fun(c, Pi(x, mk_sort(m_elim_level)));
+                motive_level = get_level(m_tctx, Pi(x, mk_sort(m_elim_level)));
+            } else {
+                motive = Fun(c, mk_sort(m_elim_level));
+                motive_level = get_level(m_tctx, mk_sort(m_elim_level));
+            }
             lean_trace(name({"inductive_compiler", "mutual", "rec"}), tout() << "inner C motive: " << motive << "\n";);
         }
         bool found_target = false;
@@ -422,8 +432,12 @@ class add_mutual_inductive_decl_fn {
                 found_target = true;
                 case1 = Fun(idx, unpack_sigma_and_apply_C(ind_idx, idx, C));
             } else {
-                expr x = mk_local_pp("x", mk_app(m_basic_decl.get_inds()[0], mk_app(m_putters[i], idx)));
-                case1 = Fun({idx, x}, poly_unit());
+                if (dep_elim()) {
+                    expr x = mk_local_pp("x", mk_app(m_basic_decl.get_inds()[0], mk_app(m_putters[i], idx)));
+                    case1 = Fun({idx, x}, poly_unit());
+                } else {
+                    case1 = Fun(idx, poly_unit());
+                }
             }
             lean_trace(name({"inductive_compiler", "mutual", "rec"}), tout() << "inner C case1: " << case1 << "\n";);
         }
@@ -435,8 +449,12 @@ class add_mutual_inductive_decl_fn {
                 // case2 absorbs everything else
                 // TODO(dhs): the `putter` is wrong. We literally want to stick the entire remaining index in the spot
                 // URGENT
-                expr x = mk_local_pp("x", mk_app(m_basic_decl.get_inds()[0], mk_app(mk_put_rest(ind_idx+1), idx)));
-                case2 = Fun({idx, x}, poly_unit());
+                if (dep_elim()) {
+                    expr x = mk_local_pp("x", mk_app(m_basic_decl.get_inds()[0], mk_app(mk_put_rest(ind_idx+1), idx)));
+                    case2 = Fun({idx, x}, poly_unit());
+                } else {
+                    case2 = Fun(idx, poly_unit());
+                }
             } else if (i + 1 == ind_idx && ind_idx + 1 == m_mut_decl.get_inds().size()) {
                 // case2 is the end, and has the payload
                 case2 = Fun(idx, unpack_sigma_and_apply_C(ind_idx, idx, C));
@@ -464,7 +482,6 @@ class add_mutual_inductive_decl_fn {
 
     expr introduce_locals_for_rec_args(unsigned ind_idx, expr & C, buffer<expr> & minor_premises, buffer<expr> & indices, expr & major_premise) {
         expr const & ind = m_mut_decl.get_inds()[ind_idx];
-
         {
             buffer<expr> C_args;
             expr ind_ty = m_tctx.relaxed_whnf(mlocal_type(ind));
@@ -473,7 +490,12 @@ class add_mutual_inductive_decl_fn {
                 C_args.push_back(C_arg);
                 ind_ty = m_tctx.relaxed_whnf(instantiate(binding_body(ind_ty), C_arg));
             }
-            expr C_type = Pi(C_args, mk_arrow(mk_app(ind, C_args), mk_sort(m_elim_level)));
+            expr C_type;
+            if (dep_elim()) {
+                C_type = Pi(C_args, mk_arrow(mk_app(ind, C_args), mk_sort(m_elim_level)));
+            } else {
+                C_type = Pi(C_args, mk_sort(m_elim_level));
+            }
             C = mk_local_pp("C", C_type);
             lean_trace(name({"inductive_compiler", "mutual", "rec"}), tout() << "C_type: " << C_type << "\n";);
         }
@@ -497,7 +519,12 @@ class add_mutual_inductive_decl_fn {
                 buffer<expr> inner_args;
                 expr arg_fn = get_app_args(ir_arg, inner_args);
                 if (arg_fn == ind) {
-                    expr rec_arg_type = Pi(ir_arg_args, mk_app(mk_app(C, inner_args), mk_app(minor_premise_arg, ir_arg_args)));
+                    expr rec_arg_type;
+                    if (dep_elim()) {
+                        rec_arg_type = Pi(ir_arg_args, mk_app(mk_app(C, inner_args), mk_app(minor_premise_arg, ir_arg_args)));
+                    } else {
+                        rec_arg_type = Pi(ir_arg_args, mk_app(C, inner_args));
+                    }
                     expr rec_arg = mk_local_pp("x", rec_arg_type);
                     rec_args.push_back(rec_arg);
                 }
@@ -506,9 +533,12 @@ class add_mutual_inductive_decl_fn {
             buffer<expr> result_indices;
             expr should_be_ind = get_app_args(ir_ty, result_indices);
             lean_assert(should_be_ind == ind);
-            expr minor_premise_type = Pi(ir_args,
-                                             Pi(rec_args,
-                                                mk_app(mk_app(C, result_indices), mk_app(ir, ir_args))));
+            expr minor_premise_type;
+            if (dep_elim()) {
+                minor_premise_type = Pi(ir_args, Pi(rec_args, mk_app(mk_app(C, result_indices), mk_app(ir, ir_args))));
+            } else {
+                minor_premise_type = Pi(ir_args, Pi(rec_args, mk_app(C, result_indices)));
+            }
             expr minor_premise = mk_local_pp("mp", minor_premise_type);
             minor_premises.push_back(minor_premise);
             lean_trace(name({"inductive_compiler", "mutual", "rec"}), tout() << "mp_type: " << minor_premise_type << "\n";);
@@ -526,7 +556,7 @@ class add_mutual_inductive_decl_fn {
             lean_trace(name({"inductive_compiler", "mutual", "rec"}), tout() << "major premise type: " << major_premise_type << "\n";);
         }
 
-        expr rec_type = mk_app(mk_app(C, indices), major_premise);
+        expr rec_type = dep_elim() ? mk_app(mk_app(C, indices), major_premise) : mk_app(C, indices);
         lean_trace(name({"inductive_compiler", "mutual", "rec"}), tout() << "rec_type: " << rec_type << "\n";);
         return rec_type;
     }
@@ -572,7 +602,8 @@ class add_mutual_inductive_decl_fn {
                     ir_type = m_tctx.relaxed_whnf(instantiate(binding_body(ir_type), l));
                     return_args.push_back(l);
                     if (is_ind(arg_fn)) {
-                        expr rec_arg_type = Pi(ir_arg_args, (arg_fn == m_mut_decl.get_inds()[ind_idx]) ? mk_app(mk_app(C, inner_args), mk_app(l, ir_arg_args)) : poly_unit());
+                        expr C_term = dep_elim() ? mk_app(mk_app(C, inner_args), mk_app(l, ir_arg_args)) : mk_app(C, inner_args);
+                        expr rec_arg_type = Pi(ir_arg_args, (arg_fn == m_mut_decl.get_inds()[ind_idx]) ? C_term : poly_unit());
                         expr l2 = mk_local_pp("x", rec_arg_type);
                         rec_args.push_back(l2);
                         // We only pass recursive arguments of the inductive type in question to the minor premise

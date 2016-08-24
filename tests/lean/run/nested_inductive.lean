@@ -268,7 +268,7 @@ inductive foo.{l} : Type.{max 1 l}
 
 check @foo
 check @foo.mk
-end
+end X22
 
 namespace X23
 inductive mlist.{l} (A : Type.{l}) : Type.{max 1 l}
