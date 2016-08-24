@@ -28,12 +28,7 @@ Authors: Daniel Selsam, Leonardo de Moura
 #include "library/trace.h"
 #include "library/app_builder.h"
 #include "library/type_context.h"
-#include "library/constructions/rec_on.h"
-#include "library/constructions/induction_on.h"
-#include "library/constructions/cases_on.h"
-#include "library/constructions/brec_on.h"
-#include "library/constructions/no_confusion.h"
-#include "library/inductive_compiler/compiler.h"
+#include "library/inductive_compiler/add_decl.h"
 #include "frontends/lean/decl_cmds.h"
 #include "frontends/lean/decl_util.h"
 #include "frontends/lean/util.h"
@@ -362,9 +357,9 @@ class inductive_cmd_fn {
         // TODO(dhs): I don't think we actually need to keep replacing all the locals, as long as the names are the same
         m_env = m_env.remove_universe(tmp_global_univ_name());
 
+        unsigned offset = offsets[0] + offsets[1];
         for (unsigned i = 2; i < offsets.size(); ++i) {
             new_intro_rules.emplace_back();
-            unsigned offset = offsets[0] + offsets[1];
             for (unsigned j = 0; j < offsets[i]; ++j) {
                 expr new_ir = replace_locals(all_exprs[offset+j], offsets[1], all_exprs.data() + offsets[0], new_inds.data());
                 if (m_infer_result_universe)

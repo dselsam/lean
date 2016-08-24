@@ -1,0 +1,8 @@
+foo₁ : Π (A : Type), A → A → Type
+foo₂ : Π (A : Type), A → ℕ → Type
+foo₃ : Π (A : Type), A → (Π {n₁ n₂ : ℕ}, f n₁ n₂ → Type)
+foo₄ : Π (A : Type), A → Type
+foo₁.mk₁ : Π {A : Type} (a : A), foo₁ A a a
+foo₂.mk₂ : Π {A : Type} {a : A} (b : A) (n : ℕ), g n → foo₁ A a b → foo₂ A a (n + 1)
+foo₃.mk₃ : Π {A : Type} {a : A}, A → foo₂ A a 0 → foo₃ A a f00
+foo₄.mk₄ : Π {A : Type} {a : A}, foo₂ A a 0 → foo₄ A a

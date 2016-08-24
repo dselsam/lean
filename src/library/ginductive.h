@@ -39,15 +39,47 @@ Author: Daniel Selsam
 
 namespace lean {
 
-/* \brief Returns true if \e ind_name is the name of a (user-facing) inductive type,
-   whether it is basic, mutual, or nested. */
-bool is_inductive(environment const & env, name const & ind_name);
+class ginductive_decl {
+    buffer<name> m_lp_names;
+    buffer<expr> m_params;
+    buffer<expr> m_inds;
+    buffer<buffer<expr> > m_intro_rules;
+public:
+    ginductive_decl() {}
+    ginductive_decl(buffer<name> const & lp_names, buffer<expr> const & params):
+        m_lp_names(lp_names), m_params(params) {}
+    ginductive_decl(buffer<name> const & lp_names, buffer<expr> const & params,
+                    buffer<expr> const & inds, buffer<buffer<expr> > const & intro_rules):
+        m_lp_names(lp_names), m_params(params), m_inds(inds), m_intro_rules(intro_rules) {}
+
+    bool is_mutual() const { return m_inds.size() > 1; }
+    buffer<name> const & get_lp_names() const { return m_lp_names; }
+    buffer<expr> const & get_params() const { return m_params; }
+    buffer<expr> const & get_inds() const { return m_inds; }
+    buffer<buffer<expr> > const & get_intro_rules() const { return m_intro_rules; }
+
+    buffer<name> & get_lp_names() { return m_lp_names; }
+    buffer<expr> & get_params() { return m_params; }
+    buffer<expr> & get_inds() { return m_inds; }
+    buffer<buffer<expr> > & get_intro_rules() { return m_intro_rules; }
+};
+
+serializer & operator<<(serializer & s, ginductive_decl const & decl);
+ginductive_decl read_ginductive_decl(deserializer & d);
+inline deserializer & operator>>(deserializer & d, ginductive_decl & decl);
+
+environment register_ginductive_decl(environment const & env, ginductive_decl const & decl);
+
+bool is_ginductive(environment const & env, name const & ind_name);
 
 /* \brief Returns the names of the introduction rules for the inductive type \e ind_name. */
-list<name> get_intro_rule_names(environment const & env, name const & ind_name);
+optional<list<name> > get_ginductive_intro_rules(environment const & env, name const & ind_name);
 
 /* \brief Returns the name of the inductive type if \e ir_name is indeed an introduction rule. */
-optional<name> is_intro_rule_name(environment const & env, name const & ir_name);
+optional<name> is_ginductive_intro_rule(environment const & env, name const & ir_name);
+
+/* \brief Returns the number of parameters for the given inductive type \e ind_name. */
+unsigned get_ginductive_num_params(environment const & env, name const & ind_name);
 
 /* \brief Given the names of two introduction rules for the same inductive type, returns a
    proof that they are disjoint.
@@ -61,9 +93,6 @@ optional<name> is_intro_rule_name(environment const & env, name const & ir_name)
 */
 expr prove_intro_rules_disjoint(environment const & env, name const & ir_name1, name const & ir_name2);
 
-/* \brief Returns the number of parameters for the given inductive type \e ind_name. */
-unsigned get_inductive_num_params(environment const & env, name const & ind_name);
-
-void initialize_library_inductive();
-void finalize_library_inductive();
+void initialize_library_ginductive();
+void finalize_library_ginductive();
 }
