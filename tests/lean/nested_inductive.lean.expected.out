@@ -1,0 +1,4 @@
+nested_inductive.lean:2:0: error: type mismatch at definition '23.foo', has type
+  Prop → Prop → Type₁
+but is expected to have type
+  Prop → Prop → Prop

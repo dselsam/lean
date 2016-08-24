@@ -31,6 +31,7 @@ Author: Leonardo de Moura
 #include "library/explicit.h"
 #include "library/protected.h"
 #include "library/private.h"
+#include "library/ginductive.h"
 #include "library/class.h"
 #include "library/constants.h"
 #include "library/util.h"
@@ -721,6 +722,17 @@ struct structure_cmd_fn {
             m_env = add_class(m_env, m_name, true);
     }
 
+    void declare_ginductive_type() {
+        expr structure_type = mk_structure_type();
+        expr intro_type     = mk_intro_type();
+
+        ginductive_decl gdecl(m_level_names, m_params);
+        gdecl.get_inds().push_back(mk_local(m_name, structure_type));
+        gdecl.get_intro_rules().emplace_back();
+        gdecl.get_intro_rules().back().push_back(mk_local(m_mk, intro_type));
+        m_env = register_ginductive_decl(m_env, gdecl);
+    }
+
     void save_def_info(name const & n) {
         save_info(n, "definition", m_name_pos);
     }
@@ -900,6 +912,7 @@ struct structure_cmd_fn {
         include_ctx_levels();
         m_ctx_levels = collect_local_nonvar_levels(m_p, to_list(m_level_names.begin(), m_level_names.end()));
         declare_inductive_type();
+        declare_ginductive_type();
         declare_projections();
         declare_auxiliary();
         declare_coercions();

@@ -281,6 +281,7 @@ ring
 select
 semiring
 sigma
+sigma.cases_on
 sigma.mk
 sigma.pr1
 sigma.pr2
@@ -301,6 +302,10 @@ subsingleton.helim
 subtype.tag
 subtype.elt_of
 subtype.rec
+sum
+sum.cases_on
+sum.inl
+sum.inr
 tactic
 to_string
 to_int
@@ -314,6 +319,7 @@ unification_hint.mk
 unification_constraint
 unification_constraint.mk
 unit
+unit.cases_on
 unit.star
 weak_order
 well_founded
