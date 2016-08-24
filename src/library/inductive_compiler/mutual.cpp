@@ -345,7 +345,7 @@ class add_mutual_inductive_decl_fn {
             buffer<expr> indices;
             to_buffer(reverse(rev_unpacked_sigma_args), indices);
             indices.push_back(idx);
-            return dep_elim() ? Fun(x, mk_app(mk_app(C, indices), x)) : Fun(x, mk_app(C, indices));
+            return dep_elim() ? Fun(x, mk_app(mk_app(C, indices), x)) : mk_app(C, indices);
         }
         lean_assert(is_pi(binding_body(ty)));
 
@@ -358,10 +358,15 @@ class add_mutual_inductive_decl_fn {
         level motive_level;
         {
             expr idx = mk_local_pp("idx", args_to_sigma_type(ty));
-            expr x = mk_local_pp("x", mk_app(m_basic_decl.get_inds()[0],
-                                             mk_app(m_putters[ind_idx], mk_sigma(rev_unpacked_sigma_args, idx))));
-            motive = Fun(idx, Pi(x, mk_sort(m_elim_level)));
-            motive_level = get_level(m_tctx, Pi(x, mk_sort(m_elim_level)));
+            if (dep_elim()) {
+                expr x = mk_local_pp("x", mk_app(m_basic_decl.get_inds()[0],
+                                                 mk_app(m_putters[ind_idx], mk_sigma(rev_unpacked_sigma_args, idx))));
+                motive = Fun(idx, Pi(x, mk_sort(m_elim_level)));
+                motive_level = get_level(m_tctx, Pi(x, mk_sort(m_elim_level)));
+            } else {
+                motive = Fun(idx, mk_sort(m_elim_level));
+                motive_level = get_level(m_tctx, mk_sort(m_elim_level));
+            }
         }
 
         expr major_premise = idx;
@@ -399,7 +404,7 @@ class add_mutual_inductive_decl_fn {
         }
         if (!is_pi(binding_body(ind_ty))) {
             expr x = mk_local_pp("x", mk_app(ind, idx));
-            return dep_elim() ? Fun(x, mk_app(C, {idx, x})) : Fun(x, mk_app(C, {idx}));
+            return dep_elim() ? Fun(x, mk_app(C, {idx, x})) : mk_app(C, {idx});
         }
         expr ty = mlocal_type(m_mut_decl.get_inds()[ind_idx]);
         list<expr> rev_unpacked_sigma_args;
@@ -447,8 +452,6 @@ class add_mutual_inductive_decl_fn {
             expr idx = mk_local_pp("idx", B);
             if (found_target) {
                 // case2 absorbs everything else
-                // TODO(dhs): the `putter` is wrong. We literally want to stick the entire remaining index in the spot
-                // URGENT
                 if (dep_elim()) {
                     expr x = mk_local_pp("x", mk_app(m_basic_decl.get_inds()[0], mk_app(mk_put_rest(ind_idx+1), idx)));
                     case2 = Fun({idx, x}, poly_unit());
