@@ -678,6 +678,8 @@ class add_nested_inductive_decl_fn {
             lean_assert(!has_local(pack_fn_val));
 
             m_env = module::add(m_env, check(m_env, mk_definition(m_env, pack_fn_name, to_list(m_nested_decl.get_lp_names()), pack_fn_type, pack_fn_val)));
+            m_env = set_reducible(m_env, pack_fn_name, reducible_status::Irreducible, true);
+
             expr pack_fn_const = mk_constant(pack_fn_name, param_names_to_levels(to_list(m_nested_decl.get_lp_names())));
             return some_expr(mk_app(mk_app(pack_fn_const, m_nested_decl.get_params()), arg));
         } else {
