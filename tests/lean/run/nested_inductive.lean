@@ -299,3 +299,22 @@ inductive foo.{l} : Type.{max 1 l}
 check @foo
 check @foo.mk
 end X23
+
+namespace X24
+inductive vec₁ (A : Type) : nat -> Type
+| nil₁ : vec₁ 0
+| cons₁ : Pi (n : nat), A -> vec₁ n -> vec₁ (n+1)
+
+inductive vec₂ (A : Type) : nat -> Type
+| nil₂ : vec₂ 0
+| cons₂ : Pi (n : nat), A -> vec₂ n -> vec₂ (n+1)
+
+constants (f g h j : nat -> nat)
+
+inductive foo.{l} (A : Type.{l}) : ℕ -> Type.{max 1 l}
+| mk : Pi (n : nat), vec₂ (vec₁ (foo (f n)) (g n)) (h n) -> foo (j n)
+
+check @foo
+check @foo.mk
+
+end X24
