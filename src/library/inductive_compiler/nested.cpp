@@ -495,11 +495,11 @@ class add_nested_inductive_decl_fn {
         expr pack_no_indices = Fun(occ_locals,
                                    mk_app(mk_app(mk_app(mk_constant(inductive::get_elim_name(const_name(fn)),
                                                                     elim_levels),
-                                                        num_params, args.data()),
+                                                        ind_params),
                                                  C),
                                           minor_premises));
 
-        expr result = mk_app(mk_app(pack_no_indices, occ_locals), args.size() - num_params, args.data() + num_params);
+        expr result = mk_app(mk_app(pack_no_indices, occ_locals), ind_indices);
 
         lean_trace(name({"inductive_compiler", "nested", "pack"}), tout() << "result: " << result << "\n";);
         lean_assert(m_tctx.is_def_eq(convert_locals_to_constants(m_tctx.infer(result)), convert_locals_to_constants(mk_arrow(ty, pack_type(ty)))));
