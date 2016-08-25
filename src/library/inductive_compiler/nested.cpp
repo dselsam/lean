@@ -500,14 +500,13 @@ class add_nested_inductive_decl_fn {
         }
 
         // 4. Abstracting and appling to indices
-        expr pack_no_indices = Fun(occ_locals,
-                                   mk_app(mk_app(mk_app(mk_constant(inductive::get_elim_name(const_name(fn)),
-                                                                    elim_levels),
-                                                        ind_params),
-                                                 C),
-                                          minor_premises));
+        expr pack_no_indices = mk_app(mk_app(mk_app(mk_constant(inductive::get_elim_name(const_name(fn)),
+                                                                elim_levels),
+                                                    ind_params),
+                                             C),
+                                      minor_premises);
 
-        expr result = mk_app(mk_app(pack_no_indices, occ_locals), ind_indices);
+        expr result = mk_app(pack_no_indices, ind_indices);
 
         lean_trace(name({"inductive_compiler", "nested", "pack"}), tout() << "result: " << result << "\n";);
         lean_assert(m_tctx.is_def_eq(m_tctx.infer(result), mk_arrow(ty, pack_type(ty))));
@@ -622,7 +621,6 @@ class add_nested_inductive_decl_fn {
         }
 
         // 4. Abstracting and appling to indices
-        // TODO(dhs): don't bother abstracting occ_locals (above too)
         expr unpack_no_indices = mk_app(mk_app(mk_app(mk_constant(inductive::get_elim_name(mlocal_name(fn)),
                                                                   elim_levels),
                                                       m_inner_decl.get_params()),
