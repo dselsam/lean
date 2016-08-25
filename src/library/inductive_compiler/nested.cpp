@@ -113,17 +113,23 @@ class add_nested_inductive_decl_fn {
     expr mk_local_for(expr const & b) { return mk_local(mk_fresh_name(), binding_name(b), binding_domain(b), binding_info(b)); }
     expr mk_local_pp(name const & n, expr const & ty) { return mk_local(mk_fresh_name(), n, ty, binder_info()); }
 
-    bool find_nested_occ_in_ir_arg_type_core(expr const & ty, optional<expr> outer_app) {
+    bool find_nested_occ_in_ir_arg_type_core(expr const & ty, optional<expr> outer_app, unsigned num_params = 0) {
         buffer<expr> args;
         expr fn = get_app_args(ty, args);
 
         if (outer_app && is_ind(fn)) {
+            buffer<expr> outer_args;
+            expr outer_fn = get_app_args(*outer_app, outer_args);
+
+            buffer<expr> params, indices;
+            split_params_indices(outer_args, num_params, params, indices);
+
             // we found a nested occurrence
             collected_locals collected_ls;
-            collect_non_param_locals(*outer_app, collected_ls);
-            m_nested_occ = *outer_app;
-            m_nested_occ_level = get_level(m_tctx, m_nested_occ);
-            m_nested_occ_ind_levels = const_levels(get_app_fn(*outer_app));
+            collect_non_param_locals(mk_app(outer_fn, params), collected_ls);
+            m_nested_occ = mk_app(outer_fn, params);
+            m_nested_occ_level = get_level(m_tctx, mk_app(outer_fn, outer_args));
+            m_nested_occ_ind_levels = const_levels(outer_fn);
 
             m_locals_in_nested_occ.append(collected_ls.get_collected());
             lean_trace(name({"inductive_compiler", "nested", "found_occ"}), tout()
@@ -135,7 +141,7 @@ class add_nested_inductive_decl_fn {
         if (is_constant(fn) && is_ginductive(m_env, const_name(fn))) {
             unsigned num_params = get_ginductive_num_params(m_env, const_name(fn));
             for (unsigned i = 0; i < num_params; ++i) {
-                if (find_nested_occ_in_ir_arg_type_core(m_tctx.whnf(args[i]), some_expr(mk_app(fn, num_params, args.data()))))
+                if (find_nested_occ_in_ir_arg_type_core(m_tctx.whnf(args[i]), some_expr(ty), num_params))
                     return true;
             }
             for (unsigned i = num_params; i < args.size(); ++i) {
@@ -627,7 +633,9 @@ class add_nested_inductive_decl_fn {
         expr result = mk_app(mk_app(unpack_no_indices, occ_locals), rest_indices);
 
         lean_trace(name({"inductive_compiler", "nested", "unpack"}), tout() << "result: " << result << "\n";);
-        lean_assert(m_tctx.is_def_eq(convert_locals_to_constants(m_tctx.infer(result)), convert_locals_to_constants(mk_arrow(ty, unpack_type(ty)))));
+        // TODO(dhs): restore this assert
+        // issue: locals need to be fused before converting to constants
+//        lean_assert(m_tctx.is_def_eq(convert_locals_to_constants(m_tctx.infer(result)), convert_locals_to_constants(mk_arrow(ty, unpack_type(ty)))));
         return some_expr(result);
     }
 
