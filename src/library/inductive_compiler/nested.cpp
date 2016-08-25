@@ -920,6 +920,24 @@ class add_nested_inductive_decl_fn {
         }
     }
 
+    void define_nested_recursors() {
+        for (unsigned i = 0; i < m_nested_decl.get_inds().size(); ++i) {
+            expr const & nested_ind = m_nested_decl.get_inds()[i];
+            expr const & inner_ind = m_inner_decl.get_inds()[i+1];
+            declaration inner_rec = m_env.get(mlocal_name(inner_ind));
+
+            declaration d = m_env.get(inductive::get_elim_name(mlocal_name(inner_ind)));
+            level_param_names lp_names = d.get_univ_params();
+            levels lvls = param_names_to_levels(lp_names);
+
+            expr rec_val = mk_constant(inductive::get_elim_name(mlocal_name(inner_ind)), lvls);
+            expr rec_type = m_tctx.infer(rec_val);
+
+            m_env = module::add(m_env, check(m_env, mk_definition(m_env, inductive::get_elim_name(mlocal_name(nested_ind)), lp_names, rec_type, rec_val)));
+            m_tctx = type_context(m_env);
+        }
+    }
+
 public:
     add_nested_inductive_decl_fn(environment const & env, options const & opts,
                                  name_map<implicit_infer_kind> const & implicit_infer_map, ginductive_decl const & nested_decl):
@@ -941,6 +959,7 @@ public:
         compute_local_to_constant_map();
 
         define_nested_inds();
+        define_nested_recursors();
         define_nested_irs();
 
         // TODO(dhs): constructions
