@@ -43,7 +43,8 @@ class add_nested_inductive_decl_fn {
     expr                          m_replacement; // needs to be applied to the locals in the nested_occ
     buffer<expr>                  m_locals_in_nested_occ;
 
-    buffer<expr>                  m_c_inds;
+    buffer<expr>                  m_ind_ir_locals;
+    buffer<expr>                  m_ind_ir_cs;
 
     expr                          m_translator; // Pi (indices), nested_occ -> (next-layer)
 
@@ -562,6 +563,38 @@ class add_nested_inductive_decl_fn {
 
     }
 
+    void compute_local_to_constant_map() {
+        for (expr const & ind : m_nested_decl.get_inds()) {
+            m_ind_ir_locals.push_back(ind);
+            m_ind_ir_cs.push_back(mk_app(mk_constant(mlocal_name(ind), param_names_to_levels(to_list(m_nested_decl.get_lp_names()))),
+                                         m_nested_decl.get_params()));
+        }
+        for (expr const & ind : m_inner_decl.get_inds()) {
+            m_ind_ir_locals.push_back(ind);
+            m_ind_ir_cs.push_back(mk_app(mk_constant(mlocal_name(ind), param_names_to_levels(to_list(m_nested_decl.get_lp_names()))),
+                                         m_nested_decl.get_params()));
+        }
+
+        for (buffer<expr> const & irs : m_nested_decl.get_intro_rules()) {
+            for (expr const & ir : irs) {
+                m_ind_ir_locals.push_back(ir);
+                m_ind_ir_cs.push_back(mk_app(mk_constant(mlocal_name(ir), param_names_to_levels(to_list(m_nested_decl.get_lp_names()))),
+                                             m_nested_decl.get_params()));
+            }
+        }
+        for (buffer<expr> const & irs : m_inner_decl.get_intro_rules()) {
+            for (expr const & ir : irs) {
+                m_ind_ir_locals.push_back(ir);
+                m_ind_ir_cs.push_back(mk_app(mk_constant(mlocal_name(ir), param_names_to_levels(to_list(m_nested_decl.get_lp_names()))),
+                                             m_nested_decl.get_params()));
+            }
+        }
+    }
+
+    expr convert_locals_to_constants(expr const & e) {
+        return replace_locals(e, m_ind_ir_locals, m_ind_ir_cs);
+    }
+
     optional<expr> synthesize_translator_for_ir_inner_arg(expr const & ty) {
         // This will be called on list (list foo))
         // The goal is to return a function `f : list (list foo) -> list foo_list`.
@@ -626,10 +659,30 @@ class add_nested_inductive_decl_fn {
         }
         expr arg_val = mk_app(arg, locals);
         // Now arg_val has type ty
-        if (auto inner_arg_fn = synthesize_translator_for_ir_inner_arg(ty))
-            return some_expr(Fun(locals, mk_app(*inner_arg_fn, arg_val)));
-        else
+        if (auto inner_arg_fn = synthesize_translator_for_ir_inner_arg(ty)) {
+            // inner_arg_fn : inner_arg_type -> new_inner_arg_type
+            // We want to return a function PACK : Pi <locals>, inner_arg_type -> Pi <locals>, new_inner_arg_type
+            /*
+              definition pack : (bool -> list foo) -> (bool -> foo_list) :=
+              λ (f : bool -> list foo),
+                λ (b : bool),
+                  @list.rec foo (λ (x_ignore : list foo), foo_list) foo_list.nil
+                    (λ (a : foo) (a_1 : list foo) (x : foo_list), foo_list.cons a x)
+                      (f b)
+            */
+            expr pack_fn_val = Fun(m_nested_decl.get_params(), convert_locals_to_constants(Fun(arg, Fun(locals, mk_app(*inner_arg_fn, arg_val)))));
+            expr pack_fn_type = m_tctx.infer(pack_fn_val);
+            // TODO(dhs): put the name of the ind type in the name
+            name pack_fn_name = "pack" + mk_fresh_name();
+            lean_assert(!has_local(pack_fn_type));
+            lean_assert(!has_local(pack_fn_val));
+
+            m_env = module::add(m_env, check(m_env, mk_definition(m_env, pack_fn_name, to_list(m_nested_decl.get_lp_names()), pack_fn_type, pack_fn_val)));
+            expr pack_fn_const = mk_constant(pack_fn_name, param_names_to_levels(to_list(m_nested_decl.get_lp_names())));
+            return some_expr(mk_app(mk_app(pack_fn_const, m_nested_decl.get_params()), arg));
+        } else {
             return none_expr();
+        }
     }
 
     void define_nested_ir(unsigned ind_idx, unsigned ir_idx) {
@@ -656,9 +709,9 @@ class add_nested_inductive_decl_fn {
         }
         expr inner_fn = mk_app(mk_constant(mlocal_name(m_inner_decl.get_intro_rules()[ind_idx+1][ir_idx]), param_names_to_levels(to_list(m_nested_decl.get_lp_names()))),
                                m_nested_decl.get_params());
-        // TODO(dhs): need both replace_locals? Think!
-        expr new_ir_val  = Fun(m_nested_decl.get_params(), replace_locals(Fun(locals, mk_app(inner_fn, inner_args)), m_nested_decl.get_inds(), m_c_inds));
-        expr new_ir_type = Pi(m_nested_decl.get_params(), replace_locals(mlocal_type(ir), m_nested_decl.get_inds(), m_c_inds));
+
+        expr new_ir_val  = Fun(m_nested_decl.get_params(), convert_locals_to_constants(Fun(locals, mk_app(inner_fn, inner_args))));
+        expr new_ir_type = Pi(m_nested_decl.get_params(), convert_locals_to_constants(mlocal_type(ir)));
         lean_trace(name({"inductive_compiler", "nested", "nested_ir"}),
                    tout() << mlocal_name(ir) << " : " << new_ir_type << " :=\n  " << new_ir_val << "\n";);
 
@@ -676,13 +729,6 @@ class add_nested_inductive_decl_fn {
         }
     }
 
-    void compute_c_inds() {
-        for (expr const & ind : m_nested_decl.get_inds()) {
-            m_c_inds.push_back(mk_app(mk_constant(mlocal_name(ind), param_names_to_levels(to_list(m_nested_decl.get_lp_names()))),
-                                      m_nested_decl.get_params()));
-        }
-    }
-
 public:
     add_nested_inductive_decl_fn(environment const & env, options const & opts,
                                  name_map<implicit_infer_kind> const & implicit_infer_map, ginductive_decl const & nested_decl):
@@ -696,7 +742,7 @@ public:
             return optional<environment>();
         translate_nested_decl();
         m_env = add_inner_inductive_declaration(m_env, m_opts, m_implicit_infer_map, m_inner_decl);
-        compute_c_inds();
+        compute_local_to_constant_map();
         construct_translator_for_nested_occ();
         define_nested_inds();
         define_nested_irs();
