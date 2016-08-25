@@ -301,6 +301,12 @@ class add_nested_inductive_decl_fn {
     expr unpack_type(expr const & e) {
         switch (e.kind()) {
         case expr_kind::Local:
+            if (e == m_replacement) {
+                lean_assert(m_locals_in_nested_occ.empty());
+                return copy_tag(e, expr(m_nested_occ));
+            } else {
+                return e;
+            }
         case expr_kind::Meta:
         case expr_kind::Sort:
         case expr_kind::Constant:
@@ -332,7 +338,7 @@ class add_nested_inductive_decl_fn {
                 for (unsigned i = 0; i < m_locals_in_nested_occ.size(); ++i) {
                     locals.push_back(args[i]);
                 }
-                expr nested_occ = replace_locals(m_nested_occ, m_locals_in_nested_occ, locals);
+                expr nested_occ = nested_occ_with_locals(locals);
                 return copy_tag(e, mk_app(nested_occ, args.size() - locals.size(), args.data() + locals.size()));
             } else if (is_constant(fn) && is_ginductive(m_env, const_name(fn))) {
                 unsigned num_params = get_ginductive_num_params(m_env, const_name(fn));
@@ -566,7 +572,7 @@ class add_nested_inductive_decl_fn {
         lean_assert(unpacked_intro_rules_list);
         buffer<name> unpacked_intro_rules;
         to_buffer(*unpacked_intro_rules_list, unpacked_intro_rules);
-        lean_assert(m_inner_decl.get_intro_rules().size() == unpacked_intro_rules.size());
+        lean_assert(m_inner_decl.get_intro_rules()[0].size() == unpacked_intro_rules.size());
 
         for (unsigned ir_idx = 0; ir_idx < unpacked_intro_rules.size(); ++ir_idx) {
             expr const & ir = m_inner_decl.get_intro_rules()[0][ir_idx];
