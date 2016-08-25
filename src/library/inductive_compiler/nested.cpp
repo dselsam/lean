@@ -245,7 +245,7 @@ class add_nested_inductive_decl_fn {
             lean_assert(!has_local(new_ind_type));
             lean_assert(!has_local(new_ind_val));
             m_env = module::add(m_env, check(m_env, mk_definition(m_env, mlocal_name(ind), to_list(m_nested_decl.get_lp_names()), new_ind_type, new_ind_val)));
-            m_tctx = type_context(m_env);
+            m_tctx = type_context(m_env, transparency_mode::Semireducible);
         }
     }
 
@@ -623,19 +623,25 @@ class add_nested_inductive_decl_fn {
 
         // 4. Abstracting and appling to indices
         // TODO(dhs): don't bother abstracting occ_locals (above too)
-        expr unpack_no_indices = Fun(occ_locals,
-                                     mk_app(mk_app(mk_app(mk_constant(inductive::get_elim_name(mlocal_name(fn)),
-                                                               elim_levels),
-                                                          m_inner_decl.get_params()),
-                                                   C),
-                                            minor_premises));
+        expr unpack_no_indices = mk_app(mk_app(mk_app(mk_constant(inductive::get_elim_name(mlocal_name(fn)),
+                                                                  elim_levels),
+                                                      m_inner_decl.get_params()),
+                                               C),
+                                        minor_premises);
 
         expr result = mk_app(mk_app(unpack_no_indices, occ_locals), rest_indices);
 
         lean_trace(name({"inductive_compiler", "nested", "unpack"}), tout() << "result: " << result << "\n";);
-        // TODO(dhs): restore this assert
-        // issue: locals need to be fused before converting to constants
-//        lean_assert(m_tctx.is_def_eq(convert_locals_to_constants(m_tctx.infer(result)), convert_locals_to_constants(mk_arrow(ty, unpack_type(ty)))));
+        expr result_type = convert_locals_to_constants(replace_ind_types(m_tctx.infer(result)));
+        expr expected_type = convert_locals_to_constants(replace_ind_types(mk_arrow(ty, unpack_type(ty))));
+
+        lean_trace(name({"inductive_compiler", "nested", "unpack"}), tout()
+                   << "result type: " << result_type << "\n";);
+        lean_trace(name({"inductive_compiler", "nested", "unpack"}), tout()
+                   << "result expected type: " << expected_type << "\n";);
+
+        bool correct = m_tctx.is_def_eq(result_type, expected_type);
+        lean_assert(correct);
         return some_expr(result);
     }
 
@@ -875,7 +881,7 @@ class add_nested_inductive_decl_fn {
 
 
             m_env = module::add(m_env, check(m_env, mk_definition(m_env, pack_fn_name, to_list(m_nested_decl.get_lp_names()), pack_fn_type, pack_fn_val)));
-            m_tctx = type_context(m_env);
+            m_tctx = type_context(m_env, transparency_mode::Semireducible);
             expr pack_fn_const = mk_constant(pack_fn_name, param_names_to_levels(to_list(m_nested_decl.get_lp_names())));
             return some_expr(mk_app(mk_app(mk_app(pack_fn_const, m_nested_decl.get_params()), previous_args), arg));
         } else {
@@ -918,7 +924,7 @@ class add_nested_inductive_decl_fn {
         lean_assert(!has_local(new_ir_type));
         lean_assert(!has_local(new_ir_val));
         m_env = module::add(m_env, check(m_env, mk_definition(m_env, mlocal_name(ir), to_list(m_nested_decl.get_lp_names()), new_ir_type, new_ir_val)));
-        m_tctx = type_context(m_env);
+        m_tctx = type_context(m_env, transparency_mode::Semireducible);
     }
 
     void define_nested_irs() {
@@ -942,7 +948,7 @@ class add_nested_inductive_decl_fn {
             expr rec_type = m_tctx.infer(rec_val);
 
             m_env = module::add(m_env, check(m_env, mk_definition(m_env, inductive::get_elim_name(mlocal_name(nested_ind)), lp_names, rec_type, rec_val)));
-            m_tctx = type_context(m_env);
+            m_tctx = type_context(m_env, transparency_mode::Semireducible);
         }
     }
 
@@ -952,7 +958,7 @@ public:
         m_env(env), m_opts(opts), m_implicit_infer_map(implicit_infer_map),
         m_nested_decl(nested_decl), m_inner_decl(m_nested_decl.get_lp_names(), m_nested_decl.get_params()),
         m_prefix(name::mk_internal_unique_name()),
-        m_tctx(env) {}
+        m_tctx(env, transparency_mode::Semireducible) {}
 
     optional<environment> operator()() {
         if (!find_nested_occ())
@@ -962,7 +968,7 @@ public:
                    tout() << "adding: " << mlocal_name(m_inner_decl.get_inds()[0]) << "\n";);
 
         m_env = add_inner_inductive_declaration(m_env, m_opts, m_implicit_infer_map, m_inner_decl);
-        m_tctx = type_context(m_env);
+        m_tctx = type_context(m_env, transparency_mode::Semireducible);
         lean_assert((bool) m_env.find(mlocal_name(m_inner_decl.get_inds()[0])));
         compute_local_to_constant_map();
 
