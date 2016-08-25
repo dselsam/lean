@@ -63,6 +63,38 @@ definition vec₁_to_fvec₁ (A : Type) (n₁ : nat)
                (fvs : Fvec₁ A n₁ n₂),
                  @Fvec₁.cons₁ A n₁ n₂ x fvs)
 
+definition fvec₁_to_vec₁ (A : Type)
+  : Π (n₁ : nat) (n₂ : nat), Fvec₁ A n₁ n₂ -> vec₁ (FOO A (f n₁)) n₂:=
+@fvec₁.rec  A
+            (λ (n₁ : nat) (n₂ : nat) (v : Fvec₁ A n₁ n₂), vec₁ (FOO A (f n₁)) n₂)
+            (λ (n₁ : nat), @vec₁.nil₁ (FOO A (f n₁)))
+            (λ (n₁ : nat)
+               (n₂ : nat)
+               (x : FOO A (f n₁))
+               (vs : Fvec₁ A n₁ n₂)
+               (fvs : vec₁ (FOO A (f n₁)) n₂),
+                 @vec₁.cons₁ (FOO A (f n₁)) n₂ x fvs)
+
+-- eq.rec : Π {A : Type} {a : A} {C : A → Type}, C a → (Π {a_1 : A}, a = a_1 → C a_1)
+set_option pp.binder_types true
+definition vec₁_to_fvec₁_and_back (A : Type) :
+  ∀ (n₁ : nat) (n₂ : nat) (xs : vec₁ (FOO A (f n₁)) n₂),
+    fvec₁_to_vec₁ A n₁ n₂ (vec₁_to_fvec₁ A n₁ n₂ xs) = xs :=
+assume (n₁ : nat),
+@vec₁.rec (FOO A (f n₁))
+          (λ (n₂ : nat) (xs : vec₁ (FOO A (f n₁)) n₂), fvec₁_to_vec₁ A n₁ n₂ (vec₁_to_fvec₁ A n₁ n₂ xs) = xs)
+          rfl
+          (λ (n₂ : nat)
+             (x : FOO A (f n₁))
+             (xs : vec₁ (FOO A (f n₁)) n₂)
+             (H : fvec₁_to_vec₁ A n₁ n₂ (vec₁_to_fvec₁ A n₁ n₂ xs) = xs),
+               @eq.rec (vec₁ (FOO A (f n₁)) n₂)
+                       xs
+                       (λ (zs : vec₁ (FOO A (f n₁)) n₂), vec₁.cons₁ n₂ x zs = vec₁.cons₁ n₂ x xs)
+                       rfl
+                       (@fvec₁_to_vec₁ A n₁ n₂ (vec₁_to_fvec₁ A n₁ n₂ xs))
+                       (eq.symm H))
+
 definition vec₂_vec₁_to_vec₂_fvec₁ (A : Type) (n₁ : nat) :
   Pi (n₂ : nat), vec₂ (vec₁ (foo A (f n₁)) (g n₁)) n₂ -> vec₂ (Fvec₁ A n₁ (g n₁)) n₂ :=
 @vec₂.rec (vec₁ (foo A (f n₁)) (g n₁))
