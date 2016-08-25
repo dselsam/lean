@@ -79,10 +79,10 @@ namespace X
 universe l
 constant (A : Type.{l})
 constant (n₁ : nat)
-check vec₁.{1} (FOO A n₁) n₁
+--check vec₁.{1} (FOO A n₁) n₁
 
 end X
-print fvec₁_to_vec₁
+
 -- eq.rec : Π {A : Type} {a : A} {C : A → Type}, C a → (Π {a_1 : A}, a = a_1 → C a_1)
 set_option pp.binder_types true
 definition vec₁_to_fvec₁_and_back (A : Type) :
@@ -118,13 +118,17 @@ definition FOO.mk : Pi (A : Type) (n : nat), vec₂ (vec₁ (foo A (f n)) (g n))
   assume A n lv,
   @Foo.mk A n (@vec₂_vec₁_to_vec₂_fvec₁ A n (h n) lv)
 
-definition vec₂_vec₁_to_vec₂_fvec₁ (A : Type) (n₁ : nat) :
-  Pi (n₂ : nat), vec₂ (vec₁ (foo A (f n₁)) (g n₁)) n₂ -> vec₂ (Fvec₁ A n₁ (g n₁)) n₂ :=
-@vec₂.rec (vec₁ (foo A (f n₁)) (g n₁))
-          (λ (n₂ : nat) (lv : vec₂ (vec₁ (foo A (f n₁)) (g n₁)) n₂), vec₂ (Fvec₁ A n₁ (g n₁)) n₂)
-          (@vec₂.nil₂ (Fvec₁ A n₁ (g n₁)))
+-- vec₁ (foo A (f n₁)) <-> Fvec₁ A n₁
+definition vec₂_fvec₁_to_vec₂_vec₁ (A : Type) (n₁ : nat) :
+  Pi (n₂ : nat), vec₂ (Fvec₁ A n₁ (g n₁)) n₂ -> vec₂ (vec₁ (foo A (f n₁)) (g n₁)) n₂ :=
+@vec₂.rec (Fvec₁ A n₁ (g n₁))
+          (λ (n₂ : nat) (lv : vec₂ (Fvec₁ A n₁ (g n₁)) n₂), vec₂ (vec₁ (foo A (f n₁)) (g n₁)) n₂)
+          (@vec₂.nil₂ (vec₁ (foo A (f n₁)) (g n₁)))
           (λ (n₂ : nat)
-             (x : vec₁ (foo A (f n₁)) (g n₁))
-             (lv : vec₂ (vec₁ (foo A (f n₁)) (g n₁)) n₂)
-             (lv' : vec₂ (Fvec₁ A n₁ (g n₁)) n₂),
-             (@vec₂.cons₂ (Fvec₁ A n₁ (g n₁)) n₂ (@vec₁_to_fvec₁ A n₁ (g n₁) x) lv'))
+             (x : Fvec₁ A n₁ (g n₁))
+             (lv : vec₂ (Fvec₁ A n₁ (g n₁)) n₂)
+             (lv' : vec₂ (vec₁ (foo A (f n₁)) (g n₁)) n₂),
+             (@vec₂.cons₂ (vec₁ (foo A (f n₁)) (g n₁)) n₂ (@fvec₁_to_vec₁ A n₁ (g n₁) x) lv'))
+
+print vec₂_vec₁_to_vec₂_fvec₁
+print vec₂_fvec₁_to_vec₂_vec₁
