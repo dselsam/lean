@@ -75,6 +75,38 @@ class add_nested_inductive_decl_fn {
         return m_prefix;
     }
 
+    void compute_local_to_constant_map() {
+        for (expr const & ind : m_nested_decl.get_inds()) {
+            m_ind_ir_locals.push_back(ind);
+            m_ind_ir_cs.push_back(mk_app(mk_constant(mlocal_name(ind), param_names_to_levels(to_list(m_nested_decl.get_lp_names()))),
+                                         m_nested_decl.get_params()));
+        }
+        for (expr const & ind : m_inner_decl.get_inds()) {
+            m_ind_ir_locals.push_back(ind);
+            m_ind_ir_cs.push_back(mk_app(mk_constant(mlocal_name(ind), param_names_to_levels(to_list(m_nested_decl.get_lp_names()))),
+                                         m_nested_decl.get_params()));
+        }
+
+        for (buffer<expr> const & irs : m_nested_decl.get_intro_rules()) {
+            for (expr const & ir : irs) {
+                m_ind_ir_locals.push_back(ir);
+                m_ind_ir_cs.push_back(mk_app(mk_constant(mlocal_name(ir), param_names_to_levels(to_list(m_nested_decl.get_lp_names()))),
+                                             m_nested_decl.get_params()));
+            }
+        }
+        for (buffer<expr> const & irs : m_inner_decl.get_intro_rules()) {
+            for (expr const & ir : irs) {
+                m_ind_ir_locals.push_back(ir);
+                m_ind_ir_cs.push_back(mk_app(mk_constant(mlocal_name(ir), param_names_to_levels(to_list(m_nested_decl.get_lp_names()))),
+                                             m_nested_decl.get_params()));
+            }
+        }
+    }
+
+    expr convert_locals_to_constants(expr const & e) {
+        return replace_locals(e, m_ind_ir_locals, m_ind_ir_cs);
+    }
+
     void compute_mimic_ind() {
         buffer<expr> args;
         expr fn = get_app_args(m_nested_occ, args);
@@ -395,7 +427,7 @@ class add_nested_inductive_decl_fn {
         // returns a function primitive_pack : ty -> pack_type(ty)
         buffer<expr> args;
         expr fn = get_app_args(ty, args);
-        if (!is_constant(fn))
+        if (!is_constant(fn) || !is_ginductive_(m_env, const_name(fn)))
             return none_expr();
 
         unsigned num_params = get_ginductive_num_params(m_env, const_name(fn));
@@ -643,6 +675,57 @@ class add_nested_inductive_decl_fn {
         return some_expr(result);
     }
 
+    optional<expr> build_nested_pack(expr const & ty) {
+        // returns a function pack : ty -> pack_type(ty)
+        // handles nested occurrences
+        if (!has_ind_occ(ty) || ty == pack_type(ty))
+            return none_expr();
+
+        buffer<expr> args;
+        expr fn = get_app_args(ty, args);
+
+        if (!is_constant(fn) || !is_ginductive(m_env, const_name(fn)))
+            return none_expr();
+
+        if (auto primitive_pack_fn = build_primitive_pack(ty))
+            return *primitive_pack_fn;
+
+
+
+
+
+
+
+
+    }
+
+    optional<expr> build_pack(expr const & _ty) {
+        // returns a function pack : ty -> pack_type(ty)
+        // handles nested occurrences and outer pis
+        expr ty = m_tctx.relaxed_whnf(_ty);
+        expr x_to_pack = mk_local_pp("x_to_pack", ty);
+
+        if (!has_ind_occ(ty))
+            return none_expr();
+
+        buffer<expr> locals;
+        buffer<expr> inner_args;
+
+        while (is_pi(ty)) {
+            expr l = mk_local_for(ty);
+            locals.push_back(l);
+            ty = instantiate(binding_body(ty), l);
+            ty = m_tctx.relaxed_whnf(ty);
+        }
+        expr body_to_pack = mk_app(x_to_pack, locals);
+        lean_assert(m_tctx.is_def_eq(m_tctx.infer(body_to_pack), ty));
+        if (auto pack_fn = build_nested_pack(ty)) {
+            return Fun(x_to_pack, Fun(locals, mk_app(*pack_fn, body_to_pack)));
+        } else {
+            return none_expr();
+        }
+    }
+
     expr synthesize_translator_for_recursive_occ(expr const & ty, buffer<optional<expr> > const & synthesized_translators) {
         lean_trace(name({"inductive_compiler", "nested", "translate"}),
                    tout() << ty << "\n";);
@@ -770,37 +853,6 @@ class add_nested_inductive_decl_fn {
 
     }
 
-    void compute_local_to_constant_map() {
-        for (expr const & ind : m_nested_decl.get_inds()) {
-            m_ind_ir_locals.push_back(ind);
-            m_ind_ir_cs.push_back(mk_app(mk_constant(mlocal_name(ind), param_names_to_levels(to_list(m_nested_decl.get_lp_names()))),
-                                         m_nested_decl.get_params()));
-        }
-        for (expr const & ind : m_inner_decl.get_inds()) {
-            m_ind_ir_locals.push_back(ind);
-            m_ind_ir_cs.push_back(mk_app(mk_constant(mlocal_name(ind), param_names_to_levels(to_list(m_nested_decl.get_lp_names()))),
-                                         m_nested_decl.get_params()));
-        }
-
-        for (buffer<expr> const & irs : m_nested_decl.get_intro_rules()) {
-            for (expr const & ir : irs) {
-                m_ind_ir_locals.push_back(ir);
-                m_ind_ir_cs.push_back(mk_app(mk_constant(mlocal_name(ir), param_names_to_levels(to_list(m_nested_decl.get_lp_names()))),
-                                             m_nested_decl.get_params()));
-            }
-        }
-        for (buffer<expr> const & irs : m_inner_decl.get_intro_rules()) {
-            for (expr const & ir : irs) {
-                m_ind_ir_locals.push_back(ir);
-                m_ind_ir_cs.push_back(mk_app(mk_constant(mlocal_name(ir), param_names_to_levels(to_list(m_nested_decl.get_lp_names()))),
-                                             m_nested_decl.get_params()));
-            }
-        }
-    }
-
-    expr convert_locals_to_constants(expr const & e) {
-        return replace_locals(e, m_ind_ir_locals, m_ind_ir_cs);
-    }
 
     optional<expr> synthesize_translator_for_ir_inner_arg(expr const & ty) {
         // This will be called on list (list foo))

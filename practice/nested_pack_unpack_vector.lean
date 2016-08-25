@@ -117,3 +117,14 @@ definition vec₂_vec₁_to_vec₂_fvec₁ (A : Type) (n₁ : nat) :
 definition FOO.mk : Pi (A : Type) (n : nat), vec₂ (vec₁ (foo A (f n)) (g n)) (h n) -> FOO A (j n) :=
   assume A n lv,
   @Foo.mk A n (@vec₂_vec₁_to_vec₂_fvec₁ A n (h n) lv)
+
+definition vec₂_vec₁_to_vec₂_fvec₁ (A : Type) (n₁ : nat) :
+  Pi (n₂ : nat), vec₂ (vec₁ (foo A (f n₁)) (g n₁)) n₂ -> vec₂ (Fvec₁ A n₁ (g n₁)) n₂ :=
+@vec₂.rec (vec₁ (foo A (f n₁)) (g n₁))
+          (λ (n₂ : nat) (lv : vec₂ (vec₁ (foo A (f n₁)) (g n₁)) n₂), vec₂ (Fvec₁ A n₁ (g n₁)) n₂)
+          (@vec₂.nil₂ (Fvec₁ A n₁ (g n₁)))
+          (λ (n₂ : nat)
+             (x : vec₁ (foo A (f n₁)) (g n₁))
+             (lv : vec₂ (vec₁ (foo A (f n₁)) (g n₁)) n₂)
+             (lv' : vec₂ (Fvec₁ A n₁ (g n₁)) n₂),
+             (@vec₂.cons₂ (Fvec₁ A n₁ (g n₁)) n₂ (@vec₁_to_fvec₁ A n₁ (g n₁) x) lv'))
