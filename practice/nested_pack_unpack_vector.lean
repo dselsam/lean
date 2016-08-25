@@ -62,9 +62,9 @@ definition vec₁_to_fvec₁ (A : Type) (n₁ : nat)
                (vs : vec₁ (FOO A (f n₁)) n₂)
                (fvs : Fvec₁ A n₁ n₂),
                  @Fvec₁.cons₁ A n₁ n₂ x fvs)
-
+set_option pp.all true
 definition fvec₁_to_vec₁ (A : Type)
-  : Π (n₁ : nat) (n₂ : nat), Fvec₁ A n₁ n₂ -> vec₁ (FOO A (f n₁)) n₂:=
+  : Π (n₁ : nat) (n₂ : nat), Fvec₁ A n₁ n₂ -> vec₁ (FOO A (f n₁)) n₂ :=
 @fvec₁.rec  A
             (λ (n₁ : nat) (n₂ : nat) (v : Fvec₁ A n₁ n₂), vec₁ (FOO A (f n₁)) n₂)
             (λ (n₁ : nat), @vec₁.nil₁ (FOO A (f n₁)))
@@ -75,6 +75,14 @@ definition fvec₁_to_vec₁ (A : Type)
                (fvs : vec₁ (FOO A (f n₁)) n₂),
                  @vec₁.cons₁ (FOO A (f n₁)) n₂ x fvs)
 
+namespace X
+universe l
+constant (A : Type.{l})
+constant (n₁ : nat)
+check vec₁.{1} (FOO A n₁) n₁
+
+end X
+print fvec₁_to_vec₁
 -- eq.rec : Π {A : Type} {a : A} {C : A → Type}, C a → (Π {a_1 : A}, a = a_1 → C a_1)
 set_option pp.binder_types true
 definition vec₁_to_fvec₁_and_back (A : Type) :

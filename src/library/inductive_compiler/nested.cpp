@@ -42,6 +42,8 @@ class add_nested_inductive_decl_fn {
     expr                          m_nested_occ;
     expr                          m_replacement; // needs to be applied to the locals in the nested_occ
     buffer<expr>                  m_locals_in_nested_occ;
+    level                         m_nested_occ_level;
+    levels                        m_nested_occ_ind_levels;
 
     buffer<expr>                  m_ind_ir_locals;
     buffer<expr>                  m_ind_ir_cs;
@@ -120,6 +122,9 @@ class add_nested_inductive_decl_fn {
             collected_locals collected_ls;
             collect_non_param_locals(*outer_app, collected_ls);
             m_nested_occ = *outer_app;
+            m_nested_occ_level = get_level(m_tctx, m_nested_occ);
+            m_nested_occ_ind_levels = const_levels(get_app_fn(*outer_app));
+
             m_locals_in_nested_occ.append(collected_ls.get_collected());
             lean_trace(name({"inductive_compiler", "nested", "found_occ"}), tout()
                        << "(" << m_locals_in_nested_occ.size() << ") " << m_nested_occ << "\n";);
@@ -497,9 +502,127 @@ class add_nested_inductive_decl_fn {
         return some_expr(result);
     }
 
-    optional<expr> primitive_unpack() {
-        return none_expr();
+    optional<expr> build_primitive_unpack(expr const & ty) {
+        // returns a function primitive_unpack : ty -> unpack_type(ty)
+        buffer<expr> args;
+        expr fn = get_app_args(ty, args);
+        if (fn != m_replacement)
+            return none_expr();
 
+        buffer<expr> occ_locals, rest_indices;
+        split_params_indices(args, m_locals_in_nested_occ.size(), occ_locals, rest_indices);
+
+        buffer<expr> ind_params;
+        expr new_ind = nested_occ_with_locals(occ_locals);
+        buffer<expr> new_ind_args;
+        name new_ind_name = const_name(get_app_args(new_ind, new_ind_args));
+        unsigned new_ind_num_params = get_ginductive_num_params(m_env, new_ind_name);
+        for (unsigned i = 0; i < new_ind_num_params; ++i)
+            ind_params.push_back(new_ind_args[i]);
+
+        // Note: this is a bit of a hack
+        // We are using the fact that a mimic-ind will be dep_elim iff the original is
+        bool has_dep_elim = inductive::has_dep_elim(m_env, new_ind_name);
+
+        // 2. elim levels
+        list<level> elim_levels = param_names_to_levels(to_list(m_inner_decl.get_lp_names()));
+        declaration d = m_env.get(inductive::get_elim_name(mlocal_name(fn)));
+        if (length(elim_levels) < d.get_num_univ_params()) {
+            lean_assert(length(elim_levels) + 1 == d.get_num_univ_params());
+            elim_levels = list<level>(m_nested_occ_level, elim_levels);
+        }
+
+        // 3. motive
+        expr C;
+        {
+            C = new_ind;
+
+            expr ty = mlocal_type(fn);
+            buffer<expr> locals;
+            unsigned i = 0;
+            while (is_pi(ty)) {
+                expr l = mk_local_for(ty);
+                locals.push_back(l);
+                if (i >= occ_locals.size())
+                    C = mk_app(C, l);
+                ty = instantiate(binding_body(ty), l);
+                ty = m_tctx.relaxed_whnf(ty);
+                ++i;
+            }
+            if (has_dep_elim) {
+                expr ignore = mk_local_pp("x_ignore", mk_app(fn, locals));
+                locals.push_back(ignore);
+            }
+
+            C = Fun(locals, C);
+
+            lean_trace(name({"inductive_compiler", "nested", "unpack"}),
+                       tout() << "motive: " << C << "\n";);
+        }
+
+        // 4. minor premises
+        buffer<expr> minor_premises;
+        optional<list<name> > unpacked_intro_rules_list = get_ginductive_intro_rules(m_env, new_ind_name);
+        lean_assert(unpacked_intro_rules_list);
+        buffer<name> unpacked_intro_rules;
+        to_buffer(*unpacked_intro_rules_list, unpacked_intro_rules);
+        lean_assert(m_inner_decl.get_intro_rules().size() == unpacked_intro_rules.size());
+
+        for (unsigned ir_idx = 0; ir_idx < unpacked_intro_rules.size(); ++ir_idx) {
+            expr const & ir = m_inner_decl.get_intro_rules()[0][ir_idx];
+            name const & unpacked_intro_rule_name = unpacked_intro_rules[ir_idx];
+
+            expr ir_type = m_tctx.relaxed_whnf(mlocal_type(ir));
+
+            buffer<expr> locals;
+            buffer<expr> rec_args;
+            buffer<expr> return_args;
+            unsigned i = 0;
+            while (is_pi(ir_type)) {
+                buffer<expr> arg_args;
+                expr arg_fn = get_app_args(binding_domain(ir_type), arg_args);
+
+                expr l = mk_local_for(ir_type);
+                locals.push_back(l);
+                ir_type = m_tctx.relaxed_whnf(instantiate(binding_body(ir_type), l));
+                if (arg_fn == fn) {
+                    // it is a recursive argument
+                    expr rec_arg_type = mk_app(new_ind, arg_args.size() - occ_locals.size(), arg_args.data() + occ_locals.size());
+                    expr l2 = mk_local_pp("x", rec_arg_type);
+                    rec_args.push_back(l2);
+                    return_args.push_back(l2);
+                } else {
+                    // TODO(dhs): confirm that I only need this check in this branch
+                    if (i >= occ_locals.size())
+                        return_args.push_back(l);
+                }
+                i++;
+            }
+            locals.append(rec_args);
+
+            expr return_value = mk_constant(unpacked_intro_rule_name, m_nested_occ_ind_levels);
+            return_value = mk_app(return_value, ind_params);
+            return_value = mk_app(return_value, return_args);
+            return_value = Fun(locals, return_value);
+            minor_premises.push_back(return_value);
+            lean_trace(name({"inductive_compiler", "nested", "translate"}),
+                       tout() << "minor premise: " << return_value << "\n";);
+        }
+
+        // 4. Abstracting and appling to indices
+        // TODO(dhs): don't bother abstracting occ_locals (above too)
+        expr unpack_no_indices = Fun(occ_locals,
+                                     mk_app(mk_app(mk_app(mk_constant(inductive::get_elim_name(mlocal_name(fn)),
+                                                               elim_levels),
+                                                          m_inner_decl.get_params()),
+                                                   C),
+                                            minor_premises));
+
+        expr result = mk_app(mk_app(unpack_no_indices, occ_locals), rest_indices);
+
+        lean_trace(name({"inductive_compiler", "nested", "unpack"}), tout() << "result: " << result << "\n";);
+        lean_assert(m_tctx.is_def_eq(convert_locals_to_constants(m_tctx.infer(result)), convert_locals_to_constants(mk_arrow(ty, unpack_type(ty)))));
+        return some_expr(result);
     }
 
     expr synthesize_translator_for_recursive_occ(expr const & ty, buffer<optional<expr> > const & synthesized_translators) {
@@ -666,6 +789,8 @@ class add_nested_inductive_decl_fn {
         // The goal is to return a function `f : list (list foo) -> list foo_list`.
 
         if (auto pack_fn = build_primitive_pack(ty)) {
+            // TODO(dhs): right now this is just to see the trace
+            auto unpack_fn = build_primitive_unpack(pack_type(ty));
             return pack_fn;
         }
 
