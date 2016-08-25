@@ -367,12 +367,11 @@ class add_nested_inductive_decl_fn {
     }
 
     void split_params_indices(buffer<expr> const & args, unsigned num_params, buffer<expr> & params, buffer<expr> & indices) {
-        for (unsigned i = 0; i < args.size(); ++i) {
-            if (i < num_params)
-                params.push_back(args[i]);
-            else
-                indices.push_back(args[i]);
-        }
+        for (unsigned i = 0; i < num_params; ++i)
+            params.push_back(args[i]);
+
+        for (unsigned i = num_params; i < args.size(); ++i)
+            indices.push_back(args[i]);
     }
 
     optional<expr> build_primitive_pack(expr const & ty) {
@@ -453,9 +452,9 @@ class add_nested_inductive_decl_fn {
             new_ind = mk_app(new_ind, m_nested_decl.get_params());
             new_ind = mk_app(new_ind, occ_locals);
 
-            for (unsigned i = 0; i < num_params; ++i) {
+            for (expr const & ind_param : ind_params) {
                 lean_assert(is_pi(ir_type));
-                ir_type = m_tctx.relaxed_whnf(instantiate(binding_body(ir_type), args[i]));
+                ir_type = m_tctx.relaxed_whnf(instantiate(binding_body(ir_type), ind_param));
             }
             // now we are at Π (n2 : ℕ), foo A (f n1) → vector (foo A (f n1)) n2 → vector (foo A (f n1)) (n2 + 1)
             buffer<expr> locals;
