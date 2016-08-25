@@ -46,8 +46,6 @@ class add_nested_inductive_decl_fn {
     buffer<expr>                  m_ind_ir_locals;
     buffer<expr>                  m_ind_ir_cs;
 
-    expr                          m_translator; // Pi (indices), nested_occ -> (next-layer)
-
     bool is_ind(expr const & e) {
         return is_local(e)
             && std::any_of(m_nested_decl.get_inds().begin(), m_nested_decl.get_inds().end(), [&](expr const & ind) { return e == ind; });
@@ -189,61 +187,6 @@ class add_nested_inductive_decl_fn {
         return replace_locals(e, locals, m_locals_in_nested_occ) == m_nested_occ;
     }
 
-    expr replace_nested_occs(expr const & e) {
-        switch (e.kind()) {
-        case expr_kind::Local:
-        case expr_kind::Meta:
-        case expr_kind::Sort:
-        case expr_kind::Constant:
-        case expr_kind::Lambda:
-            return e;
-        case expr_kind::Var:
-            lean_unreachable();
-        case expr_kind::Macro:
-        {
-            buffer<expr> new_args;
-            unsigned nargs = macro_num_args(e);
-            for (unsigned i = 0; i < nargs; i++)
-                new_args.push_back(replace_nested_occs(macro_arg(e, i)));
-            return update_macro(e, new_args.size(), new_args.data());
-        }
-        case expr_kind::Pi:
-        {
-            expr new_dom = replace_nested_occs(binding_domain(e));
-            expr l = mk_local_for(e);
-            expr new_body = binding_body(Pi(l, replace_nested_occs(instantiate(binding_body(e), l))));
-            return update_binding(e, new_dom, new_body);
-        }
-        case expr_kind::App:
-        {
-            buffer<expr> args;
-            expr fn = get_app_args(e, args);
-            if (is_constant(fn) && is_ginductive(m_env, const_name(fn))) {
-                unsigned num_params = get_ginductive_num_params(m_env, const_name(fn));
-                expr candidate = mk_app(fn, num_params, args.data());
-                collected_locals collected_ls;
-                collect_non_param_locals(candidate, collected_ls);
-                buffer<expr> const & locals = collected_ls.get_collected();
-                if (locals.size() == m_locals_in_nested_occ.size()
-                    && matches_nested_occ_upto_locals(candidate, locals)) {
-                    return mk_app(mk_app(m_replacement, locals), args.size() - num_params, args.data() + num_params);
-                } else {
-                    for (unsigned i = 0; i < num_params; ++i) {
-                        args[i] = replace_nested_occs(args[i]);
-                    }
-                    return copy_tag(e, mk_app(fn, args));
-                }
-            } else {
-                return e;
-            }
-        }
-        case expr_kind::Let:
-            // whnf unfolds let-expressions
-            lean_unreachable();
-        }
-        lean_unreachable();
-    }
-
     expr replace_ind_types(expr const & e) {
         return replace_locals(e, m_nested_decl.get_inds().size(), m_nested_decl.get_inds().data(), m_inner_decl.get_inds().data() + 1);
     }
@@ -252,7 +195,7 @@ class add_nested_inductive_decl_fn {
         for (expr const & ind : m_nested_decl.get_inds()) {
             expr old_ind_type = mlocal_type(ind);
             name new_ind_name = mk_prefix() + mlocal_name(ind);
-            expr new_ind_type = replace_nested_occs(old_ind_type);
+            expr new_ind_type = pack_type(old_ind_type);
             m_inner_decl.get_inds().push_back(mk_local(new_ind_name, new_ind_type));
             lean_trace(name({"inductive_compiler", "nested", "inner_ind"}),
                        tout() << new_ind_name << " : " << new_ind_type << "\n";);
@@ -269,7 +212,7 @@ class add_nested_inductive_decl_fn {
             for (expr const & ir : irs) {
                 expr old_ir_type = mlocal_type(ir);
                 name new_ir_name = mk_prefix() + mlocal_name(ir);
-                expr new_ir_type = replace_ind_types(replace_nested_occs(old_ir_type));
+                expr new_ir_type = replace_ind_types(pack_type(old_ir_type));
                 m_inner_decl.get_intro_rules().back().push_back(mk_local(new_ir_name, new_ir_type));
                 lean_trace(name({"inductive_compiler", "nested", "inner_ir"}),
                            tout() << new_ir_name << " : " << new_ir_type << "\n";);
@@ -293,19 +236,155 @@ class add_nested_inductive_decl_fn {
         }
     }
 
-    void construct_translator_for_nested_occ() {
-        // Locals: [n1:nat]
-        // Occ: vector (foo3 A (f n1))
-        // Indices: [n2:nat]
-        // Goal: Pi <locals>, Pi <indices>, Occ -> (one layer down)
+    expr pack_type(expr const & e) {
+        switch (e.kind()) {
+        case expr_kind::Local:
+        case expr_kind::Meta:
+        case expr_kind::Sort:
+        case expr_kind::Constant:
+        case expr_kind::Lambda:
+            return e;
+        case expr_kind::Var:
+            lean_unreachable();
+        case expr_kind::Macro:
+        {
+            buffer<expr> new_args;
+            unsigned nargs = macro_num_args(e);
+            for (unsigned i = 0; i < nargs; i++)
+                new_args.push_back(pack_type(macro_arg(e, i)));
+            return update_macro(e, new_args.size(), new_args.data());
+        }
+        case expr_kind::Pi:
+        {
+            expr new_dom = pack_type(binding_domain(e));
+            expr l = mk_local_for(e);
+            expr new_body = binding_body(Pi(l, pack_type(instantiate(binding_body(e), l))));
+            return update_binding(e, new_dom, new_body);
+        }
+        case expr_kind::App:
+        {
+            buffer<expr> args;
+            expr fn = get_app_args(e, args);
+            if (is_constant(fn) && is_ginductive(m_env, const_name(fn))) {
+                unsigned num_params = get_ginductive_num_params(m_env, const_name(fn));
+                expr candidate = mk_app(fn, num_params, args.data());
+                collected_locals collected_ls;
+                collect_non_param_locals(candidate, collected_ls);
+                buffer<expr> const & locals = collected_ls.get_collected();
+                if (locals.size() == m_locals_in_nested_occ.size()
+                    && matches_nested_occ_upto_locals(candidate, locals)) {
+                    return mk_app(mk_app(m_replacement, locals), args.size() - num_params, args.data() + num_params);
+                } else {
+                    for (unsigned i = 0; i < num_params; ++i) {
+                        args[i] = pack_type(args[i]);
+                    }
+                    return copy_tag(e, mk_app(fn, args));
+                }
+            } else {
+                return e;
+            }
+        }
+        case expr_kind::Let:
+            // whnf unfolds let-expressions
+            lean_unreachable();
+        }
+        lean_unreachable();
+    }
 
+    expr unpack_type(expr const & e) {
+        switch (e.kind()) {
+        case expr_kind::Local:
+        case expr_kind::Meta:
+        case expr_kind::Sort:
+        case expr_kind::Constant:
+        case expr_kind::Lambda:
+            return e;
+        case expr_kind::Var:
+            lean_unreachable();
+        case expr_kind::Macro:
+        {
+            buffer<expr> new_args;
+            unsigned nargs = macro_num_args(e);
+            for (unsigned i = 0; i < nargs; i++)
+                new_args.push_back(unpack_type(macro_arg(e, i)));
+            return update_macro(e, new_args.size(), new_args.data());
+        }
+        case expr_kind::Pi:
+        {
+            expr new_dom = unpack_type(binding_domain(e));
+            expr l = mk_local_for(e);
+            expr new_body = binding_body(Pi(l, unpack_type(instantiate(binding_body(e), l))));
+            return update_binding(e, new_dom, new_body);
+        }
+        case expr_kind::App:
+        {
+            buffer<expr> args;
+            expr fn = get_app_args(e, args);
+            if (fn == m_inner_decl.get_inds()[0]) {
+                buffer<expr> locals;
+                for (unsigned i = 0; i < m_locals_in_nested_occ.size(); ++i) {
+                    locals.push_back(args[i]);
+                }
+                expr nested_occ = replace_locals(m_nested_occ, m_locals_in_nested_occ, locals);
+                return copy_tag(e, mk_app(nested_occ, args.size() - locals.size(), args.data() + locals.size()));
+            } else if (is_constant(fn) && is_ginductive(m_env, const_name(fn))) {
+                unsigned num_params = get_ginductive_num_params(m_env, const_name(fn));
+                for (unsigned i = 0; i < num_params; ++i) {
+                    args[i] = unpack_type(args[i]);
+                }
+                return copy_tag(e, mk_app(fn, args));
+            } else {
+                return e;
+            }
+        }
+        case expr_kind::Let:
+            // whnf unfolds let-expressions
+            lean_unreachable();
+        }
+        lean_unreachable();
+    }
+
+    optional<expr> try_pack_type(expr const & ty) {
+        expr new_ty = pack_type(ty);
+        if (new_ty == ty)
+            return none_expr();
+        else
+            return some_expr(new_ty);
+    }
+
+    optional<expr> try_unpack_type(expr const & ty) {
+        expr new_ty = unpack_type(ty);
+        if (new_ty == ty)
+            return none_expr();
+        else
+            return some_expr(new_ty);
+    }
+
+    optional<expr> build_primitive_pack(expr const & ty) {
+        // returns a function primitive_pack : Pi <locals>, Pi <indices>, occ indices -> inner_occ locals indices
         buffer<expr> args;
-        expr fn = get_app_args(m_nested_occ, args);
+        expr fn = get_app_args(ty, args);
         lean_assert(is_constant(fn));
+        unsigned num_params = get_ginductive_num_params(m_env, const_name(fn));
+
+        buffer<expr> occ_locals;
+        // 1. confirm that it is indeed a nested occurrence
+        {
+            expr candidate = mk_app(fn, num_params, args.data());
+            collected_locals collected_ls;
+            collect_non_param_locals(candidate, collected_ls);
+            occ_locals = collected_ls.get_collected();
+
+            if (occ_locals.size() != m_locals_in_nested_occ.size())
+                return none_expr();
+            if (!matches_nested_occ_upto_locals(candidate, occ_locals))
+                return none_expr();
+        }
 
         expr remaining_type = m_tctx.relaxed_whnf(m_tctx.infer(m_nested_occ));
         bool has_dep_elim = inductive::has_dep_elim(m_env, const_name(fn));
 
+        // 2. elim levels
         list<level> elim_levels = const_levels(fn);
         declaration d = m_env.get(inductive::get_elim_name(const_name(fn)));
         if (length(elim_levels) < d.get_num_univ_params()) {
@@ -313,18 +392,7 @@ class add_nested_inductive_decl_fn {
             elim_levels = list<level>(sort_level(get_ind_result_type(m_tctx, m_inner_decl.get_inds()[0])), elim_levels);
         }
 
-        // Recursor takes:
-        // 1. params
-        // 2. motive
-        // 3. minor premises
-        // and yields: Pi <indices> (x : _), motive x
-
-        // 1. params
-        // (same as args)
-        // (foo₃ A (f n₁))
-
-        // 2. motive
-        // (λ (n₂ : nat) (v : vector (foo₃ A (f n₁)) n₂), fvector₂ A n₁ n₂)
+        // 3. motive
         expr C;
         {
             C = mk_constant(mlocal_name(m_inner_decl.get_inds()[0]), param_names_to_levels(to_list(m_nested_decl.get_lp_names())));
@@ -351,15 +419,9 @@ class add_nested_inductive_decl_fn {
                        tout() << "motive: " << C << "\n";);
         }
 
-        // 3. minor premises
-        // (λ (n₂ : nat)
-        //    (x : foo₃ A (f n₁))
-        //    (vs : vector (foo₃ A (f n₁)) n₂)
-        //    (fvs : fvector₂ A n₁ n₂),
-        //      @fvector.vcons A n₁ n₂ x fvs)
+        // 4. minor premises
         buffer<expr> minor_premises;
         optional<list<name> > intro_rules = get_ginductive_intro_rules(m_env, const_name(fn));
-        unsigned num_params = get_ginductive_num_params(m_env, const_name(fn));
         lean_assert(intro_rules);
         for (name const & intro_rule : *intro_rules) {
             // constructor vector.vcons : Π {A : Type} (n : ℕ), A → vector A n → vector A (n + 1)
@@ -409,31 +471,24 @@ class add_nested_inductive_decl_fn {
                        tout() << "minor premise: " << return_value << "\n";);
         }
 
-        // TODO(dhs): what if the recursor doesn't take an extra level?
-        // (i.e. where do I
-        m_translator = Fun(m_locals_in_nested_occ,
-                           mk_app(mk_app(mk_app(mk_constant(inductive::get_elim_name(const_name(fn)),
-                                                            elim_levels),
-                                                args),
-                                         C),
-                                  minor_premises));
-        lean_trace(name({"inductive_compiler", "nested", "translate"}),
-                   tout() << "type: " << m_tctx.infer(m_translator) << "\n";);
+        // 4. Abstracting and appling to indices
+        expr pack_no_indices = Fun(m_locals_in_nested_occ,
+                                   mk_app(mk_app(mk_app(mk_constant(inductive::get_elim_name(const_name(fn)),
+                                                                    elim_levels),
+                                                        args),
+                                                 C),
+                                          minor_premises));
+
+        expr result = mk_app(mk_app(pack_no_indices, occ_locals), args.size() - num_params, args.data() + num_params);
+
+        lean_trace(name({"inductive_compiler", "nested", "pack"}), tout() << "result: " << result << "\n";);
+        lean_assert(m_tctx.is_def_eq(m_tctx.infer(result), mk_arrow(ty, pack_type(ty))));
+        return some_expr(result);
     }
 
-    expr synthesize_translator_for_nested_occ(expr const & ty, buffer<expr> const & locals) {
-        lean_trace(name({"inductive_compiler", "nested", "translate"}),
-                   tout() << "(" << locals.size() << ") : " << ty << "\n";);
-        // We have `vector (foo3 A (f n1)) (g n2)` and we want `foo_vector A n1 (g n2)`
-        // definition vector_foo_to_foo_vector (A : Type) (n₁ : nat) :
-        //   Pi (n₂ : nat), vector (@foo A (f n₁)) n₂ -> @foo_vector A n₁ n₂
-        buffer<expr> args;
-        expr fn = get_app_args(ty, args);
-        lean_assert(is_constant(fn));
-        unsigned num_params = get_ginductive_num_params(m_env, const_name(fn));
-        return mk_app(mk_app(m_translator, locals),
-                      args.size() - num_params,
-                      args.data() + num_params);
+    optional<expr> primitive_unpack() {
+        return none_expr();
+
     }
 
     expr synthesize_translator_for_recursive_occ(expr const & ty, buffer<optional<expr> > const & synthesized_translators) {
@@ -599,25 +654,16 @@ class add_nested_inductive_decl_fn {
         // This will be called on list (list foo))
         // The goal is to return a function `f : list (list foo) -> list foo_list`.
 
+        if (auto pack_fn = build_primitive_pack(ty)) {
+            return pack_fn;
+        }
+
         buffer<expr> args;
         expr fn = get_app_args(ty, args);
         if (!is_constant(fn) || !is_ginductive(m_env, const_name(fn)))
             return none_expr();
 
         unsigned num_params = get_ginductive_num_params(m_env, const_name(fn));
-
-        // First we see if we are already at a nested occurrence
-        expr candidate = mk_app(fn, num_params, args.data());
-        collected_locals collected_ls;
-        collect_non_param_locals(candidate, collected_ls);
-        buffer<expr> const & locals = collected_ls.get_collected();
-
-        if (locals.size() == m_locals_in_nested_occ.size()
-            && matches_nested_occ_upto_locals(candidate, locals)) {
-            // If we have found a match, then we translate the nested occurrence
-            // i.e. we return `list_foo_to_foo_list inner_arg`
-            return some_expr(synthesize_translator_for_nested_occ(ty, locals));
-        }
 
         bool success = false;
         buffer<optional<expr> > synthesized_translators;
@@ -743,7 +789,7 @@ public:
         translate_nested_decl();
         m_env = add_inner_inductive_declaration(m_env, m_opts, m_implicit_infer_map, m_inner_decl);
         compute_local_to_constant_map();
-        construct_translator_for_nested_occ();
+
         define_nested_inds();
         define_nested_irs();
 
