@@ -277,7 +277,7 @@ class add_nested_inductive_decl_fn {
             lean_assert(!has_local(new_ind_type));
             lean_assert(!has_local(new_ind_val));
             m_env = module::add(m_env, check(m_env, mk_definition(m_env, mlocal_name(ind), to_list(m_nested_decl.get_lp_names()), new_ind_type, new_ind_val)));
-            m_tctx = type_context(m_env, transparency_mode::Semireducible);
+            m_tctx.set_env(m_env);
         }
     }
 
@@ -922,7 +922,7 @@ class add_nested_inductive_decl_fn {
         lean_assert(!has_local(unpack_fn_val));
 
         m_env = module::add(m_env, check(m_env, mk_definition(m_env, unpack_fn_name, to_list(m_nested_decl.get_lp_names()), unpack_fn_type, unpack_fn_val)));
-        m_tctx = type_context(m_env, transparency_mode::Semireducible);
+        m_tctx.set_env(m_env);
 
         // TODO(dhs): this is where I create the types, call tactics, and add definitions for the inverse theorem,
         // the size-of, and the size-of preservation theorem.
@@ -965,7 +965,7 @@ class add_nested_inductive_decl_fn {
         lean_assert(!has_local(new_ir_type));
         lean_assert(!has_local(new_ir_val));
         m_env = module::add(m_env, check(m_env, mk_definition(m_env, mlocal_name(ir), to_list(m_nested_decl.get_lp_names()), new_ir_type, new_ir_val)));
-        m_tctx = type_context(m_env, transparency_mode::Semireducible);
+        m_tctx.set_env(m_env);
     }
 
     void define_nested_irs() {
@@ -989,7 +989,7 @@ class add_nested_inductive_decl_fn {
             expr rec_type = m_tctx.infer(rec_val);
 
             m_env = module::add(m_env, check(m_env, mk_definition(m_env, inductive::get_elim_name(mlocal_name(nested_ind)), lp_names, rec_type, rec_val)));
-            m_tctx = type_context(m_env, transparency_mode::Semireducible);
+            m_tctx.set_env(m_env);
         }
     }
 
@@ -1009,7 +1009,7 @@ public:
                    tout() << "adding: " << mlocal_name(m_inner_decl.get_inds()[0]) << "\n";);
 
         m_env = add_inner_inductive_declaration(m_env, m_opts, m_implicit_infer_map, m_inner_decl);
-        m_tctx = type_context(m_env, transparency_mode::Semireducible);
+        m_tctx.set_env(m_env);
         lean_assert((bool) m_env.find(mlocal_name(m_inner_decl.get_inds()[0])));
         compute_local_to_constant_map();
 
