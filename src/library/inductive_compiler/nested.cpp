@@ -427,7 +427,7 @@ class add_nested_inductive_decl_fn {
         // returns a function primitive_pack : ty -> pack_type(ty)
         buffer<expr> args;
         expr fn = get_app_args(ty, args);
-        if (!is_constant(fn) || !is_ginductive_(m_env, const_name(fn)))
+        if (!is_constant(fn) || !is_ginductive(m_env, const_name(fn)))
             return none_expr();
 
         unsigned num_params = get_ginductive_num_params(m_env, const_name(fn));
@@ -682,13 +682,13 @@ class add_nested_inductive_decl_fn {
 
         // handles nested occurrences
         if (!has_ind_occ(ty) || ty == pack_type(ty))
-            return none_expr();
+            return optional<expr_pair>();
 
         buffer<expr> args;
         expr fn = get_app_args(ty, args);
 
         if (!is_constant(fn) || !is_ginductive(m_env, const_name(fn)))
-            return none_expr();
+            return optional<expr_pair>();
 
         if (auto primitive_pack_fn = build_primitive_pack(ty)) {
             auto primitive_unpack_fn = build_primitive_unpack(pack_type(ty));
@@ -722,7 +722,7 @@ class add_nested_inductive_decl_fn {
             elim_levels = list<level>(sort_level(get_ind_result_type(m_tctx, m_inner_decl.get_inds()[0])), elim_levels);
         }
 
-        auto construct_C = [&](expr const & return_value, expr const & remaining_type) {
+        auto construct_C = [&](expr const & return_value, expr const & remaining_type, buffer<expr> const & params) {
             expr C = return_value;
             expr ty = remaining_type;
 
@@ -740,10 +740,10 @@ class add_nested_inductive_decl_fn {
             }
 
             return Fun(locals, C);
-        }
+        };
 
-        expr pack_C = construct_C(packed_ind, remaining_unpacked_type);
-        expr unpack_C = construct_C(unpacked_ind, remaining_packed_type);
+        expr pack_C = construct_C(packed_ind, remaining_unpacked_type, unpacked_params);
+        expr unpack_C = construct_C(unpacked_ind, remaining_packed_type, packed_params);
 
         optional<list<name> > intro_rules = get_ginductive_intro_rules(m_env, const_name(fn));
 
@@ -794,7 +794,7 @@ class add_nested_inductive_decl_fn {
                         pack_return_args.push_back(unpack_l);
                     }
                 }
-                ir_type = m_tctx.relaxed_whnf(instantiate(binding_body(ir_type), l));
+                ir_type = m_tctx.relaxed_whnf(instantiate(binding_body(ir_type), pack_l));
             }
 
             pack_locals.append(pack_rec_args);
@@ -862,45 +862,37 @@ class add_nested_inductive_decl_fn {
     }
 
     optional<expr> translate_ir_arg(buffer<expr> const & previous_args, expr const & arg) {
-        // For foo.mk : Pi (n : nat), (nat -> list foo) -> foo
-        // This would be called on a local (arg : nat -> list foo)
-        // It tries to return a term containing `arg` that has the un-nested type (nat -> foo_list)
-        // Lambda (n:nat), list_to_foo_list (arg n)
-
-        expr ty = m_tctx.relaxed_whnf(m_tctx.infer(arg));
-        if (!has_ind_occ(ty))
+        auto pack_unpack_fn = build_pack_unpack(mlocal_type(arg));
+        if (!pack_unpack_fn)
             return none_expr();
 
-        buffer<expr> locals;
-        buffer<expr> inner_args;
+        expr const & pack_fn = pack_unpack_fn->first;
+        expr const & unpack_fn = pack_unpack_fn->second;
 
-        while (is_pi(ty)) {
-            expr l = mk_local_for(ty);
-            locals.push_back(l);
-            ty = instantiate(binding_body(ty), l);
-            ty = m_tctx.relaxed_whnf(ty);
-        }
-        expr arg_val = mk_app(arg, locals);
-        // Now arg_val has type ty
-        if (auto pack_unpack_fn = build_pack_unpack(ty)) {
-            // inner_arg_fn : inner_arg_type -> new_inner_arg_type
-            // We want to return a function PACK : Pi <locals>, inner_arg_type -> Pi <locals>, new_inner_arg_type
+        // pack_fn :: arg_ty -> packed_type(arg_ty)
+        // unpack_fn :: packed_type(arg_ty) -> arg_ty
 
-            expr pack_fn_val = Fun(m_nested_decl.get_params(), convert_locals_to_constants(Fun(previous_args, Fun(arg, Fun(locals, mk_app(*inner_arg_fn, arg_val))))));
-            expr pack_fn_type = m_tctx.infer(pack_fn_val);
-            // TODO(dhs): put the name of the ind type in the name
-            name pack_fn_name = "pack" + mk_fresh_name();
-            lean_assert(!has_local(pack_fn_type));
-            lean_assert(!has_local(pack_fn_val));
+        expr pack_fn_val = Fun(m_nested_decl.get_params(), convert_locals_to_constants(Fun(previous_args, pack_fn)));
+        expr pack_fn_type = m_tctx.infer(pack_fn_val);
+        name pack_fn_name = "pack" + mk_fresh_name();
+        lean_assert(!has_local(pack_fn_type));
+        lean_assert(!has_local(pack_fn_val));
 
+        m_env = module::add(m_env, check(m_env, mk_definition(m_env, pack_fn_name, to_list(m_nested_decl.get_lp_names()), pack_fn_type, pack_fn_val)));
 
-            m_env = module::add(m_env, check(m_env, mk_definition(m_env, pack_fn_name, to_list(m_nested_decl.get_lp_names()), pack_fn_type, pack_fn_val)));
-            m_tctx = type_context(m_env, transparency_mode::Semireducible);
-            expr pack_fn_const = mk_constant(pack_fn_name, param_names_to_levels(to_list(m_nested_decl.get_lp_names())));
-            return some_expr(mk_app(mk_app(mk_app(pack_fn_const, m_nested_decl.get_params()), previous_args), arg));
-        } else {
-            return none_expr();
-        }
+        expr unpack_fn_val = Fun(m_nested_decl.get_params(), convert_locals_to_constants(Fun(previous_args, unpack_fn)));
+        expr unpack_fn_type = m_tctx.infer(unpack_fn_val);
+        name unpack_fn_name = "unpack" + mk_fresh_name();
+        lean_assert(!has_local(unpack_fn_type));
+        lean_assert(!has_local(unpack_fn_val));
+
+        m_env = module::add(m_env, check(m_env, mk_definition(m_env, unpack_fn_name, to_list(m_nested_decl.get_lp_names()), unpack_fn_type, unpack_fn_val)));
+        m_tctx = type_context(m_env, transparency_mode::Semireducible);
+
+        // TODO(dhs): this is where I create the types, call tactics, and add definitions for the inverse theorem,
+        // the size-of, and the size-of preservation theorem.
+        expr pack_fn_const = mk_constant(pack_fn_name, param_names_to_levels(to_list(m_nested_decl.get_lp_names())));
+        return some_expr(mk_app(mk_app(mk_app(pack_fn_const, m_nested_decl.get_params()), previous_args), arg));
     }
 
     void define_nested_ir(unsigned ind_idx, unsigned ir_idx) {
