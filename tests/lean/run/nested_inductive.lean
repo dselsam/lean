@@ -221,7 +221,7 @@ end X16b
 
 -- Now we start with nested-nested inductives
 namespace X17
-
+print "list (list foo) -> foo"
 inductive foo.{l} : Type.{max 1 l}
 | mk : list (list foo) -> foo
 
@@ -230,7 +230,7 @@ check @foo.mk
 end X17
 
 namespace X18
-
+print "nested with vectors"
 inductive foo.{l} (A : Type.{l}) : A -> Type.{max 1 l}
 | mk : Pi (n : nat) (a : A), vector (vector (foo a) n) (f n) -> foo a
 
@@ -240,7 +240,7 @@ check @foo.mk
 end X18
 
 namespace X19
-
+print "nested with multiple intro rules"
 inductive foo.{l} : Type.{max 1 l}
 | mk₁ : list (vector foo 0) -> foo
 | mk₂ : vector (list foo) 0 -> foo
@@ -252,6 +252,7 @@ check @foo.mk₂
 end X19
 
 namespace X20
+print "nested with pis, indices, and multiple intro rules"
 inductive foo.{l} (A : Type.{l}) : A -> Type.{max 1 l}
 | mk₁ : Pi (n : nat) (a : A), (Pi (b : A), bool -> list (vector (vector (foo b) n) (f n))) -> foo a
 | mk₂ : Pi (n₁ : nat) (a : A), (Pi (n₂ : nat), vector (list (foo a)) (f (n₁ + n₂))) -> foo a
@@ -263,7 +264,7 @@ check @foo.mk₂
 end X20
 
 namespace X21
-
+print "nested with inductive types whose intro rules introduce additional nesting"
 set_option trace.inductive_compiler.nested.mimic_ind true
 inductive box (A : Type) : Type
 | mk : list (list A) -> box
