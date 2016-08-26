@@ -415,6 +415,10 @@ class add_nested_inductive_decl_fn {
         return replace_locals(m_nested_occ, m_locals_in_nested_occ, new_locals);
     }
 
+    expr occ_as_fun() {
+        return Fun(m_locals_in_nested_occ, m_nested_occ);
+    }
+
     void split_params_indices(buffer<expr> const & args, unsigned num_params, buffer<expr> & params, buffer<expr> & indices) {
         for (unsigned i = 0; i < num_params; ++i)
             params.push_back(args[i]);
@@ -555,17 +559,19 @@ class add_nested_inductive_decl_fn {
         buffer<expr> occ_locals, rest_indices;
         split_params_indices(args, m_locals_in_nested_occ.size(), occ_locals, rest_indices);
 
-        buffer<expr> ind_params;
-        expr new_ind = nested_occ_with_locals(occ_locals);
-        buffer<expr> new_ind_args;
-        name new_ind_name = const_name(get_app_args(new_ind, new_ind_args));
-        unsigned new_ind_num_params = get_ginductive_num_params(m_env, new_ind_name);
-        for (unsigned i = 0; i < new_ind_num_params; ++i)
-            ind_params.push_back(new_ind_args[i]);
-
-        // Note: this is a bit of a hack
-        // We are using the fact that a mimic-ind will be dep_elim iff the original is
+        expr new_ind = occ_as_fun();
+        name new_ind_name = const_name(get_app_fn(m_nested_occ));
         bool has_dep_elim = inductive::has_dep_elim(m_env, new_ind_name);
+        unsigned ind_num_params = get_ginductive_num_params(m_env, new_ind_name);
+
+        buffer<expr> ind_param_fns;
+        {
+            get_app_args(m_nested_occ, ind_param_fns);
+            ind_param_fns.shrink(ind_num_params);
+            for (expr & ind_param_fn : ind_param_fns) {
+                ind_param_fn = Fun(m_locals_in_nested_occ, ind_param_fn);
+            }
+        }
 
         // 2. elim levels
         list<level> elim_levels = param_names_to_levels(to_list(m_inner_decl.get_lp_names()));
@@ -578,7 +584,7 @@ class add_nested_inductive_decl_fn {
         // 3. motive
         expr C;
         {
-            C = new_ind;
+            C = new_ind; // think "fun n, list (bar n)"
 
             expr ty = mlocal_type(fn);
             buffer<expr> locals;
@@ -586,8 +592,9 @@ class add_nested_inductive_decl_fn {
             while (is_pi(ty)) {
                 expr l = mk_local_for(ty);
                 locals.push_back(l);
-                if (i >= occ_locals.size())
+                if (i < occ_locals.size())
                     C = mk_app(C, l);
+
                 ty = instantiate(binding_body(ty), l);
                 ty = m_tctx.relaxed_whnf(ty);
                 ++i;
@@ -621,6 +628,7 @@ class add_nested_inductive_decl_fn {
             buffer<expr> rec_args;
             buffer<expr> return_args;
             unsigned i = 0;
+
             while (is_pi(ir_type)) {
                 buffer<expr> arg_args;
                 expr arg_fn = get_app_args(binding_domain(ir_type), arg_args);
@@ -630,7 +638,7 @@ class add_nested_inductive_decl_fn {
                 ir_type = m_tctx.relaxed_whnf(instantiate(binding_body(ir_type), l));
                 if (arg_fn == fn) {
                     // it is a recursive argument
-                    expr rec_arg_type = mk_app(new_ind, arg_args.size() - occ_locals.size(), arg_args.data() + occ_locals.size());
+                    expr rec_arg_type = mk_app(new_ind, arg_args);
                     expr l2 = mk_local_pp("x", rec_arg_type);
                     rec_args.push_back(l2);
                     return_args.push_back(l2);
@@ -640,11 +648,16 @@ class add_nested_inductive_decl_fn {
                         return_args.push_back(l);
                 }
                 i++;
+                if (i == occ_locals.size()) {
+                    for (expr const & ind_param_fn : ind_param_fns) {
+                        return_args.push_back(mk_app(ind_param_fn, locals));
+                    }
+                }
             }
             locals.append(rec_args);
 
             expr return_value = mk_constant(unpacked_intro_rule_name, m_nested_occ_ind_levels);
-            return_value = mk_app(return_value, ind_params);
+            return_value = mk_app(return_value, rest_indices);
             return_value = mk_app(return_value, return_args);
             return_value = Fun(locals, return_value);
             minor_premises.push_back(return_value);
