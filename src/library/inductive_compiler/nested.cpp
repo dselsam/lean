@@ -121,15 +121,13 @@ class add_nested_inductive_decl_fn {
                     }
                 }
 
-                // Awkward design: it also lifts intro rules from inner to nested
-                for (unsigned ind_idx = 1; ind_idx < m_inner_decl.get_intro_rules().size(); ++ind_idx) {
+                for (unsigned ind_idx = 0; ind_idx < m_inner_decl.get_intro_rules().size(); ++ind_idx) {
                     buffer<expr> const & irs = m_inner_decl.get_intro_rules()[ind_idx];
                     for (unsigned ir_idx = 0; ir_idx < irs.size(); ++ir_idx) {
                         expr const & ir = irs[ir_idx];
                         if (const_name(fn) == mlocal_name(ir)) {
                             unsigned num_params = m_inner_decl.get_num_params();
-                            expr nested_ir = m_nested_decl.get_intro_rules()[ind_idx-1][ir_idx];
-                            return some_expr(mk_app(nested_ir, args.size() - num_params, args.data() + num_params));
+                            return some_expr(mk_app(ir, args.size() - num_params, args.data() + num_params));
                         }
                     }
                 }
@@ -366,64 +364,39 @@ class add_nested_inductive_decl_fn {
         lean_unreachable();
     }
 
-    // Awkward design but current unpacks locals and constants
+    // Does two things: replaces nested occurrences and "lifts" introduction rules
     expr unpack_type(expr const & e) {
-        switch (e.kind()) {
-        case expr_kind::Local:
-            if (e == m_replacement) {
-                lean_assert(m_locals_in_nested_occ.empty());
-                return copy_tag(e, expr(m_nested_occ));
-            } else {
-                return e;
-            }
-        case expr_kind::Meta:
-        case expr_kind::Sort:
-        case expr_kind::Constant:
-        case expr_kind::Lambda:
-            return e;
-        case expr_kind::Var:
-            lean_unreachable();
-        case expr_kind::Macro:
-        {
-            buffer<expr> new_args;
-            unsigned nargs = macro_num_args(e);
-            for (unsigned i = 0; i < nargs; i++)
-                new_args.push_back(unpack_type(macro_arg(e, i)));
-            return update_macro(e, new_args.size(), new_args.data());
-        }
-        case expr_kind::Pi:
-        {
-            expr new_dom = unpack_type(binding_domain(e));
-            expr l = mk_local_for(e);
-            expr new_body = binding_body(Pi(l, unpack_type(instantiate(binding_body(e), l))));
-            return update_binding(e, new_dom, new_body);
-        }
-        case expr_kind::App:
-        {
-            buffer<expr> args;
-            expr fn = get_app_args(e, args);
-            if (fn == m_replacement) {
-                buffer<expr> locals;
-                for (unsigned i = 0; i < m_locals_in_nested_occ.size(); ++i) {
-                    locals.push_back(args[i]);
+        return replace(e, [&](expr const & e) {
+                buffer<expr> args;
+                expr fn = get_app_args(e, args);
+
+                if (!is_local(fn))
+                    return none_expr();
+
+                // 1. foo_list -> list foo
+                if (fn == m_replacement && args.size() == m_locals_in_nested_occ.size()) {
+                    lean_assert(std::all_of(args.begin(), args.end(), [&](expr const & arg) { return is_local(arg); }));
+                    return some_expr(copy_tag(e, nested_occ_with_locals(args)));
                 }
-                expr nested_occ = nested_occ_with_locals(locals);
-                return copy_tag(e, mk_app(nested_occ, args.size() - locals.size(), args.data() + locals.size()));
-            } else if (is_constant(fn) && is_ginductive(m_env, const_name(fn))) {
-                unsigned num_params = get_ginductive_num_params(m_env, const_name(fn));
-                for (unsigned i = 0; i < num_params; ++i) {
-                    args[i] = unpack_type(args[i]);
+
+                if (!is_local(e))
+                    return none_expr();
+
+                // 2a. <id>.foo -> foo (not necessary since they are definitionally equal)
+                // 2b. <id>.foo.mk -> foo.mk
+                for (unsigned ind_idx = 1; ind_idx < m_inner_decl.get_num_inds(); ++ind_idx) {
+                    expr const & ind = m_inner_decl.get_ind(ind_idx);
+                    if (e == ind)
+                        return some_expr(m_nested_decl.get_ind(ind_idx-1));
+
+                    for (unsigned ir_idx = 0; ir_idx < m_inner_decl.get_num_intro_rules(ind_idx); ++ir_idx) {
+                        expr const & ir = m_inner_decl.get_intro_rule(ind_idx, ir_idx);
+                        if (e == ir)
+                            return some_expr(m_nested_decl.get_intro_rule(ind_idx-1, ir_idx));
+                    }
                 }
-                return copy_tag(e, mk_app(fn, args));
-            } else {
-                return e;
-            }
-        }
-        case expr_kind::Let:
-            // whnf unfolds let-expressions
-            lean_unreachable();
-        }
-        lean_unreachable();
+                return none_expr();
+            });
     }
 
     optional<expr> try_pack_type(expr const & ty) {
@@ -1050,6 +1023,11 @@ class add_nested_inductive_decl_fn {
         buffer<expr> inner_args;
 
         expr unpacked_type = unpack_type(inner_recursor_type);
+        lean_trace(name({"inductive_compiler", "nested", "nested_rec"}),
+                   tout() << "\n"
+                   << "inner rec type: " << inner_recursor_type << "\n"
+                   << "unpacked rec type: " << unpacked_type << "\n";);
+
         if (unpacked_type == inner_recursor_type)
             return mk_pair(inner_recursor_type, inner_recursor);
 
@@ -1095,9 +1073,6 @@ class add_nested_inductive_decl_fn {
 
             lean_assert(!has_local(nested_recursor.first));
             lean_assert(!has_local(nested_recursor.second));
-
-            lean_trace(name({"inductive_compiler", "nested", "nested_rec"}),
-                       tout() << "inner type: " << inner_recursor_type << "\n";);
 
             lean_trace(name({"inductive_compiler", "nested", "nested_rec"}),
                        tout() << nested_recursor.first << " :=\n  " << nested_recursor.second << "\n";);
