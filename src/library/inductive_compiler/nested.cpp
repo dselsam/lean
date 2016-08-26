@@ -375,7 +375,8 @@ class add_nested_inductive_decl_fn {
 
                 // 1. foo_list -> list foo
                 if (fn == m_replacement && args.size() == m_locals_in_nested_occ.size()) {
-                    lean_assert(std::all_of(args.begin(), args.end(), [&](expr const & arg) { return is_local(arg); }));
+                    // TODO(dhs): awkward assert
+                    lean_assert(std::all_of(args.begin(), args.end(), [&](expr const & arg) { return is_local(arg) || is_var(arg); }));
                     return some_expr(copy_tag(e, nested_occ_with_locals(args)));
                 }
 
@@ -1019,6 +1020,10 @@ class add_nested_inductive_decl_fn {
     }
 
     expr_pair build_nested_recursor(unsigned ind_idx, expr const & inner_recursor_type, expr const & inner_recursor) {
+        return mk_pair(inner_recursor_type, inner_recursor);
+        // TODO(dhs): do this with tactics
+
+        /*
         buffer<expr> locals;
         buffer<expr> inner_args;
 
@@ -1105,6 +1110,7 @@ class add_nested_inductive_decl_fn {
 
         lean_assert(m_tctx.is_def_eq(nested_recursor_type, m_tctx.infer(nested_recursor_val)));
         return mk_pair(nested_recursor_type, nested_recursor_val);
+        */
     }
 
     void define_nested_recursors() {
@@ -1120,17 +1126,28 @@ class add_nested_inductive_decl_fn {
             expr inner_recursor = mk_constant(inductive::get_elim_name(mlocal_name(inner_ind)), lvls);
             expr inner_recursor_type = m_tctx.infer(inner_recursor);
 
-            auto nested_recursor = build_nested_recursor(i, convert_constants_to_locals(inner_recursor_type),
-                                                         inner_recursor);
+            unsigned num_params = m_nested_decl.get_num_params();
+            expr inner_ty = m_tctx.relaxed_whnf(inner_recursor_type);
+            for (unsigned i = 0; i < num_params; ++i) {
+                inner_ty = m_tctx.relaxed_whnf(instantiate(binding_body(inner_ty), m_nested_decl.get_param(i)));
+            }
 
-            lean_assert(!has_local(nested_recursor.first));
-            lean_assert(!has_local(nested_recursor.second));
+            expr outer_recursor_type = Pi(m_nested_decl.get_params(), convert_locals_to_constants(unpack_type(convert_constants_to_locals(inner_ty))));
+            // auto nested_recursor = build_nested_recursor(i, convert_constants_to_locals(inner_recursor_type),
+            //                                                      inner_recursor);
+
+//            lean_assert(!has_local(nested_recursor.first));
+//            lean_assert(!has_local(nested_recursor.second));
+
+            lean_assert(!has_local(outer_recursor_type));
 
             lean_trace(name({"inductive_compiler", "nested", "nested_rec"}),
-                       tout() << nested_recursor.first << " :=\n  " << nested_recursor.second << "\n";);
+                       tout() << "[" << inductive::get_elim_name(mlocal_name(nested_ind)) << "]\n"
+                       << "inner: " << inner_recursor_type << "\n"
+                       << "outer: " << outer_recursor_type << "\n";);
 
-            m_env = module::add(m_env, check(m_env, mk_definition(m_env, inductive::get_elim_name(mlocal_name(nested_ind)),
-                                                                  lp_names, nested_recursor.first, nested_recursor.second)));
+            m_env = module::add(m_env, check(m_env, mk_axiom(inductive::get_elim_name(mlocal_name(nested_ind)),
+                                                             lp_names, outer_recursor_type)));
             m_tctx.set_env(m_env);
         }
     }

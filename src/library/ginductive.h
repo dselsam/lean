@@ -59,6 +59,7 @@ public:
     unsigned get_num_inds() const { return m_inds.size(); }
     unsigned get_num_intro_rules(unsigned ind_idx) const { return m_intro_rules[ind_idx].size(); }
 
+    expr const & get_param(unsigned i) const { return m_params[i]; }
     expr const & get_ind(unsigned i) const { return m_inds[i]; }
     expr const & get_intro_rule(unsigned ind_idx, unsigned ir_idx) const { return m_intro_rules[ind_idx][ir_idx]; }
     buffer<expr> const & get_intro_rules(unsigned ind_idx) const { return m_intro_rules[ind_idx]; }
