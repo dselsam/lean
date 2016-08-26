@@ -1018,7 +1018,7 @@ class add_nested_inductive_decl_fn {
         return none_expr();
     }
 
-    expr_pair build_nested_recursor(expr const & inner_recursor_type, expr const & inner_recursor) {
+    expr_pair build_nested_recursor(unsigned ind_idx, expr const & inner_recursor_type, expr const & inner_recursor) {
         buffer<expr> locals;
         buffer<expr> inner_args;
 
@@ -1033,22 +1033,55 @@ class add_nested_inductive_decl_fn {
 
         expr ty = m_tctx.relaxed_whnf(unpacked_type);
 
-        // 1. parameters
-        buffer<expr> inner_params;
+        // 1. parameters (same for both)
+        buffer<expr> params;
         unsigned num_params = m_inner_decl.get_num_params();
         for (unsigned i = 0; i < num_params; ++i) {
             expr l = mk_local_for(ty);
-            inner_params.push_back(l);
+            params.push_back(l);
             ty = m_tctx.relaxed_whnf(instantiate(binding_body(ty), l));
         }
 
-        // 2. motive
-        expr C = mk_local_for(ty); // C is the same for both
+        // 2. motive (same for both)
+        expr C = mk_local_for(ty);
         ty = m_tctx.relaxed_whnf(instantiate(binding_body(ty), l));
 
         // 3. minor premises
+        buffer<expr> outer_minor_premises;
         buffer<expr> inner_minor_premises;
 
+        unsigned num_minor_premises = m_nested_decl.get_num_intro_rules(ind_idx);
+        for (unsigned ir_idx = 0; ir_idx < num_minor_premises; ++ir_idx) {
+            expr mp = mk_local_for(ty);
+            expr mp_type = m_tctx.relaxed_whnf(mlocal_type(mp));
+            buffer<expr> locals;
+            buffer<expr> ir_args;
+            buffer<expr> mp_args; // TODO(dhs): not sure how to do this
+
+            while (is_pi(mp_type)) {
+                expr arg = mk_local_for(mp_type);
+
+                // TODO(dhs): temporary test
+                // Let's see if we can get the MP applied to the right arguments
+                // (skipping the casts for now)
+                expr arg_ty = mlocal_type(arg);
+                if (unpack_type(arg_ty) == arg_ty) {
+                    // Does not need to be packed
+                    return_args.push_back(arg);
+                    if (get_app_fn(arg_ty) != C)
+                        ir_args.push_back(arg);
+                } else {
+                    expr arg
+
+
+                }
+                if (auto inner_arg = translate_ir_arg(locals, ir_arg_arg)) {
+
+
+                }
+                locals_push_back(ir_arg_arg);
+            }
+            expr l = mk_local_for(ty);
 
 
 
@@ -1087,7 +1120,7 @@ class add_nested_inductive_decl_fn {
             expr inner_recursor = mk_constant(inductive::get_elim_name(mlocal_name(inner_ind)), lvls);
             expr inner_recursor_type = m_tctx.infer(inner_recursor);
 
-            auto nested_recursor = build_nested_recursor(convert_constants_to_locals(inner_recursor_type),
+            auto nested_recursor = build_nested_recursor(i, convert_constants_to_locals(inner_recursor_type),
                                                          inner_recursor);
 
             lean_assert(!has_local(nested_recursor.first));

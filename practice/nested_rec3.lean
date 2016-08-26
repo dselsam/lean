@@ -36,8 +36,28 @@ fbox.rec.{l_1} :
 -/
 
 -- and we want to define fbox₂.rec:
+open tactic
 
+-- meta_constant rewrite_core : transparency → bool → occurrences → bool → expr → tactic unit
+/-
+meta_definition prove_rec : tactic unit :=
+do trace_state,
+   to_expr `(flist_pack_unpack  >>= rewrite_core semireducible ff occurrences.all tt,
+   trace_state
+-/
 definition fbox₂.rec (C : fbox₂ → Type)
+                     (mp : Pi (xs ys : list foo) (x : fbox), C x -> C (fbox₂.mk xs ys x))
+                     (x : fbox₂) : C x :=
+by do to_expr `(@fbox.rec C) >>= apply,
+      xs ← intro `xs,
+      ys ← intro `ys,
+      x ← intro `x,
+      to_expr `(flist_pack_unpack xs) >>= rewrite_core semireducible ff occurrences.all tt,
+      to_expr `(flist_pack_unpack ys) >>= rewrite_core semireducible ff occurrences.all tt,
+      to_expr `(mp) >>= apply
+
+
+definition fbox₂.rec₃ (C : fbox₂ → Type)
                      (mp : Pi (xs ys : list foo) (x : fbox), C x -> C (fbox₂.mk xs ys x))
                      (x : fbox₂) : C x :=
 @fbox.rec C
