@@ -378,7 +378,7 @@ class add_nested_inductive_decl_fn {
             }
         case expr_kind::Meta:
         case expr_kind::Sort:
-
+        case expr_kind::Constant:
         case expr_kind::Lambda:
             return e;
         case expr_kind::Var:
@@ -934,30 +934,48 @@ class add_nested_inductive_decl_fn {
         lean_assert(!has_local(pack_fn_type));
         lean_assert(!has_local(pack_fn_val));
 
+        lean_trace(name({"inductive_compiler", "nested", "pack"}),
+                   tout() << "pack_pack_type : " << pack_fn_type << "\n";);
+
         m_env = module::add(m_env, check(m_env, mk_definition(m_env, pack_fn_name, to_list(m_nested_decl.get_lp_names()), pack_fn_type, pack_fn_val)));
 
         expr unpack_fn_val = Fun(m_nested_decl.get_params(), convert_locals_to_constants(Fun(previous_args, unpack_fn)));
         expr unpack_fn_type = m_tctx.infer(unpack_fn_val);
         name unpack_fn_name = "unpack" + mk_fresh_name();
 
-        {
-            collected_locals unpack_fn_val_locals;
-            collect_locals(unpack_fn_val, unpack_fn_val_locals);
-            buffer<expr> ls = unpack_fn_val_locals.get_collected();
-            if (!ls.empty()) {
-                unsigned j = 0;
-            }
-        }
-
         lean_assert(!has_local(unpack_fn_type));
         lean_assert(!has_local(unpack_fn_val));
+
+        lean_trace(name({"inductive_compiler", "nested", "unpack"}),
+                   tout() << "unpack_pack_type : " << unpack_fn_type << "\n";);
 
         m_env = module::add(m_env, check(m_env, mk_definition(m_env, unpack_fn_name, to_list(m_nested_decl.get_lp_names()), unpack_fn_type, unpack_fn_val)));
         m_tctx.set_env(m_env);
 
+        levels lvls = param_names_to_levels(to_list(m_nested_decl.get_lp_names()));
+        expr pack_fn_const = mk_constant(pack_fn_name, lvls);
+        expr unpack_fn_const = mk_constant(unpack_fn_name, lvls);
+        expr unpack_pack_id_type;
+        {
+            expr packed_arg = mk_local_pp("x_packed", pack_type(mlocal_type(arg)));
+            expr lhs = mk_app(mk_app(mk_app(pack_fn_const, m_nested_decl.get_params()), previous_args),
+                              mk_app(mk_app(mk_app(unpack_fn_const, m_nested_decl.get_params()), previous_args), packed_arg));
+            unpack_pack_id_type = Pi(m_nested_decl.get_params(),
+                                     convert_locals_to_constants(
+                                         Pi(previous_args,
+                                            Pi(packed_arg,
+                                               mk_eq(m_tctx, lhs, packed_arg)))));
+        }
+
+        lean_trace(name({"inductive_compiler", "nested", "unpack_pack"}),
+                   tout() << "unpack_pack_id : " << unpack_pack_id_type << "\n";);
+
+        name unpack_pack_id_name = "pack_unpack_id" + mk_fresh_name();
+        m_env = module::add(m_env, check(m_env, mk_axiom(unpack_pack_id_name, to_list(m_nested_decl.get_lp_names()), unpack_pack_id_type)));
+        m_tctx.set_env(m_env);
+
         // TODO(dhs): this is where I create the types, call tactics, and add definitions for the inverse theorem,
         // the size-of, and the size-of preservation theorem.
-        expr pack_fn_const = mk_constant(pack_fn_name, param_names_to_levels(to_list(m_nested_decl.get_lp_names())));
         return some_expr(mk_app(mk_app(mk_app(pack_fn_const, m_nested_decl.get_params()), previous_args), arg));
     }
 
@@ -974,12 +992,12 @@ class add_nested_inductive_decl_fn {
 
         while (is_pi(ty)) {
             expr l = mk_local_for(ty);
-            locals.push_back(l);
             if (auto inner_arg = translate_ir_arg(locals, l)) {
                 inner_args.push_back(*inner_arg);
             } else {
                 inner_args.push_back(l);
             }
+            locals.push_back(l);
             ty = instantiate(binding_body(ty), l);
             ty = m_tctx.relaxed_whnf(ty);
         }
@@ -1138,6 +1156,7 @@ void initialize_inductive_compiler_nested() {
     register_trace_class(name({"inductive_compiler", "nested", "nested_rec"}));
     register_trace_class(name({"inductive_compiler", "nested", "pack"}));
     register_trace_class(name({"inductive_compiler", "nested", "unpack"}));
+    register_trace_class(name({"inductive_compiler", "nested", "unpack_pack"}));
     g_nested_prefix = new name(name::mk_internal_unique_name());
 }
 

@@ -35,7 +35,6 @@ attribute [reducible] definition fbox₂.mk (xs ys : list foo) : fbox₂ := fbox
 
 -- and we want to define fbox₂.rec:
 
-
 definition fbox₂.rec (C : fbox₂ → Type)
                      (mp : Pi (xs ys : list foo), C (fbox₂.mk xs ys))
                      (x : fbox₂) : C x :=
@@ -48,27 +47,3 @@ definition fbox₂.rec (C : fbox₂ → Type)
                        (flist_pack_unpack xs)
                        (eq.rec_on (flist_pack_unpack ys) (mp (unpack_flist xs) (unpack_flist ys))))
           x
-
--- In this case, we accumulate the arguments that need to be "unpacked", and then "eq.rec_on" them in sequence,
--- with the motive taking the
-
-
--- The motive only takes indices and the inductive type, all of which will stay the same.
--- Same with the major premise and friends.
--- So we need to process the introduction rules.
-
--- Suppose given minor premise type:
--- (Π (a : flist), C (fbox.mk a))
--- We can "unpack" this type to yield
--- (Π (a : list foo), C (fbox.mk₂ a))
--- Note that we did two things:
--- 1. We replaced arguments of type TY with arguments of type (unpack_type TY)
--- 2. In the conclusions, we replaced occurrences of <intro_rule> with (lift_intro_rules <intro_rule>)
-
--- The value is much more complicated.
--- We introduce the local for the inner rec type: (a : flist)
--- When we reach the result `C (fbox.mk a)`,
--- we apply the lifted minor premise local to the (unpack_flist a)
--- Unfortunately, this gives us an element of type `C (fbox.mk (pack_flist (unpack_flist a)))`, and so we need to cast.
-
--- Before we overfit to this example, let's consider something a little more complicated.
