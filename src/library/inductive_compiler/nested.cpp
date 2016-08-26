@@ -29,6 +29,8 @@ namespace lean {
 
 static name * g_nested_prefix = nullptr;
 
+
+
 class add_nested_inductive_decl_fn {
     environment                   m_env;
     options const &               m_opts;
@@ -47,6 +49,35 @@ class add_nested_inductive_decl_fn {
 
     buffer<expr>                  m_ind_ir_locals;
     buffer<expr>                  m_ind_ir_cs;
+
+    struct pack_info {
+        unsigned ind_idx, ir_idx, arg_idx;
+        name pack_name;
+        name unpack_name;
+        name unpack_pack_name;
+
+        unsigned m_hash;
+
+        pack_info(unsigned ind, unsigned ir, unsigned arg,
+                  name const & pack, name const & unpack, name const & unpack_pack):
+            ind_idx(ind), ir_idx(ir), arg_idx(arg),
+            pack_name(pack), unpack_name(unpack), unpack_pack_name(unpack_pack),
+            m_hash(hash(ind_idx, hash(ir_idx, arg_idx))) {}
+    };
+
+    struct pack_info_hash_fn {
+        unsigned operator()(pack_info const & k) const { return k.m_hash; }
+    };
+
+    struct pack_info_eq_fn {
+        bool operator()(pack_info const & k1, pack_info const & k2) const {
+            return k1.ind_idx == k2.ind_idx && k1.ir_idx == k2.ir_idx && k1.arg_idx == k2.arg_idx;
+        }
+    };
+
+    typedef std::unordered_set<pack_info, pack_info_hash_fn, pack_info_eq_fn> pack_infos;
+
+    pack_infos                   m_pack_infos;
 
     bool is_ind(expr const & e) {
         return is_local(e)
@@ -890,7 +921,7 @@ class add_nested_inductive_decl_fn {
         }
     }
 
-    optional<expr> translate_ir_arg(buffer<expr> const & previous_args, expr const & arg) {
+    optional<expr> translate_ir_arg(unsigned ind_idx, unsigned ir_idx, buffer<expr> const & previous_args, expr const & arg) {
         auto pack_unpack_fn = build_pack_unpack(mlocal_type(arg));
         if (!pack_unpack_fn)
             return none_expr();
@@ -948,6 +979,8 @@ class add_nested_inductive_decl_fn {
         m_env = module::add(m_env, check(m_env, mk_axiom(unpack_pack_id_name, to_list(m_nested_decl.get_lp_names()), unpack_pack_id_type)));
         m_tctx.set_env(m_env);
 
+        m_pack_infos.emplace(ind_idx, ir_idx, previous_args.size(), pack_fn_name, unpack_fn_name, unpack_pack_id_name);
+
         // TODO(dhs): this is where I create the types, call tactics, and add definitions for the inverse theorem,
         // the size-of, and the size-of preservation theorem.
         return some_expr(mk_app(mk_app(mk_app(pack_fn_const, m_nested_decl.get_params()), previous_args), arg));
@@ -966,7 +999,7 @@ class add_nested_inductive_decl_fn {
 
         while (is_pi(ty)) {
             expr l = mk_local_for(ty);
-            if (auto inner_arg = translate_ir_arg(locals, l)) {
+            if (auto inner_arg = translate_ir_arg(ind_idx, ir_idx, locals, l)) {
                 inner_args.push_back(*inner_arg);
             } else {
                 inner_args.push_back(l);

@@ -5,9 +5,9 @@ set_option pp.binder_types true
 -- directly from what the user provides, so the type-checker
 -- is guaranteeing that the construction is correct
 
-inductive vector (A : Type) : nat -> Type
-| vnil : vector 0
-| vcons : Pi (n : nat), A -> vector n -> vector (n+1)
+inductive vec (A : Type) : nat -> Type
+| vnil : vec 0
+| vcons : Pi (n : nat), A -> vec n -> vec (n+1)
 
 constants (f g h j : nat -> nat)
 
@@ -147,7 +147,7 @@ namespace X13
 print "nested ind has indices"
 
 inductive foo.{l} : nat -> Type.{max 1 l}
-| mk : Pi (n : nat), vector (foo (f n)) (g n) -> foo (h n)
+| mk : Pi (n : nat), vec (foo (f n)) (g n) -> foo (h n)
 
 check @foo
 check @foo.mk
@@ -158,9 +158,9 @@ namespace X14
 print "capstone with indices"
 
 inductive foo.{l} (A : Type.{l}) : ℕ -> Type.{max 1 l}
-| mk₁ : A -> Pi (n : nat), vector (foo (f n)) (g n) -> vector (foo (f n)) (h n) -> foo (j n)
-| mk₂ : A -> vector (foo 0) 1 -> (Pi (n : nat), vector (foo 0) (f n)) -> foo 3
-| mk₃ : A -> Pi (n : nat), vector (foo (f n)) 0 -> vector (foo (f n)) 1 -> foo (j n)
+| mk₁ : A -> Pi (n : nat), vec (foo (f n)) (g n) -> vec (foo (f n)) (h n) -> foo (j n)
+| mk₂ : A -> vec (foo 0) 1 -> (Pi (n : nat), vec (foo 0) (f n)) -> foo 3
+| mk₃ : A -> Pi (n : nat), vec (foo (f n)) 0 -> vec (foo (f n)) 1 -> foo (j n)
 | mk₄ : A -> Pi (n : nat), (Pi (m : nat), prod A (foo (f (n + m)))) -> foo 0
 
 check @foo
@@ -230,9 +230,9 @@ check @foo.mk
 end X17
 
 namespace X18
-print "nested with vectors"
+print "nested with vecs"
 inductive foo.{l} (A : Type.{l}) : A -> Type.{max 1 l}
-| mk : Pi (n : nat) (a : A), vector (vector (foo a) n) (f n) -> foo a
+| mk : Pi (n : nat) (a : A), vec (vec (foo a) n) (f n) -> foo a
 
 check @foo
 check @foo.mk
@@ -242,8 +242,8 @@ end X18
 namespace X19
 print "nested with multiple intro rules"
 inductive foo.{l} : Type.{max 1 l}
-| mk₁ : list (vector foo 0) -> foo
-| mk₂ : vector (list foo) 0 -> foo
+| mk₁ : list (vec foo 0) -> foo
+| mk₂ : vec (list foo) 0 -> foo
 
 check @foo
 check @foo.mk₁
@@ -254,8 +254,8 @@ end X19
 namespace X20
 print "nested with pis, indices, and multiple intro rules"
 inductive foo.{l} (A : Type.{l}) : A -> Type.{max 1 l}
-| mk₁ : Pi (n : nat) (a : A), (Pi (b : A), bool -> list (vector (vector (foo b) n) (f n))) -> foo a
-| mk₂ : Pi (n₁ : nat) (a : A), (Pi (n₂ : nat), vector (list (foo a)) (f (n₁ + n₂))) -> foo a
+| mk₁ : Pi (n : nat) (a : A), (Pi (b : A), bool -> list (vec (vec (foo b) n) (f n))) -> foo a
+| mk₂ : Pi (n₁ : nat) (a : A), (Pi (n₂ : nat), vec (list (foo a)) (f (n₁ + n₂))) -> foo a
 
 check @foo
 check @foo.mk₁
@@ -270,8 +270,8 @@ inductive box (A : Type) : Type
 | mk : list (list A) -> box
 
 inductive foo.{l} (A : Type.{l}) : A -> Type.{max 1 l}
-| mk₁ : Pi (n : nat) (a : A), (Pi (b : A), bool -> box (list (vector (vector (foo b) n) (f n)))) -> foo a
-| mk₂ : Pi (n₁ : nat) (a : A), (Pi (n₂ : nat), vector (box ((list (box (foo a))))) (f (n₁ + n₂))) -> foo a
+| mk₁ : Pi (n : nat) (a : A), (Pi (b : A), bool -> box (list (vec (vec (foo b) n) (f n)))) -> foo a
+| mk₂ : Pi (n₁ : nat) (a : A), (Pi (n₂ : nat), vec (box ((list (box (foo a))))) (f (n₁ + n₂))) -> foo a
 
 check @foo
 check @foo.mk₁
@@ -319,3 +319,38 @@ check @foo
 check @foo.mk
 
 end X24
+
+namespace X25
+print "another random capstone"
+
+inductive box (A : Type) : nat -> Type
+| mk₁ : Pi (n₁ n₂ : nat), (Pi (n₃ : nat), vec (list A) (n₁ + n₂ + n₃)) -> box (n₁ + n₂)
+| mk₂ : Pi (n₁ n₂ : nat), (Pi (n₃ : nat), list (vec A (n₁ + n₂ + n₃))) -> box (n₁ + n₂)
+
+inductive foo.{l} (A : Type.{l}) : A -> ℕ -> Type.{max 1 l}
+| mk₁ : Pi (n : nat) (a : A) (u : A -> A -> A), (Pi (b : A), box (foo (u a b) (f n)) (g n)) ->  foo (u a a) n
+| mk₂ : Pi (n : nat) (a : A), (Pi (u : A -> A -> A) (b : A), box (foo (u a b) (f n)) (g n)) ->  foo a n
+
+check @foo
+check @foo.mk₁
+check @foo.mk₂
+
+end X25
+
+/-
+namespace X26
+print "another random capstone in Prop"
+-- TODO(dhs): uncomment once the kernel accepts non-recursive arguments after recursive ones
+inductive box (A : Type) : nat -> Prop
+| mk₁ : Pi (n₁ n₂ : nat) (P : Prop), (Pi (n₃ : nat) (Q : Prop), or (and P A) (and A Q)) -> box (n₁ + n₂)
+
+inductive foo.{l} (A : Type.{l}) : A -> ℕ -> Prop
+| mk₁ : Pi (n : nat) (a : A) (u : A -> A -> A), (Pi (b : A), box (foo (u a b) (f n)) (g n)) ->  foo (u a a) n
+| mk₂ : Pi (n : nat) (a : A), (Pi (u : A -> A -> A) (b : A), box (foo (u a b) (f n)) (g n)) ->  foo a n
+
+check @foo
+check @foo.mk₁
+check @foo.mk₂
+
+end X26
+-/
