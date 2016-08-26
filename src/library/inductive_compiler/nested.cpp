@@ -660,7 +660,6 @@ class add_nested_inductive_decl_fn {
             locals.append(rec_args);
 
             expr return_value = mk_constant(unpacked_intro_rule_name, m_nested_occ_ind_levels);
-//            return_value = mk_app(return_value, rest_indices);
             return_value = mk_app(return_value, return_args);
             return_value = Fun(locals, return_value);
             minor_premises.push_back(return_value);
