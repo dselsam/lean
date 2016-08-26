@@ -120,6 +120,19 @@ class add_nested_inductive_decl_fn {
                         return some_expr(mk_app(ind, args.size() - num_params, args.data() + num_params));
                     }
                 }
+
+                // Awkward design: it also lifts intro rules from inner to nested
+                for (unsigned ind_idx = 1; ind_idx < m_inner_decl.get_intro_rules().size(); ++ind_idx) {
+                    buffer<expr> const & irs = m_inner_decl.get_intro_rules()[ind_idx];
+                    for (unsigned ir_idx = 0; ir_idx < irs.size(); ++ir_idx) {
+                        expr const & ir = irs[ir_idx];
+                        if (const_name(fn) == mlocal_name(ir)) {
+                            unsigned num_params = m_inner_decl.get_num_params();
+                            expr nested_ir = m_nested_decl.get_intro_rules()[ind_idx-1][ir_idx];
+                            return some_expr(mk_app(nested_ir, args.size() - num_params, args.data() + num_params));
+                        }
+                    }
+                }
                 return none_expr();
             });
     }
@@ -994,8 +1007,23 @@ class add_nested_inductive_decl_fn {
     }
 
     optional<expr> translate_rec_arg(buffer<expr> const & previous_args, expr const & rec_arg) {
-        throw exception("translate_rec_arg");
-        // TODO(dhs): this will need to do another layer of Pi traversal as in define_nested_ir
+        // This gets the ith arg of the recursor type
+        // It must (at the very least) traverse each rec_arg_arg and call translate_ir_arg on it.
+        // Note: I am not positive that this is sufficient -- more nesting may be possible
+        /* Example
+           Π (C : 24.23.box.{l} → Type.{l_1}),
+             (Π (a : list.{(max 1 l)} 23.foo.{l}), C (23.box.mk.{l} a)) → (Π (x : 24.23.box.{l}), C x) :=
+                λ (C : 24.23.box.{l} → Type.{l_1}) (mp : Π (a : list.{(max 1 l)} 23.foo.{l}), C (23.box.mk.{l} a))
+                  (x : 24.23.box.{l}), 24.23.box.rec.{l_1 l} C mp x
+
+           When it is called on the second argument, it needs to pack the first argument.
+
+           rec_arg : Π (a : list.{(max 1 l)} 23.foo.{l}), C (23.box.mk.{l} a)
+           want to return: lambda (a : list 23.foo), C (23.24.box.mk (pack a))
+
+           Note that the intro rule needs to be lowered by one, and the local <a> needs to be packed in the return type.
+        */
+        throw exception("NYI");
         return none_expr();
     }
 
@@ -1013,7 +1041,8 @@ class add_nested_inductive_decl_fn {
             expr l = mk_local_for(ty);
             locals.push_back(l);
             // TODO(dhs): more general name
-            if (auto inner_arg = translate_rec_arg(locals, l)) {
+//            if (auto inner_arg = translate_rec_arg(locals, l)) {
+            if (auto inner_arg = translate_ir_arg(locals, l)) {
                 inner_args.push_back(*inner_arg);
             } else {
                 inner_args.push_back(l);
@@ -1046,6 +1075,15 @@ class add_nested_inductive_decl_fn {
             auto nested_recursor = build_nested_recursor(convert_constants_to_locals(inner_recursor_type),
                                                          inner_recursor);
 
+            lean_assert(!has_local(nested_recursor.first));
+            lean_assert(!has_local(nested_recursor.second));
+
+            lean_trace(name({"inductive_compiler", "nested", "nested_rec"}),
+                       tout() << "inner type: " << inner_recursor_type << "\n";);
+
+            lean_trace(name({"inductive_compiler", "nested", "nested_rec"}),
+                       tout() << nested_recursor.first << " :=\n  " << nested_recursor.second << "\n";);
+
             m_env = module::add(m_env, check(m_env, mk_definition(m_env, inductive::get_elim_name(mlocal_name(nested_ind)),
                                                                   lp_names, nested_recursor.first, nested_recursor.second)));
             m_tctx.set_env(m_env);
@@ -1073,8 +1111,8 @@ public:
         compute_local_to_constant_map();
 
         define_nested_inds();
-        define_nested_recursors();
         define_nested_irs();
+        define_nested_recursors();
 
         // TODO(dhs): constructions
         return optional<environment>(m_env);
@@ -1097,6 +1135,7 @@ void initialize_inductive_compiler_nested() {
     register_trace_class(name({"inductive_compiler", "nested", "nested_ind"}));
     register_trace_class(name({"inductive_compiler", "nested", "nested_ir"}));
     register_trace_class(name({"inductive_compiler", "nested", "translate"}));
+    register_trace_class(name({"inductive_compiler", "nested", "nested_rec"}));
     register_trace_class(name({"inductive_compiler", "nested", "pack"}));
     register_trace_class(name({"inductive_compiler", "nested", "unpack"}));
     g_nested_prefix = new name(name::mk_internal_unique_name());
