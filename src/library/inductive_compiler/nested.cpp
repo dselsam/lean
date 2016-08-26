@@ -1033,6 +1033,25 @@ class add_nested_inductive_decl_fn {
 
         expr ty = m_tctx.relaxed_whnf(unpacked_type);
 
+        // 1. parameters
+        buffer<expr> inner_params;
+        unsigned num_params = m_inner_decl.get_num_params();
+        for (unsigned i = 0; i < num_params; ++i) {
+            expr l = mk_local_for(ty);
+            inner_params.push_back(l);
+            ty = m_tctx.relaxed_whnf(instantiate(binding_body(ty), l));
+        }
+
+        // 2. motive
+        expr C = mk_local_for(ty); // C is the same for both
+        ty = m_tctx.relaxed_whnf(instantiate(binding_body(ty), l));
+
+        // 3. minor premises
+        buffer<expr> inner_minor_premises;
+
+
+
+
         while (is_pi(ty)) {
             expr l = mk_local_for(ty);
             locals.push_back(l);
