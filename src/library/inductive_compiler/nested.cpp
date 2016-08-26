@@ -975,6 +975,37 @@ class add_nested_inductive_decl_fn {
         }
     }
 
+    expr_pair build_nested_recursor(expr const & inner_recursor_type, expr const & inner_recursor) {
+        buffer<expr> locals;
+        buffer<expr> inner_args;
+
+        expr unpacked_type = unpack_type(inner_recursor_type);
+        if (unpacked_type == inner_recursor_type)
+            return mk_pair(inner_recursor_type, inner_recursor);
+
+        expr ty = m_tctx.relaxed_whnf(unpacked_type);
+
+        while (is_pi(ty)) {
+            expr l = mk_local_for(ty);
+            locals.push_back(l);
+            // TODO(dhs): more general name
+            if (auto inner_arg = translate_ir_arg(locals, l)) {
+                inner_args.push_back(*inner_arg);
+            } else {
+                inner_args.push_back(l);
+            }
+            ty = instantiate(binding_body(ty), l);
+            ty = m_tctx.relaxed_whnf(ty);
+        }
+        expr inner_fn = mk_app(inner_recursor, m_nested_decl.get_params());
+
+        expr nested_recursor_val  = Fun(m_nested_decl.get_params(), convert_locals_to_constants(Fun(locals, mk_app(inner_fn, inner_args))));
+        expr nested_recursor_type = Pi(m_nested_decl.get_params(), unpack_type(inner_recursor_type));
+
+        lean_assert(m_tctx.is_def_eq(nested_recursor_type, m_tctx.infer(nested_recursor_val)));
+        return mk_pair(nested_recursor_type, nested_recursor_val);
+    }
+
     void define_nested_recursors() {
         for (unsigned i = 0; i < m_nested_decl.get_inds().size(); ++i) {
             expr const & nested_ind = m_nested_decl.get_inds()[i];
@@ -985,10 +1016,13 @@ class add_nested_inductive_decl_fn {
             level_param_names lp_names = d.get_univ_params();
             levels lvls = param_names_to_levels(lp_names);
 
-            expr rec_val = mk_constant(inductive::get_elim_name(mlocal_name(inner_ind)), lvls);
-            expr rec_type = m_tctx.infer(rec_val);
+            expr inner_recursor = mk_constant(inductive::get_elim_name(mlocal_name(inner_ind)), lvls);
+            expr inner_recursor_type = m_tctx.infer(inner_recursor);
 
-            m_env = module::add(m_env, check(m_env, mk_definition(m_env, inductive::get_elim_name(mlocal_name(nested_ind)), lp_names, rec_type, rec_val)));
+            auto nested_recursor = build_nested_recursor(inner_recursor_type, inner_recursor);
+
+            m_env = module::add(m_env, check(m_env, mk_definition(m_env, inductive::get_elim_name(mlocal_name(nested_ind)),
+                                                                  lp_names, nested_recursor.first, nested_recursor.second)));
             m_tctx.set_env(m_env);
         }
     }
