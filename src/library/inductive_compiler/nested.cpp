@@ -784,6 +784,7 @@ class add_nested_inductive_decl_fn {
                     pack_rec_args.push_back(pack_l2);
                     pack_return_args.push_back(pack_l2);
 
+                    // TODO(dhs): current spot
                     expr unpack_rec_arg_type = mk_app(unpacked_ind, packed_arg_args.size() - num_params, packed_arg_args.data() + num_params);
                     expr unpack_l2 = mk_local_pp("x_unpack", unpack_rec_arg_type);
                     unpack_rec_args.push_back(unpack_l2);
@@ -905,8 +906,8 @@ class add_nested_inductive_decl_fn {
         lean_assert(!has_local(unpack_fn_type));
         lean_assert(!has_local(unpack_fn_val));
 
-//        m_env = module::add(m_env, check(m_env, mk_definition(m_env, unpack_fn_name, to_list(m_nested_decl.get_lp_names()), unpack_fn_type, unpack_fn_val)));
-//        m_tctx = type_context(m_env, transparency_mode::Semireducible);
+        m_env = module::add(m_env, check(m_env, mk_definition(m_env, unpack_fn_name, to_list(m_nested_decl.get_lp_names()), unpack_fn_type, unpack_fn_val)));
+        m_tctx = type_context(m_env, transparency_mode::Semireducible);
 
         // TODO(dhs): this is where I create the types, call tactics, and add definitions for the inverse theorem,
         // the size-of, and the size-of preservation theorem.
