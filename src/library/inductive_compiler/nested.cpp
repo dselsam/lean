@@ -675,7 +675,7 @@ class add_nested_inductive_decl_fn {
         return some_expr(result);
     }
 
-    optional<pair<expr, expr> > build_nested_pack_unpack(expr const & ty) {
+    optional<expr_pair> build_nested_pack_unpack(expr const & ty) {
         // returns functions
         // nested_pack : ty -> pack_type(ty)
         // nested_unpack : pack_type(ty) -> ty
@@ -693,7 +693,7 @@ class add_nested_inductive_decl_fn {
         if (auto primitive_pack_fn = build_primitive_pack(ty)) {
             auto primitive_unpack_fn = build_primitive_unpack(pack_type(ty));
             lean_assert(primitive_unpack_fn);
-            return optional<pair<expr, expr> >(*primitive_pack_fn, *primitive_unpack_fn);
+            return optional<expr_pair>(mk_pair(*primitive_pack_fn, *primitive_unpack_fn));
         }
 
         unsigned num_params = get_ginductive_num_params(m_env, const_name(fn));
@@ -742,67 +742,95 @@ class add_nested_inductive_decl_fn {
             return Fun(locals, C);
         }
 
-        expr C_pack = construct_C(packed_ind, remaining_unpacked_type);
-        expr C_unpack = construct_C(unpacked_ind, remaining_packed_type);
+        expr pack_C = construct_C(packed_ind, remaining_unpacked_type);
+        expr unpack_C = construct_C(unpacked_ind, remaining_packed_type);
 
         optional<list<name> > intro_rules = get_ginductive_intro_rules(m_env, const_name(fn));
 
-        buffer<expr> minor_premises_pack, minor_premises_unpack;
+        buffer<expr> pack_minor_premises, unpack_minor_premises;
         for (name const & intro_rule : *intro_rules) {
             declaration d = m_env.get(intro_rule);
             expr unpacked_ir = mk_app(mk_constant(intro_rule, const_levels(fn)), unpacked_params);
             expr packed_ir = mk_app(mk_constant(intro_rule, const_levels(fn)), packed_params);
 
             expr unpacked_ir_type = m_tctx.relaxed_whnf(m_tctx.infer(unpacked_ir));
-            expr packed_ir_type = m_tctx.relaxed_whnf(m_tctx.infer(packed_ir));
 
-            // Now we need to translate the arguments one by one
-            buffer<expr> locals;
-            buffer<expr> rec_args;
-            buffer<expr> return_args;
+            buffer<expr> pack_locals;
+            buffer<expr> pack_rec_args;
+            buffer<expr> pack_return_args;
+
+            buffer<expr> unpack_rec_args;
+            buffer<expr> unpack_locals;
+            buffer<expr> unpack_return_args;
+
+            expr ir_type = unpacked_ir_type;
             while (is_pi(ir_type)) {
                 buffer<expr> arg_args;
                 expr arg_fn = get_app_args(binding_domain(ir_type), arg_args);
-                expr l = mk_local_for(ir_type);
-                locals.push_back(l);
-                // it may be a nested-argument
-                if (arg_fn == fn && mk_app(arg_fn, num_params, arg_args.data()) == mk_app(fn, num_params, args.data())) {
+                expr pack_l = mk_local_for(ir_type);
+                pack_locals.push_back(pack_l);
+
+                expr unpack_l = mk_local_for(pack_type(ir_type));
+                unpack_locals.push_back(unpack_l);
+
+                if (mk_app(arg_fn, num_params, arg_args.data()) == unpacked_ind) {
                     // it is a recursive argument
-                    expr rec_arg_type = mk_app(new_ind, arg_args.size() - num_params, arg_args.data() + num_params);
-                    expr l2 = mk_local_pp("x", rec_arg_type);
-                    rec_args.push_back(l2);
-                    return_args.push_back(l2);
+                    expr pack_rec_arg_type = mk_app(packed_ind, arg_args.size() - num_params, arg_args.data() + num_params);
+                    expr pack_l2 = mk_local_pp("x_pack", pack_rec_arg_type);
+                    pack_rec_args.push_back(pack_l2);
+                    pack_return_args.push_back(pack_l2);
+
+                    expr unpack_rec_arg_type = mk_app(unpacked_ind, arg_args.size() - num_params, arg_args.data() + num_params);
+                    expr unpack_l2 = mk_local_pp("x_unpack", unpack_rec_arg_type);
+                    unpack_rec_args.push_back(unpack_l2);
+                    unpack_return_args.push_back(unpack_l2);
                 } else {
-                    if (auto strans = synthesize_translator_for_ir_inner_arg(binding_domain(ir_type))) {
-                        return_args.push_back(mk_app(*strans, l));
+                    if (auto pack_unpack_fn = build_nested_pack_unpack(binding_domain(ir_type))) {
+                        pack_return_args.push_back(mk_app(pack_unpack_fn->first, pack_l));
+                        unpack_return_args.push_back(mk_app(pack_unpack_fn->second, unpack_l));
                     } else {
-                        return_args.push_back(l);
+                        lean_assert(mlocal_type(pack_l) == mlocal_type(unpack_l));
+                        pack_return_args.push_back(pack_l);
+                        pack_return_args.push_back(unpack_l);
                     }
                 }
                 ir_type = m_tctx.relaxed_whnf(instantiate(binding_body(ir_type), l));
             }
 
-            locals.append(rec_args);
+            pack_locals.append(pack_rec_args);
+            unpack_locals.append(unpack_rec_args);
 
-            // now locals contains all the arguments we are going to extract
-            // it remains to provide the return value
-            expr return_value = Fun(locals, mk_app(new_ir, return_args));
-            minor_premises.push_back(return_value);
-            lean_trace(name({"inductive_compiler", "nested", "translate"}),
-                       tout() << "minor premise: " << return_value << "\n";);
-}
+            expr pack_minor_premise = Fun(pack_locals, mk_app(packed_ir, pack_return_args));
+            expr unpack_minor_premise = Fun(unpack_locals, mk_app(unpacked_ir, unpack_return_args));
+            pack_minor_premises.push_back(pack_minor_premise);
+            unpack_minor_premises.push_back(unpack_minor_premise);
+        }
 
+        expr pack_fn = mk_app(mk_app(mk_app(mk_app(mk_constant(inductive::get_elim_name(const_name(fn)),
+                                                               elim_levels),
+                                                   unpacked_params),
+                                            pack_C),
+                                     pack_minor_premises),
+                              args.size() - num_params, args.data() + num_params);
 
+        expr unpack_fn = mk_app(mk_app(mk_app(mk_app(mk_constant(inductive::get_elim_name(const_name(fn)),
+                                                                 elim_levels),
+                                                     packed_params),
+                                            unpack_C),
+                                     unpack_minor_premises),
+                                args.size() - num_params, args.data() + num_params);
 
-
+        return optional<expr_pair>(mk_pair(pack_fn, unpack_fn));
     }
 
-    optional<expr> build_pack_unpack(expr const & _ty) {
-        // returns a function pack : ty -> pack_type(ty)
+    optional<expr_pair> build_pack_unpack(expr const & _ty) {
+        // returns functions:
+        // pack : ty -> pack_type(ty)
+        // unpack : pack_type(ty) -> ty
         // handles nested occurrences and outer pis
         expr ty = m_tctx.relaxed_whnf(_ty);
         if (!has_ind_occ(ty) || ty == pack_type(ty))
-            return none_expr();
+            return optional<expr_pair>();
 
         expr x_to_pack = mk_local_pp("x_to_pack", ty);
         expr x_to_unpack = mk_local_pp("x_to_unpack", pack_type(ty));
@@ -827,174 +855,10 @@ class add_nested_inductive_decl_fn {
             expr const & nested_unpack_fn = nested_pack_unpack_fn->second;
             expr pack_fn = Fun(x_to_pack, Fun(locals, mk_app(nested_pack_fn, body_to_pack)));
             expr unpack_fn = Fun(x_to_unpack, Fun(locals, mk_app(nested_unpack_fn, body_to_unpack)));
-            return optional<pair<expr, expr> >(pack_fn, unpack_fn);
+            return optional<expr_pair>(mk_pair(pack_fn, unpack_fn));
         } else {
-            return none_expr();
+            return optional<expr_pair>();
         }
-    }
-
-    expr synthesize_translator_for_recursive_occ(expr const & ty, buffer<optional<expr> > const & synthesized_translators) {
-        lean_trace(name({"inductive_compiler", "nested", "translate"}),
-                   tout() << ty << "\n";);
-        buffer<expr> args;
-        expr fn = get_app_args(ty, args);
-        // TODO(dhs): there will be a ton of duplication for now, refactor later
-        lean_assert(is_constant(fn));
-
-        unsigned num_params = get_ginductive_num_params(m_env, const_name(fn));
-        lean_assert(num_params == synthesized_translators.size());
-        buffer<expr> params;
-        buffer<expr> new_params;
-        for (unsigned i = 0; i < synthesized_translators.size(); ++i) {
-            params.push_back(args[i]);
-            optional<expr> const & strans = synthesized_translators[i];
-            if (strans) {
-                new_params.push_back(m_tctx.whnf(binding_body(m_tctx.infer(*strans))));
-            } else {
-                new_params.push_back(args[i]);
-            }
-        }
-
-        expr new_ind = mk_app(fn, new_params);
-
-        expr remaining_type = m_tctx.relaxed_whnf(m_tctx.infer(mk_app(fn, params)));
-        bool has_dep_elim = inductive::has_dep_elim(m_env, const_name(fn));
-
-        list<level> elim_levels = const_levels(fn);
-        declaration d = m_env.get(inductive::get_elim_name(const_name(fn)));
-        if (length(elim_levels) < d.get_num_univ_params()) {
-            lean_assert(length(elim_levels) + 1 == d.get_num_univ_params());
-            elim_levels = list<level>(sort_level(get_ind_result_type(m_tctx, m_inner_decl.get_inds()[0])), elim_levels);
-        }
-
-        expr C;
-        {
-            C = fn;
-            C = mk_app(C, new_params);
-
-            expr ty = remaining_type;
-            buffer<expr> locals;
-            while (is_pi(ty)) {
-                expr l = mk_local_for(ty);
-                locals.push_back(l);
-                C = mk_app(C, l);
-                ty = instantiate(binding_body(ty), l);
-                ty = m_tctx.relaxed_whnf(ty);
-            }
-            if (has_dep_elim) {
-                expr ignore = mk_local_pp("x_ignore", mk_app(mk_app(fn, params), locals));
-                locals.push_back(ignore);
-            }
-
-            C = Fun(locals, C);
-            lean_trace(name({"inductive_compiler", "nested", "translate"}),
-                       tout() << "rec_motive: " << C << "\n";);
-        }
-
-        // 3. minor premises
-        // definition lvector_vector_to_lvector_fvector (A : Type) (n₁ : nat) : Pi (n₂ : nat), lvector (vector (foo A (f n₁)) (g n₁)) n₂ -> lvector (fvector A n₁ (g n₁)) n₂ :=
-        // [for lvector.cons]
-        // (λ (n₂ : nat)
-        //    (x : vector (foo A (f n₁)) (g n₁))
-        //    (lv : lvector (vector (foo A (f n₁)) (g n₁)) n₂)
-        //    (lv' : lvector (fvector A n₁ (g n₁)) n₂),
-        //    (@lvector.lcons (fvector A n₁ (g n₁)) n₂ (vector_to_fvector A n₁ (g n₁) x) lv'))
-        buffer<expr> minor_premises;
-        optional<list<name> > intro_rules = get_ginductive_intro_rules(m_env, const_name(fn));
-        lean_assert(intro_rules);
-        for (name const & intro_rule : *intro_rules) {
-            // constructor lvector.vcons : Π {A : Type} (n : ℕ), A → lvector A n → lvector A (n + 1)
-            declaration d = m_env.get(intro_rule);
-
-            expr old_ir = mk_app(mk_constant(intro_rule, const_levels(fn)), params);
-            expr new_ir = mk_app(mk_constant(intro_rule, const_levels(fn)), new_params);
-
-            expr ir_type = m_tctx.relaxed_whnf(m_tctx.infer(old_ir));
-
-            // Now we need to translate the arguments one by one
-            buffer<expr> locals;
-            buffer<expr> rec_args;
-            buffer<expr> return_args;
-            while (is_pi(ir_type)) {
-                buffer<expr> arg_args;
-                expr arg_fn = get_app_args(binding_domain(ir_type), arg_args);
-                expr l = mk_local_for(ir_type);
-                locals.push_back(l);
-                // it may be a nested-argument
-                if (arg_fn == fn && mk_app(arg_fn, num_params, arg_args.data()) == mk_app(fn, num_params, args.data())) {
-                    // it is a recursive argument
-                    expr rec_arg_type = mk_app(new_ind, arg_args.size() - num_params, arg_args.data() + num_params);
-                    expr l2 = mk_local_pp("x", rec_arg_type);
-                    rec_args.push_back(l2);
-                    return_args.push_back(l2);
-                } else {
-                    if (auto strans = synthesize_translator_for_ir_inner_arg(binding_domain(ir_type))) {
-                        return_args.push_back(mk_app(*strans, l));
-                    } else {
-                        return_args.push_back(l);
-                    }
-                }
-                ir_type = m_tctx.relaxed_whnf(instantiate(binding_body(ir_type), l));
-            }
-
-            locals.append(rec_args);
-
-            // now locals contains all the arguments we are going to extract
-            // it remains to provide the return value
-            expr return_value = Fun(locals, mk_app(new_ir, return_args));
-            minor_premises.push_back(return_value);
-            lean_trace(name({"inductive_compiler", "nested", "translate"}),
-                       tout() << "minor premise: " << return_value << "\n";);
-        }
-
-        expr strans = mk_app(mk_app(mk_app(mk_constant(inductive::get_elim_name(const_name(fn)),
-                                                       elim_levels),
-                                           params),
-                                    C),
-                             minor_premises);
-        expr return_value = mk_app(strans, args.size() - num_params, args.data() + num_params);
-
-        lean_trace(name({"inductive_compiler", "nested", "translate"}),
-                   tout() << "type of rec app: " << m_tctx.infer(return_value) << "\n";);
-        return return_value;
-
-    }
-
-
-    optional<expr> synthesize_translator_for_ir_inner_arg(expr const & ty) {
-        // This will be called on list (list foo))
-        // The goal is to return a function `f : list (list foo) -> list foo_list`.
-
-        if (auto pack_fn = build_primitive_pack(ty)) {
-            // TODO(dhs): right now this is just to see the trace
-            auto unpack_fn = build_primitive_unpack(pack_type(ty));
-            return pack_fn;
-        }
-
-        buffer<expr> args;
-        expr fn = get_app_args(ty, args);
-        if (!is_constant(fn) || !is_ginductive(m_env, const_name(fn)))
-            return none_expr();
-
-        unsigned num_params = get_ginductive_num_params(m_env, const_name(fn));
-
-        bool success = false;
-        buffer<optional<expr> > synthesized_translators;
-        // Otherwise, inner_arg may still have a nested occurrence inside
-        for (unsigned i = 0; i < num_params; ++i) {
-            // If inner_arg : list (list foo), then by induction we can convert an element of type
-            // list_foo to foo_list. We want to synthesize a function `f : list foo -> foo_list`.
-            // Then we can use that function in a list induction to convert
-            // For each parameter argument, we still has type `list (list foo)`
-            auto f = synthesize_translator_for_ir_inner_arg(args[i]);
-            synthesized_translators.push_back(f);
-            if (f)
-                success = true;
-        }
-        if (!success)
-            return none_expr();
-
-        return some_expr(synthesize_translator_for_recursive_occ(ty, synthesized_translators));
     }
 
     optional<expr> translate_ir_arg(buffer<expr> const & previous_args, expr const & arg) {
@@ -1018,17 +882,10 @@ class add_nested_inductive_decl_fn {
         }
         expr arg_val = mk_app(arg, locals);
         // Now arg_val has type ty
-        if (auto inner_arg_fn = synthesize_translator_for_ir_inner_arg(ty)) {
+        if (auto pack_unpack_fn = build_pack_unpack(ty)) {
             // inner_arg_fn : inner_arg_type -> new_inner_arg_type
             // We want to return a function PACK : Pi <locals>, inner_arg_type -> Pi <locals>, new_inner_arg_type
-            /*
-              definition pack : (bool -> list foo) -> (bool -> foo_list) :=
-              λ (f : bool -> list foo),
-                λ (b : bool),
-                  @list.rec foo (λ (x_ignore : list foo), foo_list) foo_list.nil
-                    (λ (a : foo) (a_1 : list foo) (x : foo_list), foo_list.cons a x)
-                      (f b)
-            */
+
             expr pack_fn_val = Fun(m_nested_decl.get_params(), convert_locals_to_constants(Fun(previous_args, Fun(arg, Fun(locals, mk_app(*inner_arg_fn, arg_val))))));
             expr pack_fn_type = m_tctx.infer(pack_fn_val);
             // TODO(dhs): put the name of the ind type in the name
