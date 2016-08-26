@@ -52,7 +52,13 @@ public:
                     buffer<expr> const & inds, buffer<buffer<expr> > const & intro_rules):
         m_lp_names(lp_names), m_params(params), m_inds(inds), m_intro_rules(intro_rules) {}
 
+
+
     bool is_mutual() const { return m_inds.size() > 1; }
+    unsigned get_num_params() const { return m_params.size(); }
+
+    expr const & get_ind(unsigned i) const { return m_inds[i]; }
+
     buffer<name> const & get_lp_names() const { return m_lp_names; }
     buffer<expr> const & get_params() const { return m_params; }
     buffer<expr> const & get_inds() const { return m_inds; }

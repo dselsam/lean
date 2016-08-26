@@ -107,6 +107,23 @@ class add_nested_inductive_decl_fn {
         return replace_locals(e, m_ind_ir_locals, m_ind_ir_cs);
     }
 
+    expr convert_constants_to_locals(expr const & e) {
+        return replace(e, [&](expr const & e) {
+                buffer<expr> args;
+                expr fn = get_app_args(e, args);
+                if (!is_constant(fn))
+                    return none_expr();
+
+                for (expr const & ind : m_inner_decl.get_inds()) {
+                    if (const_name(fn) == mlocal_name(ind)) {
+                        unsigned num_params = m_inner_decl.get_num_params();
+                        return some_expr(mk_app(ind, args.size() - num_params, args.data() + num_params));
+                    }
+                }
+                return none_expr();
+            });
+    }
+
     void compute_mimic_ind() {
         buffer<expr> args;
         expr fn = get_app_args(m_nested_occ, args);
@@ -336,6 +353,7 @@ class add_nested_inductive_decl_fn {
         lean_unreachable();
     }
 
+    // Awkward design but current unpacks locals and constants
     expr unpack_type(expr const & e) {
         switch (e.kind()) {
         case expr_kind::Local:
@@ -347,7 +365,7 @@ class add_nested_inductive_decl_fn {
             }
         case expr_kind::Meta:
         case expr_kind::Sort:
-        case expr_kind::Constant:
+
         case expr_kind::Lambda:
             return e;
         case expr_kind::Var:
@@ -975,6 +993,12 @@ class add_nested_inductive_decl_fn {
         }
     }
 
+    optional<expr> translate_rec_arg(buffer<expr> const & previous_args, expr const & rec_arg) {
+        throw exception("translate_rec_arg");
+        // TODO(dhs): this will need to do another layer of Pi traversal as in define_nested_ir
+        return none_expr();
+    }
+
     expr_pair build_nested_recursor(expr const & inner_recursor_type, expr const & inner_recursor) {
         buffer<expr> locals;
         buffer<expr> inner_args;
@@ -989,7 +1013,7 @@ class add_nested_inductive_decl_fn {
             expr l = mk_local_for(ty);
             locals.push_back(l);
             // TODO(dhs): more general name
-            if (auto inner_arg = translate_ir_arg(locals, l)) {
+            if (auto inner_arg = translate_rec_arg(locals, l)) {
                 inner_args.push_back(*inner_arg);
             } else {
                 inner_args.push_back(l);
@@ -1000,7 +1024,7 @@ class add_nested_inductive_decl_fn {
         expr inner_fn = mk_app(inner_recursor, m_nested_decl.get_params());
 
         expr nested_recursor_val  = Fun(m_nested_decl.get_params(), convert_locals_to_constants(Fun(locals, mk_app(inner_fn, inner_args))));
-        expr nested_recursor_type = Pi(m_nested_decl.get_params(), unpack_type(inner_recursor_type));
+        expr nested_recursor_type = Pi(m_nested_decl.get_params(), convert_locals_to_constants(unpack_type(inner_recursor_type)));
 
         lean_assert(m_tctx.is_def_eq(nested_recursor_type, m_tctx.infer(nested_recursor_val)));
         return mk_pair(nested_recursor_type, nested_recursor_val);
@@ -1019,7 +1043,8 @@ class add_nested_inductive_decl_fn {
             expr inner_recursor = mk_constant(inductive::get_elim_name(mlocal_name(inner_ind)), lvls);
             expr inner_recursor_type = m_tctx.infer(inner_recursor);
 
-            auto nested_recursor = build_nested_recursor(inner_recursor_type, inner_recursor);
+            auto nested_recursor = build_nested_recursor(convert_constants_to_locals(inner_recursor_type),
+                                                         inner_recursor);
 
             m_env = module::add(m_env, check(m_env, mk_definition(m_env, inductive::get_elim_name(mlocal_name(nested_ind)),
                                                                   lp_names, nested_recursor.first, nested_recursor.second)));
