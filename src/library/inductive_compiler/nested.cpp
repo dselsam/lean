@@ -592,8 +592,7 @@ class add_nested_inductive_decl_fn {
             while (is_pi(ty)) {
                 expr l = mk_local_for(ty);
                 locals.push_back(l);
-                if (i < occ_locals.size())
-                    C = mk_app(C, l);
+                C = mk_app(C, l);
 
                 ty = instantiate(binding_body(ty), l);
                 ty = m_tctx.relaxed_whnf(ty);
@@ -629,6 +628,10 @@ class add_nested_inductive_decl_fn {
             buffer<expr> return_args;
             unsigned i = 0;
 
+            if (occ_locals.empty()) {
+                return_args.append(ind_param_fns);
+            }
+
             while (is_pi(ir_type)) {
                 buffer<expr> arg_args;
                 expr arg_fn = get_app_args(binding_domain(ir_type), arg_args);
@@ -657,7 +660,7 @@ class add_nested_inductive_decl_fn {
             locals.append(rec_args);
 
             expr return_value = mk_constant(unpacked_intro_rule_name, m_nested_occ_ind_levels);
-            return_value = mk_app(return_value, rest_indices);
+//            return_value = mk_app(return_value, rest_indices);
             return_value = mk_app(return_value, return_args);
             return_value = Fun(locals, return_value);
             minor_premises.push_back(return_value);
