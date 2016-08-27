@@ -1,6 +1,6 @@
 print "nested with inductive types whose intro rules introduce additional nesting"
 --set_option trace.inductive_compiler.nested.nested_rec true
-set_option trace.inductive_compiler.nested.pack true
+set_option trace.inductive_compiler.nested.nested_rec true
 
 set_option pp.all true
 set_option pp.universes false
@@ -30,10 +30,10 @@ definition nest.vec.rec
            (x : NEST.vec n1 n2) : C n1 n2 x :=
 @NEST.NEST.vec.rec C
                    (λ (n1 n2 : nat) (x : NEST.box n1 n2) (y : NEST.NEST.vec n1 n2) (Cy : C n1 n2 y),
-                   @eq.rec_on (NEST.box n1 n2)
-                              (NEST.vec.pack n1 n2 (NEST.vec.unpack n1 n2 x))
+                   @eq.rec_on _
+                              _
                               (λ (x : NEST.box n1 n2), C n1 (n2+1) (NEST.NEST.vec.cons n1 n2 x y)) -- GOAL
-                              x
+                              _
                               (NEST.vec.unpack_pack n1 n2 x)
                               (mp n1 n2 (NEST.vec.unpack n1 n2 x) y Cy))
                    n1 n2
