@@ -1167,6 +1167,7 @@ class add_nested_inductive_decl_fn {
                 buffer<expr> motive_app_args;
                 expr C = get_app_args(goal, motive_app_args);
                 m_inner_minor_premise_ir = get_app_fn(motive_app_args.back());
+                // TODO(dhs): URGENT this is wrong for non dependent elimination
                 motive_app_args.pop_back();
                 m_motive_app = mk_app(C, motive_app_args);
             }
