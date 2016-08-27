@@ -580,7 +580,6 @@ class add_nested_inductive_decl_fn {
 
         expr result = mk_app(pack_no_indices, ind_indices);
 
-        lean_trace(name({"inductive_compiler", "nested", "pack"}), tout() << "result: " << result << "\n";);
         lean_assert(m_tctx.is_def_eq(m_tctx.infer(result), mk_arrow(ty, pack_type(ty))));
         return some_expr(result);
     }
@@ -640,9 +639,6 @@ class add_nested_inductive_decl_fn {
             }
 
             C = Fun(locals, C);
-
-            lean_trace(name({"inductive_compiler", "nested", "unpack"}),
-                       tout() << "motive: " << C << "\n";);
         }
 
         // 4. minor premises
@@ -712,14 +708,8 @@ class add_nested_inductive_decl_fn {
 
         expr result = mk_app(mk_app(unpack_no_indices, occ_locals), rest_indices);
 
-        lean_trace(name({"inductive_compiler", "nested", "unpack"}), tout() << "result: " << result << "\n";);
         expr result_type = convert_locals_to_constants(replace_ind_types(m_tctx.infer(result)));
         expr expected_type = convert_locals_to_constants(replace_ind_types(mk_arrow(ty, unpack_type(ty))));
-
-        lean_trace(name({"inductive_compiler", "nested", "unpack"}), tout()
-                   << "result type: " << result_type << "\n";);
-        lean_trace(name({"inductive_compiler", "nested", "unpack"}), tout()
-                   << "result expected type: " << expected_type << "\n";);
 
         bool correct = m_tctx.is_def_eq(result_type, expected_type);
         lean_assert(correct);
@@ -877,9 +867,6 @@ class add_nested_inductive_decl_fn {
                                      unpack_minor_premises),
                                 args.size() - num_params, args.data() + num_params);
 
-        lean_trace(name({"inductive_compiler", "nested", "pack"}), tout() << "PACK: " << pack_fn << "\n";);
-        lean_trace(name({"inductive_compiler", "nested", "unpack"}), tout() << "UNPACK: " << unpack_fn << "\n";);
-
         return optional<expr_pair>(mk_pair(pack_fn, unpack_fn));
     }
 
@@ -934,25 +921,26 @@ class add_nested_inductive_decl_fn {
 
         expr pack_fn_val = Fun(m_nested_decl.get_params(), convert_locals_to_constants(Fun(previous_args, pack_fn)));
         expr pack_fn_type = m_tctx.infer(pack_fn_val);
-        name pack_fn_name = "pack" + mk_fresh_name();
+        name pack_fn_name = (mlocal_name(m_nested_decl.get_ind(ind_idx)) + "pack"); //append_after(ir_idx).append_after(previous_args.size());
 
         lean_assert(!has_local(pack_fn_type));
         lean_assert(!has_local(pack_fn_val));
 
         lean_trace(name({"inductive_compiler", "nested", "pack"}),
-                   tout() << "pack_pack_type : " << pack_fn_type << "\n";);
+                   tout() << pack_fn_name << " : " << pack_fn_type << "\n";);
 
         m_env = module::add(m_env, check(m_env, mk_definition(m_env, pack_fn_name, to_list(m_nested_decl.get_lp_names()), pack_fn_type, pack_fn_val)));
 
         expr unpack_fn_val = Fun(m_nested_decl.get_params(), convert_locals_to_constants(Fun(previous_args, unpack_fn)));
         expr unpack_fn_type = m_tctx.infer(unpack_fn_val);
-        name unpack_fn_name = "unpack" + mk_fresh_name();
+        name unpack_fn_name = (mlocal_name(m_nested_decl.get_ind(ind_idx)) + "unpack"); //.append_after(ir_idx).append_after(previous_args.size());
+
 
         lean_assert(!has_local(unpack_fn_type));
         lean_assert(!has_local(unpack_fn_val));
 
         lean_trace(name({"inductive_compiler", "nested", "unpack"}),
-                   tout() << "unpack_pack_type : " << unpack_fn_type << "\n";);
+                   tout() << unpack_fn_name << " : " << unpack_fn_type << "\n";);
 
         m_env = module::add(m_env, check(m_env, mk_definition(m_env, unpack_fn_name, to_list(m_nested_decl.get_lp_names()), unpack_fn_type, unpack_fn_val)));
         m_tctx.set_env(m_env);
@@ -971,11 +959,11 @@ class add_nested_inductive_decl_fn {
                                             Pi(packed_arg,
                                                mk_eq(m_tctx, lhs, packed_arg)))));
         }
+        name unpack_pack_id_name = (mlocal_name(m_nested_decl.get_ind(ind_idx)) + "unpack_pack"); //.append_after(ir_idx).append_after(previous_args.size());
 
         lean_trace(name({"inductive_compiler", "nested", "unpack_pack"}),
-                   tout() << "unpack_pack_id : " << unpack_pack_id_type << "\n";);
+                   tout() << unpack_pack_id_name << " : " << unpack_pack_id_type << "\n";);
 
-        name unpack_pack_id_name = "pack_unpack_id" + mk_fresh_name();
         m_env = module::add(m_env, check(m_env, mk_axiom(unpack_pack_id_name, to_list(m_nested_decl.get_lp_names()), unpack_pack_id_type)));
         m_tctx.set_env(m_env);
 
@@ -1032,12 +1020,11 @@ class add_nested_inductive_decl_fn {
     }
 
     expr build_nested_recursor(unsigned ind_idx, expr const & inner_recursor, expr const & outer_recursor_type) {
-
-
+        return inner_recursor;
     }
 
     void define_nested_recursors() {
-        for (unsigned ind_idx = 0; i < m_nested_decl.get_num_inds(); ++ind_idx) {
+        for (unsigned ind_idx = 0; ind_idx < m_nested_decl.get_num_inds(); ++ind_idx) {
             expr const & nested_ind = m_nested_decl.get_ind(ind_idx);
             expr const & inner_ind = m_inner_decl.get_ind(ind_idx+1);
             declaration inner_rec = m_env.get(mlocal_name(inner_ind));
@@ -1064,10 +1051,12 @@ class add_nested_inductive_decl_fn {
             lean_trace(name({"inductive_compiler", "nested", "nested_rec"}),
                        tout() << "[" << inductive::get_elim_name(mlocal_name(nested_ind)) << "]\n"
                        << "inner: " << inner_recursor_type << "\n"
-                       << "outer: " << outer_recursor_type << "\n";);
+                       << "outer: " << outer_recursor_type << "\n"
                        << "val: " << outer_recursor_val << "\n";);
 
         // TODO(dhs): change this to definition
+//            m_env = module::add(m_env, check(m_env, mk_definition(m_env, inductive::get_elim_name(mlocal_name(nested_ind)),
+//                                                                  lp_names, outer_recursor_type, outer_recursor_val)));
             m_env = module::add(m_env, check(m_env, mk_axiom(inductive::get_elim_name(mlocal_name(nested_ind)),
                                                              lp_names, outer_recursor_type)));
             m_tctx.set_env(m_env);
@@ -1079,7 +1068,8 @@ public:
                                  name_map<implicit_infer_kind> const & implicit_infer_map, ginductive_decl const & nested_decl):
         m_env(env), m_opts(opts), m_implicit_infer_map(implicit_infer_map),
         m_nested_decl(nested_decl), m_inner_decl(m_nested_decl.get_lp_names(), m_nested_decl.get_params()),
-        m_prefix(name::mk_internal_unique_name()),
+//        m_prefix(name::mk_internal_unique_name()),
+        m_prefix("NEST"),
         m_tctx(env, transparency_mode::Semireducible) {}
 
     optional<environment> operator()() {
