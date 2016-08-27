@@ -59,7 +59,8 @@ class add_nested_inductive_decl_fn {
         unsigned m_hash;
 
         pack_info(unsigned ind, unsigned ir, unsigned arg):
-            ind_idx(ind), ir_idx(ir), arg_idx(arg) {}
+            ind_idx(ind), ir_idx(ir), arg_idx(arg),
+            m_hash(hash(ind_idx, hash(ir_idx, arg_idx))) {}
 
         pack_info(unsigned ind, unsigned ir, unsigned arg,
                   name const & pack, name const & unpack, name const & unpack_pack):
@@ -412,16 +413,13 @@ class add_nested_inductive_decl_fn {
                     for (unsigned i = num_params; i < args.size(); ++i)
                         args[i] = pack_type(args[i]);
                     return copy_tag(e, mk_app(mk_app(m_replacement, occ_locals), args.size() - num_params, args.data() + num_params));
-                } else {
-                    fn = pack_type(fn);
-                    for (unsigned i = 0; i < args.size(); ++i) {
-                        args[i] = pack_type(args[i]);
-                    }
-                    return copy_tag(e, mk_app(fn, args));
                 }
-            } else {
-                return e;
             }
+            fn = pack_type(fn);
+            for (unsigned i = 0; i < args.size(); ++i) {
+                args[i] = pack_type(args[i]);
+            }
+            return copy_tag(e, mk_app(fn, args));
         }
         case expr_kind::Var:
         case expr_kind::Meta:
@@ -949,6 +947,8 @@ class add_nested_inductive_decl_fn {
         if (!pack_unpack_fn)
             return none_expr();
 
+        lean_trace(name({"inductive_compiler", "nested", "pack"}), tout() << ind_idx << ir_idx << previous_args.size() << "\n";);
+
         expr const & pack_fn = pack_unpack_fn->first;
         expr const & unpack_fn = pack_unpack_fn->second;
 
@@ -957,7 +957,7 @@ class add_nested_inductive_decl_fn {
 
         expr pack_fn_val = Fun(m_nested_decl.get_params(), convert_locals_to_constants(Fun(previous_args, pack_fn)));
         expr pack_fn_type = m_tctx.infer(pack_fn_val);
-        name pack_fn_name = (mlocal_name(m_nested_decl.get_ind(ind_idx)) + "pack"); //append_after(ir_idx).append_after(previous_args.size());
+        name pack_fn_name = (mlocal_name(m_nested_decl.get_ind(ind_idx)) + "pack").append_after(ir_idx).append_after(previous_args.size());
 
         lean_assert(!has_local(pack_fn_type));
         lean_assert(!has_local(pack_fn_val));
@@ -969,7 +969,7 @@ class add_nested_inductive_decl_fn {
 
         expr unpack_fn_val = Fun(m_nested_decl.get_params(), convert_locals_to_constants(Fun(previous_args, unpack_fn)));
         expr unpack_fn_type = m_tctx.infer(unpack_fn_val);
-        name unpack_fn_name = (mlocal_name(m_nested_decl.get_ind(ind_idx)) + "unpack"); //.append_after(ir_idx).append_after(previous_args.size());
+        name unpack_fn_name = (mlocal_name(m_nested_decl.get_ind(ind_idx)) + "unpack").append_after(ir_idx).append_after(previous_args.size());
 
 
         lean_assert(!has_local(unpack_fn_type));
@@ -995,7 +995,7 @@ class add_nested_inductive_decl_fn {
                                             Pi(packed_arg,
                                                mk_eq(m_tctx, lhs, packed_arg)))));
         }
-        name unpack_pack_id_name = (mlocal_name(m_nested_decl.get_ind(ind_idx)) + "unpack_pack"); //.append_after(ir_idx).append_after(previous_args.size());
+        name unpack_pack_id_name = (mlocal_name(m_nested_decl.get_ind(ind_idx)) + "unpack_pack").append_after(ir_idx).append_after(previous_args.size());
 
         lean_trace(name({"inductive_compiler", "nested", "unpack_pack"}),
                    tout() << unpack_pack_id_name << " : " << unpack_pack_id_type << "\n";);
@@ -1089,29 +1089,94 @@ class add_nested_inductive_decl_fn {
         return ty;
     }
 
-    expr build_nested_minor_premise(unsigned ind_idx, unsigned ir_idx, expr const & minor_premise,
-                                    buffer<expr> const & inner_minor_premise_args, expr const & goal) {
-        return minor_premise; // TODO(dhs): recursion
-/*
-            // Note: all ir_args appear first in the minor premise, in the same order that they do
-            // in the intro rule itself
-            // Maybe store the number of arguments somewhere?
-            expr inner_minor_premise_val;
-            buffer<expr> inner_intro_rule_args;
-            buffer<expr> outer_minor_premise_args;
 
-            for (unsigned ir_arg_idx = 0; ir_arg_idx < inner_minor_premise_args.size(); ++ir_arg_idx) {
-                expr const & inner_minor_premise_arg = inner_minor_premise_args[ir_arg_idx];
-                outer_minor_premise_args.push_back(inner_minor_premise_arg);
-                if (get_app_fn(mlocal_type(inner_minor_premise_arg)) == C)
-                    continue;
+    class build_nested_minor_premise_fn {
+        add_nested_inductive_decl_fn & m_outer;
+        unsigned m_ind_idx;
+        unsigned m_ir_idx;
+        expr m_minor_premise;
+        buffer<expr> const & m_inner_minor_premise_args;
+        buffer<expr> const & m_inner_minor_premise_rec_args;
+        expr m_motive_app;
+        expr m_inner_minor_premise_ir;
 
-                auto it = m_pack_infos.find(pack_info(ind_idx, ir_idx, ir_arg_idx));
-                if (it == m_pack_infos.end()) {
-                    inner_intro_rule_args.push_back(inner_minor_premise_arg);
-                } else {
-*/
-    }
+        expr build(unsigned arg_idx, list<expr> rev_ir_args, list<expr> rev_mp_args) {
+            if (arg_idx == m_inner_minor_premise_args.size()) {
+                buffer<expr> mp_args;
+                to_buffer(reverse(rev_mp_args), mp_args);
+                return mk_app(mk_app(m_minor_premise, mp_args), m_inner_minor_premise_rec_args);
+            }
+
+            expr const & arg = m_inner_minor_premise_args[arg_idx];
+
+            auto it = m_outer.m_pack_infos.find(pack_info(m_ind_idx, m_ir_idx, arg_idx));
+
+            if (it == m_outer.m_pack_infos.end()) {
+                return build(arg_idx+1, list<expr>(arg, rev_ir_args), list<expr>(arg, rev_mp_args));
+            }
+
+            buffer<expr> ir_args;
+            to_buffer(reverse(rev_ir_args), ir_args);
+
+            buffer<expr> mp_args;
+            to_buffer(reverse(rev_mp_args), mp_args);
+
+            // TODO(dhs): are these levels correct?
+            // Should I just store the constants in the [pack_info] object?
+            expr pack_fn = mk_app(mk_constant(it->pack_name, m_outer.m_nested_decl.get_levels()), mp_args);
+            expr unpack_fn = mk_app(mk_constant(it->unpack_name, m_outer.m_nested_decl.get_levels()), mp_args);
+            expr unpack_pack_fn = mk_app(mk_constant(it->unpack_pack_name, m_outer.m_nested_decl.get_levels()), mp_args);
+
+            expr motive = Fun(m_inner_minor_premise_args[arg_idx],
+                                  mk_app(m_motive_app,
+                                         mk_app(
+                                             mk_app(m_inner_minor_premise_ir,
+                                                    ir_args),
+                                             m_inner_minor_premise_args.size() - arg_idx,
+                                             m_inner_minor_premise_args.data() + arg_idx)));
+
+            expr rest = build(arg_idx+1,
+                              list<expr>(mk_app(pack_fn, mk_app(unpack_fn, arg)), rev_ir_args),
+                              list<expr>(mk_app(unpack_fn, arg), rev_mp_args));
+            expr equality_proof = mk_app(unpack_pack_fn, arg);
+
+            return mk_eq_rec(m_outer.m_tctx, motive, rest, equality_proof);
+        }
+
+    public:
+        build_nested_minor_premise_fn(add_nested_inductive_decl_fn & outer,
+                                      unsigned ind_idx,
+                                      unsigned ir_idx,
+                                      expr const & minor_premise,
+                                      buffer<expr> const & inner_minor_premise_args,
+                                      buffer<expr> const & inner_minor_premise_rec_args,
+                                      expr const & goal):
+            m_outer(outer),
+            m_ind_idx(ind_idx),
+            m_ir_idx(ir_idx),
+            m_minor_premise(minor_premise),
+            m_inner_minor_premise_args(inner_minor_premise_args),
+            m_inner_minor_premise_rec_args(inner_minor_premise_rec_args)
+            {
+                // TODO(dhs): awkward way of getting the intro rule
+                buffer<expr> motive_app_args;
+                expr C = get_app_args(goal, motive_app_args);
+                m_inner_minor_premise_ir = get_app_fn(motive_app_args.back());
+                motive_app_args.pop_back();
+                m_motive_app = mk_app(C, motive_app_args);
+            }
+
+        expr operator()() {
+            expr result = Fun(m_inner_minor_premise_args,
+                              Fun(m_inner_minor_premise_rec_args,
+                                  build(0, list<expr>(), list<expr>())));
+            lean_trace(name({"inductive_compiler", "nested", "nested_rec"}),
+                       tout() << "\n"
+                       << "outer type: " << mlocal_type(m_minor_premise) << "\n"
+                       << "inner val: " << result << "\n";);
+            return result;
+        }
+    };
 
     expr build_nested_recursor(unsigned ind_idx, expr const & inner_recursor, expr const & outer_recursor_type) {
         expr C;
@@ -1128,21 +1193,27 @@ class add_nested_inductive_decl_fn {
             expr ty = m_tctx.relaxed_whnf(pack_type(mlocal_type(minor_premise)));
 
             buffer<expr> inner_minor_premise_args;
+            buffer<expr> inner_minor_premise_rec_args;
             while (is_pi(ty)) {
-                expr inner_minor_premise_arg = mk_local_for(ty);
-                inner_minor_premise_args.push_back(inner_minor_premise_arg);
-                ty = m_tctx.relaxed_whnf(instantiate(binding_body(ty), inner_minor_premise_arg));
+                expr arg = mk_local_for(ty);
+                if (get_app_fn(mlocal_type(arg)) != C) {
+                    lean_assert(inner_minor_premise_rec_args.empty());
+                    inner_minor_premise_args.push_back(arg);
+                } else {
+                    inner_minor_premise_rec_args.push_back(arg);
+                }
+                ty = m_tctx.relaxed_whnf(instantiate(binding_body(ty), arg));
             }
-
-            inner_minor_premises.push_back(build_nested_minor_premise(ind_idx, ir_idx, minor_premise, inner_minor_premise_args, ty));
+            inner_minor_premises.push_back(build_nested_minor_premise_fn(*this, ind_idx, ir_idx, minor_premise, inner_minor_premise_args,
+                                                                         inner_minor_premise_rec_args, ty)());
         }
 
         return Fun(m_nested_decl.get_params(),
-                   Fun(C,
-                       Fun(minor_premises,
-                           Fun(indices,
-                               Fun(major_premise,
-                                   convert_locals_to_constants(
+                   convert_locals_to_constants(
+                       Fun(C,
+                           Fun(minor_premises,
+                               Fun(indices,
+                                   Fun(major_premise,
                                        mk_app(
                                            mk_app(
                                                mk_app(
@@ -1186,10 +1257,10 @@ class add_nested_inductive_decl_fn {
                        << "val: " << outer_recursor_val << "\n";);
 
         // TODO(dhs): change this to definition
-//            m_env = module::add(m_env, check(m_env, mk_definition(m_env, inductive::get_elim_name(mlocal_name(nested_ind)),
-//                                                                  lp_names, outer_recursor_type, outer_recursor_val)));
-            m_env = module::add(m_env, check(m_env, mk_axiom(inductive::get_elim_name(mlocal_name(nested_ind)),
-                                                             lp_names, outer_recursor_type)));
+            m_env = module::add(m_env, check(m_env, mk_definition(m_env, inductive::get_elim_name(mlocal_name(nested_ind)),
+                                                                  lp_names, outer_recursor_type, outer_recursor_val)));
+//            m_env = module::add(m_env, check(m_env, mk_axiom(inductive::get_elim_name(mlocal_name(nested_ind)),
+//                                                             lp_names, outer_recursor_type)));
             m_tctx.set_env(m_env);
         }
     }
