@@ -202,6 +202,7 @@ class add_nested_inductive_decl_fn {
     }
 
     expr mk_local_for(expr const & b) { return mk_local(mk_fresh_name(), binding_name(b), binding_domain(b), binding_info(b)); }
+    expr mk_local_for(expr const & b, name const & n) { return mk_local(mk_fresh_name(), n, binding_domain(b), binding_info(b)); }
     expr mk_local_pp(name const & n, expr const & ty) { return mk_local(mk_fresh_name(), n, ty, binder_info()); }
 
     bool find_nested_occ_in_ir_arg_type_core(expr const & ty, optional<expr> outer_app, unsigned num_params = 0) {
@@ -1019,7 +1020,46 @@ class add_nested_inductive_decl_fn {
         }
     }
 
+    expr introduce_locals_for_nested_recursor(unsigned ind_idx, expr const & outer_recursor_type,
+                                              expr & C, buffer<expr> & minor_premises,
+                                              buffer<expr> & indices, expr & major_premise) {
+        expr ty = m_tctx.relaxed_whnf(mlocal_type(m_nested_decl.get_ind(ind_idx)));
+
+        // We always instantiate with our stored params
+        // Not sure if it is necessary here, depending on what utilities we need to call
+        for (unsigned p_idx = 0; p_idx < m_nested_decl.get_num_params(); ++p_idx) {
+            ty = m_tctx.relaxed_whnf(instantiate(binding_body(ty), m_nested_decl.get_param(i)));
+        }
+
+        C = mk_local_for(ty, "C");
+        ty = m_tctx.relaxed_whnf(instantiate(binding_body(ty), C));
+
+        for (unsigned ir_idx = 0; ir_idx < m_nested_decl.get_num_intro_rules(ind_idx); ++ir_idx) {
+            expr minor_premise = mk_local_for(ty);
+            minor_premises.push_back(minor_premise);
+            ty = m_tctx.relaxed_whnf(instantiate(binding_body(ty), minor_premise));
+        }
+
+        while (is_pi(ty)) {
+            expr l = mk_local_for(ty);
+            ty = m_tctx.relaxed_whnf(instantiate(binding_body(ty), l));
+            if (is_pi(ty))
+                indices.push_back(l);
+            else
+                major_premise = l;
+        }
+
+        return ty;
+    }
+
     expr build_nested_recursor(unsigned ind_idx, expr const & inner_recursor, expr const & outer_recursor_type) {
+        expr C;
+        buffer<expr> minor_premises;
+        buffer<expr> indices;
+        expr major_premise;
+        expr goal = introduce_locals_for_nested_recursor(ind_idx, outer_recursor_type, C, minor_premises, indices, major_premise);
+
+
         return inner_recursor;
     }
 
