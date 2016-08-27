@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 
 Author: Daniel Selsam
 */
+#include <string>
 #include "kernel/inductive/inductive.h"
 #include "kernel/abstract.h"
 #include "kernel/instantiate.h"
@@ -27,9 +28,8 @@ Author: Daniel Selsam
 
 namespace lean {
 
+static unsigned g_next_nest_id = 0;
 static name * g_nested_prefix = nullptr;
-
-
 
 class add_nested_inductive_decl_fn {
     environment                   m_env;
@@ -957,9 +957,13 @@ class add_nested_inductive_decl_fn {
         // pack_fn :: arg_ty -> packed_type(arg_ty)
         // unpack_fn :: packed_type(arg_ty) -> arg_ty
 
+        unsigned arg_idx = previous_args.size();
+        const char * s_ir_idx = ("_" + std::to_string(ir_idx)).c_str();
+        const char * s_arg_idx = ("_" + std::to_string(arg_idx)).c_str();
+
         expr pack_fn_val = Fun(m_nested_decl.get_params(), convert_locals_to_constants(Fun(previous_args, pack_fn)));
         expr pack_fn_type = m_tctx.infer(pack_fn_val);
-        name pack_fn_name = (mlocal_name(m_nested_decl.get_ind(ind_idx)) + "pack").append_after(ir_idx).append_after(previous_args.size());
+        name pack_fn_name = (mlocal_name(m_nested_decl.get_ind(ind_idx)) + "pack").append_after(s_ir_idx).append_after(s_arg_idx);
 
         lean_assert(!has_local(pack_fn_type));
         lean_assert(!has_local(pack_fn_val));
@@ -971,7 +975,7 @@ class add_nested_inductive_decl_fn {
 
         expr unpack_fn_val = Fun(m_nested_decl.get_params(), convert_locals_to_constants(Fun(previous_args, unpack_fn)));
         expr unpack_fn_type = m_tctx.infer(unpack_fn_val);
-        name unpack_fn_name = (mlocal_name(m_nested_decl.get_ind(ind_idx)) + "unpack").append_after(ir_idx).append_after(previous_args.size());
+        name unpack_fn_name = (mlocal_name(m_nested_decl.get_ind(ind_idx)) + "unpack").append_after(s_ir_idx).append_after(s_arg_idx);
 
 
         lean_assert(!has_local(unpack_fn_type));
@@ -997,7 +1001,7 @@ class add_nested_inductive_decl_fn {
                                             Pi(packed_arg,
                                                mk_eq(m_tctx, lhs, packed_arg)))));
         }
-        name unpack_pack_id_name = (mlocal_name(m_nested_decl.get_ind(ind_idx)) + "unpack_pack").append_after(ir_idx).append_after(previous_args.size());
+        name unpack_pack_id_name = (mlocal_name(m_nested_decl.get_ind(ind_idx)) + "unpack_pack").append_after(s_ir_idx).append_after(s_arg_idx);
 
         lean_trace(name({"inductive_compiler", "nested", "unpack_pack"}),
                    tout() << unpack_pack_id_name << " : " << unpack_pack_id_type << "\n";);
@@ -1005,7 +1009,7 @@ class add_nested_inductive_decl_fn {
         m_env = module::add(m_env, check(m_env, mk_axiom(unpack_pack_id_name, to_list(m_nested_decl.get_lp_names()), unpack_pack_id_type)));
         m_tctx.set_env(m_env);
 
-        m_pack_infos.emplace(ind_idx, ir_idx, previous_args.size(), pack_fn_name, unpack_fn_name, unpack_pack_id_name);
+        m_pack_infos.emplace(ind_idx, ir_idx, arg_idx, pack_fn_name, unpack_fn_name, unpack_pack_id_name);
 
         // TODO(dhs): this is where I create the types, call tactics, and add definitions for the inverse theorem,
         // the size-of, and the size-of preservation theorem.
@@ -1284,9 +1288,8 @@ public:
                                  name_map<implicit_infer_kind> const & implicit_infer_map, ginductive_decl const & nested_decl):
         m_env(env), m_opts(opts), m_implicit_infer_map(implicit_infer_map),
         m_nested_decl(nested_decl), m_inner_decl(m_nested_decl.get_lp_names(), m_nested_decl.get_params()),
-        m_prefix(name::mk_internal_unique_name()),
-//        m_prefix("NEST"),
-        m_tctx(env, transparency_mode::Semireducible) {}
+        m_prefix("nest" + std::to_string(g_next_nest_id++)),
+        m_tctx(env, transparency_mode::Semireducible) { }
 
     optional<environment> operator()() {
         if (!find_nested_occ())

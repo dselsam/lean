@@ -20,9 +20,38 @@ with flist : Type
 definition foo₂ := @foo
 definition fbox₂ := @fbox
 
+/-
+flist.rec.{l_1} :
+  Π (C : flist → Type.{l_1}), (Π (a : foo) (a_1 : flist), C a_1 → C (flist.cons a a_1)) → (Π (x : flist), C x)
+-/
+
+set_option trace.inductive_compiler.nested.pack true
 definition pack_flist : list foo -> flist := sorry
 definition unpack_flist : flist -> list foo := sorry
-definition flist_pack_unpack : Pi (xs : flist), pack_flist (unpack_flist xs) = xs := sorry
+
+/-
+flist.rec.{l_1} :
+  Π (C : flist → Type.{l_1}), (Π (a : foo) (a_1 : flist), C a_1 → C (flist.cons a a_1)) → (Π (x : flist), C x)
+-/
+/-
+eq.rec_on.{l_1 l_2} : Π {A : Type.{l_2}} {a : A} {C : A → Type.{l_1}} {a_1 : A}, @eq.{l_2} A a a_1 → C a → C a_1
+-/
+definition flist_pack_unpack : Pi (xs : flist), pack_flist (unpack_flist xs) = xs :=
+@flist.rec (λ (xs : flist), pack_flist (unpack_flist xs) = xs)
+           (λ (x : foo) (xs : flist) (H : pack_flist (unpack_flist xs) = xs),
+             have H1 : flist.cons x (pack_flist (unpack_flist xs)) = (flist.cons x xs), from
+             @eq.rec_on _
+                        _
+                        (λ (ys : flist), flist.cons x ys = flist.cons x xs)
+                        _
+                        (eq.symm H)
+                        rfl,
+             show pack_flist (unpack_flist (flist.cons x xs)) = flist.cons x xs, from sorry
+           )
+
+
+
+
 definition flist_unpack_pack : Pi (xs : list foo), unpack_flist (pack_flist xs) = xs := sorry
 
 attribute [reducible] definition foo₂.mk (fb : fbox₂) : foo₂ := foo.mk fb
