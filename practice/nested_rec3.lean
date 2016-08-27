@@ -64,12 +64,12 @@ definition fbox₂.rec₃ (C : fbox₂ → Type)
           (λ (xs ys : flist) (x : fbox) (Cx : C x),
             @eq.rec_on flist
                        (pack_flist (unpack_flist xs))
-                       (λ (xs : flist), C (fbox.mk xs ys x))
+                       (λ (xs : flist), C (fbox.mk xs ys x)) -- this is the GOAL
                        xs
                        (flist_pack_unpack xs)
                        (@eq.rec_on flist
                                    (pack_flist (unpack_flist ys))
-                                   (λ (a : flist), C (fbox.mk (pack_flist (unpack_flist xs)) a x))
+                                   (λ (ys : flist), C (fbox.mk (pack_flist (unpack_flist xs)) ys x)) -- this is the GOAL after rewriting the first time
                                    ys
                                    (flist_pack_unpack ys)
                                    (mp (unpack_flist xs) (unpack_flist ys) x Cx)))
