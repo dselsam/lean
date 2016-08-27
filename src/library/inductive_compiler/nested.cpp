@@ -1099,8 +1099,9 @@ class add_nested_inductive_decl_fn {
         expr m_minor_premise;
         buffer<expr> const & m_inner_minor_premise_args;
         buffer<expr> const & m_inner_minor_premise_rec_args;
+
+        bool m_dep_elim{false};
         expr m_motive_app;
-        expr m_inner_minor_premise_ir;
 
         expr build(unsigned arg_idx, list<expr> rev_ir_args, list<expr> rev_mp_args) {
             if (arg_idx == m_inner_minor_premise_args.size()) {
@@ -1132,13 +1133,19 @@ class add_nested_inductive_decl_fn {
             expr unpack_pack_fn = mk_app(mk_app(mk_constant(it->unpack_pack_name, m_outer.m_nested_decl.get_levels()),
                                          m_outer.m_nested_decl.get_params()), mp_args);
 
-            expr motive = Fun(m_inner_minor_premise_args[arg_idx],
-                                  mk_app(m_motive_app,
-                                         mk_app(
-                                             mk_app(m_inner_minor_premise_ir,
-                                                    ir_args),
-                                             m_inner_minor_premise_args.size() - arg_idx,
-                                             m_inner_minor_premise_args.data() + arg_idx)));
+            expr motive;
+            {
+                if (m_dep_elim)
+                    motive = Fun(m_inner_minor_premise_args[arg_idx],
+                                 mk_app(m_motive_app,
+                                        mk_app(
+                                            mk_app(m_outer.m_inner_decl.get_intro_rule(m_ind_idx+1, m_ir_idx),
+                                                   ir_args),
+                                            m_inner_minor_premise_args.size() - arg_idx,
+                                            m_inner_minor_premise_args.data() + arg_idx)));
+                else
+                    motive = Fun(m_inner_minor_premise_args[arg_idx], m_motive_app);
+            }
 
             expr rest = build(arg_idx+1,
                               list<expr>(mk_app(pack_fn, mk_app(unpack_fn, arg)), rev_ir_args),
@@ -1163,12 +1170,13 @@ class add_nested_inductive_decl_fn {
             m_inner_minor_premise_args(inner_minor_premise_args),
             m_inner_minor_premise_rec_args(inner_minor_premise_rec_args)
             {
-                // TODO(dhs): awkward way of getting the intro rule
+                // TODO(dhs): awkward way of checking for dependent elimination
                 buffer<expr> motive_app_args;
                 expr C = get_app_args(goal, motive_app_args);
-                m_inner_minor_premise_ir = get_app_fn(motive_app_args.back());
-                // TODO(dhs): URGENT this is wrong for non dependent elimination
-                motive_app_args.pop_back();
+                if (!motive_app_args.empty() && outer.m_inner_decl.get_intro_rule(ind_idx+1, ir_idx) == get_app_fn(motive_app_args.back())) {
+                        m_dep_elim = true;
+                        motive_app_args.pop_back();
+                }
                 m_motive_app = mk_app(C, motive_app_args);
             }
 
