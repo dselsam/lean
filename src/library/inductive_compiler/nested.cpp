@@ -869,7 +869,9 @@ class add_nested_inductive_decl_fn {
                         pack_return_args.push_back(mk_app(pack_unpack_fn->first, pack_l));
                         unpack_return_args.push_back(mk_app(pack_unpack_fn->second, unpack_l));
                     } else {
-                        lean_assert(mlocal_type(pack_l) == mlocal_type(unpack_l));
+                        // This assert doesn't work because ind locals are not definitionally equal
+                        // (even though the associated constants are)
+                        // lean_assert(m_tctx.is_def_eq(mlocal_type(pack_l), mlocal_type(unpack_l)));
                         pack_return_args.push_back(pack_l);
                         unpack_return_args.push_back(unpack_l);
                     }
@@ -1123,9 +1125,12 @@ class add_nested_inductive_decl_fn {
 
             // TODO(dhs): are these levels correct?
             // Should I just store the constants in the [pack_info] object?
-            expr pack_fn = mk_app(mk_constant(it->pack_name, m_outer.m_nested_decl.get_levels()), mp_args);
-            expr unpack_fn = mk_app(mk_constant(it->unpack_name, m_outer.m_nested_decl.get_levels()), mp_args);
-            expr unpack_pack_fn = mk_app(mk_constant(it->unpack_pack_name, m_outer.m_nested_decl.get_levels()), mp_args);
+            expr pack_fn = mk_app(mk_app(mk_constant(it->pack_name, m_outer.m_nested_decl.get_levels()),
+                                         m_outer.m_nested_decl.get_params()), mp_args);
+            expr unpack_fn = mk_app(mk_app(mk_constant(it->unpack_name, m_outer.m_nested_decl.get_levels()),
+                                         m_outer.m_nested_decl.get_params()), mp_args);
+            expr unpack_pack_fn = mk_app(mk_app(mk_constant(it->unpack_pack_name, m_outer.m_nested_decl.get_levels()),
+                                         m_outer.m_nested_decl.get_params()), mp_args);
 
             expr motive = Fun(m_inner_minor_premise_args[arg_idx],
                                   mk_app(m_motive_app,
@@ -1270,8 +1275,8 @@ public:
                                  name_map<implicit_infer_kind> const & implicit_infer_map, ginductive_decl const & nested_decl):
         m_env(env), m_opts(opts), m_implicit_infer_map(implicit_infer_map),
         m_nested_decl(nested_decl), m_inner_decl(m_nested_decl.get_lp_names(), m_nested_decl.get_params()),
-//        m_prefix(name::mk_internal_unique_name()),
-        m_prefix("NEST"),
+        m_prefix(name::mk_internal_unique_name()),
+//        m_prefix("NEST"),
         m_tctx(env, transparency_mode::Semireducible) {}
 
     optional<environment> operator()() {

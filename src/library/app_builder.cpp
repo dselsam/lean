@@ -590,7 +590,8 @@ public:
         expr p       = m_ctx.relaxed_whnf(m_ctx.infer(H2));
         expr A, lhs, rhs;
         if (!is_eq(p, A, lhs, rhs)) {
-            lean_app_builder_trace(tout() << "failed to build eq.rec, equality proof expected:\n" << H2 << "\n";);
+            lean_app_builder_trace(tout() << "failed to build eq.rec, equality proof expected, given:\n"
+                                   << H2 << " : " << p << "\n";);
             throw app_builder_exception();
         }
         level A_lvl = get_level(A);
