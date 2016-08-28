@@ -2,9 +2,8 @@ set_option pp.implicit true
 set_option pp.binder_types true
 set_option pp.universes false
 set_option pp.beta true
---set_option trace.inductive_compiler.nested.pack true
---set_option trace.inductive_compiler.nested.mimic_ind true
---set_option trace.inductive_compiler.nested.mimic_ir true
+
+
 
 constant (f : nat -> nat -> nat)
 
@@ -32,7 +31,10 @@ nest3.wrap.rec :
        C n1 n2 0 a_1 → C n1 n2 1 a_2 → C n1 n2 2 (nest3.wrap.mk n1 n2 a a_1 a_2)) →
     (Π (n1 n2 a : ℕ) (x : nest3.wrap n1 n2 a), C n1 n2 a x)
 -/
-exit
+
+
+--definition nest3.wrap.rec.no_indices
+--  (C : Pi (n1 n2 : nat), nest3.wrap n1 n2
 
 /-
 Okay, we are at a dead-end.
@@ -46,7 +48,7 @@ Can we define a nest3.wrap.rec that does not take the indices in the motive?
 
 
 lemma nest2.box.unpack_pack_0_2.proof :
-  forall (n1 n2 : nat) (xs : nest3.wrap n1 n2 0), nest2.box.pack_0_2 n1 n2 (nest2.box.unpack_0_2 n1 n2 xs) = xs :=
+  forall (n1 n2 n3 : nat) (xs : nest3.wrap n1 n2 n3), nest2.box.pack_0_2 n1 n2 (nest2.box.unpack_0_2 n1 n2 xs) = xs :=
 @nest3.wrap.rec (λ (n1 n2 n3 : nat) (xs : nest3.wrap n1 n2 n3), nest2.box.pack_0_2 n1 n2 (nest2.box.unpack_0_2 n1 n2 xs) = xs)
                 (λ (n1 n2 : nat)
                    (x : nest3.nest2.foo (f n1 n2))
