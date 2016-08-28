@@ -8,8 +8,6 @@ The takeaway from this file is that the pack-unpack functions need to take indic
 Details still need to be worked out.
 -/
 
-constant (f : nat -> nat -> nat)
-
 inductive wrap (A : Type) : nat -> Type
 | mk : A -> wrap 0 -> wrap 1 -> wrap 2
 
@@ -34,108 +32,21 @@ nest3.wrap.rec :
     (Π (a : ℕ) (x : nest3.wrap a), C a x)
 -/
 
-
 /-
-nest2.box.pack_0_2 : Π (n1 n2 : ℕ), wrap (nest2.foo (f n1 n2)) 0 → nest3.wrap n1 n2 0
-nest2.box.unpack_0_2 : Π (n1 n2 : ℕ), nest3.wrap n1 n2 0 → wrap (nest2.foo (f n1 n2)) 0
-nest2.box.unpack_pack_0_2 :
-  ∀ (n1 n2 : ℕ) (x_packed : nest3.wrap n1 n2 0),
-    nest2.box.pack_0_2 n1 n2 (nest2.box.unpack_0_2 n1 n2 x_packed) = x_packed
-nest3.wrap.rec :
-  Π (C : Π (n1 n2 a : ℕ), nest3.wrap n1 n2 a → Type),
-    (Π (n1 n2 : ℕ) (a : nest3.nest2.foo (f n1 n2)) (a_1 : nest3.wrap n1 n2 0) (a_2 : nest3.wrap n1 n2 1),
-       C n1 n2 0 a_1 → C n1 n2 1 a_2 → C n1 n2 2 (nest3.wrap.mk n1 n2 a a_1 a_2)) →
-    (Π (n1 n2 a : ℕ) (x : nest3.wrap n1 n2 a), C n1 n2 a x)
--/
+We can already see the mismatch.
+The [unpack_pack] lemma uses [pack] and [unpack] that are specialized for the index,
+where as [nest3.wrap.rec] require a motive that is parametric on the indices,
+and so the motive cannot even be stated cleanly as is.
 
+On the surface it seems simple enough to work around.
+[pack] and [unpack] are defined by recursion and so can originally take the indices as arguments,
+we just specialized them before putting them in the environment.
+We can take the indices as arguments instead in the environment version.
 
---definition nest3.wrap.rec.no_indices
---  (C : Pi (n1 n2 : nat), nest3.wrap n1 n2
+But what happens if there is an index that has local variables in it?
+I think this is easy as well.
 
-/-
-Okay, we are at a dead-end.
-Our pack/unpack lemmas seem to need to take the indices as arguments.
-But can we even define these functions?
-Suppose we are not willing to exploit decidable equality here, no way.
-
-Alternatively, can we define a nest3.wrap.rec that does not take the indices in the motive?
-Best solution is to find a simple way to take the indices in the pack/unpack functions.
-Possible issues: what if the indices contain additional local variables?
-
-
--/
-
-
-lemma nest2.box.unpack_pack_0_2.proof :
-  forall (n1 n2 n3 : nat) (xs : nest3.wrap n1 n2 n3), nest2.box.pack_0_2 n1 n2 (nest2.box.unpack_0_2 n1 n2 xs) = xs :=
-@nest3.wrap.rec (λ (n1 n2 n3 : nat) (xs : nest3.wrap n1 n2 n3), nest2.box.pack_0_2 n1 n2 (nest2.box.unpack_0_2 n1 n2 xs) = xs)
-                (λ (n1 n2 : nat)
-                   (x : nest3.nest2.foo (f n1 n2))
-                   (xs ys : nest3.wrap)
-                   (Hxs : nest2.box.pack_0_2 n1 n2 (nest2.box.unpack_0_2 n1 n2 xs) = xs)
-                   (Hys : nest2.box.pack_0_2 n1 n2 (nest2.box.unpack_0_2 n1 n2 ys) = ys),
-                 have H1 : nest2.box.pack_0_2 n1 n2 (nest2.box.unpack_0_2 n1 n2 (nest3.wrap.mk x xs ys)) = nest3.wrap.mk x xs ys, from sorry,
-                 show nest3.wrap.mk x
-                                    (nest2.box.pack_0_2 n1 n2 (nest2.box.unpack_0_2 n1 n2 xs))
-                                    (nest2.box.pack_0_2 n1 n2 (nest2.box.unpack_0_2 n1 n2 ys))
-                      =
-                      nest3.wrap.mk x xs ys, from H1)
-
--- Note to self: something is not right
--- I think it is only coincidence that [nest2.box.pack_0_0] does something on the inner arguments
---
-
-
--- (nest3.wrap.mk xs ys)) = nest3.wrap.mk xs ys, from sorry,
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/-
-lemma nest2.box.unpack_pack_0_1.proof :
-   ∀ (prev : list nest2.foo) (xs : nest3.list),
-           nest2.box.pack_0_1 prev (nest2.box.unpack_0_1 prev xs) = xs :=
-assume prev,
-@nest3.list.rec (λ (xs : nest3.list), nest2.box.pack_0_1 prev (nest2.box.unpack_0_1 prev xs) = xs)
-                rfl
-                (λ (x : nest3.nest2.foo)
-                   (xs : nest3.list)
-                   (H : nest2.box.pack_0_1 prev (nest2.box.unpack_0_1 prev xs) = xs),
-                   have H_no_compute : nest3.list.cons x (nest2.box.pack_0_1 prev (nest2.box.unpack_0_1 prev xs)) = nest3.list.cons x xs, from
-                   @eq.rec_on _
-                              _
-                              (λ (ys : nest3.list), nest3.list.cons x ys = nest3.list.cons x xs)
-                              _
-                              (eq.symm H)
-                              rfl,
-                   show nest2.box.pack_0_1 prev (nest2.box.unpack_0_1 prev (nest3.list.cons x xs)) = nest3.list.cons x xs, from H_no_compute)
--/
-
-
-
-
-
-
-
-
-
-
-/-
-nest2.box.unpack_pack_0_1 :
-  ∀ (a : list nest2.foo) (x_packed : nest3.list),
-    @eq nest3.list (nest2.box.pack_0_1 a (nest2.box.unpack_0_1 a x_packed)) x_packed
-nest2.box.unpack_pack_0_1 :
-  ∀ (a : list nest2.foo) (x_packed : nest3.list),
-    @eq nest3.list (nest2.box.pack_0_1 a (nest2.box.unpack_0_1 a x_packed)) x_packed
+When we apply the [pack] and [unpack], we will be in a local context that let's us state them.
+The version in the environment doesn't need to refer to the indices at all, and so does not
+need to be abstracted over locals that appear in them.
 -/
