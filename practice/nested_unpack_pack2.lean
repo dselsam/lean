@@ -32,8 +32,10 @@ check @nest2.box.unpack_pack_0_0
 
 check @nest3.wrap.rec
 /-
-nest2.box.unpack_pack_0_0 : ∀ x_packed, nest2.box.pack_0_0 (nest2.box.unpack_0_0 x_packed) = x_packed
-nest3.wrap.rec : Π C, (Π a a_1 a_2, C 0 a_1 → C 1 a_2 → C 2 (nest3.wrap.mk a a_1 a_2)) → (Π a x, C a x)
+nest3.wrap.rec :
+  Π (C : nest3.wrap → Type),
+    (Π (a : nest3.nest2.foo) (a_1 a_2 : nest3.wrap), C a_1 → C a_2 → C (nest3.wrap.mk a a_1 a_2)) →
+    (Π (x : nest3.wrap), C x)
 -/
 lemma nest2.box.unpack_pack_0_0.proof :
   forall (xs : nest3.wrap), nest2.box.pack_0_0 (nest2.box.unpack_0_0 xs) = xs :=

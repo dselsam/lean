@@ -889,6 +889,8 @@ class add_nested_inductive_decl_fn {
             unpack_minor_premises.push_back(unpack_minor_premise);
         }
 
+        // TODO(dhs): we do not want to specialize here for the indices
+        // We need the more flexible theorem to even state the unpack-pack lemma when there are indices
         expr pack_fn = mk_app(mk_app(mk_app(mk_app(mk_constant(inductive::get_elim_name(const_name(fn)),
                                                                elim_levels),
                                                    unpacked_params),
@@ -944,6 +946,8 @@ class add_nested_inductive_decl_fn {
         }
     }
 
+    // Awkward design: the first two arguments are only used to index the pack info
+    // compute_pack_info_for_nested_occ() calls it with ind_idx one past the end.
     optional<expr> translate_ir_arg(unsigned ind_idx, unsigned ir_idx, buffer<expr> const & previous_args, expr const & arg) {
         auto pack_unpack_fn = build_pack_unpack(mlocal_type(arg));
         if (!pack_unpack_fn)
@@ -954,8 +958,8 @@ class add_nested_inductive_decl_fn {
         expr const & pack_fn = pack_unpack_fn->first;
         expr const & unpack_fn = pack_unpack_fn->second;
 
-        // pack_fn :: arg_ty -> packed_type(arg_ty)
-        // unpack_fn :: packed_type(arg_ty) -> arg_ty
+        // pack_fn :: Pi <indices>, arg_ty -> packed_type(arg_ty)
+        // unpack_fn :: Pi <indices>, packed_type(arg_ty) -> arg_ty
 
         unsigned arg_idx = previous_args.size();
         const char * s_ir_idx = ("_" + std::to_string(ir_idx)).c_str();
@@ -1052,6 +1056,11 @@ class add_nested_inductive_decl_fn {
         lean_assert(!has_local(new_ir_val));
         m_env = module::add(m_env, check(m_env, mk_definition(m_env, mlocal_name(ir), to_list(m_nested_decl.get_lp_names()), new_ir_type, new_ir_val)));
         m_tctx.set_env(m_env);
+    }
+
+    void compute_pack_info_for_nested_occ() {
+        // TODO(dhs): pack and unpack for the constructor types of the nested occurrence
+        // (not sure what this means)
     }
 
     void define_nested_irs() {
@@ -1305,6 +1314,7 @@ public:
 
         define_nested_inds();
         define_nested_irs();
+        compute_pack_info_for_nested_occ();
         define_nested_recursors();
 
         // TODO(dhs): constructions
