@@ -1,0 +1,33 @@
+TODO
+==========================================================
+1. Refactor the [pack/unpack] module:
+   a. Separate into [pack_inner] and [pack_outer] for weakly positive arguments,
+      with [pack_outer] defined in terms of [pack_inner].
+   b. Store in the environment the versions of [pack/unpack] that take indices as arguments.
+
+2. For each introduction rule of each nested recursor, prove the corresponding "computation" lemma.
+   This step may be tricky.
+
+2. Prove the [unpack_pack] lemmas.
+   1. Write a procedure to prove it for [inner].
+      This should be a simple recursion with nested [eq.rec_on]s like the procedure to build the nested
+      recursor in the first place. Note that we nee to check if the recursor does indeed compute
+      (perhaps using ginductive manager for now), and if not insert a cast.
+   2. Prove it for [outer] using the proof of [inner] using funext.
+
+4. Fix the universe level computation in the presence of nested arguments.
+
+5. Refactor mutual to always end the nested sigma types with unit.
+
+6. Error messages.
+   1. Do a validation pass in [nested]
+   2. Have typed kernel exceptions, catch them, and display better error messages in terms of
+      the user-provided names.
+
+7. Search for pathological cases.
+   1. Elicit help from the community.
+
+8. Refactor the kernel.
+   1. Remove mutually inductive types.
+   2. Take locals with the parameters separate.
+   3. Allow non-recursive arguments after recursive ones.
