@@ -3,6 +3,11 @@ set_option pp.binder_types true
 set_option pp.universes false
 set_option pp.beta true
 
+/-
+The takeaway from this file is that the pack-unpack functions need to take indices.
+Details still need to be worked out.
+-/
+
 constant (f : nat -> nat -> nat)
 
 inductive wrap (A : Type) : nat -> Type
@@ -11,12 +16,25 @@ inductive wrap (A : Type) : nat -> Type
 inductive box (A : Type) : Type
 | mk : wrap A 0 -> box
 
-inductive foo.{l} : nat -> Type.{max 1 l}
-| mk : Pi (n1 : nat), (Pi (n2 : nat), box (foo (f n1 n2))) -> foo n1
+inductive foo.{l} : Type.{max 1 l}
+| mk : box foo -> foo
 
---check @nest2.box.pack_0_2
---check @nest2.box.unpack_0_2
---check @nest2.box.unpack_pack_0_2
+check @nest2.box.pack_0_0
+check @nest2.box.unpack_0_0
+check @nest2.box.unpack_pack_0_0
+check @nest3.wrap.rec
+/-
+nest2.box.pack_0_0 : wrap nest2.foo 0 → nest3.wrap 0
+nest2.box.unpack_0_0 : nest3.wrap 0 → wrap nest2.foo 0
+nest2.box.unpack_pack_0_0 : ∀ (x_packed : nest3.wrap 0), nest2.box.pack_0_0 (nest2.box.unpack_0_0 x_packed) = x_packed
+nest3.wrap.rec :
+  Π (C : Π (a : ℕ), nest3.wrap a → Type),
+    (Π (a : nest3.nest2.foo) (a_1 : nest3.wrap 0) (a_2 : nest3.wrap 1),
+       C 0 a_1 → C 1 a_2 → C 2 (nest3.wrap.mk a a_1 a_2)) →
+    (Π (a : ℕ) (x : nest3.wrap a), C a x)
+-/
+
+
 /-
 nest2.box.pack_0_2 : Π (n1 n2 : ℕ), wrap (nest2.foo (f n1 n2)) 0 → nest3.wrap n1 n2 0
 nest2.box.unpack_0_2 : Π (n1 n2 : ℕ), nest3.wrap n1 n2 0 → wrap (nest2.foo (f n1 n2)) 0
