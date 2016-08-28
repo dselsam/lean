@@ -5,10 +5,19 @@ TODO
       with [pack_outer] defined in terms of [pack_inner].
    b. Store in the environment the versions of [pack/unpack] that take indices as arguments.
 
-2. For each introduction rule of each nested recursor, prove the corresponding "computation" lemma.
-   This step may be tricky.
+2. Prove "computation" lemmas.
+   1. For each introduction rule of each nested recursor, prove the corresponding "computation" lemma.
+      This step may be tricky.
+   2. Write a FORCE_RECURSORS in C++ that keeps doing
+      <whatever-one-does-to-make-a-simulated-recursor-compute> until it simplifies.
+      This procedure is not trivial since it would need to unfold [pack] and [unpack] functions.
+      Pseudocode: while !m_tctx.is_def_eq(thing, expected),
+                  if [thing] is a constant, unfold it, if it is a recursor, apply the lemma
+   Alternatives:
+        1. Have special "computation" lemmas for [pack] and [unpack] as well instead of (2).
+        2. Have FORCE-RECURSORS do the work of (1) and only have (1).
 
-2. Prove the [unpack_pack] lemmas.
+3. Prove the [unpack_pack] lemmas.
    1. Write a procedure to prove it for [inner].
       This should be a simple recursion with nested [eq.rec_on]s like the procedure to build the nested
       recursor in the first place. Note that we nee to check if the recursor does indeed compute
