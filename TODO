@@ -1,37 +1,9 @@
 TODO
 ==========================================================
-0. The new plan is to [relaxed_whnf] everything that nests around an nested occurrence,
-   so all the layers of induction besides the primitive_unpack one are kernel level.
-   If we were using constants, it would be easy to [relaxed_whnf] the primitive_unpack as well,
-   but we already have the recursor so we may as well use it.
-   Question: is it possible that extra indices get added at some point because of mutual-to-basic
-             that mess up an induction?
 
-We should only ever be using the KERNEL inductive Nested inductive types are not themselves being recognized as inductive types.
-   We need to use the ginductive interface instead of the kernel interface.
-   Note: we may at some point need to register all intermediate inductive types with it.
-   Note: we may at some point move it to the inductive_compiler folder and be the only consumer of it.
-
-
--------------------
 1. Refactor the [pack/unpack] module:
    a. Separate into [pack_primitive], [pack_nested_i], and [pack_pi].
    b. Store in the environment the versions of [pack/unpack] that take indices as arguments.
-   c. We will eventually prove all the properties about all of them compositionally.
-   Note: if we can nest with nested inductive types themselves, then we will need to
-   create [unpack] and [pack] functions for all the arguments of the mimic-irs.
-
-2. Prove "computation" lemmas.
-   1. For each introduction rule of each nested recursor, prove the corresponding "computation" lemma.
-      This step may be tricky.
-   2. Write a FORCE_RECURSORS in C++ that keeps doing
-      <whatever-one-does-to-make-a-simulated-recursor-compute> until it simplifies.
-      This procedure is not trivial since it would need to unfold [pack] and [unpack] functions.
-      Pseudocode: while !m_tctx.is_def_eq(thing, expected),
-                  if [thing] is a constant, unfold it, if it is a recursor, apply the lemma
-   Alternatives:
-        1. Have special "computation" lemmas for [pack] and [unpack] as well instead of (2).
-        2. Have FORCE-RECURSORS do the work of (1) and only have (1).
 
 3. Prove the [unpack_pack] lemmas.
    1. Write a procedure to prove it for [inner].
@@ -40,23 +12,23 @@ We should only ever be using the KERNEL inductive Nested inductive types are not
       (perhaps using ginductive manager for now), and if not insert a cast.
    2. Prove it for [outer] using the proof of [inner] using funext.
 
-4. Generate [has_sizeof] instances at all levels, and prove that packing preserves [sizeof].
+3. Generate [has_sizeof] instances at all levels, and prove that packing preserves [sizeof].
 
-5. Fix the universe level computation in the presence of nested arguments.
+4. Fix the universe level computation in the presence of nested arguments.
 
-6. Refactor mutual to always end the nested sigma types with unit.
+5. Refactor mutual to always end the nested sigma types with unit.
 
-7. Error messages.
+6. Error messages.
    1. Do a validation pass in [nested]
    2. Have typed kernel exceptions, catch them, and display better error messages in terms of
       the user-provided names.
 
-8. Search for pathological cases.
+7. Search for pathological cases.
    1. Elicit help from the community.
 
-9. Refactor the kernel.
+8. Refactor the kernel.
    1. Remove mutually inductive types.
    2. Take locals with the parameters separate.
    3. Allow non-recursive arguments after recursive ones.
 
-10. Refactor the ref-tc
+9. Refactor the ref-tc
