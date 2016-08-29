@@ -1,9 +1,16 @@
 TODO
 ==========================================================
+0. Nested inductive types are not themselves being recognized as inductive types.
+   We need to use the ginductive interface instead of the kernel interface.
+   Note: we may at some point need to register all intermediate inductive types with it.
+   Note: we may at some point move it to the inductive_compiler folder and be the only consumer of it.
+
 1. Refactor the [pack/unpack] module:
-   a. Separate into [pack_inner] and [pack_outer] for weakly positive arguments,
-      with [pack_outer] defined in terms of [pack_inner].
+   a. Separate into [pack_primitive], [pack_nested_i], and [pack_pi].
    b. Store in the environment the versions of [pack/unpack] that take indices as arguments.
+   c. We will eventually prove all the properties about all of them compositionally.
+   Note: if we can nest with nested inductive types themselves, then we will need to
+   create [unpack] and [pack] functions for all the arguments of the mimic-irs.
 
 2. Prove "computation" lemmas.
    1. For each introduction rule of each nested recursor, prove the corresponding "computation" lemma.
@@ -24,19 +31,23 @@ TODO
       (perhaps using ginductive manager for now), and if not insert a cast.
    2. Prove it for [outer] using the proof of [inner] using funext.
 
-4. Fix the universe level computation in the presence of nested arguments.
+4. Generate [has_sizeof] instances at all levels, and prove that packing preserves [sizeof].
 
-5. Refactor mutual to always end the nested sigma types with unit.
+5. Fix the universe level computation in the presence of nested arguments.
 
-6. Error messages.
+6. Refactor mutual to always end the nested sigma types with unit.
+
+7. Error messages.
    1. Do a validation pass in [nested]
    2. Have typed kernel exceptions, catch them, and display better error messages in terms of
       the user-provided names.
 
-7. Search for pathological cases.
+8. Search for pathological cases.
    1. Elicit help from the community.
 
-8. Refactor the kernel.
+9. Refactor the kernel.
    1. Remove mutually inductive types.
    2. Take locals with the parameters separate.
    3. Allow non-recursive arguments after recursive ones.
+
+10. Refactor the ref-tc

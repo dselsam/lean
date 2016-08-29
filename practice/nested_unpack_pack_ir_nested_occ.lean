@@ -36,10 +36,10 @@ lemma nest2.box.unpack_pack_0_0.proof : forall (xs : nest3.wrap), nest2.box.pack
     show nest2.box.pack_0_0 (nest2.box.unpack_0_0 (nest3.wrap.mk x)) = nest3.wrap.mk x, from rfl)
 
 
-check @foo.pack_0_0
-check @foo.unpack_0_0
-check @foo.unpack_pack_0_0
-check @nest2.box.rec
+print foo.pack_0_0
+print foo.unpack_0_0
+--check @foo.unpack_pack_0_0
+--check @nest2.box.rec
 /-
 foo.pack_0_0 : box foo → nest2.box
 foo.unpack_0_0 : nest2.box → box foo

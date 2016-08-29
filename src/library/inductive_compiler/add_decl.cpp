@@ -15,7 +15,6 @@ environment add_inductive_declaration(environment const & old_env, options const
                                       buffer<expr> const & inds, buffer<buffer<expr> > const & intro_rules) {
     ginductive_decl decl(lp_names, params, inds, intro_rules);
     environment env = add_inner_inductive_declaration(old_env, opts, implicit_infer_map, decl);
-    env = register_ginductive_decl(env, decl);
     return env;
 }
 }
