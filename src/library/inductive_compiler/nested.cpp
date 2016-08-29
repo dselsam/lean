@@ -228,8 +228,6 @@ class add_nested_inductive_decl_fn {
     expr mk_local_pp(name const & n, expr const & ty) { return mk_local(mk_fresh_name(), n, ty, binder_info()); }
 
     bool find_nested_occ_in_ir_arg_type_core(expr const & ty, optional<expr> outer_app, unsigned num_params = 0) {
-        lean_assert(has_ind_occ(ty));
-
         buffer<expr> args;
         expr fn = get_app_args(ty, args);
 
@@ -268,7 +266,10 @@ class add_nested_inductive_decl_fn {
         lean_trace(name({"inductive_compiler", "nested", "found_occ"}), tout()
                    << "illegal occurrence: " << ty << "\n";);
 
-        throw exception("inductive type being declared can only be nested inside the parameters of other inductive types");
+        if (has_ind_occ(ty))
+            throw exception("inductive type being declared can only be nested inside the parameters of other inductive types");
+        else
+            return false;
     }
 
     bool find_nested_occ_in_ir_arg_type(expr const & arg_ty) {
