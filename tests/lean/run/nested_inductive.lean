@@ -337,6 +337,37 @@ check @foo.mk₂
 
 end X25
 
+namespace X26
+print "nested with a nested"
+
+inductive wrap (A : Type)
+| mk : A -> wrap
+
+inductive box.{l} (A : Type.{l}) : Type.{max 1 l}
+| mk : wrap box -> box
+
+inductive foo.{l} : Type.{max 1 l}
+| mk : box foo -> foo
+
+check @foo
+check @foo.mk
+
+end X26
+
+namespace X27
+print "nested definitions wrapping inductive types"
+
+definition list₁ := @list
+
+set_option trace.inductive_compiler.nested true
+inductive foo.{l} : Type.{max 1 l}
+| mk : list₁ (list₁ foo) -> foo
+
+check @foo
+check @foo.mk
+end X27
+
+
 /-
 namespace X26
 print "another random capstone in Prop"

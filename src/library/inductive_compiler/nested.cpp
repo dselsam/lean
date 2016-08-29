@@ -251,7 +251,7 @@ class add_nested_inductive_decl_fn {
         if (is_constant(fn) && is_ginductive(m_env, const_name(fn))) {
             unsigned num_params = get_ginductive_num_params(m_env, const_name(fn));
             for (unsigned i = 0; i < num_params; ++i) {
-                if (find_nested_occ_in_ir_arg_type_core(m_tctx.whnf(args[i]), some_expr(ty), num_params))
+                if (find_nested_occ_in_ir_arg_type_core(m_tctx.relaxed_whnf(args[i]), some_expr(ty), num_params))
                     return true;
             }
             throw exception("inductive type being declared cannot occur as an index argument of another inductive type");
@@ -884,7 +884,7 @@ class add_nested_inductive_decl_fn {
                     unpack_rec_args.push_back(unpack_l2);
                     unpack_return_args.push_back(unpack_l2);
                 } else {
-                    if (auto pack_unpack_fn = build_nested_pack_unpack(binding_domain(unpacked_ir_type))) {
+                    if (auto pack_unpack_fn = build_nested_pack_unpack(m_tctx.relaxed_whnf(binding_domain(unpacked_ir_type)))) {
                         pack_return_args.push_back(mk_app(pack_unpack_fn->first, pack_l));
                         unpack_return_args.push_back(mk_app(pack_unpack_fn->second, unpack_l));
                     } else {
