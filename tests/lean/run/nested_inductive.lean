@@ -367,6 +367,23 @@ check @foo
 check @foo.mk
 end X27
 
+namespace X28
+print "many layers of nesting nested inductive types"
+
+inductive wrap (A : Type) : Type
+| mk : A -> wrap
+
+inductive box.{l} (A : Type.{l}) : Type.{max 1 l}
+| mk : wrap (list box) -> box
+
+inductive foo.{l} (A : Type.{l}) : Type.{max 1 l}
+| mk : A -> box (box foo) -> foo
+
+inductive bar.{l} : Type.{max 1 l}
+| mk : box (foo bar) -> wrap (box (foo bar)) -> bar
+
+check @bar.mk
+end X28
 
 /-
 namespace X26
