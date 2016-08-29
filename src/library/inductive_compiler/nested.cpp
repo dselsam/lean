@@ -210,15 +210,8 @@ class add_nested_inductive_decl_fn {
         m_inner_decl.get_intro_rules().emplace_back();
         for (name const & old_ir_name : *old_intro_rules) {
             expr old_ir_type = m_tctx.infer(mk_app(mk_constant(old_ir_name, const_levels(fn)), num_params, args.data()));
-            old_ir_type = replace(old_ir_type, [&](expr const & e, unsigned) {
-                    if (e == old_ind_partial_app)
-                        return some_expr(mk_app(m_replacement, m_locals_in_nested_occ));
-                    else
-                        return none_expr();
-                });
             name mimic_ir_name = mk_prefix() + old_ir_name;
             expr mimic_ir_type = Pi(m_locals_in_nested_occ, old_ir_type);
-            lean_trace(name({"inductive_compiler", "nested", "mimic_ir"}), tout() << mimic_ir_name << " : " << mimic_ir_type << "\n";);
             m_inner_decl.get_intro_rules().back().push_back(mk_local(mimic_ir_name, mimic_ir_type));
         }
     }
@@ -332,22 +325,41 @@ class add_nested_inductive_decl_fn {
             lean_trace(name({"inductive_compiler", "nested", "inner_ind"}),
                        tout() << new_ind_name << " : " << new_ind_type << "\n";);
         }
-        for (expr & ir : m_inner_decl.get_intro_rules()[0]) {
+        // TODO(dhs): this is nuts. just keep the mimic_ind separately, and then put things in the right order here
+
+        for (unsigned ir_idx = 0; ir_idx < m_inner_decl.get_intro_rules()[0].size(); ++ir_idx) {
+            expr & ir = m_inner_decl.get_intro_rules()[0][ir_idx];
             lean_trace(name({"inductive_compiler", "nested", "mimic_ir"}),
-                       tout() << "before replacing ind_types: " << mlocal_name(ir) << " : " << mlocal_type(ir) << "\n";);
-            ir = pack_type(ir);
+                       tout() << "before packing type: " << mlocal_name(ir) << " : " << mlocal_type(ir) << "\n";);
+            expr new_ir_type = pack_type(mlocal_type(ir));
+            ir = update_mlocal(ir, new_ir_type);
             lean_trace(name({"inductive_compiler", "nested", "mimic_ir"}),
-                       tout() << "after replacing ind_types: " << mlocal_name(ir) << " : " << mlocal_type(ir) << "\n";);
+                       tout() << "after packing type: " << mlocal_name(ir) << " : " << mlocal_type(ir) << "\n";);
+
+            // Not a great place for it, but we create the pack and unpack lemmas for the mimic_irs here
+            buffer<expr> locals;
+            expr ty = m_tctx.relaxed_whnf(new_ir_type);
+
+            while (is_pi(ty)) {
+                expr l = mk_local_for(ty);
+                translate_ir_arg(m_nested_decl.get_inds().size(), ir_idx, locals, l);
+                locals.push_back(l);
+                ty = instantiate(binding_body(ty), l);
+                ty = m_tctx.relaxed_whnf(ty);
+            }
         }
+
         for (buffer<expr> const & irs : m_nested_decl.get_intro_rules()) {
             m_inner_decl.get_intro_rules().emplace_back();
             for (expr const & ir : irs) {
                 expr old_ir_type = mlocal_type(ir);
                 name new_ir_name = mk_prefix() + mlocal_name(ir);
-                expr new_ir_type = pack_type(old_ir_type);
-                m_inner_decl.get_intro_rules().back().push_back(mk_local(new_ir_name, new_ir_type));
                 lean_trace(name({"inductive_compiler", "nested", "inner_ir"}),
-                           tout() << new_ir_name << " : " << new_ir_type << "\n";);
+                           tout() << "before packing type: " << new_ir_name << " : " << old_ir_type << "\n";);
+                expr new_ir_type = pack_type(old_ir_type);
+                lean_trace(name({"inductive_compiler", "nested", "inner_ir"}),
+                           tout() << "after packing type: " << new_ir_name << " : " << new_ir_type << "\n";);
+                m_inner_decl.get_intro_rules().back().push_back(mk_local(new_ir_name, new_ir_type));
             }
         }
     }
@@ -369,7 +381,8 @@ class add_nested_inductive_decl_fn {
         }
     }
 
-    expr pack_type(expr const & e) {
+    expr pack_type(expr const & _e) {
+        expr e = m_tctx.relaxed_whnf(_e);
         switch (e.kind()) {
         case expr_kind::Sort:
         case expr_kind::Constant:

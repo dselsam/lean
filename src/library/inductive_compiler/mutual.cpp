@@ -24,6 +24,8 @@ Author: Daniel Selsam
 
 namespace lean {
 
+static unsigned g_next_mutual_id = 0;
+
 static name * g_mutual_prefix = nullptr;
 
 class add_mutual_inductive_decl_fn {
@@ -175,12 +177,12 @@ class add_mutual_inductive_decl_fn {
         }
     }
 
-    name mk_single_name() {
+    name mk_prefix() {
         return m_prefix;
     }
 
     void compute_new_ind() {
-        expr ind = mk_local(mk_single_name(), mk_arrow(m_full_index_type, get_ind_result_type(m_tctx, m_mut_decl.get_inds()[0])));
+        expr ind = mk_local(mk_prefix(), mk_arrow(m_full_index_type, get_ind_result_type(m_tctx, m_mut_decl.get_inds()[0])));
         lean_trace(name({"inductive_compiler", "mutual", "basic_ind"}), tout() << mlocal_name(ind) << " : " << mlocal_type(ind) << "\n";);
         m_basic_decl.get_inds().push_back(ind);
     }
@@ -227,7 +229,7 @@ class add_mutual_inductive_decl_fn {
     }
 
     expr translate_ir(expr const & ir) {
-        name ir_name = mk_single_name() + mlocal_name(ir);
+        name ir_name = mk_prefix() + mlocal_name(ir);
         buffer<expr> locals;
         expr ty = m_tctx.relaxed_whnf(mlocal_type(ir));
         while (is_pi(ty)) {
@@ -677,7 +679,8 @@ public:
                                  name_map<implicit_infer_kind> const & implicit_infer_map, ginductive_decl const & mut_decl):
         m_env(env), m_opts(opts), m_implicit_infer_map(implicit_infer_map),
         m_mut_decl(mut_decl), m_basic_decl(m_mut_decl.get_lp_names(), m_mut_decl.get_params()),
-        m_prefix(name::mk_internal_unique_name()), m_tctx(env) {}
+        m_prefix("_mut" + std::to_string(g_next_mutual_id++)),
+        m_tctx(env) {}
 
     environment operator()() {
         compute_index_types();
