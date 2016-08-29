@@ -335,7 +335,7 @@ class add_nested_inductive_decl_fn {
         for (expr & ir : m_inner_decl.get_intro_rules()[0]) {
             lean_trace(name({"inductive_compiler", "nested", "mimic_ir"}),
                        tout() << "before replacing ind_types: " << mlocal_name(ir) << " : " << mlocal_type(ir) << "\n";);
-            ir = replace_ind_types(ir);
+            ir = pack_type(ir);
             lean_trace(name({"inductive_compiler", "nested", "mimic_ir"}),
                        tout() << "after replacing ind_types: " << mlocal_name(ir) << " : " << mlocal_type(ir) << "\n";);
         }
@@ -344,7 +344,7 @@ class add_nested_inductive_decl_fn {
             for (expr const & ir : irs) {
                 expr old_ir_type = mlocal_type(ir);
                 name new_ir_name = mk_prefix() + mlocal_name(ir);
-                expr new_ir_type = replace_ind_types(pack_type(old_ir_type));
+                expr new_ir_type = pack_type(old_ir_type);
                 m_inner_decl.get_intro_rules().back().push_back(mk_local(new_ir_name, new_ir_type));
                 lean_trace(name({"inductive_compiler", "nested", "inner_ir"}),
                            tout() << new_ir_name << " : " << new_ir_type << "\n";);
