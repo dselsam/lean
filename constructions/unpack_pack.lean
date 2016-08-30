@@ -34,15 +34,19 @@ inductive foo.{l} : Type.{max 1 l}
 
 -- This suggests the following strategy. At each level,
 -- (a) define pack and unpack
--- (b) define RFL lemmas pushing them over each constructor (a pain)
--- (c) prove unpack/pack by induction : simp
--- (d) add the resulting lemma to the simp set
+-- (b) prove [simp] lemmas pushing them over each constructor (a pain to setup, but the proofs should just be [simp])
+-- (c) prove unpack/pack by induction ; simp and tag the result as [simp]
 
 -- Note: can do this in C++ just as easily
 -- Note: I do not need to store the inner pack/unpack infos anywhere except the temporary simp set.
+-- Note: I don't need the intermediate simp rules for previous proofs. For each one,
+-- I prove the constructor versions using simp, and TMP add the constructors versions to the simp set,
+-- and then remove them once I add the unpack/pack one.
 
-attribute [simp] definition nest0.nest2.foo.unpack_pack_0_0.cons (x : _) (xs : _)
-  : nest0.nest2.foo.pack_0_0 (nest0.nest2.foo.unpack_0_0 (nest1.list.cons x xs)) = nest1.list.cons x (nest0.nest2.foo.pack_0_0 (nest0.nest2.foo.unpack_0_0 xs)) := rfl
+attribute [simp] definition nest0.nest2.foo.unpack_pack_0_0.cons (x : _) (xs : _) :
+nest0.nest2.foo.pack_0_0 (nest0.nest2.foo.unpack_0_0 (nest1.list.cons x xs))
+=
+nest1.list.cons x (nest0.nest2.foo.pack_0_0 (nest0.nest2.foo.unpack_0_0 xs)) := rfl
 
 attribute [simp] lemma nest0.nest2.foo.unpack_pack_0_0.proof : forall (xs : nest1.list), nest0.nest2.foo.pack_0_0 (nest0.nest2.foo.unpack_0_0 xs) = xs :=
 by do xs ← intro `xs,
