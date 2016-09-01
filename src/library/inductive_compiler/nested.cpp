@@ -777,10 +777,29 @@ class add_nested_inductive_decl_fn {
             expr primitive_unpack = mk_app(mk_app(mk_app(mk_app(mk_constant(inductive::get_elim_name(mlocal_name(fn)), elim_levels),
                                                                 m_outer.m_inner_decl.get_params()), C), minor_premises), occ_locals);
 
+
+            expr primitive_unpack_val = Fun(m_outer.m_nested_decl.get_params(), m_outer.convert_locals_to_constants(Fun(m_previous_args, Fun(m_pi_args, primitive_unpack))));
+            expr primitive_unpack_type = m_tctx.infer(primitive_unpack_val);
+            name primitive_unpack_name = append_with_ir_arg(mlocal_name(m_outer.m_nested_decl.get_ind(m_ind_idx)) + "unpack_primitive");
+
+            lean_assert(!has_local(primitive_unpack_type));
+            lean_assert(!has_local(primitive_unpack_val));
+
+            lean_trace(name({"inductive_compiler", "nested", "unpack", "primitive"}),
+                       tout() << primitive_unpack_name << " : " << primitive_unpack_type << "\n";);
+
+            m_env = module::add(m_env, check(m_env,
+                                             mk_definition(m_env,
+                                                           primitive_unpack_name,
+                                                           to_list(m_outer.m_nested_decl.get_lp_names()),
+                                                           primitive_unpack_type,
+                                                           primitive_unpack_val)));
+            m_tctx.set_env(m_env);
             // TODO(dhs):
             // 1. define constant
             // 2. prove rfl lemmas
-            return some_expr(primitive_unpack);
+            return some_expr(mk_app(mk_app(mk_app(mk_constant(primitive_unpack_name, m_outer.m_nested_decl.get_levels()),
+                                                  m_outer.m_nested_decl.get_params()), m_previous_args), m_pi_args));
         }
 
         optional<expr_pair> build_primitive_pack_unpack(expr const & fn, buffer<expr> const & params) {
