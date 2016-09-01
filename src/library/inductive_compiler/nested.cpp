@@ -31,6 +31,7 @@ namespace lean {
 static unsigned g_next_nest_id = 0;
 static name * g_nested_prefix = nullptr;
 
+
 class add_nested_inductive_decl_fn {
     environment                   m_env;
     options const &               m_opts;
@@ -50,6 +51,20 @@ class add_nested_inductive_decl_fn {
 
     buffer<expr>                  m_ind_ir_locals;
     buffer<expr>                  m_ind_ir_cs;
+
+    expr whnf_keep_nesteds(expr const & e) {
+        return m_tctx.whnf_pred(e, [&](expr const & e) {
+                expr fn = get_app_fn(e);
+                if (!is_constant(fn))
+                    return true;
+                name n = const_name(fn);
+                if (is_ginductive(m_env, n))
+                    return false;
+                if (is_ginductive_intro_rule(m_env, n))
+                    return false;
+                return true;
+            });
+    }
 
     struct pack_info {
         unsigned ind_idx, ir_idx, arg_idx;
@@ -956,13 +971,38 @@ class add_nested_inductive_decl_fn {
         }
     }
 
-    // Awkward design: the first two arguments are only used to index the pack info
-    // compute_pack_info_for_nested_occ() calls it with ind_idx one past the end.
-    optional<expr> translate_ir_arg(unsigned ind_idx, unsigned ir_idx, buffer<expr> const & previous_args, expr const & arg) {
-        auto pack_unpack_fn = build_pack_unpack(mlocal_type(arg));
-        if (!pack_unpack_fn)
-            return none_expr();
+    class build_pack_unpack_fn {
+        add_nested_decl_fn & m_outer;
+        unsigned             m_ind_idx;
+        unsigned             m_ir_idx;
+        buffer<expr> const & m_previous_args;
 
+    public:
+        build_pack_unpack_fn(unsigned ind_idx, unsigned ir_idx, buffer<expr> const & previous_args):
+            m_ind_idx(ind_idx), m_ir_idx(ir_idx), m_previous_args(previous_args) {}
+    };
+
+    optional<expr> translate_ir_arg(unsigned ind_idx, unsigned ir_idx, buffer<expr> const & previous_args, expr const & arg) {
+        return build_pack_unpack_fn(ind_idx, ir_idx, previous_args)(arg);
+    }
+    /*
+        if (auto pack_fn = build_pack_unpack(mlocal_type(arg_type))) {
+            buffer<expr> used_previous_args;
+            for (expr const & previous_arg : previous_args) {
+            if (find(has_sizeof_val, [&](expr const & e, unsigned) { return e == param_inst; })) {
+                used_param_insts.push_back(param_inst);
+            }
+        }
+
+
+            return some_expr(mk_app(mk_app(mk_app(pack_fn_const, m_nested_decl.get_params()), previous_args), arg));
+        } else {
+            return none_expr();
+        }
+
+
+    */
+        /*
         lean_trace(name({"inductive_compiler", "nested", "pack"}), tout() << ind_idx << ir_idx << previous_args.size() << "\n";);
 
         expr const & pack_fn = pack_unpack_fn->first;
@@ -1028,6 +1068,7 @@ class add_nested_inductive_decl_fn {
         // TODO(dhs): this is where I create the types, call tactics, and add definitions for the inverse theorem,
         // the size-of, and the size-of preservation theorem.
         return some_expr(mk_app(mk_app(mk_app(pack_fn_const, m_nested_decl.get_params()), previous_args), arg));
+        */
     }
 
     void define_nested_ir(unsigned ind_idx, unsigned ir_idx) {
