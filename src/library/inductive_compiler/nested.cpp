@@ -218,6 +218,8 @@ class add_nested_inductive_decl_fn {
     expr mk_local_for(expr const & b, name const & n) { return mk_local(mk_fresh_name(), n, binding_domain(b), binding_info(b)); }
     expr mk_local_pp(name const & n, expr const & ty) { return mk_local(mk_fresh_name(), n, ty, binder_info()); }
 
+    // 1. find nested occurrence
+
     bool find_nested_occ_in_ir_arg_type_core(expr const & ty, optional<expr> outer_app, unsigned num_params = 0) {
         buffer<expr> args;
         expr fn = get_app_args(ty, args);
@@ -350,19 +352,6 @@ class add_nested_inductive_decl_fn {
             m_inner_decl.get_intro_rules().back().push_back(ir);
             lean_trace(name({"inductive_compiler", "nested", "mimic_ir"}),
                        tout() << "after packing type: " << mlocal_name(ir) << " : " << mlocal_type(ir) << "\n";);
-
-            // Not a great place for it, but we create the pack and unpack lemmas for the mimic_irs here
-            // TODO(dhs): when do we used these?
-            buffer<expr> locals;
-            expr ty = m_tctx.relaxed_whnf(new_ir_type);
-
-            while (is_pi(ty)) {
-                expr l = mk_local_for(ty);
-                translate_ir_arg(m_nested_decl.get_inds().size(), ir_idx, locals, l);
-                locals.push_back(l);
-                ty = instantiate(binding_body(ty), l);
-                ty = m_tctx.relaxed_whnf(ty);
-            }
         }
     }
 
