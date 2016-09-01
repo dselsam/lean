@@ -304,6 +304,7 @@ name const & get_simplifier_congr_bin_op_name();
 name const & get_simplifier_congr_bin_arg1_name();
 name const & get_simplifier_congr_bin_arg2_name();
 name const & get_simplifier_congr_bin_args_name();
+name const & get_sizeof_name();
 name const & get_smt_array_name();
 name const & get_smt_select_name();
 name const & get_smt_store_name();

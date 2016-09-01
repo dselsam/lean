@@ -22,6 +22,7 @@ Author: Daniel Selsam
 #include "library/trace.h"
 #include "library/type_context.h"
 #include "library/attribute_manager.h"
+#include "library/constructions/has_sizeof.h"
 #include "library/inductive_compiler/compiler.h"
 #include "library/inductive_compiler/basic.h"
 #include "library/inductive_compiler/nested.h"
@@ -543,6 +544,8 @@ class add_nested_inductive_decl_fn {
         std::string          m_s_arg_idx;
         unsigned             m_nest_idx{0};
 
+        simp_lemmas          m_lemmas;
+
         name append_with_ir_arg(name const & n) {
             return n.append_after(m_s_ir_idx.c_str()).append_after(m_s_arg_idx.c_str());
         }
@@ -561,6 +564,10 @@ class add_nested_inductive_decl_fn {
             // 1. confirm that it is indeed a nested occurrence
             if (!m_outer.matches_nested_occ_upto_locals(mk_app(fn, params), occ_locals))
                 return none_expr();
+
+            name primitive_pack_name = append_with_ir_arg(mlocal_name(m_outer.m_nested_decl.get_ind(m_ind_idx)) + "pack_primitive");
+            expr c_primitive_pack = mk_app(mk_app(mk_app(mk_constant(primitive_pack_name, m_outer.m_nested_decl.get_levels()),
+                                                         m_outer.m_nested_decl.get_params()), m_previous_args), m_pi_args);
 
             expr nested_occ = m_outer.nested_occ_with_locals(occ_locals);
             expr remaining_type = m_tctx.relaxed_whnf(m_tctx.infer(nested_occ));
@@ -601,9 +608,10 @@ class add_nested_inductive_decl_fn {
             }
 
             // 4. minor premises
-            buffer<expr> minor_premises;
             optional<list<name> > intro_rules = get_ginductive_intro_rules(m_env, const_name(fn));
             lean_assert(intro_rules);
+
+            buffer<expr> minor_premises;
             for (name const & intro_rule : *intro_rules) {
                 declaration d = m_env.get(intro_rule);
                 expr ir_type = m_tctx.relaxed_whnf(instantiate_type_univ_params(d, const_levels(fn)));
@@ -615,6 +623,7 @@ class add_nested_inductive_decl_fn {
                 buffer<expr> locals;
                 buffer<expr> rec_args;
                 buffer<expr> return_args;
+
                 while (is_pi(ir_type)) {
                     buffer<expr> arg_args;
                     expr arg_fn = get_app_args(binding_domain(ir_type), arg_args);
@@ -642,12 +651,10 @@ class add_nested_inductive_decl_fn {
                            tout() << "minor premise: " << return_value << "\n";);
             }
 
-            // 4. Abstracting and appling to indices
             expr primitive_pack = mk_app(mk_app(mk_app(mk_constant(inductive::get_elim_name(const_name(fn)), elim_levels), params), C), minor_premises);
 
             expr primitive_pack_val = Fun(m_outer.m_nested_decl.get_params(), m_outer.convert_locals_to_constants(Fun(m_previous_args, Fun(m_pi_args, primitive_pack))));
             expr primitive_pack_type = m_tctx.infer(primitive_pack_val);
-            name primitive_pack_name = append_with_ir_arg(mlocal_name(m_outer.m_nested_decl.get_ind(m_ind_idx)) + "pack_primitive");
 
             lean_assert(!has_local(primitive_pack_type));
             lean_assert(!has_local(primitive_pack_val));
@@ -662,11 +669,83 @@ class add_nested_inductive_decl_fn {
                                                            primitive_pack_type,
                                                            primitive_pack_val)));
             m_tctx.set_env(m_env);
+
+            // Prove rfl lemmas
+            unsigned mp_idx=0;
+            for (name const & intro_rule : *intro_rules) {
+                declaration d = m_env.get(intro_rule);
+                expr c_ir = mk_app(mk_constant(intro_rule, const_levels(fn)), params);
+                expr ir_type = m_tctx.relaxed_whnf(instantiate_type_univ_params(d, const_levels(fn)));
+
+                for (expr const & param : params) {
+                    lean_assert(is_pi(ir_type));
+                    ir_type = m_tctx.relaxed_whnf(instantiate(binding_body(ir_type), param));
+                }
+
+                buffer<expr> locals;
+                buffer<expr> rhs_args;
+
+                while (is_pi(ir_type)) {
+                    buffer<expr> arg_args;
+                    expr arg_fn = get_app_args(binding_domain(ir_type), arg_args);
+
+                    expr l = mk_local_for(ir_type);
+                    locals.push_back(l);
+                    ir_type = m_tctx.relaxed_whnf(instantiate(binding_body(ir_type), l));
+                    if (arg_fn == fn) {
+                        rhs_args.push_back(mk_app(mk_app(c_primitive_pack, arg_args.size() - num_params, arg_args.data() + num_params), l));
+                    } else {
+                        rhs_args.push_back(l);
+                    }
+                }
+
+                // pack (mk x xs) = mk x (pack xs)
+                expr lhs = mk_app(c_primitive_pack, mk_app(c_ir, locals));
+                expr rhs = mk_app(mk_constant(mlocal_name(m_outer.m_replacement_intro_rules[mp_idx]), m_outer.m_nested_decl.get_levels()), rhs_args);
+
+                expr dsimp_rule_type = Pi(m_outer.m_nested_decl.get_params(), m_outer.convert_locals_to_constants(Pi(m_previous_args, Pi(m_pi_args, Pi(locals, mk_eq(m_tctx, lhs, rhs))))));
+                expr dsimp_rule_val = Fun(m_outer.m_nested_decl.get_params(), m_outer.convert_locals_to_constants(Fun(m_previous_args, Fun(m_pi_args, Fun(locals, mk_eq_refl(m_tctx, lhs))))));
+                name dsimp_rule_name = primitive_pack_name + intro_rule + "_spec";
+
+                lean_trace(name({"inductive_compiler", "nested", "pack", "primitive"}),
+                           tout() << dsimp_rule_name << " : " << dsimp_rule_type << "\n";);
+
+                m_env = module::add(m_env, check(m_env, mk_definition(m_env, dsimp_rule_name, to_list(m_outer.m_nested_decl.get_lp_names()), dsimp_rule_type, dsimp_rule_val)));
+                m_tctx.set_env(m_env);
+
+                // Add this as a (temporary) simp rule
+                m_lemmas = add_poly(m_tctx, m_lemmas, dsimp_rule_name, LEAN_DEFAULT_PRIORITY);
+                mp_idx++;
+            }
+
+            // Prove sizeof lemma
+            {
+                expr ty = m_tctx.relaxed_whnf(remaining_type);
+                buffer<expr> locals;
+                while (is_pi(ty)) {
+                    expr l = mk_local_for(ty);
+                    locals.push_back(l);
+                    ty = m_tctx.relaxed_whnf(instantiate(binding_body(ty), l));
+                }
+                expr x = mk_local_pp("x", mk_app(mk_app(fn, params), locals));
+                expr lhs = mk_app(m_tctx, get_sizeof_name(), mk_app(mk_app(c_primitive_pack, locals), x));
+                expr rhs = mk_app(m_tctx, get_sizeof_name(), x);
+                expr primitive_sizeof_type = Pi(m_outer.m_nested_decl.get_params(),
+                                                m_outer.convert_locals_to_constants(
+                                                    Pi(m_previous_args,
+                                                       Pi(m_pi_args,
+                                                          Pi(locals,
+                                                             mk_eq(m_tctx, lhs, rhs))))));
+
+                name primitive_sizeof_name = primitive_pack_name + "_sizeof";
+                m_env = module::add(m_env, check(m_env, mk_axiom(primitive_sizeof_name, to_list(m_outer.m_nested_decl.get_lp_names()), primitive_sizeof_type)));
+                m_tctx.set_env(m_env);
+            }
+
             // TODO(dhs):
             // 1. prove rfl lemmas
             // 2. prove sizeof lemma
-            return some_expr(mk_app(mk_app(mk_app(mk_constant(primitive_pack_name, m_outer.m_nested_decl.get_levels()),
-                                                  m_outer.m_nested_decl.get_params()), m_previous_args), m_pi_args));
+            return some_expr(c_primitive_pack);
         }
 
         optional<expr> build_primitive_unpack(expr const & fn, buffer<expr> const & occ_locals) {
@@ -1111,8 +1190,8 @@ class add_nested_inductive_decl_fn {
             m_arg(arg),
             m_arg_idx(m_previous_args.size()),
             m_s_ir_idx("_" + std::to_string(m_ir_idx)),
-            m_s_arg_idx("_" + std::to_string(m_arg_idx))
-            {}
+            m_s_arg_idx("_" + std::to_string(m_arg_idx)),
+            m_lemmas(get_sizeof_simp_lemmas(m_tctx)) {}
 
         optional<expr> operator()() {
             return build_pi_pack_unpack(mlocal_type(m_arg));

@@ -6,6 +6,7 @@ Author: Daniel Selsam
 */
 #pragma once
 #include "kernel/environment.h"
+#include "library/tactic/simplifier/simp_lemmas.h"
 
 namespace lean {
 /** \brief Given an inductive datatype \c n in \c env, add
@@ -13,6 +14,7 @@ namespace lean {
 environment mk_has_sizeof(environment const & env, name const & ind_name);
 
 name simp_sizeof_attribute_name();
+simp_lemmas get_sizeof_simp_lemmas(type_context & tctx);
 
 void initialize_has_sizeof();
 void finalize_has_sizeof();

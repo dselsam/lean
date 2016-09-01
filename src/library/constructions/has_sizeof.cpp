@@ -173,7 +173,7 @@ class mk_has_sizeof_fn {
                     rec_arg_args.push_back(arg_args);
                 } else if (auto inst = mk_has_sizeof(arg_ty)) {
                     level l = get_level(m_tctx, arg_ty);
-                    result = mk_add(result, mk_app(mk_constant(get_has_sizeof_sizeof_name(), {l}), arg_ty, *inst, local));
+                    result = mk_add(result, mk_app(mk_constant(get_sizeof_name(), {l}), arg_ty, *inst, local));
                 }
                 ir_ty = m_tctx.relaxed_whnf(instantiate(binding_body(ir_ty), local));
             }
@@ -249,7 +249,7 @@ class mk_has_sizeof_fn {
                     if (arg_args.empty()) {
                         buffer<expr> ind_app_args;
                         get_app_args(*ind_app, ind_app_args);
-                        expr new_val = mk_app(mk_constant(get_has_sizeof_sizeof_name(), {get_datatype_level(ind_type)}),
+                        expr new_val = mk_app(mk_constant(get_sizeof_name(), {get_datatype_level(ind_type)}),
                                               {mk_app(c_ind, ind_app_args.size() - num_params, ind_app_args.data() + num_params),
                                                       mk_app(c_has_sizeof, ind_app_args.size() - num_params, ind_app_args.data() + num_params),
                                                       local});
@@ -257,12 +257,12 @@ class mk_has_sizeof_fn {
                     }
                 } else if (auto inst = mk_has_sizeof(arg_ty)) {
                     level l = get_level(m_tctx, arg_ty);
-                    rhs = mk_add(rhs, mk_app(mk_constant(get_has_sizeof_sizeof_name(), {l}), arg_ty, *inst, local));
+                    rhs = mk_add(rhs, mk_app(mk_constant(get_sizeof_name(), {l}), arg_ty, *inst, local));
                 }
                 ir_ty = m_tctx.relaxed_whnf(instantiate(binding_body(ir_ty), local));
             }
 
-            expr lhs = mk_app(m_tctx, get_has_sizeof_sizeof_name(), {mk_app(c_ir, locals)});
+            expr lhs = mk_app(m_tctx, get_sizeof_name(), {mk_app(c_ir, locals)});
             expr dsimp_rule_type = m_tctx.mk_pi(params, m_tctx.mk_pi(used_param_insts, Pi(locals, mk_eq(m_tctx, lhs, rhs))));
             expr dsimp_rule_val = m_tctx.mk_lambda(params, m_tctx.mk_lambda(used_param_insts, Fun(locals, mk_eq_refl(m_tctx, lhs))));
             name dsimp_rule_name = inductive::intro_rule_name(ir) + "has_sizeof_spec";
@@ -289,6 +289,12 @@ public:
 
 name simp_sizeof_attribute_name() {
     return *g_simp_sizeof;
+}
+
+simp_lemmas get_sizeof_simp_lemmas(type_context & tctx) {
+    buffer<name> simp_attrs, congr_attrs;
+    simp_attrs.push_back(simp_sizeof_attribute_name());
+    return get_simp_lemmas(tctx, simp_attrs, congr_attrs);
 }
 
 void initialize_has_sizeof() {

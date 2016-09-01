@@ -302,6 +302,7 @@ name const * g_simplifier_congr_bin_op = nullptr;
 name const * g_simplifier_congr_bin_arg1 = nullptr;
 name const * g_simplifier_congr_bin_arg2 = nullptr;
 name const * g_simplifier_congr_bin_args = nullptr;
+name const * g_sizeof = nullptr;
 name const * g_smt_array = nullptr;
 name const * g_smt_select = nullptr;
 name const * g_smt_store = nullptr;
@@ -647,6 +648,7 @@ void initialize_constants() {
     g_simplifier_congr_bin_arg1 = new name{"simplifier", "congr_bin_arg1"};
     g_simplifier_congr_bin_arg2 = new name{"simplifier", "congr_bin_arg2"};
     g_simplifier_congr_bin_args = new name{"simplifier", "congr_bin_args"};
+    g_sizeof = new name{"sizeof"};
     g_smt_array = new name{"smt", "array"};
     g_smt_select = new name{"smt", "select"};
     g_smt_store = new name{"smt", "store"};
@@ -993,6 +995,7 @@ void finalize_constants() {
     delete g_simplifier_congr_bin_arg1;
     delete g_simplifier_congr_bin_arg2;
     delete g_simplifier_congr_bin_args;
+    delete g_sizeof;
     delete g_smt_array;
     delete g_smt_select;
     delete g_smt_store;
@@ -1338,6 +1341,7 @@ name const & get_simplifier_congr_bin_op_name() { return *g_simplifier_congr_bin
 name const & get_simplifier_congr_bin_arg1_name() { return *g_simplifier_congr_bin_arg1; }
 name const & get_simplifier_congr_bin_arg2_name() { return *g_simplifier_congr_bin_arg2; }
 name const & get_simplifier_congr_bin_args_name() { return *g_simplifier_congr_bin_args; }
+name const & get_sizeof_name() { return *g_sizeof; }
 name const & get_smt_array_name() { return *g_smt_array; }
 name const & get_smt_select_name() { return *g_smt_select; }
 name const & get_smt_store_name() { return *g_smt_store; }

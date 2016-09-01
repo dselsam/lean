@@ -297,6 +297,7 @@ simplifier.congr_bin_op
 simplifier.congr_bin_arg1
 simplifier.congr_bin_arg2
 simplifier.congr_bin_args
+sizeof
 smt.array
 smt.select
 smt.store
