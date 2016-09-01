@@ -471,15 +471,15 @@ class add_nested_inductive_decl_fn {
 
                 // 2a. <id>.foo -> foo (not necessary since they are definitionally equal)
                 // 2b. <id>.foo.mk -> foo.mk
-                for (unsigned ind_idx = 1; ind_idx < m_inner_decl.get_num_inds(); ++ind_idx) {
+                for (unsigned ind_idx = 0; ind_idx < m_nested_decl.get_num_inds(); ++ind_idx) {
                     expr const & ind = m_inner_decl.get_ind(ind_idx);
                     if (e == ind)
-                        return some_expr(m_nested_decl.get_ind(ind_idx-1));
+                        return some_expr(m_nested_decl.get_ind(ind_idx));
 
                     for (unsigned ir_idx = 0; ir_idx < m_inner_decl.get_num_intro_rules(ind_idx); ++ir_idx) {
                         expr const & ir = m_inner_decl.get_intro_rule(ind_idx, ir_idx);
                         if (e == ir)
-                            return some_expr(m_nested_decl.get_intro_rule(ind_idx-1, ir_idx));
+                            return some_expr(m_nested_decl.get_intro_rule(ind_idx, ir_idx));
                     }
                 }
                 return none_expr();
