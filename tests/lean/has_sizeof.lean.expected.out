@@ -1,0 +1,13 @@
+foo.has_sizeof : Π (A : Type) [A_inst : has_sizeof A], has_sizeof (foo A)
+foo.mk.has_sizeof_spec :
+  ∀ (A : Type) [A_inst : has_sizeof A] (a : A) (a_1 : foo A),
+    has_sizeof.sizeof (foo.mk a a_1) = 1 + has_sizeof.sizeof a + has_sizeof.sizeof a_1
+foo.has_sizeof :
+  Π (A : Type) (B : ℕ → A → A → Type) (C : Type) [A_inst : has_sizeof A]
+  [B_inst : Π (a : ℕ) (a_1 a_2 : A), has_sizeof (B a a_1 a_2)], has_sizeof (foo A B C)
+foo.mk.has_sizeof_spec :
+  ∀ (A : Type) (B : ℕ → A → A → Type) (C : Type) [A_inst : has_sizeof A]
+  [B_inst : Π (a : ℕ) (a_1 a_2 : A), has_sizeof (B a a_1 a_2)] (a : A) (n : ℕ) (a_1 : B n a a)
+  (a_2 : bool → B n a a) (a_3 : bool → C) (a_4 : bool → foo A B C),
+    has_sizeof.sizeof (foo.mk a n a_1 a_2 a_3 a_4) = 1 + has_sizeof.sizeof a + has_sizeof.sizeof n + has_sizeof.sizeof
+      a_1 + has_sizeof.sizeof a_2 + has_sizeof.sizeof a_3
