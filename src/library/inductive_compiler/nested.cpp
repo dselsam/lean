@@ -535,6 +535,8 @@ class add_nested_inductive_decl_fn {
         buffer<expr> const & m_previous_args;
         expr                 m_arg;
 
+        buffer<expr>         m_pi_args;
+
         levels               m_lvls;
         unsigned             m_arg_idx;
         std::string          m_s_ir_idx;
@@ -598,7 +600,6 @@ class add_nested_inductive_decl_fn {
             optional<list<name> > intro_rules = get_ginductive_intro_rules(m_env, const_name(fn));
             lean_assert(intro_rules);
             for (name const & intro_rule : *intro_rules) {
-                // constructor vector.vcons : Π {A : Type} (n : ℕ), A → vector A n → vector A (n + 1)
                 declaration d = m_env.get(intro_rule);
                 expr ir_type = m_tctx.relaxed_whnf(instantiate_type_univ_params(d, const_levels(fn)));
 
@@ -606,7 +607,6 @@ class add_nested_inductive_decl_fn {
                     lean_assert(is_pi(ir_type));
                     ir_type = m_tctx.relaxed_whnf(instantiate(binding_body(ir_type), param));
                 }
-                // now we are at Π (n2 : ℕ), foo A (f n1) → vector (foo A (f n1)) n2 → vector (foo A (f n1)) (n2 + 1)
                 buffer<expr> locals;
                 buffer<expr> rec_args;
                 buffer<expr> return_args;
@@ -628,8 +628,6 @@ class add_nested_inductive_decl_fn {
                     }
                 }
                 locals.append(rec_args);
-                // now locals contains all the arguments we are going to extract
-                // it remains to provide the return value
                 expr return_value = m_outer.m_replacement_intro_rules[minor_premises.size()];
                 return_value = mk_app(return_value, occ_locals);
                 return_value = mk_app(return_value, return_args);
@@ -641,11 +639,30 @@ class add_nested_inductive_decl_fn {
 
             // 4. Abstracting and appling to indices
             expr primitive_pack = mk_app(mk_app(mk_app(mk_constant(inductive::get_elim_name(const_name(fn)), elim_levels), params), C), minor_premises);
+
+            expr primitive_pack_val = Fun(m_outer.m_nested_decl.get_params(), m_outer.convert_locals_to_constants(Fun(m_previous_args, Fun(m_pi_args, primitive_pack))));
+            expr primitive_pack_type = m_tctx.infer(primitive_pack_val);
+            name primitive_pack_name = append_with_ir_arg(mlocal_name(m_outer.m_nested_decl.get_ind(m_ind_idx)) + "pack_primitive");
+
+            lean_assert(!has_local(primitive_pack_type));
+            lean_assert(!has_local(primitive_pack_val));
+
+            lean_trace(name({"inductive_compiler", "nested", "pack", "primitive"}),
+                       tout() << primitive_pack_name << " : " << primitive_pack_type << "\n";);
+
+            m_env = module::add(m_env, check(m_env,
+                                             mk_definition(m_env,
+                                                           primitive_pack_name,
+                                                           to_list(m_outer.m_nested_decl.get_lp_names()),
+                                                           primitive_pack_type,
+                                                           primitive_pack_val)));
+            m_tctx.set_env(m_env);
             // TODO(dhs):
             // 1. define constant
             // 2. prove rfl lemmas
             // 3. prove sizeof lemma
-            return some_expr(primitive_pack);
+            return some_expr(mk_app(mk_app(mk_app(mk_constant(primitive_pack_name, m_outer.m_nested_decl.get_levels()),
+                                                  m_outer.m_nested_decl.get_params()), m_previous_args), m_pi_args));
         }
 
         optional<expr> build_primitive_unpack(expr const & fn, buffer<expr> const & occ_locals) {
@@ -944,17 +961,16 @@ class add_nested_inductive_decl_fn {
             expr x_to_pack = mk_local_pp("xs", ty);
             expr x_to_unpack = mk_local_pp("xs", m_outer.pack_type(ty));
 
-            buffer<expr> locals;
             buffer<expr> inner_args;
 
             while (is_pi(ty)) {
                 expr l = mk_local_for(ty);
-                locals.push_back(l);
+                m_pi_args.push_back(l);
                 ty = instantiate(binding_body(ty), l);
                 ty = m_tctx.relaxed_whnf(ty);
             }
-            expr body_to_pack = mk_app(x_to_pack, locals);
-            expr body_to_unpack = mk_app(x_to_unpack, locals);
+            expr body_to_pack = mk_app(x_to_pack, m_pi_args);
+            expr body_to_unpack = mk_app(x_to_unpack, m_pi_args);
 
             lean_assert(m_tctx.is_def_eq(m_tctx.infer(body_to_pack), ty));
             lean_assert(m_tctx.is_def_eq(m_tctx.infer(body_to_unpack), m_outer.pack_type(ty)));
@@ -972,8 +988,8 @@ class add_nested_inductive_decl_fn {
             expr const & nested_pack_fn = nested_pack_unpack->first;
             expr const & nested_unpack_fn = nested_pack_unpack->second;
 
-            expr pack_fn = Fun(x_to_pack, Fun(locals, mk_app(nested_pack_fn, body_to_pack)));
-            expr unpack_fn = Fun(x_to_unpack, Fun(locals, mk_app(nested_unpack_fn, body_to_unpack)));
+            expr pack_fn = Fun(x_to_pack, Fun(m_pi_args, mk_app(nested_pack_fn, body_to_pack)));
+            expr unpack_fn = Fun(x_to_unpack, Fun(m_pi_args, mk_app(nested_unpack_fn, body_to_unpack)));
 
             expr pack_fn_val = Fun(m_outer.m_nested_decl.get_params(), m_outer.convert_locals_to_constants(Fun(m_previous_args, pack_fn)));
             expr pack_fn_type = m_tctx.infer(pack_fn_val);
