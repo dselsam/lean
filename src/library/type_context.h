@@ -258,6 +258,8 @@ public:
     virtual void pop_local() override;
     virtual expr abstract_locals(expr const & e, unsigned num_locals, expr const * locals) override;
 
+    expr push_local_from_binding(expr const & e) { return push_local(binding_name(e), binding_domain(e), binding_info(e)); }
+
     /** Similar to whnf, but invokes the given predicate before unfolding constant symbols in the head.
         If pred(e') is false, then the method will not unfold definition in the head of e', and will return e'.
         This method is useful when we want to normalize the expression until we get a particular symbol as the head symbol. */

@@ -19,6 +19,7 @@ Author: Daniel Selsam
 #include "library/constructions/cases_on.h"
 #include "library/constructions/brec_on.h"
 #include "library/constructions/no_confusion.h"
+#include "library/constructions/has_sizeof.h"
 
 #ifndef LEAN_DEFAULT_XINDUCTIVE_REC_ON
 #define LEAN_DEFAULT_XINDUCTIVE_REC_ON true
@@ -112,6 +113,8 @@ class add_basic_inductive_decl_fn {
                 m_env = mk_binduction_on(m_env, ind_name);
             }
         }
+
+        m_env = mk_has_sizeof(m_env, ind_name);
     }
 
     void send_to_kernel() {

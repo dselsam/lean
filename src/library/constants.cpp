@@ -86,6 +86,9 @@ name const * g_has_lt = nullptr;
 name const * g_has_neg = nullptr;
 name const * g_has_one = nullptr;
 name const * g_has_one_one = nullptr;
+name const * g_has_sizeof = nullptr;
+name const * g_has_sizeof_mk = nullptr;
+name const * g_has_sizeof_sizeof = nullptr;
 name const * g_has_sub = nullptr;
 name const * g_has_to_string = nullptr;
 name const * g_has_zero = nullptr;
@@ -428,6 +431,9 @@ void initialize_constants() {
     g_has_neg = new name{"has_neg"};
     g_has_one = new name{"has_one"};
     g_has_one_one = new name{"has_one", "one"};
+    g_has_sizeof = new name{"has_sizeof"};
+    g_has_sizeof_mk = new name{"has_sizeof", "mk"};
+    g_has_sizeof_sizeof = new name{"has_sizeof", "sizeof"};
     g_has_sub = new name{"has_sub"};
     g_has_to_string = new name{"has_to_string"};
     g_has_zero = new name{"has_zero"};
@@ -771,6 +777,9 @@ void finalize_constants() {
     delete g_has_neg;
     delete g_has_one;
     delete g_has_one_one;
+    delete g_has_sizeof;
+    delete g_has_sizeof_mk;
+    delete g_has_sizeof_sizeof;
     delete g_has_sub;
     delete g_has_to_string;
     delete g_has_zero;
@@ -1113,6 +1122,9 @@ name const & get_has_lt_name() { return *g_has_lt; }
 name const & get_has_neg_name() { return *g_has_neg; }
 name const & get_has_one_name() { return *g_has_one; }
 name const & get_has_one_one_name() { return *g_has_one_one; }
+name const & get_has_sizeof_name() { return *g_has_sizeof; }
+name const & get_has_sizeof_mk_name() { return *g_has_sizeof_mk; }
+name const & get_has_sizeof_sizeof_name() { return *g_has_sizeof_sizeof; }
 name const & get_has_sub_name() { return *g_has_sub; }
 name const & get_has_to_string_name() { return *g_has_to_string; }
 name const & get_has_zero_name() { return *g_has_zero; }
