@@ -133,7 +133,6 @@ class mk_has_sizeof_fn {
             }
 
             // 3. Collect indices
-            buffer<expr> indices;
             while (is_pi(ty)) {
                 expr index = m_tctx.push_local_from_binding(ty);
                 indices.push_back(index);

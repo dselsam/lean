@@ -19,3 +19,13 @@ check @foo.has_sizeof
 check @foo.mk.has_sizeof_spec
 
 end X1
+
+namespace X2
+
+inductive foo (A : Type) : nat -> Type
+| mk : A -> foo 0 -> foo 0
+
+check @foo.has_sizeof
+check @foo.mk.has_sizeof_spec
+
+end X2
