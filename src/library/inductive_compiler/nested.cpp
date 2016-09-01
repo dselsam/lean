@@ -323,9 +323,12 @@ class add_nested_inductive_decl_fn {
         return false;
     }
 
-    bool matches_nested_occ_upto_locals(expr const & e, buffer<expr> const & locals) {
-        return locals.size() == m_locals_in_nested_occ.size()
-            && replace_locals(e, locals, m_locals_in_nested_occ) == m_nested_occ;
+    bool matches_nested_occ_upto_locals(expr const & candidate, buffer<expr> & occ_locals) {
+        collected_locals collected_ls;
+        collect_non_param_locals(candidate, collected_ls);
+        occ_locals = collected_ls.get_collected();
+        return occ_locals.size() == m_locals_in_nested_occ.size()
+            && replace_locals(candidate, occ_locals, m_locals_in_nested_occ) == m_nested_occ;
     }
 
     expr replace_ind_types(expr const & e) {
@@ -432,9 +435,7 @@ class add_nested_inductive_decl_fn {
             if (is_constant(fn) && is_ginductive(m_env, const_name(fn))) {
                 unsigned num_params = get_ginductive_num_params(m_env, const_name(fn));
                 expr candidate = mk_app(fn, num_params, args.data());
-                collected_locals collected_ls;
-                collect_non_param_locals(candidate, collected_ls);
-                buffer<expr> const & occ_locals = collected_ls.get_collected();
+                buffer<expr> occ_locals;
                 if (matches_nested_occ_upto_locals(candidate, occ_locals)) {
                     for (unsigned i = num_params; i < args.size(); ++i)
                         args[i] = pack_type(args[i]);
@@ -544,7 +545,6 @@ class add_nested_inductive_decl_fn {
         }
 
         optional<expr> build_primitive_pack(expr const & fn, buffer<expr> const & params) {
-            // returns a function primitive_pack : ty -> pack_type(ty)
             lean_assert(is_constant(fn) || is_ginductive(m_env, const_name(fn)));
             unsigned num_params = get_ginductive_num_params(m_env, const_name(fn));
             lean_assert(num_params == params.size());
@@ -552,15 +552,8 @@ class add_nested_inductive_decl_fn {
             buffer<expr> occ_locals;
 
             // 1. confirm that it is indeed a nested occurrence
-            {
-                expr candidate = mk_app(fn, params);
-                collected_locals collected_ls;
-                m_outer.collect_non_param_locals(candidate, collected_ls);
-                occ_locals = collected_ls.get_collected();
-
-                if (!m_outer.matches_nested_occ_upto_locals(candidate, occ_locals))
-                    return none_expr();
-            }
+            if (!m_outer.matches_nested_occ_upto_locals(mk_app(fn, params), occ_locals))
+                return none_expr();
 
             expr nested_occ = m_outer.nested_occ_with_locals(occ_locals);
             expr remaining_type = m_tctx.relaxed_whnf(m_tctx.infer(nested_occ));
