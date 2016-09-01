@@ -35,8 +35,6 @@ static environment set_simp_sizeof(environment const & env, name const & n) {
     return get_simp_sizeof_attribute().set(env, get_dummy_ios(), n, LEAN_DEFAULT_PRIORITY, true);
 }
 
-
-
 static void throw_corrupted(name const & n) {
     throw exception(sstream() << "error in 'has_sizeof' generation, '" << n << "' inductive datatype declaration is corrupted");
 }
@@ -284,7 +282,8 @@ public:
 
 
     environment operator()() {
-        define_instance();
+        if (m_env.find(get_has_sizeof_name()))
+            define_instance();
         return m_env;
     }
 };
