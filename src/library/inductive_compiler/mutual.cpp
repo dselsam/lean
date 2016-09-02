@@ -13,10 +13,12 @@ Author: Daniel Selsam
 #include "library/locals.h"
 #include "library/app_builder.h"
 #include "library/constants.h"
+#include "library/class.h"
 #include "library/module.h"
 #include "library/trace.h"
 #include "library/type_context.h"
 #include "library/attribute_manager.h"
+#include "library/constructions/has_sizeof.h"
 #include "library/inductive_compiler/compiler.h"
 #include "library/inductive_compiler/basic.h"
 #include "library/inductive_compiler/mutual.h"
@@ -278,6 +280,47 @@ class add_mutual_inductive_decl_fn {
             lean_assert(!has_local(new_ind_type));
             lean_assert(!has_local(new_ind_val));
             m_env = module::add(m_env, check(m_env, mk_definition(m_env, mlocal_name(ind), to_list(m_mut_decl.get_lp_names()), new_ind_type, new_ind_val)));
+            m_tctx.set_env(m_env);
+        }
+    }
+
+    void define_sizeofs() {
+        for (unsigned ind_idx = 0; ind_idx < m_mut_decl.get_inds().size(); ++ind_idx) {
+            expr const & ind = m_mut_decl.get_inds()[ind_idx];
+            buffer<expr> locals;
+            expr ty = m_tctx.relaxed_whnf(mlocal_type(ind));
+            while (is_pi(ty)) {
+                expr l = mk_local_for(ty);
+                locals.push_back(l);
+                ty = m_tctx.relaxed_whnf(instantiate(binding_body(ty), l));
+            }
+//            expr c_ind = mk_app(mk_constant(mlocal_name(ind), m_mut_decl.get_levels()), m_mut_decl.get_params());
+            declaration d = m_env.get(mk_has_sizeof_name(mlocal_name(ind)));
+            expr ty = d.get_type();
+
+
+            // forall params locals, has_sizeof (mut_ind params locals)
+            expr has_sizeof_type = Pi(m_mut_decl.get_params(), Pi(locals, mk_app(m_tctx, get_has_sizeof_name(), mk_app(c_ind, locals))));
+
+            expr c_inner_ind = mk_app(mk_constant(mlocal_name(m_basic_decl.get_ind(0)), m_basic_decl.get_levels()), m_basic_decl.get_params());
+            expr x = mk_local_pp("x", mk_app(c_inner_ind, mk_app(m_putters[ind_idx], mk_app(m_makers[ind_idx], locals))));
+
+            expr has_sizeof_val = Fun(m_mut_decl.get_params(),
+                                  Fun(locals,
+                                      mk_app(m_tctx, get_has_sizeof_mk_name(),
+                                             Fun(x,
+                                                 mk_app(m_tctx, get_sizeof_name(), x)))));
+
+
+            name has_sizeof_name =
+
+            lean_trace(name({"inductive_compiler", "mutual", "has_sizeof"}), tout()
+                       << has_sizeof_name << " : " << has_sizeof_type << " :=\n  " << has_sizeof_val << "\n";);
+            lean_assert(!has_local(has_sizeof_type));
+            lean_assert(!has_local(has_sizeof_val));
+            m_env = module::add(m_env, check(m_env, mk_definition_inferring_trusted(m_env, has_sizeof_name, to_list(m_mut_decl.get_lp_names()), has_sizeof_type, has_sizeof_val)));
+            m_env = add_instance(m_env, has_sizeof_name, LEAN_DEFAULT_PRIORITY, true);
+            m_tctx.set_env(m_env);
         }
     }
 
@@ -694,6 +737,7 @@ public:
         compute_local_to_constant_map();
 
         define_ind_types();
+        define_sizeofs();
         define_intro_rules();
 
         define_recursors();
@@ -717,6 +761,7 @@ void initialize_inductive_compiler_mutual() {
     register_trace_class(name({"inductive_compiler", "mutual", "new_irs"}));
     register_trace_class(name({"inductive_compiler", "mutual", "new_inds"}));
     register_trace_class(name({"inductive_compiler", "mutual", "rec"}));
+    register_trace_class(name({"inductive_compiler", "mutual", "has_sizeof"}));
 
     g_mutual_prefix = new name(name::mk_internal_unique_name());
 }

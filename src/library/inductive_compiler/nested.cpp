@@ -18,6 +18,7 @@ Author: Daniel Selsam
 #include "library/locals.h"
 #include "library/app_builder.h"
 #include "library/constants.h"
+#include "library/class.h"
 #include "library/module.h"
 #include "library/trace.h"
 #include "library/type_context.h"
@@ -387,7 +388,44 @@ class add_nested_inductive_decl_fn {
 
             lean_assert(!has_local(new_ind_type));
             lean_assert(!has_local(new_ind_val));
-            m_env = module::add(m_env, check(m_env, mk_definition(m_env, mlocal_name(ind), to_list(m_nested_decl.get_lp_names()), new_ind_type, new_ind_val)));
+            m_env = module::add(m_env, check(m_env, mk_definition_inferring_trusted(m_env, mlocal_name(ind), to_list(m_nested_decl.get_lp_names()), new_ind_type, new_ind_val)));
+            m_tctx.set_env(m_env);
+        }
+    }
+
+    void define_nested_sizeofs() {
+        for (unsigned ind_idx = 0; ind_idx < m_nested_decl.get_inds().size(); ++ind_idx) {
+            expr const & ind = m_nested_decl.get_ind(ind_idx);
+
+            buffer<expr> locals;
+            expr ty = m_tctx.relaxed_whnf(mlocal_type(ind));
+            while (is_pi(ty)) {
+                expr l = mk_local_for(ty);
+                locals.push_back(l);
+                ty = m_tctx.relaxed_whnf(instantiate(binding_body(ty), l));
+            }
+
+            expr c_ind = mk_app(mk_constant(mlocal_name(ind), m_nested_decl.get_levels()), m_nested_decl.get_params());
+
+            expr has_sizeof_type = Pi(m_nested_decl.get_params(), Pi(locals, mk_app(m_tctx, get_has_sizeof_name(), mk_app(c_ind, locals))));
+
+            expr c_inner_ind = mk_app(mk_constant(mlocal_name(m_inner_decl.get_ind(ind_idx)), m_inner_decl.get_levels()), m_inner_decl.get_params());
+            expr x = mk_local_pp("x", mk_app(c_inner_ind, locals));
+
+            expr has_sizeof_val = Fun(m_nested_decl.get_params(),
+                                      Fun(locals,
+                                          mk_app(m_tctx, get_has_sizeof_mk_name(),
+                                                 Fun(x,
+                                                     mk_app(m_tctx, get_sizeof_name(), x)))));
+
+            name has_sizeof_name = mk_has_sizeof_name(mlocal_name(ind));
+
+            lean_trace(name({"inductive_compiler", "nested", "has_sizeof"}), tout()
+                       << has_sizeof_name << " : " << has_sizeof_type << " :=\n  " << has_sizeof_val << "\n";);
+            lean_assert(!has_local(has_sizeof_type));
+            lean_assert(!has_local(has_sizeof_val));
+            m_env = module::add(m_env, check(m_env, mk_definition_inferring_trusted(m_env, has_sizeof_name, to_list(m_nested_decl.get_lp_names()), has_sizeof_type, has_sizeof_val)));
+            m_env = add_instance(m_env, has_sizeof_name, LEAN_DEFAULT_PRIORITY, true);
             m_tctx.set_env(m_env);
         }
     }
@@ -663,11 +701,11 @@ class add_nested_inductive_decl_fn {
                        tout() << primitive_pack_name << " : " << primitive_pack_type << "\n";);
 
             m_env = module::add(m_env, check(m_env,
-                                             mk_definition(m_env,
-                                                           primitive_pack_name,
-                                                           to_list(m_outer.m_nested_decl.get_lp_names()),
-                                                           primitive_pack_type,
-                                                           primitive_pack_val)));
+                                             mk_definition_inferring_trusted(m_env,
+                                                                             primitive_pack_name,
+                                                                             to_list(m_outer.m_nested_decl.get_lp_names()),
+                                                                             primitive_pack_type,
+                                                                             primitive_pack_val)));
             m_tctx.set_env(m_env);
 
             // Prove rfl lemmas
@@ -710,7 +748,7 @@ class add_nested_inductive_decl_fn {
                 lean_trace(name({"inductive_compiler", "nested", "pack", "primitive"}),
                            tout() << dsimp_rule_name << " : " << dsimp_rule_type << "\n";);
 
-                m_env = module::add(m_env, check(m_env, mk_definition(m_env, dsimp_rule_name, to_list(m_outer.m_nested_decl.get_lp_names()), dsimp_rule_type, dsimp_rule_val)));
+                m_env = module::add(m_env, check(m_env, mk_definition_inferring_trusted(m_env, dsimp_rule_name, to_list(m_outer.m_nested_decl.get_lp_names()), dsimp_rule_type, dsimp_rule_val)));
                 m_tctx.set_env(m_env);
 
                 // Add this as a (temporary) simp rule
@@ -720,14 +758,17 @@ class add_nested_inductive_decl_fn {
 
             // Prove sizeof lemma
             {
-                expr ty = m_tctx.relaxed_whnf(remaining_type);
+                expr ty = m_tctx.relaxed_whnf(m_outer.convert_locals_to_constants(remaining_type));
                 buffer<expr> locals;
                 while (is_pi(ty)) {
                     expr l = mk_local_for(ty);
                     locals.push_back(l);
                     ty = m_tctx.relaxed_whnf(instantiate(binding_body(ty), l));
                 }
-                expr x = mk_local_pp("x", mk_app(mk_app(fn, params), locals));
+                expr x = mk_local_pp("x", m_outer.convert_locals_to_constants(mk_app(mk_app(fn, params), locals)));
+
+                // The problems with this local approach are piling up
+                // We need to convert X so that the app-builder can find the appropriate has-sizeof instance
                 expr lhs = mk_app(m_tctx, get_sizeof_name(), mk_app(mk_app(c_primitive_pack, locals), x));
                 expr rhs = mk_app(m_tctx, get_sizeof_name(), x);
                 expr primitive_sizeof_type = Pi(m_outer.m_nested_decl.get_params(),
@@ -735,8 +776,9 @@ class add_nested_inductive_decl_fn {
                                                     Pi(m_previous_args,
                                                        Pi(m_pi_args,
                                                           Pi(locals,
-                                                             mk_eq(m_tctx, lhs, rhs))))));
+                                                             Pi(x, mk_eq(m_tctx, lhs, rhs)))))));
 
+                lean_assert(!has_local(primitive_sizeof_type));
                 name primitive_sizeof_name = primitive_pack_name + "_sizeof";
                 m_env = module::add(m_env, check(m_env, mk_axiom(primitive_sizeof_name, to_list(m_outer.m_nested_decl.get_lp_names()), primitive_sizeof_type)));
                 m_tctx.set_env(m_env);
@@ -872,11 +914,11 @@ class add_nested_inductive_decl_fn {
                        tout() << primitive_unpack_name << " : " << primitive_unpack_type << "\n";);
 
             m_env = module::add(m_env, check(m_env,
-                                             mk_definition(m_env,
-                                                           primitive_unpack_name,
-                                                           to_list(m_outer.m_nested_decl.get_lp_names()),
-                                                           primitive_unpack_type,
-                                                           primitive_unpack_val)));
+                                             mk_definition_inferring_trusted(m_env,
+                                                                             primitive_unpack_name,
+                                                                             to_list(m_outer.m_nested_decl.get_lp_names()),
+                                                                             primitive_unpack_type,
+                                                                             primitive_unpack_val)));
             m_tctx.set_env(m_env);
             // TODO(dhs):
             // 1. prove rfl lemmas
@@ -1060,7 +1102,7 @@ class add_nested_inductive_decl_fn {
                        tout() << nested_pack_name << " : " << nested_pack_type << "\n";);
 
             m_env = module::add(m_env, check(m_env,
-                                             mk_definition(m_env,
+                                             mk_definition_inferring_trusted(m_env,
                                                            nested_pack_name,
                                                            to_list(m_outer.m_nested_decl.get_lp_names()),
                                                            nested_pack_type,
@@ -1077,7 +1119,7 @@ class add_nested_inductive_decl_fn {
                        tout() << nested_unpack_name << " : " << nested_unpack_type << "\n";);
 
             m_env = module::add(m_env, check(m_env,
-                                             mk_definition(m_env,
+                                             mk_definition_inferring_trusted(m_env,
                                                            nested_unpack_name,
                                                            to_list(m_outer.m_nested_decl.get_lp_names()),
                                                            nested_unpack_type,
@@ -1141,7 +1183,7 @@ class add_nested_inductive_decl_fn {
             lean_trace(name({"inductive_compiler", "nested", "pack", "pi"}),
                        tout() << pack_fn_name << " : " << pack_fn_type << "\n";);
 
-            m_env = module::add(m_env, check(m_env, mk_definition(m_env, pack_fn_name, to_list(m_outer.m_nested_decl.get_lp_names()), pack_fn_type, pack_fn_val)));
+            m_env = module::add(m_env, check(m_env, mk_definition_inferring_trusted(m_env, pack_fn_name, to_list(m_outer.m_nested_decl.get_lp_names()), pack_fn_type, pack_fn_val)));
 
             expr unpack_fn_val = Fun(m_outer.m_nested_decl.get_params(), m_outer.convert_locals_to_constants(Fun(m_previous_args, unpack_fn)));
             expr unpack_fn_type = m_tctx.infer(unpack_fn_val);
@@ -1153,7 +1195,7 @@ class add_nested_inductive_decl_fn {
             lean_trace(name({"inductive_compiler", "nested", "unpack", "pi"}),
                        tout() << unpack_fn_name << " : " << unpack_fn_type << "\n";);
 
-            m_env = module::add(m_env, check(m_env, mk_definition(m_env, unpack_fn_name, to_list(m_outer.m_nested_decl.get_lp_names()), unpack_fn_type, unpack_fn_val)));
+            m_env = module::add(m_env, check(m_env, mk_definition_inferring_trusted(m_env, unpack_fn_name, to_list(m_outer.m_nested_decl.get_lp_names()), unpack_fn_type, unpack_fn_val)));
             m_tctx.set_env(m_env);
 
             levels lvls = param_names_to_levels(to_list(m_outer.m_nested_decl.get_lp_names()));
@@ -1236,7 +1278,7 @@ class add_nested_inductive_decl_fn {
         new_ir_type = infer_implicit_params(new_ir_type, m_nested_decl.get_params().size(), k);
         lean_assert(!has_local(new_ir_type));
         lean_assert(!has_local(new_ir_val));
-        m_env = module::add(m_env, check(m_env, mk_definition(m_env, mlocal_name(ir), to_list(m_nested_decl.get_lp_names()), new_ir_type, new_ir_val)));
+        m_env = module::add(m_env, check(m_env, mk_definition_inferring_trusted(m_env, mlocal_name(ir), to_list(m_nested_decl.get_lp_names()), new_ir_type, new_ir_val)));
         m_tctx.set_env(m_env);
     }
 
@@ -1465,7 +1507,7 @@ class add_nested_inductive_decl_fn {
                        << "outer: " << outer_recursor_type << "\n"
                        << "val: " << outer_recursor_val << "\n";);
 
-            m_env = module::add(m_env, check(m_env, mk_definition(m_env, inductive::get_elim_name(mlocal_name(nested_ind)),
+            m_env = module::add(m_env, check(m_env, mk_definition_inferring_trusted(m_env, inductive::get_elim_name(mlocal_name(nested_ind)),
                                                                   lp_names, outer_recursor_type, outer_recursor_val)));
             m_tctx.set_env(m_env);
         }
@@ -1492,6 +1534,7 @@ public:
         compute_local_to_constant_map();
 
         define_nested_inds();
+        define_nested_sizeofs();
         define_nested_irs();
         compute_pack_info_for_nested_occ();
         define_nested_recursors();
@@ -1524,6 +1567,7 @@ void initialize_inductive_compiler_nested() {
     register_trace_class(name({"inductive_compiler", "nested", "pack", "pi"}));
     register_trace_class(name({"inductive_compiler", "nested", "unpack", "pi"}));
     register_trace_class(name({"inductive_compiler", "nested", "unpack_pack", "pi"}));
+    register_trace_class(name({"inductive_compiler", "nested", "has_sizeof"}));
     g_nested_prefix = new name(name::mk_internal_unique_name());
 }
 

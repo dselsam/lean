@@ -19,9 +19,11 @@ Author: Daniel Selsam
 #include "library/app_builder.h"
 #include "library/util.h"
 #include "library/class.h"
+#include "library/trace.h"
 #include "library/module.h"
 #include "library/constants.h"
 #include "library/tactic/simplifier/simp_lemmas.h"
+#include "library/constructions/has_sizeof.h"
 
 namespace lean {
 
@@ -35,8 +37,8 @@ static environment set_simp_sizeof(environment const & env, name const & n) {
     return get_simp_sizeof_attribute().set(env, get_dummy_ios(), n, LEAN_DEFAULT_PRIORITY, true);
 }
 
-static void throw_corrupted(name const & n) {
-    throw exception(sstream() << "error in 'has_sizeof' generation, '" << n << "' inductive datatype declaration is corrupted");
+name mk_has_sizeof_name(name const & n) {
+    return n + "has_sizeof";
 }
 
 // TODO(dhs): Put these in one place and stop copying them
@@ -107,9 +109,9 @@ class mk_has_sizeof_fn {
         buffer<inductive::intro_rule> intro_rules;
         to_buffer(inductive::inductive_decl_intros(decl), intro_rules);
 
-        levels lvls                = param_names_to_levels(lp_names);
+        levels lvls = param_names_to_levels(lp_names);
 
-        name has_sizeof_name = m_ind_name + "has_sizeof";
+        name has_sizeof_name = mk_has_sizeof_name(m_ind_name);
 
         buffer<expr> params;
         buffer<expr> param_insts;
@@ -218,7 +220,10 @@ class mk_has_sizeof_fn {
         has_sizeof_type = m_tctx.mk_pi(params, m_tctx.mk_pi(used_param_insts, has_sizeof_type));
         has_sizeof_val = m_tctx.mk_lambda(params, m_tctx.mk_lambda(used_param_insts, has_sizeof_val));
 
-        m_env = module::add(m_env, check(m_env, mk_definition(m_env, has_sizeof_name, lp_names, has_sizeof_type, has_sizeof_val)));
+        lean_trace(name({"constructions", "has_sizeof"}), tout()
+                   << has_sizeof_name << " : " << has_sizeof_type << "\n";);
+
+        m_env = module::add(m_env, check(m_env, mk_definition_inferring_trusted(m_env, has_sizeof_name, lp_names, has_sizeof_type, has_sizeof_val)));
         m_env = add_instance(m_env, has_sizeof_name, LEAN_DEFAULT_PRIORITY, true);
 
         // TODO(dhs): switch back to `set_env` once the bug is fixed
@@ -267,7 +272,7 @@ class mk_has_sizeof_fn {
             expr dsimp_rule_val = m_tctx.mk_lambda(params, m_tctx.mk_lambda(used_param_insts, Fun(locals, mk_eq_refl(m_tctx, lhs))));
             name dsimp_rule_name = inductive::intro_rule_name(ir) + "has_sizeof_spec";
 
-            m_env = module::add(m_env, check(m_env, mk_definition(m_env, dsimp_rule_name, lp_names, dsimp_rule_type, dsimp_rule_val)));
+            m_env = module::add(m_env, check(m_env, mk_definition_inferring_trusted(m_env, dsimp_rule_name, lp_names, dsimp_rule_type, dsimp_rule_val)));
             m_tctx.set_env(m_env);
         }
     }
@@ -300,6 +305,8 @@ simp_lemmas get_sizeof_simp_lemmas(type_context & tctx) {
 void initialize_has_sizeof() {
     g_simp_sizeof = new name{"_simp", "sizeof"};
     register_system_attribute(basic_attribute::with_check(*g_simp_sizeof, "simplification lemma", on_add_simp_lemma));
+
+    register_trace_class(name({"constructions", "has_sizeof"}));
 }
 
 void finalize_has_sizeof() {
