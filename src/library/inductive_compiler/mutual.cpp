@@ -287,32 +287,43 @@ class add_mutual_inductive_decl_fn {
     void define_sizeofs() {
         for (unsigned ind_idx = 0; ind_idx < m_mut_decl.get_inds().size(); ++ind_idx) {
             expr const & ind = m_mut_decl.get_inds()[ind_idx];
-            buffer<expr> locals;
-            expr ty = m_tctx.relaxed_whnf(mlocal_type(ind));
-            while (is_pi(ty)) {
-                expr l = mk_local_for(ty);
-                locals.push_back(l);
-                ty = m_tctx.relaxed_whnf(instantiate(binding_body(ty), l));
+            name basic_sizeof_name = mk_has_sizeof_name(mlocal_name(m_basic_decl.get_ind(0)));
+            declaration d = m_env.get(basic_sizeof_name);
+            expr ty = m_tctx.relaxed_whnf(d.get_type());
+
+            for (expr const & param : m_mut_decl.get_params()) {
+                ty = m_tctx.relaxed_whnf(instantiate(binding_body(ty), param));
             }
-//            expr c_ind = mk_app(mk_constant(mlocal_name(ind), m_mut_decl.get_levels()), m_mut_decl.get_params());
-            declaration d = m_env.get(mk_has_sizeof_name(mlocal_name(ind)));
-            expr ty = d.get_type();
 
+            buffer<expr> param_insts;
+            while (is_pi(ty) && binding_info(ty).is_inst_implicit()) {
+                expr param_inst = mk_local_for(ty);
+                param_insts.push_back(param_inst);
+                ty = m_tctx.relaxed_whnf(instantiate(binding_body(ty), param_inst));
+            }
 
-            // forall params locals, has_sizeof (mut_ind params locals)
-            expr has_sizeof_type = Pi(m_mut_decl.get_params(), Pi(locals, mk_app(m_tctx, get_has_sizeof_name(), mk_app(c_ind, locals))));
+            ty = convert_locals_to_constants(mlocal_type(ind));
+            buffer<expr> indices;
+            while (is_pi(ty)) {
+                expr index = mk_local_for(ty);
+                indices.push_back(index);
+                ty = m_tctx.relaxed_whnf(instantiate(binding_body(ty), index));
+            }
 
-            expr c_inner_ind = mk_app(mk_constant(mlocal_name(m_basic_decl.get_ind(0)), m_basic_decl.get_levels()), m_basic_decl.get_params());
-            expr x = mk_local_pp("x", mk_app(c_inner_ind, mk_app(m_putters[ind_idx], mk_app(m_makers[ind_idx], locals))));
+            expr c_ind = mk_app(mk_constant(mlocal_name(ind), m_mut_decl.get_levels()), m_mut_decl.get_params());
+
+            // forall (A : Type) [has_sizeof A] (i1 : I1) (i2 : I2), has_sizeof (c_ind i1 i2)
+            expr has_sizeof_type = Pi(m_mut_decl.get_params(),
+                                      Pi(param_insts,
+                                         Pi(indices,
+                                            mk_app(m_tctx, get_has_sizeof_name(), mk_app(c_ind, indices)))));
+
+            expr c_sizeof = mk_app(mk_app(mk_constant(basic_sizeof_name, m_mut_decl.get_levels()), m_mut_decl.get_params()), param_insts);
 
             expr has_sizeof_val = Fun(m_mut_decl.get_params(),
-                                  Fun(locals,
-                                      mk_app(m_tctx, get_has_sizeof_mk_name(),
-                                             Fun(x,
-                                                 mk_app(m_tctx, get_sizeof_name(), x)))));
-
-
-            name has_sizeof_name =
+                                      Fun(param_insts,
+                                          Fun(indices, mk_app(c_sizeof, mk_app(m_putters[ind_idx], mk_app(m_makers[ind_idx], indices))))));
+            name has_sizeof_name = mk_has_sizeof_name(mlocal_name(ind));
 
             lean_trace(name({"inductive_compiler", "mutual", "has_sizeof"}), tout()
                        << has_sizeof_name << " : " << has_sizeof_type << " :=\n  " << has_sizeof_val << "\n";);
