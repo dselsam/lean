@@ -2420,7 +2420,7 @@ struct instance_synthesizer {
             m_displayed_trace_header = true;
         }
         out << tclass("class_instances") << "(" << depth << ") ";
-        out << mvar << " : " << m_ctx.instantiate_mvars(mvar_type) << " := " << r << endl;
+        out << mvar << " : " << m_ctx.instantiate_mvars(mvar_type) << " := " << r << " : " << m_ctx.infer(r) << endl;
     }
 
     /* Try to synthesize e.m_mvar using instance inst : inst_type. */
