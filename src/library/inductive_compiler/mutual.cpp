@@ -288,7 +288,9 @@ class add_mutual_inductive_decl_fn {
         for (unsigned ind_idx = 0; ind_idx < m_mut_decl.get_inds().size(); ++ind_idx) {
             expr const & ind = m_mut_decl.get_inds()[ind_idx];
             name basic_sizeof_name = mk_has_sizeof_name(mlocal_name(m_basic_decl.get_ind(0)));
-            declaration d = m_env.get(basic_sizeof_name);
+            optional<declaration> opt_d = m_env.find(basic_sizeof_name);
+            if (!opt_d) return;
+            declaration const & d = *opt_d;
             expr ty = m_tctx.relaxed_whnf(d.get_type());
 
             for (expr const & param : m_mut_decl.get_params()) {
