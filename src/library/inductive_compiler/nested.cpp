@@ -970,8 +970,9 @@ class add_nested_inductive_decl_fn {
                                          m_outer.convert_locals_to_constants(
                                              Pi(m_previous_args,
                                                 Pi(m_pi_args,
-                                                   Pi(packed_arg,
-                                                      mk_eq(m_tctx, lhs, packed_arg))))));
+                                                   Pi(locals,
+                                                      Pi(packed_arg,
+                                                         mk_eq(m_tctx, lhs, packed_arg)))))));
             }
             name unpack_pack_name = append_with_nest_idx(append_with_ir_arg(mlocal_name(m_outer.m_nested_decl.get_ind(m_ind_idx)) + "unpack_pack"));
 
