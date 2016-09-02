@@ -798,7 +798,6 @@ class add_nested_inductive_decl_fn {
                 m_env = module::add(m_env, check(m_env, mk_axiom(primitive_sizeof_name, to_list(m_outer.m_nested_decl.get_lp_names()), primitive_sizeof_type)));
                 m_tctx.set_env(m_env);
                 m_lemmas = add_poly(m_tctx, m_lemmas, primitive_sizeof_name, LEAN_DEFAULT_PRIORITY);
-
             }
             return some_expr(c_primitive_pack);
         }
@@ -1008,6 +1007,14 @@ class add_nested_inductive_decl_fn {
                 }
             }
 
+            name nested_pack_name = append_with_nest_idx(append_with_ir_arg(mlocal_name(m_outer.m_nested_decl.get_ind(m_ind_idx)) + "pack_nested"));
+            name nested_unpack_name = append_with_nest_idx(append_with_ir_arg(mlocal_name(m_outer.m_nested_decl.get_ind(m_ind_idx)) + "unpack_nested"));
+
+            expr c_nested_pack = mk_app(mk_app(mk_app(mk_constant(nested_pack_name, m_outer.m_nested_decl.get_levels()),
+                                                      m_outer.m_nested_decl.get_params()), m_previous_args), m_pi_args);
+            expr c_nested_unpack = mk_app(mk_app(mk_app(mk_constant(nested_unpack_name, m_outer.m_nested_decl.get_levels()),
+                                                        m_outer.m_nested_decl.get_params()), m_previous_args), m_pi_args);
+
             buffer<expr> unpacked_params;
             buffer<expr> packed_params;
             for (unsigned i = 0; i < num_params; ++i) {
@@ -1140,7 +1147,6 @@ class add_nested_inductive_decl_fn {
 
             expr nested_pack_val = Fun(m_outer.m_nested_decl.get_params(), m_outer.convert_locals_to_constants(Fun(m_previous_args, Fun(m_pi_args, nested_pack))));
             expr nested_pack_type = m_tctx.infer(nested_pack_val);
-            name nested_pack_name = append_with_nest_idx(append_with_ir_arg(mlocal_name(m_outer.m_nested_decl.get_ind(m_ind_idx)) + "pack_nested"));
 
             lean_assert(!has_local(nested_pack_type));
             lean_assert(!has_local(nested_pack_val));
@@ -1155,9 +1161,57 @@ class add_nested_inductive_decl_fn {
                                                            nested_pack_type,
                                                            nested_pack_val)));
 
+            // Prove sizeof lemma
+            if (optional<declaration> opt_d_has_sizeof = m_env.find(mk_has_sizeof_name(const_name(fn)))) {
+                declaration const & d = *opt_d_has_sizeof;
+                expr ty = m_tctx.relaxed_whnf(d.get_type());
+
+                for (expr const & param : m_outer.m_nested_decl.get_params()) {
+                    ty = m_tctx.relaxed_whnf(instantiate(binding_body(ty), param));
+                }
+
+                buffer<expr> param_insts;
+                type_context::tmp_locals factory(m_tctx);
+                while (is_pi(ty) && binding_info(ty).is_inst_implicit()) {
+                    expr param_inst = factory.push_local_from_binding(ty);
+                    param_insts.push_back(param_inst);
+                    ty = m_tctx.relaxed_whnf(instantiate(binding_body(ty), param_inst));
+                }
+
+                // New type context that can synthesize instances
+                type_context tctx_synth(m_env, options(), m_tctx.lctx());
+
+                ty = m_tctx.relaxed_whnf(m_outer.convert_locals_to_constants(remaining_unpacked_type));
+                buffer<expr> locals;
+                while (is_pi(ty)) {
+                    expr l = mk_local_for(ty);
+                    locals.push_back(l);
+                    ty = m_tctx.relaxed_whnf(instantiate(binding_body(ty), l));
+                }
+                expr x = mk_local_pp("x", m_outer.convert_locals_to_constants(mk_app(mk_app(fn, unpacked_params), locals)));
+
+                // The problems with this local approach are piling up
+                // We need to convert X so that the app-builder can find the appropriate has-sizeof instance
+                expr lhs = mk_app(tctx_synth, get_sizeof_name(), mk_app(mk_app(c_nested_pack, locals), x));
+                expr rhs = mk_app(tctx_synth, get_sizeof_name(), x);
+                expr nested_sizeof_type = Pi(m_outer.m_nested_decl.get_params(),
+                                                m_tctx.mk_pi(param_insts,
+                                                             m_outer.convert_locals_to_constants(
+                                                                 Pi(m_previous_args,
+                                                                    Pi(m_pi_args,
+                                                                       Pi(locals,
+                                                                          Pi(x, mk_eq(m_tctx, lhs, rhs))))))));
+
+                lean_assert(!has_local(nested_sizeof_type));
+                name nested_sizeof_name = nested_pack_name + "_sizeof";
+                // TODO(dhs): prove
+                m_env = module::add(m_env, check(m_env, mk_axiom(nested_sizeof_name, to_list(m_outer.m_nested_decl.get_lp_names()), nested_sizeof_type)));
+                m_tctx.set_env(m_env);
+                m_lemmas = add_poly(m_tctx, m_lemmas, nested_sizeof_name, LEAN_DEFAULT_PRIORITY);
+            }
+
             expr nested_unpack_val = Fun(m_outer.m_nested_decl.get_params(), m_outer.convert_locals_to_constants(Fun(m_previous_args, Fun(m_pi_args, nested_unpack))));
             expr nested_unpack_type = m_tctx.infer(nested_unpack_val);
-            name nested_unpack_name = append_with_nest_idx(append_with_ir_arg(mlocal_name(m_outer.m_nested_decl.get_ind(m_ind_idx)) + "unpack_nested"));
 
             lean_assert(!has_local(nested_unpack_type));
             lean_assert(!has_local(nested_unpack_val));
