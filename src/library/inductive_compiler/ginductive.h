@@ -45,20 +45,28 @@ public:
     buffer<expr> & get_inds() { return m_inds; }
     buffer<buffer<expr> > & get_intro_rules() { return m_intro_rules; }
 
+    expr mk_const(name const & n) const {
+        return mk_constant(n, get_levels());
+    }
+
+    expr mk_const_params(name const & n) const {
+        return mk_app(mk_const(n), m_params);
+    }
+
     expr get_c_ind(unsigned ind_idx) const {
-        return mk_constant(mlocal_name(m_inds[ind_idx]), get_levels());
+        return mk_const(mlocal_name(m_inds[ind_idx]));
     }
 
     expr get_c_ind_params(unsigned ind_idx) const {
-        return mk_app(mk_constant(mlocal_name(m_inds[ind_idx]), get_levels()), m_params);
+        return mk_const_params(mlocal_name(m_inds[ind_idx]));
     }
 
     expr get_c_ir(unsigned ind_idx, unsigned ir_idx) const {
-        return mk_constant(mlocal_name(m_intro_rules[ind_idx][ir_idx]), get_levels());
+        return mk_const(mlocal_name(m_intro_rules[ind_idx][ir_idx]));
     }
 
     expr get_c_ir_params(unsigned ind_idx, unsigned ir_idx) const {
-        return mk_app(mk_constant(mlocal_name(m_intro_rules[ind_idx][ir_idx]), get_levels()), m_params);
+        return mk_const_params(mlocal_name(m_intro_rules[ind_idx][ir_idx]));
     }
 
     bool is_ind(expr const & e) const {
@@ -157,7 +165,7 @@ optional<name> is_ginductive_intro_rule(environment const & env, name const & ir
 unsigned get_ginductive_num_params(environment const & env, name const & ind_name);
 
 /* \brief Returns the names of all types that are mutually inductive with \e ind_name */
-list<name> get_mut_ind_names(environment const & env, name const & ind_name);
+list<name> get_ginductive_mut_ind_names(environment const & env, name const & ind_name);
 
 void initialize_inductive_compiler_ginductive();
 void finalize_inductive_compiler_ginductive();

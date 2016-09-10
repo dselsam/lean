@@ -165,7 +165,7 @@ unsigned get_ginductive_num_params(environment const & env, name const & ind_nam
     return get_extension(env).get_num_params(ind_name);
 }
 
-list<name> get_mut_ind_names(environment const & env, name const & ind_name) {
+list<name> get_ginductive_mut_ind_names(environment const & env, name const & ind_name) {
     return get_extension(env).get_mut_ind_names(ind_name);
 }
 

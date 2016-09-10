@@ -50,13 +50,12 @@ class add_nested_inductive_decl_fn {
 
     type_context                  m_tctx;
 
-    expr                          m_nested_occ; // (fn params) without the indices
+    expr                          m_nested_occ; // (fn1.{ind-ls} ind_params) without the indices
 
     level                         m_nested_occ_result_level;
     levels                        m_nested_occ_fn_levels;
 
-    expr                          m_replacement;
-//    buffer<expr>                  m_replacement_intro_rules;
+    expr                          m_replacement; // (fn2.{nested-ls} nested_params)
 
     buffer<expr> m_param_insts; // for sizeof
 
@@ -156,12 +155,10 @@ class add_nested_inductive_decl_fn {
             m_nested_occ_result_level = get_level(m_tctx, *outer_app);
             m_nested_occ_fn_levels = const_levels(outer_fn);
 
-            m_replacement = mk_local(mk_inner_name(const_name(fn)), m_tctx.infer(m_nested_occ));
+            m_replacement = m_nested_decl.mk_const_params(mk_inner_name(const_name(outer_fn)));
 
             lean_trace(name({"inductive_compiler", "nested", "found_occ"}),
                        tout() << m_nested_occ << "\n";);
-            lean_trace(name({"inductive_compiler", "nested", "replacement"}),
-                       tout() << mlocal_name(m_replacement) << " : " << mlocal_type(m_replacement) << "\n";);
             return true;
         }
 
@@ -221,9 +218,20 @@ class add_nested_inductive_decl_fn {
                 if (candidate == m_nested_occ) {
                     return copy_tag(e, mk_app(m_replacement, args.size() - num_params, args.data() + num_params));
                 } else {
-                    for (unsigned i = 0; i < num_params; ++i)
-                        args[i] = pack_nested_occs(args[i]);
-                    return copy_tag(e, mk_app(fn, args));
+                    // We track whether it was updated just so we don't whnf unnecessarily
+                    // May not be necessary (or may want to do the same for bindings)
+                    bool updated = false;
+                    for (unsigned i = 0; i < num_params; ++i) {
+                        expr new_arg = pack_nested_occs(args[i]);
+                        if (new_arg != args[i]) {
+                            args[i] = new_arg;
+                            updated = true;
+                        }
+                    }
+                    if (updated)
+                        return copy_tag(e, mk_app(fn, args));
+                    else
+                        return _e;
                 }
             }
             return _e;
@@ -236,21 +244,51 @@ class add_nested_inductive_decl_fn {
         lean_unreachable();
     }
 
-    expr pack_type(expr const & e) { return pack_nested_occs(pack_constants(e)); }
+    expr pack_type(expr const & e) { return pack_constants(pack_nested_occs(e)); }
 
     void construct_inner_decl() {
+        // Construct inner inds for each of the nested inds
+        for (unsigned ind_idx = 0; ind_idx < m_nested_decl.get_num_inds(); ++ind_idx) {
+            expr const & ind = m_nested_decl.get_ind(ind_idx);
+            expr inner_ind = mk_local(mk_inner_name(mlocal_name(ind)), mlocal_type(ind));
+            m_inner_decl.get_inds().push_back(inner_ind);
 
+            lean_trace(name({"inductive_compiler", "nested", "inner", "ind"}),
+                       tout() << mlocal_name(inner_ind) << " : " << mlocal_type(inner_ind) << "\n";);
 
+            m_inner_decl.get_intro_rules().emplace_back();
+            for (expr const & ir : m_nested_decl.get_intro_rules(ind_idx)) {
+                expr inner_ir = mk_local(mk_inner_name(mlocal_name(ir)), pack_type(mlocal_type(ir)));
+                m_inner_decl.get_intro_rules().back().push_back(inner_ir);
 
+            lean_trace(name({"inductive_compiler", "nested", "inner", "ir"}),
+                       tout() << mlocal_name(inner_ir) << " : " << mlocal_type(inner_ir) << "\n";);
+            }
+        }
 
+        // For each type mutually inductive to the nested occurrence, we mimic the type and its intro rules
+        buffer<expr> nested_occ_params;
+        expr nested_occ_fn = get_app_args(m_nested_occ, nested_occ_params);
+        list<name> nested_occ_mut_ind_names = get_ginductive_mut_ind_names(m_env, const_name(nested_occ_fn));
+        for (name const & mut_ind : nested_occ_mut_ind_names) {
+            expr c_mut_ind = mk_app(mk_constant(mut_ind, const_levels(nested_occ_fn)), nested_occ_params);
+            expr mimic_ind = mk_local(mk_inner_name(mut_ind), m_tctx.infer(c_mut_ind));
+            m_inner_decl.get_inds().push_back(mimic_ind);
 
+            lean_trace(name({"inductive_compiler", "nested", "mimic", "ind"}),
+                       tout() << mlocal_name(mimic_ind) << " : " << mlocal_type(mimic_ind) << "\n";);
 
+            m_inner_decl.get_intro_rules().emplace_back();
+            list<name> mut_intro_rule_names = *get_ginductive_intro_rules(m_env, mut_ind);
+            for (name const & mut_ir : mut_intro_rule_names) {
+                expr c_mut_ir = mk_app(mk_constant(mut_ir, const_levels(nested_occ_fn)), nested_occ_params);
+                expr mimic_ir = mk_local(mk_inner_name(mut_ir), pack_type(m_tctx.infer(c_mut_ir)));
+                m_inner_decl.get_intro_rules().back().push_back(mimic_ir);
 
-
-
-
-
-
+                lean_trace(name({"inductive_compiler", "nested", "mimic", "ir"}),
+                       tout() << mlocal_name(mimic_ir) << " : " << mlocal_type(mimic_ir) << "\n";);
+            }
+        }
     }
 
 public:
@@ -266,9 +304,10 @@ public:
             return optional<environment>();
 
         construct_inner_decl();
+        add_inner_decl();
 
 //        translate_nested_decl();
-//        add_inner_decl();
+
 
 
 //        define_nested_inds();
