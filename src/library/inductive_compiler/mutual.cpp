@@ -233,7 +233,7 @@ class add_mutual_inductive_decl_fn {
             ty = m_tctx.whnf(ty);
         }
         if (!m_mut_decl.is_ind_app(ty, ind_idx))
-            throw exception(sstream() << "Introduction rule '" << mlocal_name(ir) << "' must return element of type '" << mlocal_name(m_mut_decl.get_ind(ind_idx)) << "'");
+            throw exception(sstream() << "introduction rule '" << mlocal_name(ir) << "' must return element of type '" << mlocal_name(m_mut_decl.get_ind(ind_idx)) << "'");
         expr result_type = translate_all_ind_apps(ty);
         return mk_local(ir_name, Pi(locals, result_type));
     }

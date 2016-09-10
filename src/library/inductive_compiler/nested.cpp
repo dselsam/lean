@@ -151,7 +151,7 @@ class add_nested_inductive_decl_fn {
 
             // confirm that it contains no non-param locals
             if (contains_non_param_locals(m_nested_occ))
-                throw exception(sstream() << "Nested occurrence '" << m_nested_occ << "' contains variables that are not parameters");
+                throw exception(sstream() << "nested occurrence '" << m_nested_occ << "' contains variables that are not parameters");
 
             m_nested_occ_result_level = get_level(m_tctx, *outer_app);
             m_nested_occ_fn_levels = const_levels(outer_fn);
