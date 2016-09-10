@@ -322,6 +322,25 @@ class add_nested_inductive_decl_fn {
         }
     }
 
+    //////////////////////////////////////////////
+    ///// Stage 4: define nested has_sizeofs /////
+    /////////////////////////////////////////////
+
+
+    void define_nested_has_sizeofs() {
+        throw exception("NYI");
+    }
+
+    //////////////////////////////////////
+    ///// Stage 5: define nested irs /////
+    //////////////////////////////////////
+
+
+    void define_nested_irs() {
+        throw exception("NYI");
+    }
+
+
 public:
     add_nested_inductive_decl_fn(environment const & env, options const & opts,
                                  name_map<implicit_infer_kind> const & implicit_infer_map, ginductive_decl const & nested_decl):
@@ -338,8 +357,8 @@ public:
         add_inner_decl();
 
         define_nested_inds();
-//        define_nested_sizeofs();
-//        define_nested_irs();
+//        define_nested_has_sizeofs();
+        define_nested_irs();
 //        define_nested_recursors();
 
         return optional<environment>(m_env);
