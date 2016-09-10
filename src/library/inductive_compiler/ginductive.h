@@ -104,6 +104,23 @@ public:
         return true;
     }
 
+    bool is_ir(expr const & e, unsigned ind_idx) const {
+        return is_constant(e)
+            && std::any_of(m_intro_rules[ind_idx].begin(), m_intro_rules[ind_idx].end(), [&](expr const & ir) {
+                    return const_name(e) == mlocal_name(ir);
+                });
+    }
+
+    bool is_ir(expr const & e) const {
+        if (!is_constant(e))
+            return false;
+        for (unsigned ind_idx = 0; ind_idx < m_inds.size(); ++ind_idx) {
+            if (is_ir(e, ind_idx))
+                return true;
+        }
+        return false;
+    }
+
     void args_to_indices(buffer<expr> const & args, buffer<expr> & indices) const {
         for (unsigned i = get_num_params(); i < args.size(); ++i)
             indices.push_back(args[i]);
