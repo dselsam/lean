@@ -67,9 +67,20 @@ class add_nested_inductive_decl_fn {
         try {
             m_env = add_inner_inductive_declaration(m_env, m_opts, m_implicit_infer_map, m_inner_decl);
         } catch (exception & ex) {
-            throw nested_exception(sstream() << "nested inductive type compiled to invalid mutual inductive type", ex);
+            throw nested_exception(sstream() << "nested inductive type compiled to invalid inductive type", ex);
         }
         m_tctx.set_env(m_env);
+    }
+
+    void define(name const & n, expr const & ty, expr const & val) {
+        lean_assert(!has_local(ty));
+        lean_assert(!has_local(val));
+        declaration d = mk_definition_inferring_trusted(m_env, n, to_list(m_nested_decl.get_lp_names()), ty, val, true);
+        try {
+            m_env = module::add(m_env, check(m_env, d));
+        } catch (exception ex) {
+            throw nested_exception(sstream() << "error when adding '" << n << "' to the environment", ex);
+        }
     }
 
     bool contains_non_param_locals(expr const & e) {
@@ -291,6 +302,26 @@ class add_nested_inductive_decl_fn {
         }
     }
 
+    ///////////////////////////////////////
+    ///// Stage 3: define nested inds /////
+    ///////////////////////////////////////
+
+
+    void define_nested_inds() {
+        for (unsigned ind_idx = 0; ind_idx < m_nested_decl.get_num_inds(); ++ind_idx) {
+            expr const & ind = m_nested_decl.get_ind(ind_idx);
+            expr new_ind_type = Pi(m_nested_decl.get_params(), mlocal_type(ind));
+            expr new_ind_val = m_inner_decl.get_c_ind(ind_idx);
+
+            lean_trace(name({"inductive_compiler", "nested", "nested_ind"}),
+                       tout() << mlocal_name(ind) << " : " << new_ind_type << " :=\n  " << new_ind_val << "\n";);
+
+            define(mlocal_name(ind), new_ind_type, new_ind_val);
+            m_env = set_reducible(m_env, mlocal_name(ind), reducible_status::Irreducible, true);
+            m_tctx.set_env(m_env);
+        }
+    }
+
 public:
     add_nested_inductive_decl_fn(environment const & env, options const & opts,
                                  name_map<implicit_infer_kind> const & implicit_infer_map, ginductive_decl const & nested_decl):
@@ -306,11 +337,7 @@ public:
         construct_inner_decl();
         add_inner_decl();
 
-//        translate_nested_decl();
-
-
-
-//        define_nested_inds();
+        define_nested_inds();
 //        define_nested_sizeofs();
 //        define_nested_irs();
 //        define_nested_recursors();
