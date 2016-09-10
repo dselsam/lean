@@ -119,6 +119,11 @@ public:
         }
         return fn;
     }
+
+    bool is_param(expr const & e) const {
+        return is_local(e)
+            && std::any_of(m_params.begin(), m_params.end(), [&](expr const & param) { return e == param; });
+    }
 };
 
 environment register_ginductive_decl(environment const & env, ginductive_decl const & decl);
