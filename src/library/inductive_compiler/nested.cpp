@@ -62,7 +62,7 @@ class add_nested_inductive_decl_fn {
 
     // Helpers
     expr get_nested_fn() const { return get_app_fn(m_nested_occ) ;}
-    name mk_prefix() { return m_prefix; }
+    name mk_inner_name(name const & n) { return m_prefix + n; }
 
     void add_inner_decl() {
         try {
@@ -156,7 +156,7 @@ class add_nested_inductive_decl_fn {
             m_nested_occ_result_level = get_level(m_tctx, *outer_app);
             m_nested_occ_fn_levels = const_levels(outer_fn);
 
-            m_replacement = mk_local(mk_prefix() + const_name(fn), m_tctx.infer(m_nested_occ));
+            m_replacement = mk_local(mk_inner_name(const_name(fn)), m_tctx.infer(m_nested_occ));
 
             lean_trace(name({"inductive_compiler", "nested", "found_occ"}),
                        tout() << m_nested_occ << "\n";);
@@ -177,6 +177,82 @@ class add_nested_inductive_decl_fn {
         throw exception("inductive type being declared can only be nested inside the parameters of other inductive types");
     }
 
+    /////////////////////////////////////////
+    ///// Stage 2: construct inner decl /////
+    /////////////////////////////////////////
+
+    expr pack_constants(expr const & e) {
+        return replace(e, [&](expr const & e) {
+                if (m_nested_decl.is_ind(e) || m_nested_decl.is_ir(e)) {
+                    lean_assert(is_constant(e));
+                    return some_expr(mk_constant(mk_inner_name(const_name(e)), const_levels(e)));
+                } else {
+                    return none_expr();
+                }
+            });
+    }
+
+    expr pack_nested_occs(expr const & _e) {
+        // Note: cannot use replace because we need to whnf to expose the nested occurrences
+        // For the same reason, we must instantiate with locals
+        // Note: only looks in the places where it would be legal to find a nested occurrence
+        expr e = m_tctx.whnf(_e);
+        switch (e.kind()) {
+        case expr_kind::Sort:
+        case expr_kind::Local:
+        case expr_kind::Macro:
+            return _e;
+        case expr_kind::Lambda:
+        case expr_kind::Pi:
+        {
+            expr new_dom = pack_nested_occs(binding_domain(e));
+            expr l = mk_local_pp("x_new_dom", new_dom);
+            expr new_body = abstract_local(pack_nested_occs(instantiate(binding_body(e), l)), l);
+            return update_binding(e, new_dom, new_body);
+        }
+        case expr_kind::Constant:
+        case expr_kind::App:
+        {
+            buffer<expr> args;
+            expr fn = get_app_args(e, args);
+            if (is_constant(fn) && is_ginductive(m_env, const_name(fn))) {
+                unsigned num_params = get_ginductive_num_params(m_env, const_name(fn));
+                expr candidate = mk_app(fn, num_params, args.data());
+                if (candidate == m_nested_occ) {
+                    return copy_tag(e, mk_app(m_replacement, args.size() - num_params, args.data() + num_params));
+                } else {
+                    for (unsigned i = 0; i < num_params; ++i)
+                        args[i] = pack_nested_occs(args[i]);
+                    return copy_tag(e, mk_app(fn, args));
+                }
+            }
+            return _e;
+        }
+        case expr_kind::Var:
+        case expr_kind::Meta:
+        case expr_kind::Let:
+            lean_unreachable();
+        }
+        lean_unreachable();
+    }
+
+    expr pack_type(expr const & e) { return pack_nested_occs(pack_constants(e)); }
+
+    void construct_inner_decl() {
+
+
+
+
+
+
+
+
+
+
+
+
+    }
+
 public:
     add_nested_inductive_decl_fn(environment const & env, options const & opts,
                                  name_map<implicit_infer_kind> const & implicit_infer_map, ginductive_decl const & nested_decl):
@@ -188,6 +264,8 @@ public:
     optional<environment> operator()() {
         if (!find_nested_occ())
             return optional<environment>();
+
+        construct_inner_decl();
 
 //        translate_nested_decl();
 //        add_inner_decl();
