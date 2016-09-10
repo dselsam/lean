@@ -57,4 +57,14 @@ void assert_type_correct(environment const & env, expr const & e) {
         throw ex;
     }
 }
+
+expr get_app_params_indices(expr const & e, unsigned num_params, buffer<expr> & params, buffer<expr> & indices) {
+        expr fn = get_app_args(e, params);
+        lean_assert(params.size() >= num_params);
+        for (unsigned i = num_params; i < params.size(); ++i) {
+            indices.push_back(params[i]);
+        }
+        params.shrink(num_params);
+        return fn;
+}
 }

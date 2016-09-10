@@ -222,7 +222,7 @@ class add_mutual_inductive_decl_fn {
             return new_e;
     }
 
-    expr translate_ir(expr const & ir) {
+    expr translate_ir(unsigned ind_idx, expr const & ir) {
         name ir_name = mk_prefix() + mlocal_name(ir);
         buffer<expr> locals;
         expr ty = m_tctx.whnf(mlocal_type(ir));
@@ -232,6 +232,8 @@ class add_mutual_inductive_decl_fn {
             ty = instantiate(binding_body(ty), l);
             ty = m_tctx.whnf(ty);
         }
+        if (!m_mut_decl.is_ind_app(ty, ind_idx))
+            throw exception(sstream() << "Introduction rule '" << mlocal_name(ir) << "' must return element of type '" << mlocal_name(m_mut_decl.get_ind(ind_idx)) << "'");
         expr result_type = translate_all_ind_apps(ty);
         return mk_local(ir_name, Pi(locals, result_type));
     }
@@ -242,7 +244,7 @@ class add_mutual_inductive_decl_fn {
             buffer<expr> const & irs = m_mut_decl.get_intro_rules(ind_idx);
             for (unsigned ir_idx = 0; ir_idx < irs.size(); ++ir_idx) {
                 expr const & ir = irs[ir_idx];
-                expr new_ir = translate_ir(ir);
+                expr new_ir = translate_ir(ind_idx, ir);
                 m_basic_decl.get_intro_rules().back().push_back(new_ir);
                 lean_trace(name({"inductive_compiler", "mutual", "basic_irs"}), tout() << mlocal_name(new_ir) << " : " << mlocal_type(new_ir) << "\n";);
             }

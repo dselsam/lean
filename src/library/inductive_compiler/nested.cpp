@@ -33,15 +33,231 @@ Author: Daniel Selsam
 
 namespace lean {
 
+static unsigned g_next_nest_id = 0;
+static name * g_nested_prefix = nullptr;
+
+static expr mk_local_for(expr const & b) { return mk_local(mk_fresh_name(), binding_name(b), binding_domain(b), binding_info(b)); }
+static expr mk_local_for(expr const & b, name const & n) { return mk_local(mk_fresh_name(), n, binding_domain(b), binding_info(b)); }
+static expr mk_local_pp(name const & n, expr const & ty) { return mk_local(mk_fresh_name(), n, ty, binder_info()); }
+
+class add_nested_inductive_decl_fn {
+    environment                   m_env;
+    options                       m_opts;
+    name_map<implicit_infer_kind> m_implicit_infer_map;
+    ginductive_decl const &       m_nested_decl;
+    ginductive_decl               m_inner_decl;
+    name                          m_prefix;
+
+    type_context                  m_tctx;
+
+    expr                          m_nested_occ; // (fn params) without the indices
+
+    level                         m_nested_occ_result_level;
+    levels                        m_nested_occ_fn_levels;
+
+    expr                          m_replacement;
+//    buffer<expr>                  m_replacement_intro_rules;
+
+    buffer<expr> m_param_insts; // for sizeof
+
+    // Helpers
+    expr get_nested_fn() const { return get_app_fn(m_nested_occ) ;}
+    name mk_prefix() { return m_prefix; }
+
+    void add_inner_decl() {
+        try {
+            m_env = add_inner_inductive_declaration(m_env, m_opts, m_implicit_infer_map, m_inner_decl);
+        } catch (exception & ex) {
+            throw nested_exception(sstream() << "nested inductive type compiled to invalid mutual inductive type", ex);
+        }
+        m_tctx.set_env(m_env);
+    }
+
+    bool contains_non_param_locals(expr const & e) {
+        if (!has_local(e))
+            return false;
+
+        bool found_non_param_local = false;
+        for_each(e, [&](expr const & e, unsigned) {
+                if (found_non_param_local)
+                    return false;
+                if (!has_local(e))
+                    return false;
+                if (is_local(e) && !m_nested_decl.is_param(e)) {
+                    found_non_param_local = true;
+                    return false;
+                }
+                return true;
+            });
+        return found_non_param_local;
+    }
+
+    ///////////////////////////////////////////
+    ///// Stage 1: find nested occurrence /////
+    ///////////////////////////////////////////
+    bool find_nested_occ() {
+        for (buffer<expr> const & irs : m_nested_decl.get_intro_rules()) {
+            for (expr const & ir : irs) {
+                if (find_nested_occ_in_ir_type(mlocal_type(ir)))
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    bool find_nested_occ_in_ir_type(expr const & ir_type) {
+        if (!m_nested_decl.has_ind_occ(ir_type))
+            return false;
+        expr ty = m_tctx.whnf(ir_type);
+        while (is_pi(ty)) {
+            expr arg_type = binding_domain(ty);
+            if (find_nested_occ_in_ir_arg_type(arg_type))
+                return true;
+            expr l = mk_local_for(ty);
+            ty = m_tctx.whnf(instantiate(binding_body(ty), l));
+        }
+        return false;
+    }
+
+    bool find_nested_occ_in_ir_arg_type(expr const & arg_ty) {
+        if (!m_nested_decl.has_ind_occ(arg_ty))
+            return false;
+
+        expr ty = m_tctx.whnf(arg_ty);
+        while (is_pi(ty)) {
+            expr l = mk_local_for(ty);
+            ty = m_tctx.whnf(instantiate(binding_body(ty), l));
+        }
+
+        return find_nested_occ_in_ir_arg_type_core(ty, none_expr());
+    }
+
+    bool find_nested_occ_in_ir_arg_type_core(expr const & ty, optional<expr> outer_app, unsigned num_params = 0) {
+        if (!m_nested_decl.has_ind_occ(ty))
+            return false;
+
+        buffer<expr> args;
+        expr fn = get_app_args(ty, args);
+
+        if (!outer_app && m_nested_decl.is_ind(fn))
+            return false;
+
+        if (outer_app && m_nested_decl.is_ind(fn)) {
+            buffer<expr> outer_params, outer_indices;
+            expr outer_fn = get_app_params_indices(*outer_app, num_params, outer_params, outer_indices);
+
+            // we found a nested occurrence
+            m_nested_occ = mk_app(outer_fn, outer_params);
+
+            // confirm that it contains no non-param locals
+            if (contains_non_param_locals(m_nested_occ))
+                throw exception(sstream() << "Nested occurrence '" << m_nested_occ << "' contains variables that are not parameters");
+
+            m_nested_occ_result_level = get_level(m_tctx, *outer_app);
+            m_nested_occ_fn_levels = const_levels(outer_fn);
+
+            m_replacement = mk_local(mk_prefix() + const_name(fn), m_tctx.infer(m_nested_occ));
+
+            lean_trace(name({"inductive_compiler", "nested", "found_occ"}),
+                       tout() << m_nested_occ << "\n";);
+            lean_trace(name({"inductive_compiler", "nested", "replacement"}),
+                       tout() << mlocal_name(m_replacement) << " : " << mlocal_type(m_replacement) << "\n";);
+            return true;
+        }
+
+        if (is_constant(fn) && is_ginductive(m_env, const_name(fn))) {
+            unsigned num_params = get_ginductive_num_params(m_env, const_name(fn));
+            for (unsigned i = 0; i < num_params; ++i) {
+                if (find_nested_occ_in_ir_arg_type_core(m_tctx.whnf(args[i]), some_expr(ty), num_params))
+                    return true;
+            }
+            throw exception("inductive type being declared cannot occur as an index of another inductive type");
+        }
+
+        throw exception("inductive type being declared can only be nested inside the parameters of other inductive types");
+    }
+
+public:
+    add_nested_inductive_decl_fn(environment const & env, options const & opts,
+                                 name_map<implicit_infer_kind> const & implicit_infer_map, ginductive_decl const & nested_decl):
+        m_env(env), m_opts(opts), m_implicit_infer_map(implicit_infer_map),
+        m_nested_decl(nested_decl), m_inner_decl(m_nested_decl.get_lp_names(), m_nested_decl.get_params()),
+        m_prefix(*g_nested_prefix + std::to_string(g_next_nest_id++)),
+        m_tctx(env, opts) { }
+
+    optional<environment> operator()() {
+        if (!find_nested_occ())
+            return optional<environment>();
+
+//        translate_nested_decl();
+//        add_inner_decl();
+
+
+//        define_nested_inds();
+//        define_nested_sizeofs();
+//        define_nested_irs();
+//        define_nested_recursors();
+
+        return optional<environment>(m_env);
+    }
+
+};
+
 optional<environment> add_nested_inductive_decl(environment const & env, options const & opts,
                                                 name_map<implicit_infer_kind> const & implicit_infer_map, ginductive_decl const & decl) {
-    // TODO(dhs): re-implement
-    return optional<environment>();
+    return add_nested_inductive_decl_fn(env, opts, implicit_infer_map, decl)();
 }
 
 void initialize_inductive_compiler_nested() {
+    register_trace_class(name({"inductive_compiler", "nested"}));
+    register_trace_class(name({"inductive_compiler", "nested", "found_occ"}));
+
+    register_trace_class(name({"inductive_compiler", "nested", "mimic"}));
+    register_trace_class(name({"inductive_compiler", "nested", "mimic", "ind"}));
+    register_trace_class(name({"inductive_compiler", "nested", "mimic", "ir"}));
+
+    register_trace_class(name({"inductive_compiler", "nested", "inner"}));
+    register_trace_class(name({"inductive_compiler", "nested", "inner", "ind"}));
+    register_trace_class(name({"inductive_compiler", "nested", "inner", "ir"}));
+
+    register_trace_class(name({"inductive_compiler", "nested", "nested"}));
+    register_trace_class(name({"inductive_compiler", "nested", "nested", "ind"}));
+    register_trace_class(name({"inductive_compiler", "nested", "nested", "ir"}));
+
+    register_trace_class(name({"inductive_compiler", "nested", "rec"}));
+    register_trace_class(name({"inductive_compiler", "nested", "has_sizeof"}));
+
+    register_trace_class(name({"inductive_compiler", "nested", "pack"}));
+    register_trace_class(name({"inductive_compiler", "nested", "pack", "primitive"}));
+    register_trace_class(name({"inductive_compiler", "nested", "pack", "nested"}));
+    register_trace_class(name({"inductive_compiler", "nested", "pack", "pi"}));
+
+    register_trace_class(name({"inductive_compiler", "nested", "unpack"}));
+    register_trace_class(name({"inductive_compiler", "nested", "unpack", "primitive"}));
+    register_trace_class(name({"inductive_compiler", "nested", "unpack", "nested"}));
+    register_trace_class(name({"inductive_compiler", "nested", "unpack", "pi"}));
+
+    register_trace_class(name({"inductive_compiler", "nested", "unpack_pack"}));
+    register_trace_class(name({"inductive_compiler", "nested", "unpack_pack", "primitive"}));
+    register_trace_class(name({"inductive_compiler", "nested", "unpack_pack", "nested"}));
+    register_trace_class(name({"inductive_compiler", "nested", "unpack_pack", "pi"}));
+
+    register_trace_class(name({"inductive_compiler", "nested", "pack_unpack"}));
+    register_trace_class(name({"inductive_compiler", "nested", "pack_unpack", "primitive"}));
+    register_trace_class(name({"inductive_compiler", "nested", "pack_unpack", "nested"}));
+    register_trace_class(name({"inductive_compiler", "nested", "pack_unpack", "pi"}));
+
+    register_trace_class(name({"inductive_compiler", "nested", "pack_sizeof"}));
+    register_trace_class(name({"inductive_compiler", "nested", "pack_sizeof", "primitive"}));
+    register_trace_class(name({"inductive_compiler", "nested", "pack_sizeof", "nested"}));
+    register_trace_class(name({"inductive_compiler", "nested", "pack_sizeof", "pi"}));
+
+    register_trace_class(name({"inductive_compiler", "nested", "force_simplify"}));
+    register_trace_class(name({"inductive_compiler", "nested", "definition"}));
+    g_nested_prefix = new name("_nest");
 }
 
 void finalize_inductive_compiler_nested() {
+    delete g_nested_prefix;
 }
 }
