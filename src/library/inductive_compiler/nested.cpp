@@ -297,7 +297,7 @@ public:
         m_env(env), m_opts(opts), m_implicit_infer_map(implicit_infer_map),
         m_nested_decl(nested_decl), m_inner_decl(m_nested_decl.get_lp_names(), m_nested_decl.get_params()),
         m_prefix(*g_nested_prefix + std::to_string(g_next_nest_id++)),
-        m_tctx(env, opts) { }
+        m_tctx(env, opts, transparency_mode::Semireducible) { }
 
     optional<environment> operator()() {
         if (!find_nested_occ())
