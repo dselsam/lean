@@ -78,7 +78,7 @@ class add_nested_inductive_decl_fn {
         declaration d = mk_definition_inferring_trusted(m_env, n, to_list(m_nested_decl.get_lp_names()), ty, val, true);
         try {
             m_env = module::add(m_env, check(m_env, d));
-        } catch (exception ex) {
+        } catch (exception & ex) {
             throw nested_exception(sstream() << "error when adding '" << n << "' to the environment", ex);
         }
     }
@@ -337,9 +337,44 @@ class add_nested_inductive_decl_fn {
 
 
     void define_nested_irs() {
-        throw exception("NYI");
+        for (unsigned ind_idx = 0; ind_idx < m_nested_decl.get_num_inds(); ++ind_idx) {
+            for (unsigned ir_idx = 0; ir_idx < m_nested_decl.get_num_intro_rules(ind_idx); ++ir_idx)
+                define_nested_ir(ind_idx, ir_idx);
+        }
     }
 
+    void define_nested_ir(unsigned ind_idx, unsigned ir_idx) {
+        expr const & ir = m_nested_decl.get_intro_rule(ind_idx, ir_idx);
+
+        buffer<expr> locals;
+        buffer<expr> result_args;
+
+        expr ty = m_tctx.whnf(mlocal_type(ir));
+
+        while (is_pi(ty)) {
+            expr l = mk_local_for(ty);
+            if (auto packed_arg = pack_ir_arg(ind_idx, ir_idx, l)) {
+                result_args.push_back(*packed_arg);
+            } else {
+                result_args.push_back(l);
+            }
+            locals.push_back(l);
+            ty = m_tctx.whnf(instantiate(binding_body(ty), l));
+        }
+
+        expr new_ir_val  = Fun(m_nested_decl.get_params(), Fun(locals, mk_app(m_inner_decl.get_c_ir_params(ind_idx, ir_idx), result_args)));
+        expr new_ir_type = Pi(m_nested_decl.get_params(), mlocal_type(ir));
+        implicit_infer_kind k = get_implicit_infer_kind(m_implicit_infer_map, mlocal_name(ir));
+        new_ir_type = infer_implicit_params(new_ir_type, m_nested_decl.get_params().size(), k);
+
+        define(mlocal_name(ir), new_ir_type, new_ir_val);
+        m_env = set_reducible(m_env, mlocal_name(ir), reducible_status::Irreducible, true);
+        m_tctx.set_env(m_env);
+    }
+
+    optional<expr> pack_ir_arg(unsigned ind_idx, unsigned ir_idx, expr const & ir_arg) {
+        return none_expr();
+    }
 
 public:
     add_nested_inductive_decl_fn(environment const & env, options const & opts,
