@@ -357,25 +357,25 @@ class add_nested_inductive_decl_fn {
         // For each type mutually inductive to the nested occurrence, we mimic the type and its intro rules
         buffer<expr> nested_occ_params;
         expr nested_occ_fn = get_app_args(m_nested_occ, nested_occ_params);
-        list<name> nested_occ_mut_ind_names = get_ginductive_mut_ind_names(m_env, const_name(nested_occ_fn));
-        for (name const & mut_ind : nested_occ_mut_ind_names) {
-            expr c_mut_ind = mk_app(mk_constant(mut_ind, const_levels(nested_occ_fn)), nested_occ_params);
-            expr mimic_ind = mk_local(mk_inner_name(mut_ind), m_tctx.infer(c_mut_ind));
-            m_inner_decl.get_inds().push_back(mimic_ind);
+        name mimic_name = const_name(nested_occ_fn);
+        if (length(get_ginductive_mut_ind_names(m_env, mimic_name)) > 1)
+            throw exception(sstream() << "cannot nest occurrence inside mutually inductive type '" << mimic_name << "'");
 
-            lean_trace(name({"inductive_compiler", "nested", "mimic", "ind"}),
-                       tout() << mlocal_name(mimic_ind) << " : " << mlocal_type(mimic_ind) << "\n";);
+        expr c_mimic_ind = mk_app(mk_constant(mimic_name, const_levels(nested_occ_fn)), nested_occ_params);
+        expr mimic_ind = mk_local(mk_inner_name(mimic_name), m_tctx.infer(c_mimic_ind));
+        m_inner_decl.get_inds().push_back(mimic_ind);
 
-            m_inner_decl.get_intro_rules().emplace_back();
-            list<name> mut_intro_rule_names = *get_ginductive_intro_rules(m_env, mut_ind);
-            for (name const & mut_ir : mut_intro_rule_names) {
-                expr c_mut_ir = mk_app(mk_constant(mut_ir, const_levels(nested_occ_fn)), nested_occ_params);
-                expr mimic_ir = mk_local(mk_inner_name(mut_ir), pack_type(m_tctx.infer(c_mut_ir)));
-                m_inner_decl.get_intro_rules().back().push_back(mimic_ir);
+        lean_trace(name({"inductive_compiler", "nested", "mimic", "ind"}),
+                   tout() << mlocal_name(mimic_ind) << " : " << mlocal_type(mimic_ind) << "\n";);
 
-                lean_trace(name({"inductive_compiler", "nested", "mimic", "ir"}),
+        m_inner_decl.get_intro_rules().emplace_back();
+        list<name> mimic_intro_rule_names = *get_ginductive_intro_rules(m_env, const_name(mimic_ind));
+        for (name const & ir : mimic_intro_rule_names) {
+            expr c_mimic_ir = mk_app(mk_constant(ir, const_levels(nested_occ_fn)), nested_occ_params);
+            expr mimic_ir = mk_local(mk_inner_name(ir), pack_type(m_tctx.infer(c_mimic_ir)));
+            m_inner_decl.get_intro_rules().back().push_back(mimic_ir);
+            lean_trace(name({"inductive_compiler", "nested", "mimic", "ir"}),
                        tout() << mlocal_name(mimic_ir) << " : " << mlocal_type(mimic_ir) << "\n";);
-            }
         }
     }
 
