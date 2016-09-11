@@ -67,4 +67,12 @@ expr get_app_params_indices(expr const & e, unsigned num_params, buffer<expr> & 
         params.shrink(num_params);
         return fn;
 }
+
+void split_params_indices(buffer<expr> const & args, unsigned num_params, buffer<expr> & params, buffer<expr> & indices) {
+    for (unsigned i = 0; i < num_params; ++i)
+        params.push_back(args[i]);
+
+    for (unsigned i = num_params; i < args.size(); ++i)
+        indices.push_back(args[i]);
+}
 }
