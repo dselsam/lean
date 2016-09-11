@@ -112,14 +112,6 @@ class add_nested_inductive_decl_fn {
 
     // Helpers
 
-    bool has_dep_elim(expr const & gind) {
-        // Hack to avoid needing to store dep-elim with the ginductives
-        // We simply unfold all the way to the basic inductive type
-        expr kind = m_tctx.relaxed_whnf(gind);
-        lean_assert(is_constant(kind));
-        return inductive::has_dep_elim(m_env, const_name(kind));
-    }
-
     void add_inner_decl() {
         try {
             m_env = add_inner_inductive_declaration(m_env, m_opts, m_implicit_infer_map, m_inner_decl);
@@ -378,7 +370,7 @@ class add_nested_inductive_decl_fn {
                    tout() << mlocal_name(mimic_ind) << " : " << mlocal_type(mimic_ind) << "\n";);
 
         m_inner_decl.get_intro_rules().emplace_back();
-        list<name> mimic_intro_rule_names = *get_ginductive_intro_rules(m_env, const_name(mimic_ind));
+        list<name> mimic_intro_rule_names = *get_ginductive_intro_rules(m_env, mimic_name);
         for (name const & ir : mimic_intro_rule_names) {
             expr c_mimic_ir = mk_app(mk_constant(ir, const_levels(nested_occ_fn)), nested_occ_params);
             expr mimic_ir = mk_local(mk_inner_name(ir), pack_type(m_tctx.infer(c_mimic_ir)));
@@ -564,27 +556,28 @@ class add_nested_inductive_decl_fn {
         buffer<expr> nest_params;
         expr nest_fn = get_app_args(m_nested_occ, nest_params);
 
+        // TODO(dhs): move later
         expr c_primitive_pack = m_nested_decl.mk_const_params(mk_primitive_name(fn_type::PACK));
         expr c_primitive_unpack = m_nested_decl.mk_const_params(mk_primitive_name(fn_type::UNPACK));
 
         expr remaining_unpacked_type = m_tctx.whnf(m_tctx.infer(m_nested_occ));
         expr remaining_packed_type = m_tctx.whnf(m_tctx.infer(m_replacement));
 
-        bool dep_elim = has_dep_elim(nest_fn);
-        lean_assert(dep_elim == has_dep_elim(get_app_fn(m_replacement)));
+        // TODO(dhs): support dep elim for derived recursors
+        // Option 1: make ginductive_decl non-const and set the dep-elim flag
+        // Option 2: register dep-elim bit separately
+        bool dep_elim = inductive::has_dep_elim(m_env, const_name(nest_fn));
 
         // elim levels
-        list<level> pack_elim_levels = const_levels(nest_fn);
+        list<level> pack_elim_levels, unpack_elim_levels;
         {
+            pack_elim_levels = const_levels(nest_fn);
             declaration d_nest = m_env.get(inductive::get_elim_name(const_name(nest_fn)));
             if (length(pack_elim_levels) < d_nest.get_num_univ_params()) {
                 lean_assert(length(pack_elim_levels) + 1 == d_nest.get_num_univ_params());
                 pack_elim_levels = list<level>(sort_level(get_ind_result_type(m_tctx, m_replacement)), pack_elim_levels);
             }
-        }
-
-        list<level> unpack_elim_levels = m_inner_decl.get_levels();
-        {
+            unpack_elim_levels = m_inner_decl.get_levels();
             declaration d_inner = m_env.get(inductive::get_elim_name(get_replacement_name()));
             if (length(unpack_elim_levels) < d_inner.get_num_univ_params()) {
                 lean_assert(length(unpack_elim_levels) + 1 == d_inner.get_num_univ_params());
@@ -592,6 +585,30 @@ class add_nested_inductive_decl_fn {
             }
         }
 
+        // motives
+        auto construct_C = [&](expr const & start, expr const & remaining_type, expr const & end) {
+            expr C = end;
+            expr ty = remaining_type;
+
+            buffer<expr> locals;
+            while (is_pi(ty)) {
+                expr l = mk_local_for(ty);
+                locals.push_back(l);
+                C = mk_app(C, l);
+                ty = m_tctx.whnf(instantiate(binding_body(ty), l));
+            }
+            if (dep_elim) {
+                expr ignore = mk_local_pp("x_ignore", mk_app(start, locals));
+                locals.push_back(ignore);
+            }
+            return Fun(locals, C);
+        };
+
+        expr pack_C = construct_C(m_nested_occ, remaining_unpacked_type, m_replacement);
+        expr unpack_C = construct_C(m_replacement, remaining_packed_type, m_nested_occ);
+
+        lean_trace(name({"inductive_compiler", "nested", "pack", "primitive"}), tout() << " C := " << pack_C << "\n";);
+        lean_trace(name({"inductive_compiler", "nested", "unpack", "primitive"}), tout() << " C := " << unpack_C << "\n";);
 
 
         return none_expr();
