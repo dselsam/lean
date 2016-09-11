@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 
 Author: Daniel Selsam
 */
+#include <iostream>
 #include "kernel/inductive/inductive.h"
 #include "kernel/abstract.h"
 #include "kernel/instantiate.h"
@@ -32,6 +33,21 @@ expr get_ind_result_type(type_context & tctx, expr const & ind) {
     }
     lean_assert(is_sort(ind_type));
     return ind_type;
+}
+
+void assert_no_locals(name const & n, expr const & e) {
+    // TODO(dhs): don't use iostream
+    if (!has_local(e))
+        return;
+
+    std::cout << "\n\nerror: found locals in '" << n << "'" << std::endl;
+    std::cout << e << std::endl;
+    collected_locals ls;
+    collect_locals(e, ls);
+    for (expr const & l : ls.get_collected()) {
+        std::cout << mlocal_name(l) << "." << local_pp_name(l) << " : " << mlocal_type(l) << std::endl;
+    }
+    lean_assert(false);
 }
 
 void assert_def_eq(environment const & env, expr const & e1, expr const & e2) {

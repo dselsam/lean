@@ -122,8 +122,8 @@ class add_nested_inductive_decl_fn {
     }
 
     void define_theorem(name const & n, expr const & ty, expr const & val) {
-        lean_assert(!has_local(ty));
-        lean_assert(!has_local(val));
+        assert_no_locals(n, ty);
+        assert_no_locals(n, val);
         declaration d = mk_definition_inferring_trusted(m_env, n, to_list(m_nested_decl.get_lp_names()), ty, val, true);
         try {
             m_env = module::add(m_env, check(m_env, d));
@@ -140,12 +140,14 @@ class add_nested_inductive_decl_fn {
     }
 
     void define(name const & n, expr const & ty, expr const & val) {
-        lean_assert(!has_local(ty));
-        lean_assert(!has_local(val));
+        assert_no_locals(n, ty);
+        assert_no_locals(n, val);
         declaration d = mk_definition_inferring_trusted(m_env, n, to_list(m_nested_decl.get_lp_names()), ty, val, true);
         try {
             m_env = module::add(m_env, check(m_env, d));
+            lean_trace(name({"inductive_compiler", "nested", "define", "success"}), tout() << n << " : " << ty << " :=\n  " << val << "\n";);
         } catch (exception & ex) {
+            lean_trace(name({"inductive_compiler", "nested", "define", "failure"}), tout() << n << " : " << ty << " :=\n  " << val << "\n";);
             throw nested_exception(sstream() << "error when adding '" << n << "' to the environment", ex);
         }
         m_tctx.set_env(m_env);
@@ -175,6 +177,17 @@ class add_nested_inductive_decl_fn {
         for_each(e, [&](expr const & e, unsigned) {
                 if (!has_local(e)) return false;
                 if (is_local(e) && !m_nested_decl.is_param(e)) ls.insert(e);
+                return true;
+            });
+    }
+
+    void collect_non_param_locals(expr const & e, collected_locals & ls, buffer<expr> const & skip) {
+       if (!has_local(e)) return;
+        for_each(e, [&](expr const & e, unsigned) {
+                if (!has_local(e))
+                    return false;
+                if (is_local(e) && !m_nested_decl.is_param(e) && !std::find(skip.begin(), skip.end(), e))
+                    ls.insert(e);
                 return true;
             });
     }
@@ -470,7 +483,6 @@ class add_nested_inductive_decl_fn {
         expr x_to_unpack = mk_local_pp("x_to_unpack", pack_type(ty));
 
         buffer<expr> pi_args;
-
         while (is_pi(ty)) {
             expr l = mk_local_for(ty);
             pi_args.push_back(l);
@@ -489,16 +501,23 @@ class add_nested_inductive_decl_fn {
         expr const & nested_pack_fn = nested_pack_unpack->first;
         expr const & nested_unpack_fn = nested_pack_unpack->second;
 
+        expr pre_pi_pack = Fun(x_to_pack, Fun(pi_args, mk_app(nested_pack_fn, body_to_pack)));
+        expr pre_pi_unpack = Fun(x_to_unpack, Fun(pi_args, mk_app(nested_unpack_fn, body_to_unpack)));
+
         collected_locals ls;
-        collect_non_param_locals(ty, ls);
+        collect_non_param_locals(pre_pi_pack, ls);
         buffer<expr> const & ldeps = ls.get_collected();
 
-        define(mk_pi_name(fn_type::PACK), Fun(m_nested_decl.get_params(), Fun(ldeps, Fun(x_to_pack, Fun(pi_args, mk_app(nested_pack_fn, body_to_pack))))));
-        define(mk_pi_name(fn_type::UNPACK), Fun(m_nested_decl.get_params(), Fun(ldeps, Fun(x_to_unpack, Fun(pi_args, mk_app(nested_unpack_fn, body_to_unpack))))));
-        prove_pi_pack_unpack(ldeps, arg_ty);
-        prove_pi_unpack_pack(ldeps, arg_ty);
+        define(mk_pi_name(fn_type::PACK), Fun(m_nested_decl.get_params(), Fun(ldeps, pre_pi_pack)));
+        define(mk_pi_name(fn_type::UNPACK), Fun(m_nested_decl.get_params(), Fun(ldeps, pre_pi_unpack)));
 
-        return some_expr(mk_app(m_nested_decl.mk_const_params(mk_pi_name(fn_type::PACK)), ldeps));
+        expr pi_pack = mk_app(m_nested_decl.mk_const_params(mk_pi_name(fn_type::PACK)), ldeps);
+        expr pi_unpack = mk_app(m_nested_decl.mk_const_params(mk_pi_name(fn_type::UNPACK)), ldeps);
+
+        prove_pi_pack_unpack(pi_pack, pi_unpack, ldeps, arg_ty);
+        prove_pi_unpack_pack(pi_pack, pi_unpack, ldeps, arg_ty);
+
+        return some_expr(pi_pack);
     }
 
     optional<expr_pair> build_nested_pack_unpack(expr const & ty) {
@@ -532,11 +551,11 @@ class add_nested_inductive_decl_fn {
         if (mk_app(fn, params) != m_nested_occ)
             return optional<expr_pair>();
 
-        optional<expr> primitive_pack = build_primitive_pack();
-        optional<expr> primitive_unpack = build_primitive_unpack();
+        optional<expr_pair> primitive_pack_unpack = build_primitive_pack_unpack_core();
+        lean_assert(primitive_pack_unpack);
 
-        lean_assert(primitive_pack);
-        lean_assert(primitive_unpack);
+        expr const & primitive_pack = primitive_pack_unpack->first;
+        expr const & primitive_unpack = primitive_pack_unpack->second;
 
         expr ty = m_tctx.whnf(m_tctx.infer(mk_app(fn, params)));
         buffer<expr> index_locals;
@@ -546,19 +565,15 @@ class add_nested_inductive_decl_fn {
             ty = m_tctx.whnf(instantiate(binding_body(ty), l));
         }
 
-        prove_primitive_pack_unpack(*primitive_pack, *primitive_unpack, index_locals);
-        prove_primitive_unpack_pack(*primitive_pack, *primitive_unpack, index_locals);
+        prove_primitive_pack_unpack(primitive_pack, primitive_unpack, index_locals);
+        prove_primitive_unpack_pack(primitive_pack, primitive_unpack, index_locals);
 
-        return optional<expr_pair>(*primitive_pack, *primitive_unpack);
+        return optional<expr_pair>(primitive_pack, primitive_unpack);
     }
 
-    optional<expr> build_primitive_pack() {
+    optional<expr_pair> build_primitive_pack_unpack_core() {
         buffer<expr> nest_params;
         expr nest_fn = get_app_args(m_nested_occ, nest_params);
-
-        // TODO(dhs): move later
-        expr c_primitive_pack = m_nested_decl.mk_const_params(mk_primitive_name(fn_type::PACK));
-        expr c_primitive_unpack = m_nested_decl.mk_const_params(mk_primitive_name(fn_type::UNPACK));
 
         expr remaining_unpacked_type = m_tctx.whnf(m_tctx.infer(m_nested_occ));
         expr remaining_packed_type = m_tctx.whnf(m_tctx.infer(m_replacement));
@@ -568,7 +583,7 @@ class add_nested_inductive_decl_fn {
         // Option 2: register dep-elim bit separately
         bool dep_elim = inductive::has_dep_elim(m_env, const_name(nest_fn));
 
-        // elim levels
+        // 1. elim levels
         list<level> pack_elim_levels, unpack_elim_levels;
         {
             pack_elim_levels = const_levels(nest_fn);
@@ -585,7 +600,7 @@ class add_nested_inductive_decl_fn {
             }
         }
 
-        // motives
+        // 2. motives
         auto construct_C = [&](expr const & start, expr const & remaining_type, expr const & end) {
             expr C = end;
             expr ty = remaining_type;
@@ -610,12 +625,84 @@ class add_nested_inductive_decl_fn {
         lean_trace(name({"inductive_compiler", "nested", "pack", "primitive"}), tout() << " C := " << pack_C << "\n";);
         lean_trace(name({"inductive_compiler", "nested", "unpack", "primitive"}), tout() << " C := " << unpack_C << "\n";);
 
+        // 3. minor premises
+        list<name> intro_rules = *get_ginductive_intro_rules(m_env, const_name(nest_fn));
+        buffer<expr> pack_minor_premises, unpack_minor_premises;
+        for (name const & intro_rule : intro_rules) {
+            expr unpacked_ir = mk_app(mk_constant(intro_rule, const_levels(nest_fn)), nest_params);
+            expr packed_ir = m_inner_decl.mk_const_params(mk_inner_name(intro_rule));
 
-        return none_expr();
-    }
+            expr unpacked_ir_type = m_tctx.whnf(m_tctx.infer(unpacked_ir));
+            expr packed_ir_type = m_tctx.whnf(m_tctx.infer(packed_ir));
 
-    optional<expr> build_primitive_unpack() {
-        return none_expr();
+            buffer<expr> unpacked_rec_args;
+            buffer<expr> unpacked_locals;
+            buffer<expr> unpacked_return_args;
+
+            buffer<expr> packed_locals;
+            buffer<expr> packed_rec_args;
+            buffer<expr> packed_return_args;
+
+            while (is_pi(unpacked_ir_type) && is_pi(packed_ir_type)) {
+                buffer<expr> unpacked_arg_args;
+                expr unpacked_arg_fn = get_app_args(binding_domain(unpacked_ir_type), unpacked_arg_args);
+
+                buffer<expr> packed_arg_args;
+                expr packed_arg_fn = get_app_args(binding_domain(packed_ir_type), packed_arg_args);
+
+                expr unpacked_l = mk_local_for(unpacked_ir_type);
+                unpacked_locals.push_back(unpacked_l);
+
+                expr packed_l = mk_local_for(packed_ir_type);
+                packed_locals.push_back(packed_l);
+
+                if (unpacked_arg_fn == nest_fn) {
+                    // it is a recursive argument
+                    expr unpacked_rec_arg_type = mk_app(m_replacement, unpacked_arg_args.size() - nest_params.size(), unpacked_arg_args.data() + nest_params.size());
+                    expr unpacked_l_rec = mk_local_pp("x_unpacked", unpacked_rec_arg_type);
+                    unpacked_rec_args.push_back(unpacked_l_rec);
+                    unpacked_return_args.push_back(unpacked_l_rec);
+
+                    expr packed_rec_arg_type = mk_app(m_nested_occ, packed_arg_args.size() - m_nested_decl.get_num_params(), packed_arg_args.data() + m_nested_decl.get_num_params());
+                    expr packed_l_rec = mk_local_pp("x_packed", packed_rec_arg_type);
+                    packed_rec_args.push_back(packed_l_rec);
+                    packed_return_args.push_back(packed_l_rec);
+                } else {
+                    assert_def_eq(m_env, mlocal_type(unpacked_l), mlocal_type(packed_l));
+                    unpacked_return_args.push_back(unpacked_l);
+                    packed_return_args.push_back(packed_l);
+                }
+                unpacked_ir_type = m_tctx.whnf(instantiate(binding_body(unpacked_ir_type), unpacked_l));
+                packed_ir_type = m_tctx.whnf(instantiate(binding_body(packed_ir_type), packed_l));
+            }
+
+            unpacked_locals.append(unpacked_rec_args);
+            packed_locals.append(packed_rec_args);
+
+            expr unpacked_minor_premise = Fun(unpacked_locals, mk_app(packed_ir, unpacked_return_args));
+            expr packed_minor_premise = Fun(packed_locals, mk_app(unpacked_ir, packed_return_args));
+            pack_minor_premises.push_back(unpacked_minor_premise);
+            unpack_minor_premises.push_back(packed_minor_premise);
+
+            lean_trace(name({"inductive_compiler", "nested", "pack", "primitive"}), tout() << " mp := " << unpacked_minor_premise << "\n";);
+            lean_trace(name({"inductive_compiler", "nested", "unpack", "primitive"}), tout() << " mp := " << packed_minor_premise << "\n";);
+        }
+
+        expr primitive_pack = Fun(m_nested_decl.get_params(),
+                                  mk_app(mk_app(mk_app(mk_constant(inductive::get_elim_name(const_name(nest_fn)), pack_elim_levels),
+                                                       nest_params), pack_C), pack_minor_premises));
+
+        expr primitive_unpack = Fun(m_nested_decl.get_params(),
+                                    mk_app(mk_app(mk_app(mk_constant(inductive::get_elim_name(get_replacement_name()), unpack_elim_levels),
+                                                         m_nested_decl.get_params()), unpack_C), unpack_minor_premises));
+
+        define(mk_primitive_name(fn_type::PACK), primitive_pack);
+        define(mk_primitive_name(fn_type::UNPACK), primitive_unpack);
+
+        expr c_primitive_pack = m_nested_decl.mk_const_params(mk_primitive_name(fn_type::PACK));
+        expr c_primitive_unpack = m_nested_decl.mk_const_params(mk_primitive_name(fn_type::UNPACK));
+
+        return optional<expr_pair>(c_primitive_pack, c_primitive_unpack);
     }
 
     /////////////////////////////
@@ -626,7 +713,7 @@ class add_nested_inductive_decl_fn {
         expr x_packed = mk_local_pp("x_packed", mk_app(m_replacement, index_locals));
         expr lhs = mk_app(mk_app(primitive_pack, index_locals), mk_app(mk_app(primitive_unpack, index_locals), x_packed));
         expr goal = mk_eq(m_tctx, lhs, x_packed);
-        expr primitive_pack_unpack_type = Pi(m_nested_decl.get_params(), Pi(index_locals, goal));
+        expr primitive_pack_unpack_type = Pi(m_nested_decl.get_params(), Pi(index_locals, Pi(x_packed, goal)));
         expr primitive_pack_unpack_val = mk_constant("TODO");
         define_theorem(mk_primitive_name(fn_type::PACK_UNPACK), primitive_pack_unpack_type, primitive_pack_unpack_val);
     }
@@ -635,29 +722,25 @@ class add_nested_inductive_decl_fn {
         expr x_unpacked = mk_local_pp("x_unpacked", mk_app(m_nested_occ, index_locals));
         expr lhs = mk_app(mk_app(primitive_unpack, index_locals), mk_app(mk_app(primitive_pack, index_locals), x_unpacked));
         expr goal = mk_eq(m_tctx, lhs, x_unpacked);
-        expr primitive_unpack_pack_type = Pi(m_nested_decl.get_params(), Pi(index_locals, goal));
+        expr primitive_unpack_pack_type = Pi(m_nested_decl.get_params(), Pi(index_locals, Pi(x_unpacked, goal)));
         expr primitive_unpack_pack_val = mk_constant("TODO");
         define_theorem(mk_primitive_name(fn_type::UNPACK_PACK), primitive_unpack_pack_type, primitive_unpack_pack_val);
     }
 
-    void prove_pi_pack_unpack(buffer<expr> const & ldeps, expr const & arg_ty) {
-        expr pack_fn_const = m_nested_decl.mk_const_params(mk_pi_name(fn_type::PACK));
-        expr unpack_fn_const = m_nested_decl.mk_const_params(mk_pi_name(fn_type::UNPACK));
-        expr packed_arg = mk_local_pp("x_packed", arg_ty);
-        expr lhs = mk_app(mk_app(pack_fn_const, ldeps), mk_app(mk_app(unpack_fn_const, ldeps), packed_arg));
-        expr goal = mk_eq(m_tctx, lhs, packed_arg);
-        expr pi_pack_unpack_type = Pi(m_nested_decl.get_params(), Pi(ldeps, goal));
+    void prove_pi_pack_unpack(expr const & pi_pack, expr const & pi_unpack, buffer<expr> const & ldeps, expr const & arg_ty) {
+        expr x_packed = mk_local_pp("x_packed", pack_type(arg_ty));
+        expr lhs = mk_app(pi_pack, mk_app(pi_unpack, x_packed));
+        expr goal = mk_eq(m_tctx, lhs, x_packed);
+        expr pi_pack_unpack_type = Pi(m_nested_decl.get_params(), Pi(ldeps, Pi(x_packed, goal)));
         expr pi_pack_unpack_val = mk_constant("TODO");
         define_theorem(mk_pi_name(fn_type::PACK_UNPACK), pi_pack_unpack_type, pi_pack_unpack_val);
     }
 
-    void prove_pi_unpack_pack(buffer<expr> const & ldeps, expr const & arg_ty) {
-        expr pack_fn_const = m_nested_decl.mk_const_params(mk_pi_name(fn_type::PACK));
-        expr unpack_fn_const = m_nested_decl.mk_const_params(mk_pi_name(fn_type::UNPACK));
-        expr unpacked_arg = mk_local_pp("x_unpacked", arg_ty);
-        expr lhs = mk_app(mk_app(unpack_fn_const, ldeps), mk_app(mk_app(pack_fn_const, ldeps), unpacked_arg));
-        expr goal = mk_eq(m_tctx, lhs, unpacked_arg);
-        expr pi_unpack_pack_type = Pi(m_nested_decl.get_params(), Pi(ldeps, goal));
+    void prove_pi_unpack_pack(expr const & pi_pack, expr const & pi_unpack, buffer<expr> const & ldeps, expr const & arg_ty) {
+        expr x_unpacked = mk_local_pp("x_unpacked", arg_ty);
+        expr lhs = mk_app(pi_unpack, mk_app(pi_pack, x_unpacked));
+        expr goal = mk_eq(m_tctx, lhs, x_unpacked);
+        expr pi_unpack_pack_type = Pi(m_nested_decl.get_params(), Pi(ldeps, Pi(x_unpacked, goal)));
         expr pi_unpack_pack_val = mk_constant("TODO");
         define_theorem(mk_pi_name(fn_type::UNPACK_PACK), pi_unpack_pack_type, pi_unpack_pack_val);
     }
