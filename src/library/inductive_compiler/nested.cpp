@@ -57,6 +57,7 @@ class add_nested_inductive_decl_fn {
     levels                        m_nested_occ_fn_levels;
 
     expr                          m_replacement; // (fn2.{nested-ls} nested_params)
+    name get_replacement_name() { return const_name(get_app_fn(m_replacement)); }
 
     buffer<expr> m_param_insts; // for sizeof
     buffer<buffer<buffer<bool> > > m_needs_pack; // [ind_idx][ir_idx][ir_arg_idx]
@@ -110,6 +111,14 @@ class add_nested_inductive_decl_fn {
     name mk_inner_name(name const & n) { return m_prefix + n; }
 
     // Helpers
+
+    bool has_dep_elim(expr const & gind) {
+        // Hack to avoid needing to store dep-elim with the ginductives
+        // We simply unfold all the way to the basic inductive type
+        expr kind = m_tctx.relaxed_whnf(gind);
+        lean_assert(is_constant(kind));
+        return inductive::has_dep_elim(m_env, const_name(kind));
+    }
 
     void add_inner_decl() {
         try {
@@ -552,6 +561,39 @@ class add_nested_inductive_decl_fn {
     }
 
     optional<expr> build_primitive_pack() {
+        buffer<expr> nest_params;
+        expr nest_fn = get_app_args(m_nested_occ, nest_params);
+
+        expr c_primitive_pack = m_nested_decl.mk_const_params(mk_primitive_name(fn_type::PACK));
+        expr c_primitive_unpack = m_nested_decl.mk_const_params(mk_primitive_name(fn_type::UNPACK));
+
+        expr remaining_unpacked_type = m_tctx.whnf(m_tctx.infer(m_nested_occ));
+        expr remaining_packed_type = m_tctx.whnf(m_tctx.infer(m_replacement));
+
+        bool dep_elim = has_dep_elim(nest_fn);
+        lean_assert(dep_elim == has_dep_elim(get_app_fn(m_replacement)));
+
+        // elim levels
+        list<level> pack_elim_levels = const_levels(nest_fn);
+        {
+            declaration d_nest = m_env.get(inductive::get_elim_name(const_name(nest_fn)));
+            if (length(pack_elim_levels) < d_nest.get_num_univ_params()) {
+                lean_assert(length(pack_elim_levels) + 1 == d_nest.get_num_univ_params());
+                pack_elim_levels = list<level>(sort_level(get_ind_result_type(m_tctx, m_replacement)), pack_elim_levels);
+            }
+        }
+
+        list<level> unpack_elim_levels = m_inner_decl.get_levels();
+        {
+            declaration d_inner = m_env.get(inductive::get_elim_name(get_replacement_name()));
+            if (length(unpack_elim_levels) < d_inner.get_num_univ_params()) {
+                lean_assert(length(unpack_elim_levels) + 1 == d_inner.get_num_univ_params());
+                unpack_elim_levels = list<level>(m_nested_occ_result_level, unpack_elim_levels);
+            }
+        }
+
+
+
         return none_expr();
     }
 
