@@ -59,7 +59,7 @@ class add_nested_inductive_decl_fn {
     expr                          m_replacement; // (fn2.{nested-ls} nested_params)
 
     buffer<expr> m_param_insts; // for sizeof
-    buffer<buffer<buffer<optional<simp_lemmas> > > > m_needs_pack; // [ind_idx][ir_idx][ir_arg_idx]
+    buffer<buffer<buffer<bool> > > m_needs_pack; // [ind_idx][ir_idx][ir_arg_idx]
 
     // For the pack_ir_arg recursion
     bool                          m_in_define_nested_irs{false};
@@ -429,10 +429,10 @@ class add_nested_inductive_decl_fn {
                 while (is_pi(ty)) {
                     expr l = mk_local_for(ty);
                     if (auto packed_arg = pack_ir_arg(l)) {
-                        m_needs_pack[ind_idx][ir_idx].push_back(optional<simp_lemmas>(m_curr_lemmas));
+                        m_needs_pack[ind_idx][ir_idx].push_back(true);
                         result_args.push_back(*packed_arg);
                     } else {
-                        m_needs_pack[ind_idx][ir_idx].push_back(optional<simp_lemmas>());
+                        m_needs_pack[ind_idx][ir_idx].push_back(false);
                         result_args.push_back(l);
                     }
                     locals.push_back(l);
