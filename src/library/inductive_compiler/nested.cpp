@@ -772,11 +772,10 @@ class add_nested_inductive_decl_fn {
         return mk_eq_refl(m_tctx, lhs);
     }
 
-    expr prove_by_simp(type_context & tctx, expr const & m, list<expr> const & Hs) {
+    expr prove_by_simp(local_context const & lctx, expr const & thm, list<expr> const & Hs) {
         simp_lemmas lemmas = m_curr_lemmas;
+        type_context tctx(m_env, options(), lctx);
         for (expr const & H : Hs) {
-            optional<local_decl> H_decl = tctx.mctxget_local_decl(expr const & mvar, name const & n) const;
-
             expr H_type = tctx.infer(H);
             lemmas = add(tctx, lemmas, mlocal_name(H), H_type, H, LEAN_DEFAULT_PRIORITY);
         }
@@ -787,7 +786,10 @@ class add_nested_inductive_decl_fn {
 
     expr prove_by_induction_simp(expr const & thm) {
         expr ty = thm;
-        type_context tctx(m_env, m_tctx.get_options());
+        metavar_context mctx;
+
+        // Note: type_context only used to manage locals and abstract at the end
+        type_context tctx(m_env);
         type_context::tmp_locals locals(tctx);
 
         while (is_pi(ty)) {
@@ -796,21 +798,20 @@ class add_nested_inductive_decl_fn {
         }
         expr H = locals.as_buffer().back();
         name rec_name = inductive::get_elim_name(const_name(get_app_fn(tctx.infer(H))));
-        expr goal = tctx.mk_metavar_decl(tctx.lctx(), ty);
+        expr goal = mctx.mk_metavar_decl(tctx.lctx(), ty);
         list<list<expr> > subgoal_hypotheses;
         hsubstitution_list subgoal_substitutions;
-        metavar_context mctx = tctx.mctx();
         list<name> ns;
         list<expr> subgoals = induction(tctx.env(), tctx.get_options(), transparency_mode::Reducible, mctx,
                                         goal, H, rec_name, ns, &subgoal_hypotheses, &subgoal_substitutions);
-        tctx.set_mctx(mctx);
 
         for_each2(subgoals, subgoal_hypotheses, [&](expr const & m, list<expr> const & Hs) {
-                expr pf = prove_by_simp(tctx, m, Hs);
-                tctx.assign(m, pf);
+                metavar_decl d = *mctx.get_metavar_decl(m);
+                expr pf = prove_by_simp(d.get_context(), d.get_type(), Hs);
+                mctx.assign(m, pf);
             });
 
-        expr pf = tctx.instantiate_mvars(goal);
+        expr pf = mctx.instantiate_mvars(goal);
         lean_assert(!has_expr_metavar(pf));
         return locals.mk_lambda(pf);
     }
