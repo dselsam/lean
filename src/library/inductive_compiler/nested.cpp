@@ -29,6 +29,7 @@ Author: Daniel Selsam
 #include "library/inductive_compiler/basic.h"
 #include "library/inductive_compiler/nested.h"
 #include "library/inductive_compiler/util.h"
+#include "library/tactic/induction_tactic.h"
 #include "library/tactic/simplifier/simplifier.h"
 #include "library/tactic/simplifier/simp_lemmas.h"
 
@@ -69,7 +70,7 @@ class add_nested_inductive_decl_fn {
 
     unsigned get_curr_ind_idx() { lean_assert(m_in_define_nested_irs); return m_needs_pack.size() - 1; }
     unsigned get_curr_ir_idx() { lean_assert(m_in_define_nested_irs); return m_needs_pack[get_curr_ind_idx()].size() - 1; }
-    unsigned get_curr_ir_arg_idx() { lean_assert(m_in_define_nested_irs); return m_needs_pack[get_curr_ind_idx()][get_curr_ir_idx()].size() - 1; }
+    unsigned get_curr_ir_arg_idx() { lean_assert(m_in_define_nested_irs); return m_needs_pack[get_curr_ind_idx()][get_curr_ir_idx()].size(); }
 
     // For naming
     enum class fn_layer { PI, NESTED, PRIMITIVE };
@@ -737,22 +738,25 @@ class add_nested_inductive_decl_fn {
             lean_trace(name({"inductive_compiler", "nested", "unpack", "primitive"}), tout() << " lemma : " << packed_lhs << " = " << packed_rhs << "\n";);
         }
 
+        expr primitive_pack_ty = Pi(m_nested_decl.get_params(), mk_arrow(m_nested_occ, m_replacement));
         expr primitive_pack_val = Fun(m_nested_decl.get_params(),
                                       mk_app(mk_app(mk_app(mk_constant(inductive::get_elim_name(const_name(nest_fn)), pack_elim_levels),
                                                            nest_params), pack_C), pack_minor_premises));
 
+        expr primitive_unpack_ty = Pi(m_nested_decl.get_params(), mk_arrow(m_replacement, m_nested_occ));
         expr primitive_unpack_val = Fun(m_nested_decl.get_params(),
                                         mk_app(mk_app(mk_app(mk_constant(inductive::get_elim_name(get_replacement_name()), unpack_elim_levels),
                                                              m_nested_decl.get_params()), unpack_C), unpack_minor_premises));
 
-        define(mk_primitive_name(fn_type::PACK), primitive_pack_val);
-        define(mk_primitive_name(fn_type::UNPACK), primitive_unpack_val);
+        define(mk_primitive_name(fn_type::PACK), primitive_pack_ty, primitive_pack_val);
+        define(mk_primitive_name(fn_type::UNPACK), primitive_unpack_ty, primitive_unpack_val);
 
         for (auto const & slemma : spec_lemmas) {
             name n  = mk_spec_name(to_name(slemma.m_fn_layer) + to_name(slemma.m_fn_type) + slemma.m_ir_name);
             expr ty = Pi(m_nested_decl.get_params(), Pi(slemma.m_to_abstract, mk_eq(m_tctx, slemma.m_lhs, slemma.m_rhs)));
             expr pf = Fun(m_nested_decl.get_params(), Fun(slemma.m_to_abstract, force_recursors(slemma.m_lhs)));
             define_theorem(n, ty, pf);
+            m_curr_lemmas = add_poly(m_tctx, m_curr_lemmas, n, LEAN_DEFAULT_PRIORITY);
         }
 
         return optional<expr_pair>(c_primitive_pack, c_primitive_unpack);
@@ -768,10 +772,47 @@ class add_nested_inductive_decl_fn {
         return mk_eq_refl(m_tctx, lhs);
     }
 
+    expr prove_by_simp(type_context & tctx, expr const & m, list<expr> const & Hs) {
+        simp_lemmas lemmas = m_curr_lemmas;
+        for (expr const & H : Hs) {
+            optional<local_decl> H_decl = tctx.mctxget_local_decl(expr const & mvar, name const & n) const;
+
+            expr H_type = tctx.infer(H);
+            lemmas = add(tctx, lemmas, mlocal_name(H), H_type, H, LEAN_DEFAULT_PRIORITY);
+        }
+        simp_result r = simplify(tctx, get_eq_name(), lemmas, thm);
+        lean_assert(r.get_new() == mk_true());
+        return mk_app(tctx, get_eq_mpr_name(), r.get_proof(), mk_true_intro());
+    }
+
     expr prove_by_induction_simp(expr const & thm) {
+        expr ty = thm;
+        type_context tctx(m_env, m_tctx.get_options());
+        type_context::tmp_locals locals(tctx);
 
+        while (is_pi(ty)) {
+            expr l = locals.push_local_from_binding(ty);
+            ty = instantiate(binding_body(ty), l);
+        }
+        expr H = locals.as_buffer().back();
+        name rec_name = inductive::get_elim_name(const_name(get_app_fn(tctx.infer(H))));
+        expr goal = tctx.mk_metavar_decl(tctx.lctx(), ty);
+        list<list<expr> > subgoal_hypotheses;
+        hsubstitution_list subgoal_substitutions;
+        metavar_context mctx = tctx.mctx();
+        list<name> ns;
+        list<expr> subgoals = induction(tctx.env(), tctx.get_options(), transparency_mode::Reducible, mctx,
+                                        goal, H, rec_name, ns, &subgoal_hypotheses, &subgoal_substitutions);
+        tctx.set_mctx(mctx);
 
+        for_each2(subgoals, subgoal_hypotheses, [&](expr const & m, list<expr> const & Hs) {
+                expr pf = prove_by_simp(tctx, m, Hs);
+                tctx.assign(m, pf);
+            });
 
+        expr pf = tctx.instantiate_mvars(goal);
+        lean_assert(!has_expr_metavar(pf));
+        return locals.mk_lambda(pf);
     }
 
     void prove_primitive_pack_unpack(expr const & primitive_pack, expr const & primitive_unpack, buffer<expr> const & index_locals) {
