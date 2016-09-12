@@ -1,8 +1,8 @@
 /*
-Copyright (c) 2016 Microsoft Corporation. All rights reserved.
-Released under Apache 2.0 license as described in the file LICENSE.
+  Copyright (c) 2016 Microsoft Corporation. All rights reserved.
+  Released under Apache 2.0 license as described in the file LICENSE.
 
-Author: Daniel Selsam
+  Author: Daniel Selsam
 */
 #include <iostream>
 #include "kernel/inductive/inductive.h"
@@ -75,13 +75,23 @@ void assert_type_correct(environment const & env, expr const & e) {
 }
 
 expr get_app_params_indices(expr const & e, unsigned num_params, buffer<expr> & params, buffer<expr> & indices) {
-        expr fn = get_app_args(e, params);
-        lean_assert(params.size() >= num_params);
-        for (unsigned i = num_params; i < params.size(); ++i) {
-            indices.push_back(params[i]);
-        }
-        params.shrink(num_params);
-        return fn;
+    expr fn = get_app_args(e, params);
+    lean_assert(params.size() >= num_params);
+    for (unsigned i = num_params; i < params.size(); ++i) {
+        indices.push_back(params[i]);
+    }
+    params.shrink(num_params);
+    return fn;
+}
+
+expr get_app_indices(expr const & e, unsigned num_params, buffer<expr> & indices) {
+    buffer<expr> args;
+    expr fn = get_app_args(e, args);
+    lean_assert(args.size() >= num_params);
+    for (unsigned i = num_params; i < args.size(); ++i) {
+        indices.push_back(args[i]);
+    }
+    return fn;
 }
 
 void split_params_indices(buffer<expr> const & args, unsigned num_params, buffer<expr> & params, buffer<expr> & indices) {
