@@ -1,5 +1,6 @@
 set_option trace.inductive_compiler.nested.define.failure true
 set_option pp.binder_types true
+
 inductive vec (A : Type) : nat -> Type
 | vnil : vec 0
 | vcons : Pi (n : nat), A -> vec n -> vec (n+1)
