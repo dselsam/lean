@@ -64,16 +64,16 @@ class add_nested_inductive_decl_fn {
     expr                          m_primitive_pack;
     expr                          m_primitive_unpack;
 
-    buffer<buffer<buffer<bool> > > m_needs_pack; // [ind_idx][ir_idx][ir_arg_idx]
+    buffer<buffer<buffer<optional<unsigned> > > > m_pack_arity; // [ind_idx][ir_idx][ir_arg_idx]
 
     // For the pack_ir_arg recursion
     bool                          m_in_define_nested_irs{false};
     unsigned                      m_curr_nest_idx{0};
     simp_lemmas                   m_lemmas;
 
-    unsigned get_curr_ind_idx() { lean_assert(m_in_define_nested_irs); return m_needs_pack.size() - 1; }
-    unsigned get_curr_ir_idx() { lean_assert(m_in_define_nested_irs); return m_needs_pack[get_curr_ind_idx()].size() - 1; }
-    unsigned get_curr_ir_arg_idx() { lean_assert(m_in_define_nested_irs); return m_needs_pack[get_curr_ind_idx()][get_curr_ir_idx()].size(); }
+    unsigned get_curr_ind_idx() { lean_assert(m_in_define_nested_irs); return m_pack_arity.size() - 1; }
+    unsigned get_curr_ir_idx() { lean_assert(m_in_define_nested_irs); return m_pack_arity[get_curr_ind_idx()].size() - 1; }
+    unsigned get_curr_ir_arg_idx() { lean_assert(m_in_define_nested_irs); return m_pack_arity[get_curr_ind_idx()][get_curr_ir_idx()].size(); }
 
     // For sizeof
     local_context                 m_synth_lctx;
@@ -568,11 +568,11 @@ class add_nested_inductive_decl_fn {
     void define_nested_irs() {
         flet<bool> in_define(m_in_define_nested_irs, true);
         for (unsigned ind_idx = 0; ind_idx < m_nested_decl.get_num_inds(); ++ind_idx) {
-            lean_assert(m_needs_pack.size() == ind_idx);
-            m_needs_pack.emplace_back();
+            lean_assert(m_pack_arity.size() == ind_idx);
+            m_pack_arity.emplace_back();
             for (unsigned ir_idx = 0; ir_idx < m_nested_decl.get_num_intro_rules(ind_idx); ++ir_idx) {
-                lean_assert(m_needs_pack[ind_idx].size() == ir_idx);
-                m_needs_pack[ind_idx].emplace_back();
+                lean_assert(m_pack_arity[ind_idx].size() == ir_idx);
+                m_pack_arity[ind_idx].emplace_back();
                 expr const & ir = m_nested_decl.get_intro_rule(ind_idx, ir_idx);
 
                 buffer<expr> locals;
@@ -581,11 +581,11 @@ class add_nested_inductive_decl_fn {
                 expr ty = m_tctx.whnf(mlocal_type(ir));
                 while (is_pi(ty)) {
                     expr l = mk_local_for(ty);
-                    if (auto packed_arg = pack_ir_arg(l)) {
-                        m_needs_pack[ind_idx][ir_idx].push_back(true);
-                        result_args.push_back(*packed_arg);
+                    if (optional<pair<expr, unsigned> > packed_arg_arity = pack_ir_arg(l)) {
+                        m_pack_arity[ind_idx][ir_idx].push_back(optional<unsigned>(packed_arg_arity->second));
+                        result_args.push_back(packed_arg_arity->first);
                     } else {
-                        m_needs_pack[ind_idx][ir_idx].push_back(false);
+                        m_pack_arity[ind_idx][ir_idx].push_back(optional<unsigned>());
                         result_args.push_back(l);
                     }
                     locals.push_back(l);
@@ -604,18 +604,18 @@ class add_nested_inductive_decl_fn {
         }
     }
 
-    optional<expr> pack_ir_arg(expr const & ir_arg) {
-        if (auto pack_fn = build_pi_pack_unpack(mlocal_type(ir_arg))) {
-            return some_expr(mk_app(*pack_fn, ir_arg));
+    optional<pair<expr, unsigned> > pack_ir_arg(expr const & ir_arg) {
+        if (auto pack_fn_arity = build_pi_pack_unpack(mlocal_type(ir_arg))) {
+            return optional<pair<expr, unsigned> >(mk_app(pack_fn_arity->first, ir_arg), pack_fn_arity->second);
         } else {
-            return none_expr();
+            return optional<pair<expr, unsigned> >();
         }
     }
 
-    optional<expr> build_pi_pack_unpack(expr const & arg_ty) {
+    optional<pair<expr, unsigned> > build_pi_pack_unpack(expr const & arg_ty) {
         expr ty = m_tctx.whnf(arg_ty);
         if (ty == pack_type(ty))
-            return optional<expr>();
+            return optional<pair<expr, unsigned> >();
 
         expr x_to_pack = mk_local_pp("x_to_pack", ty);
         expr x_to_unpack = mk_local_pp("x_to_unpack", pack_type(ty));
@@ -633,13 +633,13 @@ class add_nested_inductive_decl_fn {
         lean_assert(m_tctx.is_def_eq(m_tctx.infer(body_to_unpack), pack_type(ty)));
 
         if (ty == pack_type(ty))
-            return none_expr();
+            return optional<pair<expr, unsigned> >();
 
         buffer<expr> args;
         expr fn = get_app_args(ty, args);
 
         if (!is_constant(fn) || !is_ginductive(m_env, const_name(fn)))
-            return none_expr();
+            return optional<pair<expr, unsigned> >();
 
         unsigned num_params = get_ginductive_num_params(m_env, const_name(fn));
 
@@ -647,7 +647,7 @@ class add_nested_inductive_decl_fn {
         split_params_indices(args, num_params, params, indices);
         optional<expr_pair> nested_pack_unpack = build_nested_pack_unpack(fn, params);
         if (!nested_pack_unpack)
-            return none_expr();
+            return optional<pair<expr, unsigned> >();
 
         expr const & nested_pack_fn = nested_pack_unpack->first;
         expr const & nested_unpack_fn = nested_pack_unpack->second;
@@ -669,7 +669,7 @@ class add_nested_inductive_decl_fn {
         prove_pi_unpack_pack(pi_pack, pi_unpack, ldeps, nested_pack_fn, nested_unpack_fn, arg_ty);
         prove_pi_sizeof_pack(pi_pack, ldeps, nested_pack_fn, arg_ty);
 
-        return some_expr(pi_pack);
+        return optional<pair<expr, unsigned> >(pi_pack, m_nested_decl.get_num_params() + ldeps.size() + 1);
     }
 
     optional<expr_pair> build_nested_pack_unpack(expr const & fn, buffer<expr> const & params) {
@@ -1138,8 +1138,8 @@ class add_nested_inductive_decl_fn {
 
             expr const & arg = m_inner_minor_premise_args[arg_idx];
 
-            bool needs_pack = m_outer.m_needs_pack[m_ind_idx][m_ir_idx][arg_idx];
-            if (!needs_pack)
+            optional<unsigned> pack_arity = m_outer.m_pack_arity[m_ind_idx][m_ir_idx][arg_idx];
+            if (!pack_arity)
                 return build(arg_idx+1, list<expr>(arg, rev_ir_args), list<expr>(arg, rev_mp_args));
 
             buffer<expr> ir_args;
@@ -1162,9 +1162,9 @@ class add_nested_inductive_decl_fn {
                                          m_inner_minor_premise_args.data() + arg_idx)));
 
             expr rest = build(arg_idx+1,
-                              list<expr>(mk_app(m_outer.m_tctx, pack_fn, mk_app(m_outer.m_tctx, unpack_fn, arg)), rev_ir_args),
-                              list<expr>(mk_app(m_outer.m_tctx, unpack_fn, arg), rev_mp_args));
-            expr equality_proof = mk_app(m_outer.m_tctx, pack_unpack_fn, arg);
+                              list<expr>(mk_app(m_outer.m_tctx, pack_fn, *pack_arity, mk_app(m_outer.m_tctx, unpack_fn, *pack_arity, arg)), rev_ir_args),
+                              list<expr>(mk_app(m_outer.m_tctx, unpack_fn, *pack_arity, arg), rev_mp_args));
+            expr equality_proof = mk_app(m_outer.m_tctx, pack_unpack_fn, *pack_arity, arg);
 
             assert_type_correct(m_outer.m_env, motive);
             assert_type_correct(m_outer.m_env, rest);
