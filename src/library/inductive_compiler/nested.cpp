@@ -23,6 +23,7 @@ Author: Daniel Selsam
 #include "library/module.h"
 #include "library/trace.h"
 #include "library/type_context.h"
+#include "library/inverse.h"
 #include "library/attribute_manager.h"
 #include "library/constructions/has_sizeof.h"
 #include "library/inductive_compiler/compiler.h"
@@ -122,8 +123,8 @@ class add_nested_inductive_decl_fn {
     name mk_nest_name(fn_type t) { return append_with_nest_idx(append_with_ir_arg(mlocal_name(m_nested_decl.get_ind(get_curr_ind_idx())) + to_name(fn_layer::NESTED) + to_name(t))); }
     name mk_primitive_name(fn_type t) { return append_with_ir_arg(mlocal_name(m_nested_decl.get_ind(get_curr_ind_idx())) + to_name(fn_layer::PRIMITIVE) + to_name(t)); }
     name mk_inner_name(name const & n) { return m_prefix + n; }
-    name mk_spec_name(name const & n) { return n + "spec"; }
-    name mk_unpacked_name(name const & n) { return n + "unpacked"; }
+    name mk_spec_name(name const & n) { return mk_inner_name(n) + "spec"; }
+    name mk_unpacked_name(name const & n) { return mk_inner_name(n) + "unpacked"; }
 
     // Helpers
 
@@ -857,16 +858,20 @@ class add_nested_inductive_decl_fn {
     }
 
     void prove_primitive_pack_unpack(expr const & primitive_pack, expr const & primitive_unpack, buffer<expr> const & index_locals) {
-        // We need to create a special recursor for the packed type, to replace [nest.foo] with [foo]
-        declaration d_rec = m_env.get(inductive::get_elim_name(mlocal_name(m_inner_decl.get_inds().back())));
-        name lifted_rec_name = mk_unpacked_name(d_rec.get_name());
-        define(lifted_rec_name, unpack_constants(d_rec.get_type()), unpack_constants(d_rec.get_value()), d_rec.get_univ_params());
-
         expr x_packed = mk_local_pp("x_packed", mk_app(m_replacement, index_locals));
         expr lhs = mk_app(mk_app(primitive_pack, index_locals), mk_app(mk_app(primitive_unpack, index_locals), x_packed));
         expr goal = mk_eq(m_tctx, lhs, x_packed);
         expr primitive_pack_unpack_type = Pi(m_nested_decl.get_params(), Pi(index_locals, Pi(x_packed, goal)));
-        expr primitive_pack_unpack_val = prove_by_induction_simp(lifted_rec_name, primitive_pack_unpack_type);
+        expr primitive_pack_unpack_val;
+        if (m_tctx.is_prop(mlocal_type(x_packed))) {
+            primitive_pack_unpack_val = Fun(m_nested_decl.get_params(), Fun(index_locals, Fun(x_packed, mk_eq_refl(m_tctx, x_packed))));
+        } else {
+            // We need to create a special recursor for the packed type, to replace [nest.foo] with [foo]
+            declaration d_rec = m_env.get(inductive::get_elim_name(mlocal_name(m_inner_decl.get_inds().back())));
+            name lifted_rec_name = mk_unpacked_name(d_rec.get_name());
+            define(lifted_rec_name, unpack_constants(d_rec.get_type()), unpack_constants(d_rec.get_value()), d_rec.get_univ_params());
+            primitive_pack_unpack_val = prove_by_induction_simp(lifted_rec_name, primitive_pack_unpack_type);
+        }
         define_theorem(mk_primitive_name(fn_type::PACK_UNPACK), primitive_pack_unpack_type, primitive_pack_unpack_val);
     }
 
@@ -876,26 +881,35 @@ class add_nested_inductive_decl_fn {
         expr lhs = mk_app(mk_app(primitive_unpack, index_locals), mk_app(mk_app(primitive_pack, index_locals), x_unpacked));
         expr goal = mk_eq(m_tctx, lhs, x_unpacked);
         expr primitive_unpack_pack_type = Pi(m_nested_decl.get_params(), Pi(index_locals, Pi(x_unpacked, goal)));
-        expr primitive_unpack_pack_val = prove_by_induction_simp(rec_name, primitive_unpack_pack_type);
+        expr primitive_unpack_pack_val;
+        if (m_tctx.is_prop(mlocal_type(x_unpacked))) {
+            primitive_unpack_pack_val = Fun(m_nested_decl.get_params(), Fun(index_locals, Fun(x_unpacked, mk_eq_refl(m_tctx, x_unpacked))));
+        } else {
+            primitive_unpack_pack_val = prove_by_induction_simp(rec_name, primitive_unpack_pack_type);
+        }
         define_theorem(mk_primitive_name(fn_type::UNPACK_PACK), primitive_unpack_pack_type, primitive_unpack_pack_val);
     }
 
     void prove_pi_pack_unpack(expr const & pi_pack, expr const & pi_unpack, buffer<expr> const & ldeps, expr const & arg_ty) {
+        name n = mk_pi_name(fn_type::PACK_UNPACK);
         expr x_packed = mk_local_pp("x_packed", pack_type(arg_ty));
         expr lhs = mk_app(pi_pack, mk_app(pi_unpack, x_packed));
         expr goal = mk_eq(m_tctx, lhs, x_packed);
         expr pi_pack_unpack_type = Pi(m_nested_decl.get_params(), Pi(ldeps, Pi(x_packed, goal)));
         expr pi_pack_unpack_val = mk_constant("TODO");
-        define_theorem(mk_pi_name(fn_type::PACK_UNPACK), pi_pack_unpack_type, pi_pack_unpack_val);
+        define_theorem(n, pi_pack_unpack_type, pi_pack_unpack_val);
+        m_env = add_inverse_lemma(m_env, n, true);
     }
 
     void prove_pi_unpack_pack(expr const & pi_pack, expr const & pi_unpack, buffer<expr> const & ldeps, expr const & arg_ty) {
+        name n = mk_pi_name(fn_type::UNPACK_PACK);
         expr x_unpacked = mk_local_pp("x_unpacked", arg_ty);
         expr lhs = mk_app(pi_unpack, mk_app(pi_pack, x_unpacked));
         expr goal = mk_eq(m_tctx, lhs, x_unpacked);
         expr pi_unpack_pack_type = Pi(m_nested_decl.get_params(), Pi(ldeps, Pi(x_unpacked, goal)));
         expr pi_unpack_pack_val = mk_constant("TODO");
-        define_theorem(mk_pi_name(fn_type::UNPACK_PACK), pi_unpack_pack_type, pi_unpack_pack_val);
+        define_theorem(n, pi_unpack_pack_type, pi_unpack_pack_val);
+        m_env = add_inverse_lemma(m_env, n, true);
     }
 
 public:
