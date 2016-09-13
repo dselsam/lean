@@ -1,4 +1,5 @@
-set_option trace.inductive_compiler.nested.define true
+set_option trace.inductive_compiler.nested.define.failure true
+
 inductive vec (A : Type) : nat -> Type
 | vnil : vec 0
 | vcons : Pi (n : nat), A -> vec n -> vec (n+1)
@@ -55,6 +56,7 @@ end X7
 namespace X8
 
 inductive foo.{l} (A : Type.{l}) : Type.{max 1 l}
-| mk : Pi (n : nat), A -> (Pi (m : nat), vec foo (n + m)) -> vec foo n -> foo
+| mk₁ : Pi (n : nat), A -> (Pi (m : nat), vec foo (n + m)) -> vec foo n -> foo
+| mk₂ : Pi (n : nat), A -> list A -> prod A A -> (Pi (m : nat), vec foo (n + m)) -> vec foo n -> foo
 
 end X8
