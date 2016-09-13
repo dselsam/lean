@@ -605,6 +605,7 @@ class add_nested_inductive_decl_fn {
 
         prove_pi_pack_unpack(pi_pack, pi_unpack, ldeps, nested_pack_fn, nested_unpack_fn, arg_ty);
         prove_pi_unpack_pack(pi_pack, pi_unpack, ldeps, nested_pack_fn, nested_unpack_fn, arg_ty);
+        prove_pi_sizeof_pack(pi_pack, ldeps, nested_pack_fn, arg_ty);
 
         return some_expr(pi_pack);
     }
@@ -951,7 +952,6 @@ class add_nested_inductive_decl_fn {
         buffer<expr> result_args, result_params, result_indices;
         expr result_fn = get_app_args(ty, result_args);
         split_params_indices(result_args, get_ginductive_num_params(m_env, const_name(result_fn)), result_params, result_indices);
-        // TODO(dhs): awkward that I don't need to apply to indices here
         expr lhs = mk_app(mk_app(fn1, result_indices), mk_app(mk_app(fn2, result_indices), mk_app(args[2], pi_args)));
         expr rhs = mk_app(args[2], pi_args);
         expr pi_goal = mk_eq(tctx, lhs, rhs);
@@ -984,6 +984,33 @@ class add_nested_inductive_decl_fn {
         expr pi_unpack_pack_val = Fun(m_nested_decl.get_params(), Fun(ldeps, Fun(x_unpacked, prove_by_funext(goal, nested_unpack_fn, nested_pack_fn))));
         define_theorem(n, pi_unpack_pack_type, pi_unpack_pack_val);
         m_env = add_inverse_lemma(m_env, n, true);
+    }
+
+    void prove_pi_sizeof_pack(expr const & pi_pack, buffer<expr> const & ldeps, expr const & nested_pack_fn, expr const & arg_ty) {
+        name n = mk_pi_name(fn_type::SIZEOF_PACK);
+        type_context tctx_synth(m_env, m_tctx.get_options(), m_synth_lctx);
+
+        expr x_unpacked = mk_local_pp("x_unpacked", arg_ty);
+        expr lhs = mk_app(m_tctx, get_sizeof_name(), mk_app(pi_pack, x_unpacked));
+        expr rhs = mk_app(m_tctx, get_sizeof_name(), x_unpacked);
+        expr goal = mk_eq(m_tctx, lhs, rhs);
+        expr pi_unpack_pack_type = Pi(m_nested_decl.get_params(), Pi(ldeps, Pi(x_unpacked, goal)));
+        expr pi_unpack_pack_val;
+
+        expr ty = tctx_synth.whnf(arg_ty);
+        if (is_pi(ty)) {
+            pi_unpack_pack_val = Fun(m_nested_decl.get_params(), Fun(ldeps, Fun(x_unpacked, mk_eq_refl(tctx_synth, mk_nat_zero()))));
+        } else {
+            buffer<expr> result_args, result_params, result_indices;
+            expr result_fn = get_app_args(ty, result_args);
+            split_params_indices(result_args, get_ginductive_num_params(m_env, const_name(result_fn)), result_params, result_indices);
+            expr lhs = mk_app(m_tctx, get_sizeof_name(), mk_app(mk_app(nested_pack_fn, result_indices), x_unpacked));
+            expr rhs = mk_app(m_tctx, get_sizeof_name(), x_unpacked);
+            expr pi_pf = prove_by_simp(tctx_synth.lctx(), mk_eq(tctx_synth, lhs, rhs), list<expr>(), m_lemmas);
+            pi_unpack_pack_val = Fun(m_nested_decl.get_params(), Fun(ldeps, Fun(x_unpacked, pi_pf)));
+        }
+        define_theorem(n, pi_unpack_pack_type, pi_unpack_pack_val);
+        m_env = set_simp_sizeof(m_env, n);
     }
 
 public:
