@@ -858,6 +858,7 @@ class add_nested_inductive_decl_fn {
     }
 
     void prove_primitive_pack_unpack(expr const & primitive_pack, expr const & primitive_unpack, buffer<expr> const & index_locals) {
+        name n = mk_primitive_name(fn_type::PACK_UNPACK);
         expr x_packed = mk_local_pp("x_packed", mk_app(m_replacement, index_locals));
         expr lhs = mk_app(mk_app(primitive_pack, index_locals), mk_app(mk_app(primitive_unpack, index_locals), x_packed));
         expr goal = mk_eq(m_tctx, lhs, x_packed);
@@ -872,10 +873,12 @@ class add_nested_inductive_decl_fn {
             define(lifted_rec_name, unpack_constants(d_rec.get_type()), unpack_constants(d_rec.get_value()), d_rec.get_univ_params());
             primitive_pack_unpack_val = prove_by_induction_simp(lifted_rec_name, primitive_pack_unpack_type);
         }
-        define_theorem(mk_primitive_name(fn_type::PACK_UNPACK), primitive_pack_unpack_type, primitive_pack_unpack_val);
+        define_theorem(n, primitive_pack_unpack_type, primitive_pack_unpack_val);
+        m_curr_lemmas = add_poly(m_tctx, m_curr_lemmas, n, LEAN_DEFAULT_PRIORITY);
     }
 
     void prove_primitive_unpack_pack(expr const & primitive_pack, expr const & primitive_unpack, buffer<expr> const & index_locals) {
+        name n = mk_primitive_name(fn_type::UNPACK_PACK);
         expr x_unpacked = mk_local_pp("x_unpacked", mk_app(m_nested_occ, index_locals));
         name rec_name = inductive::get_elim_name(const_name(get_app_fn(m_nested_occ)));
         expr lhs = mk_app(mk_app(primitive_unpack, index_locals), mk_app(mk_app(primitive_pack, index_locals), x_unpacked));
@@ -887,7 +890,8 @@ class add_nested_inductive_decl_fn {
         } else {
             primitive_unpack_pack_val = prove_by_induction_simp(rec_name, primitive_unpack_pack_type);
         }
-        define_theorem(mk_primitive_name(fn_type::UNPACK_PACK), primitive_unpack_pack_type, primitive_unpack_pack_val);
+        define_theorem(n, primitive_unpack_pack_type, primitive_unpack_pack_val);
+        m_curr_lemmas = add_poly(m_tctx, m_curr_lemmas, n, LEAN_DEFAULT_PRIORITY);
     }
 
     void prove_pi_pack_unpack(expr const & pi_pack, expr const & pi_unpack, buffer<expr> const & ldeps, expr const & arg_ty) {
