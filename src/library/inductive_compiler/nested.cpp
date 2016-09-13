@@ -24,6 +24,7 @@ Author: Daniel Selsam
 #include "library/trace.h"
 #include "library/type_context.h"
 #include "library/inverse.h"
+#include "library/protected.h"
 #include "library/attribute_manager.h"
 #include "library/constructions/has_sizeof.h"
 #include "library/inductive_compiler/compiler.h"
@@ -1244,14 +1245,52 @@ class add_nested_inductive_decl_fn {
     /////////////////////////////////////////////////
 
     void define_nested_sizeof_lemmas() {
+        for (unsigned ind_idx = 0; ind_idx < m_nested_decl.get_num_inds(); ++ind_idx) {
+            expr const & ind = m_nested_decl.get_ind(ind_idx);
+            name has_sizeof_name = mk_has_sizeof_name(mlocal_name(ind));
 
+            expr c_has_sizeof = mk_app(m_nested_decl.mk_const_params(has_sizeof_name), m_param_insts);
+            expr c_ind = m_nested_decl.get_c_ind_params(ind_idx);
 
+            for (unsigned ir_idx = 0; ir_idx < m_nested_decl.get_num_intro_rules(ind_idx); ++ir_idx) {
+                type_context tctx_synth(m_env, m_tctx.get_options(), m_synth_lctx);
 
+                expr c_ir = m_nested_decl.get_c_ir_params(ind_idx, ir_idx);
+                expr ir_ty = tctx_synth.whnf(m_tctx.infer(c_ir));
 
+                expr rhs = mk_nat_one();
+                buffer<expr> locals;
 
+                unsigned ir_arg_idx = 0;
+                while (is_pi(ir_ty)) {
+                    expr local = mk_local_for(ir_ty);
+                    locals.push_back(local);
+                    expr arg_ty = binding_domain(ir_ty);
+                    optional<unsigned> pack_arity = m_pack_arity[ind_idx][ir_idx][ir_arg_idx];
+                    expr increment;
+                    if (pack_arity) {
+                        increment = mk_app(tctx_synth, get_sizeof_name(),
+                                           mk_app(tctx_synth, mk_pi_name(fn_type::PACK, ind_idx, ir_idx, ir_arg_idx), *pack_arity, local));
+                    } else {
+                        increment = mk_app(tctx_synth, get_sizeof_name(), local);
+                    }
+                    rhs = mk_nat_add(rhs, increment);
+                    ir_ty = m_tctx.whnf(instantiate(binding_body(ir_ty), local));
+                    ir_arg_idx++;
+                }
 
+                expr lhs = mk_app(tctx_synth, get_sizeof_name(), {mk_app(c_ir, locals)});
+                expr dsimp_rule_type = Pi(m_nested_decl.get_params(), tctx_synth.mk_pi(m_param_insts, Pi(locals, mk_eq(m_tctx, lhs, rhs))));
+                expr dsimp_rule_val = Fun(m_nested_decl.get_params(), tctx_synth.mk_lambda(m_param_insts, Fun(locals, mk_eq_refl(m_tctx, lhs))));
+                name dsimp_rule_name = mk_sizeof_spec_name(mlocal_name(m_nested_decl.get_intro_rule(ind_idx, ir_idx)));
 
-
+                assert_def_eq(m_env, tctx_synth.infer(dsimp_rule_val), dsimp_rule_type);
+                define(dsimp_rule_name, dsimp_rule_type, dsimp_rule_val);
+                set_simp_sizeof(m_env, dsimp_rule_name);
+                m_env = add_protected(m_env, dsimp_rule_name);
+                m_tctx.set_env(m_env);
+            }
+        }
     }
 
 public:
