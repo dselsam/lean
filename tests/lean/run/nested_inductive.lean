@@ -48,15 +48,8 @@ end X6
 
 namespace X7
 
-inductive foo : Prop
-| mk : and foo foo -> foo
-
-end X7
-
-namespace X8
-
 inductive foo.{l} (A : Type.{l}) : Type.{max 1 l}
 | mk₁ : Pi (n : nat), A -> (Pi (m : nat), vec foo (n + m)) -> vec foo n -> foo
 | mk₂ : Pi (n : nat), A -> list A -> prod A A -> (Pi (m : nat), vec foo (n + m)) -> vec foo n -> foo
 
-end X8
+end X7

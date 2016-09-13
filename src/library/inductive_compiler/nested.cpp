@@ -693,11 +693,6 @@ class add_nested_inductive_decl_fn {
         lean_assert(remaining_unpacked_type == remaining_packed_type);
         expr remaining_type = remaining_unpacked_type;
 
-        // TODO(dhs): support dep elim for derived recursors
-        // Option 1: make ginductive_decl non-const and set the dep-elim flag
-        // Option 2: register dep-elim bit separately
-        bool dep_elim = inductive::has_dep_elim(m_env, const_name(nest_fn));
-
         // 1. elim levels
         list<level> pack_elim_levels, unpack_elim_levels;
         {
@@ -727,10 +722,8 @@ class add_nested_inductive_decl_fn {
                 C = mk_app(C, l);
                 ty = m_tctx.whnf(instantiate(binding_body(ty), l));
             }
-            if (dep_elim) {
-                expr ignore = mk_local_pp("x_ignore", mk_app(start, locals));
-                locals.push_back(ignore);
-            }
+            expr ignore = mk_local_pp("x_ignore", mk_app(start, locals));
+            locals.push_back(ignore);
             return Fun(locals, C);
         };
 
@@ -1133,12 +1126,10 @@ class add_nested_inductive_decl_fn {
         buffer<expr> const & m_inner_minor_premise_args;
         buffer<expr> const & m_inner_minor_premise_rec_args;
 
-        bool m_dep_elim{false};
         expr m_motive_app;
 
         expr build(unsigned arg_idx, list<expr> rev_ir_args, list<expr> rev_mp_args) {
-            // TODO(dhs): need to switch to threading a local context around so that the app-builder
-            // has a chance
+            // TODO(dhs): need the arity so that the app-builder has a chance
             if (arg_idx == m_inner_minor_premise_args.size()) {
                 buffer<expr> mp_args;
                 to_buffer(reverse(rev_mp_args), mp_args);
@@ -1162,19 +1153,13 @@ class add_nested_inductive_decl_fn {
             name unpack_fn = m_outer.mk_pi_name(fn_type::UNPACK, m_ind_idx, m_ir_idx, arg_idx);
             name pack_unpack_fn = m_outer.mk_pi_name(fn_type::PACK_UNPACK, m_ind_idx, m_ir_idx, arg_idx);
 
-            expr motive;
-            {
-                if (m_dep_elim)
-                    motive = Fun(m_inner_minor_premise_args[arg_idx],
-                                 mk_app(m_motive_app,
-                                        mk_app(
-                                            mk_app(m_outer.m_inner_decl.get_intro_rule(m_ind_idx, m_ir_idx),
-                                                   ir_args),
-                                            m_inner_minor_premise_args.size() - arg_idx,
-                                            m_inner_minor_premise_args.data() + arg_idx)));
-                else
-                    motive = Fun(m_inner_minor_premise_args[arg_idx], m_motive_app);
-            }
+            expr motive = Fun(m_inner_minor_premise_args[arg_idx],
+                              mk_app(m_motive_app,
+                                     mk_app(
+                                         mk_app(m_outer.m_inner_decl.get_c_ir_params(m_ind_idx, m_ir_idx),
+                                                ir_args),
+                                         m_inner_minor_premise_args.size() - arg_idx,
+                                         m_inner_minor_premise_args.data() + arg_idx)));
 
             expr rest = build(arg_idx+1,
                               list<expr>(mk_app(m_outer.m_tctx, pack_fn, mk_app(m_outer.m_tctx, unpack_fn, arg)), rev_ir_args),
@@ -1203,14 +1188,11 @@ class add_nested_inductive_decl_fn {
             m_inner_minor_premise_args(inner_minor_premise_args),
             m_inner_minor_premise_rec_args(inner_minor_premise_rec_args)
             {
-                // TODO(dhs): awkward way of checking for dependent elimination
+                // TODO(dhs): remove once assert passes
                 buffer<expr> motive_app_args;
                 expr C = get_app_args(goal, motive_app_args);
-                if (!motive_app_args.empty() && outer.m_inner_decl.get_intro_rule(ind_idx, ir_idx) == get_app_fn(motive_app_args.back())) {
-                        m_dep_elim = true;
-                        motive_app_args.pop_back();
-                }
-                m_motive_app = mk_app(C, motive_app_args);
+                lean_assert(!motive_app_args.empty() && outer.m_inner_decl.get_c_ir(ind_idx, ir_idx) == get_app_fn(motive_app_args.back()));
+                m_motive_app = app_fn(goal);
             }
 
         expr operator()() {

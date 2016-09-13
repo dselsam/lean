@@ -78,8 +78,6 @@ class add_mutual_inductive_decl_fn {
         return sum;
     }
 
-    bool dep_elim() { return inductive::has_dep_elim(m_env, mlocal_name(m_basic_decl.get_ind(0))); }
-
     void compute_index_types() {
         for (expr const & ind : m_mut_decl.get_inds()) {
             m_index_types.push_back(to_sigma_type(mlocal_type(ind)));
@@ -452,12 +450,12 @@ class add_mutual_inductive_decl_fn {
 
             expr u = mk_local_pp("u", mk_constant(get_unit_name()));
             expr x_u = mk_local_pp("x_u", mk_app(m_basic_decl.get_c_ind_params(0), mk_app(m_putters[ind_idx], mk_sigma(rev_unpacked_sigma_args, u))));
-            expr unit_C = dep_elim() ? Fun(u, Pi(x_u, mk_sort(m_elim_level))) : Fun(u, mk_sort(m_elim_level));
-            level motive_level = get_level(m_tctx, dep_elim() ? Pi(u, Pi(x_u, mk_sort(m_elim_level))) : Pi(u, mk_sort(m_elim_level)));
+            expr unit_C = Fun(u, Pi(x_u, mk_sort(m_elim_level)));
+            level motive_level = get_level(m_tctx, Pi(u, Pi(x_u, mk_sort(m_elim_level))));
             expr unit_major_premise = idx;
 
             expr x_star = mk_local_pp("x", mk_app(m_basic_decl.get_c_ind_params(0), mk_app(m_putters[ind_idx], mk_sigma(rev_unpacked_sigma_args, mk_constant(get_unit_star_name())))));
-            expr unit_minor_premise = dep_elim() ? Fun(x_star, mk_app(mk_app(C, indices), x_star)) : mk_app(C, indices);
+            expr unit_minor_premise = Fun(x_star, mk_app(mk_app(C, indices), x_star));
 
             return mk_app(mk_constant(get_unit_cases_on_name(), {motive_level}), unit_C, unit_major_premise, unit_minor_premise);
         }
@@ -471,15 +469,10 @@ class add_mutual_inductive_decl_fn {
         level motive_level;
         {
             expr idx = mk_local_pp("idx", args_to_sigma_type(ty));
-            if (dep_elim()) {
-                expr x = mk_local_pp("x", mk_app(m_basic_decl.get_c_ind_params(0),
-                                                 mk_app(m_putters[ind_idx], mk_sigma(rev_unpacked_sigma_args, idx))));
-                motive = Fun(idx, Pi(x, mk_sort(m_elim_level)));
-                motive_level = get_level(m_tctx, Pi(x, mk_sort(m_elim_level)));
-            } else {
-                motive = Fun(idx, mk_sort(m_elim_level));
-                motive_level = get_level(m_tctx, mk_sort(m_elim_level));
-            }
+            expr x = mk_local_pp("x", mk_app(m_basic_decl.get_c_ind_params(0),
+                                             mk_app(m_putters[ind_idx], mk_sigma(rev_unpacked_sigma_args, idx))));
+            motive = Fun(idx, Pi(x, mk_sort(m_elim_level)));
+            motive_level = get_level(m_tctx, Pi(x, mk_sort(m_elim_level)));
         }
 
         expr major_premise = idx;
@@ -512,14 +505,9 @@ class add_mutual_inductive_decl_fn {
         level motive_level;
         {
             expr c = mk_local_pp("c", mk_sum(A, B));
-            if (dep_elim()) {
-                expr x = mk_local_pp("x", mk_app(m_basic_decl.get_c_ind_params(0), mk_app(mk_put_rest(i), c)));
-                motive = Fun(c, Pi(x, mk_sort(m_elim_level)));
-                motive_level = get_level(m_tctx, Pi(x, mk_sort(m_elim_level)));
-            } else {
-                motive = Fun(c, mk_sort(m_elim_level));
-                motive_level = get_level(m_tctx, mk_sort(m_elim_level));
-            }
+            expr x = mk_local_pp("x", mk_app(m_basic_decl.get_c_ind_params(0), mk_app(mk_put_rest(i), c)));
+            motive = Fun(c, Pi(x, mk_sort(m_elim_level)));
+            motive_level = get_level(m_tctx, Pi(x, mk_sort(m_elim_level)));
             lean_trace(name({"inductive_compiler", "mutual", "rec"}), tout() << "inner C motive: " << motive << "\n";);
         }
         bool found_target = false;
@@ -530,12 +518,8 @@ class add_mutual_inductive_decl_fn {
                 found_target = true;
                 case1 = Fun(idx, unpack_sigma_and_apply_C(ind_idx, idx, C));
             } else {
-                if (dep_elim()) {
-                    expr x = mk_local_pp("x", mk_app(m_basic_decl.get_c_ind_params(0), mk_app(m_putters[i], idx)));
-                    case1 = Fun({idx, x}, poly_unit());
-                } else {
-                    case1 = Fun(idx, poly_unit());
-                }
+                expr x = mk_local_pp("x", mk_app(m_basic_decl.get_c_ind_params(0), mk_app(m_putters[i], idx)));
+                case1 = Fun({idx, x}, poly_unit());
             }
             lean_trace(name({"inductive_compiler", "mutual", "rec"}), tout() << "inner C case1: " << case1 << "\n";);
         }
@@ -545,12 +529,8 @@ class add_mutual_inductive_decl_fn {
             expr idx = mk_local_pp("idx", B);
             if (found_target) {
                 // case2 absorbs everything else
-                if (dep_elim()) {
-                    expr x = mk_local_pp("x", mk_app(m_basic_decl.get_c_ind_params(0), mk_app(mk_put_rest(ind_idx+1), idx)));
-                    case2 = Fun({idx, x}, poly_unit());
-                } else {
-                    case2 = Fun(idx, poly_unit());
-                }
+                expr x = mk_local_pp("x", mk_app(m_basic_decl.get_c_ind_params(0), mk_app(mk_put_rest(ind_idx+1), idx)));
+                case2 = Fun({idx, x}, poly_unit());
             } else if (i + 1 == ind_idx && ind_idx + 1 == m_mut_decl.get_inds().size()) {
                 // case2 is the end, and has the payload
                 case2 = Fun(idx, unpack_sigma_and_apply_C(ind_idx, idx, C));
@@ -586,12 +566,7 @@ class add_mutual_inductive_decl_fn {
                 C_args.push_back(C_arg);
                 ind_ty = m_tctx.whnf(instantiate(binding_body(ind_ty), C_arg));
             }
-            expr C_type;
-            if (dep_elim()) {
-                C_type = Pi(C_args, mk_arrow(mk_app(m_mut_decl.get_c_ind_params(ind_idx), C_args), mk_sort(m_elim_level)));
-            } else {
-                C_type = Pi(C_args, mk_sort(m_elim_level));
-            }
+            expr C_type = Pi(C_args, mk_arrow(mk_app(m_mut_decl.get_c_ind_params(ind_idx), C_args), mk_sort(m_elim_level)));
             C = mk_local_pp("C", C_type);
             lean_trace(name({"inductive_compiler", "mutual", "rec"}), tout() << "C_type: " << C_type << "\n";);
         }
@@ -615,12 +590,7 @@ class add_mutual_inductive_decl_fn {
 
                 buffer<expr> inner_indices;
                 if (m_mut_decl.is_ind_app(ir_arg, ind_idx, inner_indices)) {
-                    expr rec_arg_type;
-                    if (dep_elim()) {
-                        rec_arg_type = Pi(ir_arg_args, mk_app(mk_app(C, inner_indices), mk_app(minor_premise_arg, ir_arg_args)));
-                    } else {
-                        rec_arg_type = Pi(ir_arg_args, mk_app(C, inner_indices));
-                    }
+                    expr rec_arg_type = Pi(ir_arg_args, mk_app(mk_app(C, inner_indices), mk_app(minor_premise_arg, ir_arg_args)));
                     expr rec_arg = mk_local_pp("x", rec_arg_type);
                     rec_args.push_back(rec_arg);
                 }
@@ -629,12 +599,7 @@ class add_mutual_inductive_decl_fn {
             buffer<expr> result_indices;
             m_mut_decl.get_app_indices(ir_ty, result_indices);
 
-            expr minor_premise_type;
-            if (dep_elim()) {
-                minor_premise_type = Pi(ir_args, Pi(rec_args, mk_app(mk_app(C, result_indices), mk_app(m_mut_decl.get_c_ir_params(ind_idx, ir_idx), ir_args))));
-            } else {
-                minor_premise_type = Pi(ir_args, Pi(rec_args, mk_app(C, result_indices)));
-            }
+            expr minor_premise_type = Pi(ir_args, Pi(rec_args, mk_app(mk_app(C, result_indices), mk_app(m_mut_decl.get_c_ir_params(ind_idx, ir_idx), ir_args))));
             expr minor_premise = mk_local_pp("mp", minor_premise_type);
             minor_premises.push_back(minor_premise);
             lean_trace(name({"inductive_compiler", "mutual", "rec"}), tout() << "mp_type: " << minor_premise_type << "\n";);
@@ -652,7 +617,7 @@ class add_mutual_inductive_decl_fn {
             lean_trace(name({"inductive_compiler", "mutual", "rec"}), tout() << "major premise type: " << major_premise_type << "\n";);
         }
 
-        expr rec_type = dep_elim() ? mk_app(mk_app(C, indices), major_premise) : mk_app(C, indices);
+        expr rec_type = mk_app(mk_app(C, indices), major_premise);
         lean_trace(name({"inductive_compiler", "mutual", "rec"}), tout() << "rec_type: " << rec_type << "\n";);
         return rec_type;
     }
@@ -694,7 +659,7 @@ class add_mutual_inductive_decl_fn {
                     buffer<expr> inner_indices;
                     if (m_mut_decl.is_ind_app(ir_arg, inner_indices)) {
                         bool this_ind_app = m_mut_decl.is_ind_app(ir_arg, ind_idx);
-                        expr C_term = dep_elim() ? mk_app(mk_app(C, inner_indices), mk_app(l, ir_arg_args)) : mk_app(C, inner_indices);
+                        expr C_term = mk_app(mk_app(C, inner_indices), mk_app(l, ir_arg_args));
                         expr rec_arg_type = Pi(ir_arg_args, this_ind_app ? C_term : poly_unit());
                         expr l2 = mk_local_pp("x", rec_arg_type);
                         rec_args.push_back(l2);
@@ -771,6 +736,9 @@ public:
         } catch (exception & ex) {
             throw nested_exception(sstream() << "mutually inductive types compiled to invalid basic inductive type", ex);
         }
+
+        if (!inductive::has_dep_elim(m_env, mlocal_name(m_basic_decl.get_ind(0))))
+            throw exception("mutually inductive types must compile to basic inductive type with dependent elimination");
 
         define_ind_types();
         define_intro_rules();
