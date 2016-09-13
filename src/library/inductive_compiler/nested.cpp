@@ -1093,6 +1093,43 @@ class add_nested_inductive_decl_fn {
         }
     }
 
+    expr build_nested_recursor(unsigned ind_idx, expr const & inner_recursor, expr const & outer_recursor_type) {
+        expr C;
+        buffer<expr> minor_premises;
+        buffer<expr> indices;
+        expr major_premise;
+        expr goal = introduce_locals_for_nested_recursor(ind_idx, outer_recursor_type, C, minor_premises, indices, major_premise);
+
+        // Only the minor premises need to change
+        lean_assert(m_nested_decl.get_num_intro_rules(ind_idx) == minor_premises.size());
+        buffer<expr> inner_minor_premises;
+        for (unsigned ir_idx = 0; ir_idx < minor_premises.size(); ++ir_idx) {
+            expr const & minor_premise = minor_premises[ir_idx];
+            expr ty = m_tctx.whnf(pack_type(mlocal_type(minor_premise)));
+
+            buffer<expr> inner_minor_premise_args;
+            buffer<expr> inner_minor_premise_rec_args;
+            while (is_pi(ty)) {
+                expr arg = mk_local_for(ty);
+                if (get_app_fn(mlocal_type(arg)) != C) {
+                    lean_assert(inner_minor_premise_rec_args.empty());
+                    inner_minor_premise_args.push_back(arg);
+                } else {
+                    inner_minor_premise_rec_args.push_back(arg);
+                }
+                ty = m_tctx.whnf(instantiate(binding_body(ty), arg));
+            }
+            inner_minor_premises.push_back(build_nested_minor_premise_fn(*this, ind_idx, ir_idx, minor_premise, inner_minor_premise_args,
+                                                                         inner_minor_premise_rec_args, ty)());
+        }
+
+        return Fun(C,
+                   Fun(minor_premises,
+                       Fun(indices,
+                           Fun(major_premise,
+                               mk_app(mk_app(mk_app(mk_app(inner_recursor, C), inner_minor_premises), indices), major_premise)))));
+    }
+
     expr introduce_locals_for_nested_recursor(unsigned ind_idx, expr const & outer_recursor_type,
                                               expr & C, buffer<expr> & minor_premises,
                                               buffer<expr> & indices, expr & major_premise) {
@@ -1202,43 +1239,20 @@ class add_nested_inductive_decl_fn {
         }
     };
 
-    expr build_nested_recursor(unsigned ind_idx, expr const & inner_recursor, expr const & outer_recursor_type) {
-        expr C;
-        buffer<expr> minor_premises;
-        buffer<expr> indices;
-        expr major_premise;
-        expr goal = introduce_locals_for_nested_recursor(ind_idx, outer_recursor_type, C, minor_premises, indices, major_premise);
+    /////////////////////////////////////////////////
+    ///// Stage 8: sizeof lemmas for nested ind /////
+    /////////////////////////////////////////////////
 
-        // Only the minor premises need to change
-        lean_assert(m_nested_decl.get_num_intro_rules(ind_idx) == minor_premises.size());
-        buffer<expr> inner_minor_premises;
-        for (unsigned ir_idx = 0; ir_idx < minor_premises.size(); ++ir_idx) {
-            expr const & minor_premise = minor_premises[ir_idx];
-            expr ty = m_tctx.whnf(pack_type(mlocal_type(minor_premise)));
+    void define_nested_sizeof_lemmas() {
 
-            buffer<expr> inner_minor_premise_args;
-            buffer<expr> inner_minor_premise_rec_args;
-            while (is_pi(ty)) {
-                expr arg = mk_local_for(ty);
-                if (get_app_fn(mlocal_type(arg)) != C) {
-                    lean_assert(inner_minor_premise_rec_args.empty());
-                    inner_minor_premise_args.push_back(arg);
-                } else {
-                    inner_minor_premise_rec_args.push_back(arg);
-                }
-                ty = m_tctx.whnf(instantiate(binding_body(ty), arg));
-            }
-            inner_minor_premises.push_back(build_nested_minor_premise_fn(*this, ind_idx, ir_idx, minor_premise, inner_minor_premise_args,
-                                                                         inner_minor_premise_rec_args, ty)());
-        }
 
-        return Fun(C,
-                   Fun(minor_premises,
-                       Fun(indices,
-                           Fun(major_premise,
-                               mk_app(mk_app(mk_app(mk_app(inner_recursor, C), inner_minor_premises), indices), major_premise)))));
+
+
+
+
+
+
     }
-
 
 public:
     add_nested_inductive_decl_fn(environment const & env, options const & opts,
@@ -1262,6 +1276,7 @@ public:
         build_primitive_pack_unpack();
         define_nested_irs();
         define_nested_recursors();
+        define_nested_sizeof_lemmas();
 
         return optional<environment>(m_env);
     }
