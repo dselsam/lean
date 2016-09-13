@@ -174,6 +174,7 @@ expr mk_pair(abstract_type_context & ctx, expr const & a, expr const & b, bool p
 expr mk_pr1(abstract_type_context & ctx, expr const & p, bool prop);
 expr mk_pr2(abstract_type_context & ctx, expr const & p, bool prop);
 
+expr mk_nat_zero();
 expr mk_nat_one();
 expr mk_nat_add(expr const & e1, expr const & e2);
 

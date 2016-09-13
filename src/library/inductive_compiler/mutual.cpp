@@ -337,7 +337,7 @@ class add_mutual_inductive_decl_fn {
                                       m_tctx.mk_lambda(param_insts,
                                                        Fun(indices, mk_app(c_sizeof, mk_app(m_putters[ind_idx], mk_app(m_makers[ind_idx], indices))))));
 
-            lean_trace(name({"inductive_compiler", "mutual", "has_sizeof"}), tout()
+            lean_trace(name({"inductive_compiler", "mutual", "sizeof"}), tout()
                        << has_sizeof_name << " : " << has_sizeof_type << " :=\n  " << has_sizeof_val << "\n";);
             lean_assert(!has_local(has_sizeof_type));
             lean_assert(!has_local(has_sizeof_val));
@@ -395,7 +395,8 @@ class add_mutual_inductive_decl_fn {
                            << dsimp_rule_name << " : " << dsimp_rule_type << " :=\n  "<< dsimp_rule_val << "\n";);
 
                 m_env = module::add(m_env, check(m_env, mk_definition_inferring_trusted(m_env, dsimp_rule_name, to_list(m_mut_decl.get_lp_names()), dsimp_rule_type, dsimp_rule_val, true)));
-                m_env = set_simp_sizeof(m_env, dsimp_rule_name);
+                // Note: we do not add to the [simp.sizeof] set, because these lemmas are not useful to the nested module
+                // since they refer to variables with the inner inductive type. The nested module will create similar lemmas but with unpacked types.
                 m_env = add_protected(m_env, dsimp_rule_name);
 
                 tctx_synth.set_env(m_env);
@@ -796,7 +797,7 @@ void initialize_inductive_compiler_mutual() {
     register_trace_class(name({"inductive_compiler", "mutual", "new_irs"}));
     register_trace_class(name({"inductive_compiler", "mutual", "new_inds"}));
     register_trace_class(name({"inductive_compiler", "mutual", "rec"}));
-    register_trace_class(name({"inductive_compiler", "mutual", "has_sizeof"}));
+    register_trace_class(name({"inductive_compiler", "mutual", "sizeof"}));
 
     g_mutual_prefix = new name(name::mk_internal_unique_name());
 }

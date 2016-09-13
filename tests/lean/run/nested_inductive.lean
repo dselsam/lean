@@ -1,3 +1,4 @@
+set_option trace.inductive_compiler.nested.define true
 inductive vec (A : Type) : nat -> Type
 | vnil : vec 0
 | vcons : Pi (n : nat), A -> vec n -> vec (n+1)
@@ -50,3 +51,10 @@ inductive foo : Prop
 | mk : and foo foo -> foo
 
 end X7
+
+namespace X8
+
+inductive foo.{l} (A : Type.{l}) : Type.{max 1 l}
+| mk : Pi (n : nat), A -> (Pi (m : nat), vec foo (n + m)) -> vec foo n -> foo
+
+end X8
