@@ -86,5 +86,33 @@ inductive foo.{l} (A : Type.{l}) : Type.{max 1 l}
 inductive bar.{l} : Type.{max 1 l}
 | mk : box (foo bar) -> wrap (box (foo bar)) -> bar
 
-check @bar.mk
 end X10
+
+namespace X11
+print "intro rule that introduces additional nesting"
+
+inductive wrap (A : Type) : Type
+| mk : list A -> wrap
+
+inductive foo.{l} : Type.{max 1 l}
+| mk : wrap foo -> foo
+
+end X11
+
+namespace X12
+print "intro rule that introduces a lot of additional nesting"
+
+inductive wrap (A : Type) : Type
+| mk : list (list A) -> wrap
+
+inductive box.{l} (A : Type.{l}) : Type.{max 1 l}
+| mk : wrap (list box) -> box
+
+inductive foo.{l} (A : Type.{l}) : Type.{max 1 l}
+| mk : A -> box (box foo) -> foo
+
+inductive bar.{l} : Type.{max 1 l}
+| mk : box (foo bar) -> wrap (box (foo bar)) -> bar
+
+check @bar.mk
+end X12

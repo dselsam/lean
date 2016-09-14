@@ -556,10 +556,19 @@ class add_nested_inductive_decl_fn {
                        tout() << mlocal_name(ind) << " : " << new_ind_type << " :=\n  " << new_ind_val << "\n";);
 
             define(mlocal_name(ind), new_ind_type, new_ind_val);
+            m_env = set_reducible(m_env, mlocal_name(ind), reducible_status::Reducible, true);
+            m_tctx.set_env(m_env);
+        }
+    }
+
+    void make_nested_inds_irreducible() {
+        for (unsigned ind_idx = 0; ind_idx < m_nested_decl.get_num_inds(); ++ind_idx) {
+            expr const & ind = m_nested_decl.get_ind(ind_idx);
             m_env = set_reducible(m_env, mlocal_name(ind), reducible_status::Irreducible, true);
             m_tctx.set_env(m_env);
         }
     }
+
 
     /////////////////////////////////////////////////////////////////////////////
     ///// Stage 4: sizeof-simp lemmas for inner type in terms of outer type /////
@@ -1132,7 +1141,12 @@ class add_nested_inductive_decl_fn {
         simp_result r = simplify(tctx, get_eq_name(), all_lemmas, thm);
         // TODO(dhs): remove
         if (r.get_new() != mk_true()) {
-            lean_trace(name({"inductive_compiler", "nested", "simp", "failure"}), tout() << r.get_new() << "\n";);
+            formatter_factory const & fmtf = get_global_ios().get_formatter_factory();
+            lean_trace(name({"inductive_compiler", "nested", "simp", "failure"}),
+                       tout() << "\n-------------------\n"
+                       << lctx.pp(fmtf(m_env, m_tctx.get_options(), m_tctx))
+                       << "\n---------------\n"
+                       << r.get_new() << "\n";);
         }
         lean_assert(r.get_new() == mk_true());
         return mk_app(tctx, get_eq_mpr_name(), r.get_proof(), mk_true_intro());
@@ -1561,6 +1575,8 @@ public:
         define_nested_sizeof_lemmas();
 
         set_all_inds_irreducible();
+        make_nested_inds_irreducible();
+
         return optional<environment>(m_env);
     }
 
