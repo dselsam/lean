@@ -13,6 +13,7 @@ Author: Daniel Selsam
 #include "kernel/find_fn.h"
 #include "kernel/expr.h"
 #include "kernel/replace_fn.h"
+#include "util/sexpr/options.h"
 #include "util/sexpr/option_declarations.h"
 #include "util/list_fn.h"
 #include "util/fresh_name.h"
@@ -135,9 +136,8 @@ class add_nested_inductive_decl_fn {
     }
     name mk_primitive_name(fn_type t) { return m_prefix + to_name(fn_layer::PRIMITIVE) + to_name(t); }
     name mk_inner_name(name const & n) { return m_prefix + n; }
-    name mk_spec_name(name const & n) { return mk_inner_name(n) + "spec"; }
     name mk_unpacked_name(name const & n) { return mk_inner_name(n) + "unpacked"; }
-
+    name mk_spec_name(name const & base, name const & ir_name) { return base + ir_name + "spec"; }
     // Helpers
 
     expr safe_whnf(type_context & tctx, expr const & e) {
@@ -725,7 +725,6 @@ class add_nested_inductive_decl_fn {
         m_is_multiply_nested = true;
         lean_assert(is_ginductive(m_env, const_name(fn)));
 
-        // TODO(dhs): previous version whnf-ed the (parameter) arguments here, claiming something to do with sizeof instances
         buffer<expr> unpacked_params, packed_params;
         for (expr const & param : params) {
             expr p = safe_whnf(m_tctx, param);
@@ -915,7 +914,7 @@ class add_nested_inductive_decl_fn {
         define(mk_nested_name(fn_type::UNPACK, nest_idx), nested_unpack_ty, nested_unpack_val);
 
         for (auto const & slemma : spec_lemmas) {
-            name n  = mk_spec_name(to_name(slemma.m_fn_layer) + to_name(slemma.m_fn_type) + slemma.m_ir_name + std::to_string(nest_idx));
+            name n  = mk_spec_name(mk_nested_name(slemma.m_fn_type, nest_idx), slemma.m_ir_name);
             expr ty = Pi(m_nested_decl.get_params(), Pi(slemma.m_to_abstract, mk_eq(m_tctx, slemma.m_lhs, slemma.m_rhs)));
             expr pf = Fun(m_nested_decl.get_params(), Fun(slemma.m_to_abstract, mk_eq_refl(m_tctx, slemma.m_lhs)));
             define_theorem(n, ty, pf);
@@ -1103,7 +1102,7 @@ class add_nested_inductive_decl_fn {
         define(mk_primitive_name(fn_type::UNPACK), primitive_unpack_ty, primitive_unpack_val);
 
         for (auto const & slemma : spec_lemmas) {
-            name n  = mk_spec_name(to_name(slemma.m_fn_layer) + to_name(slemma.m_fn_type) + slemma.m_ir_name);
+            name n  = mk_spec_name(mk_primitive_name(slemma.m_fn_type), slemma.m_ir_name);
             expr ty = Pi(m_nested_decl.get_params(), Pi(slemma.m_to_abstract, mk_eq(m_tctx, slemma.m_lhs, slemma.m_rhs)));
             expr pf = Fun(m_nested_decl.get_params(), Fun(slemma.m_to_abstract, force_recursors(slemma.m_lhs)));
             define_theorem(n, ty, pf);
@@ -1142,6 +1141,7 @@ class add_nested_inductive_decl_fn {
     }
 
     simp_result force_eq_rec(expr const & rec_fn, buffer<expr> const & rec_args) {
+        // See comments above prove_eq_rec_invertible(type_context & ctx, expr const & e) at equation_compiler/util.cpp.
         lean_assert(is_constant(rec_fn, get_eq_rec_name()) && rec_args.size() == 6);
         expr B      = rec_args[0];
         expr from   = rec_args[1]; /* (f (g (f a))) */
@@ -1202,11 +1202,27 @@ class add_nested_inductive_decl_fn {
         return simp_result(h_a, pr);
     }
 
+    options get_simp_options(options opts) {
+        opts = remove_all_with_prefix(name{"simplify"}, m_tctx.get_options());
+        opts = opts.update(name{"simplify", "max_steps"}, 1000000);
+        opts = opts.update(name{"simplify", "nary_assoc"}, false);
+        opts = opts.update(name{"simplify", "memoize"}, true);
+        opts = opts.update(name{"simplify", "contextual"}, false);
+        opts = opts.update(name{"simplify", "user_extensions"}, false);
+        opts = opts.update(name{"simplify", "rewrite"}, true);
+        opts = opts.update(name{"simplify", "unsafe_nary"}, false);
+        opts = opts.update(name{"simplify", "theory"}, true);
+        opts = opts.update(name{"simplify", "topdown"}, false);
+        opts = opts.update(name{"simplify", "lift_eq"}, false);
+        opts = opts.update(name{"simplify", "canonize_instances_fixed_point"}, false);
+        opts = opts.update(name{"simplify", "canonize_proofs_fixed_point"}, false);
+        opts = opts.update(name{"simplify", "canonize_subsingletons"}, false);
+        return opts;
+    }
+
     expr prove_by_simp(local_context const & lctx, expr const & thm, list<expr> Hs, bool use_sizeof) {
-        type_context tctx(m_env, m_tctx.get_options(), lctx);
+        type_context tctx(m_env, get_simp_options(m_tctx.get_options()), lctx);
         simp_lemmas all_lemmas = use_sizeof ? join(m_lemmas, get_sizeof_simp_lemmas(tctx)) : m_lemmas;
-        // TODO(dhs): we need to override the [simp] options
-        // TODO(dhs): irreducible is not ideal, but we need to be able to unify [foo] with [nest.foo]
         for (expr const & H : Hs) {
             expr H_type = tctx.infer(H);
             all_lemmas = add(tctx, all_lemmas, mlocal_name(H), H_type, H, LEAN_DEFAULT_PRIORITY);
