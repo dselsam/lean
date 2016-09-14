@@ -705,6 +705,8 @@ class add_nested_inductive_decl_fn {
         lean_assert(is_ginductive(m_env, const_name(fn)));
 
         // TODO(dhs): previous version whnf-ed the (parameter) arguments here, claiming something to do with sizeof instances
+        for (expr & unpacked_param : unpacked_params)
+            unpacked_param = safe_whnf(m_tctx, unpacked_param);
 
         buffer<expr> packed_params;
         for (expr const & unpacked_param : unpacked_params)
