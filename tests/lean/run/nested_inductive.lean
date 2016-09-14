@@ -132,3 +132,23 @@ inductive bar.{l} : Type.{max 1 l}
 | mk : foo (box (foo bar)) -> foo (wrap (box (foo bar))) -> bar
 
 end X13
+
+namespace X14
+print "insane nesting"
+
+inductive wrap (A : Type) : Type
+| mk : Pi (n : nat), vec A n -> wrap
+
+set_option pp.locals_full_names true
+inductive box.{l} (A : Type.{l}) : Type.{max 1 l}
+| mk : Pi (n : nat), vec (wrap (list box)) n -> box
+| mk₂ : wrap box -> box
+
+inductive foo.{l} (A : Type.{l}) : Type.{max 1 l}
+| mk : A -> list (box (box (wrap foo))) -> foo
+
+inductive bar.{l} : Type.{max 1 l}
+| mk : foo (box (foo bar)) -> foo (wrap (box (foo bar))) -> bar
+
+
+end X14
