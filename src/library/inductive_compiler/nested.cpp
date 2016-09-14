@@ -141,7 +141,7 @@ class add_nested_inductive_decl_fn {
 
     expr safe_whnf(type_context & tctx, expr const & e) {
         // TODO(dhs): better way?
-        return safe_whnf(tctx, _pred(e, [&](expr const & t) {
+        return tctx.whnf_pred(e, [&](expr const & t) {
                 buffer<expr> args;
                 expr fn = get_app_fn(t);
                 if (!is_constant(fn))
@@ -156,7 +156,7 @@ class add_nested_inductive_decl_fn {
                         return false;
                 }
                 return true;
-            });
+                });
     }
 
     void add_inner_decl() {
@@ -1247,11 +1247,11 @@ class add_nested_inductive_decl_fn {
 
         type_context tctx(m_env, m_tctx.get_options());
 
-        expr ty = safe_whnf(tctx, (args[0]);
+        expr ty = safe_whnf(tctx, args[0]);
         while (is_pi(ty)) {
             expr l = tctx.push_local(binding_name(ty), binding_domain(ty), binding_info(ty));
             pi_args.push_back(l);
-            ty = safe_whnf(tctx, (instantiate(binding_body(ty), l));
+            ty = safe_whnf(tctx, instantiate(binding_body(ty), l));
         }
 
         buffer<expr> result_args, result_params, result_indices;
