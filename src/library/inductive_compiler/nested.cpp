@@ -139,9 +139,9 @@ class add_nested_inductive_decl_fn {
 
     // Helpers
 
-    expr whnf(type_context & tctx, expr const & e) {
+    expr safe_whnf(type_context & tctx, expr const & e) {
         // TODO(dhs): better way?
-        return tctx.whnf_pred(e, [&](expr const & t) {
+        return safe_whnf(tctx, _pred(e, [&](expr const & t) {
                 buffer<expr> args;
                 expr fn = get_app_fn(t);
                 if (!is_constant(fn))
@@ -251,7 +251,7 @@ class add_nested_inductive_decl_fn {
             while (is_pi(ty) && binding_info(ty).is_inst_implicit()) {
                 expr param_inst = lctx.mk_local_decl(binding_name(ty), binding_domain(ty), binding_info(ty));
                 m_param_insts.push_back(param_inst);
-                ty = m_tctx.whnf(instantiate(binding_body(ty), param_inst));
+                ty = safe_whnf(m_tctx, instantiate(binding_body(ty), param_inst));
             }
             m_synth_lctx = lctx;
         }
@@ -274,13 +274,13 @@ class add_nested_inductive_decl_fn {
     bool find_nested_occ_in_ir_type(expr const & ir_type) {
         if (!m_nested_decl.has_ind_occ(ir_type))
             return false;
-        expr ty = m_tctx.whnf(ir_type);
+        expr ty = safe_whnf(m_tctx, ir_type);
         while (is_pi(ty)) {
             expr arg_type = binding_domain(ty);
             if (find_nested_occ_in_ir_arg_type(arg_type))
                 return true;
             expr l = mk_local_for(ty);
-            ty = m_tctx.whnf(instantiate(binding_body(ty), l));
+            ty = safe_whnf(m_tctx, instantiate(binding_body(ty), l));
         }
         return false;
     }
@@ -289,10 +289,10 @@ class add_nested_inductive_decl_fn {
         if (!m_nested_decl.has_ind_occ(arg_ty))
             return false;
 
-        expr ty = m_tctx.whnf(arg_ty);
+        expr ty = safe_whnf(m_tctx, arg_ty);
         while (is_pi(ty)) {
             expr l = mk_local_for(ty);
-            ty = m_tctx.whnf(instantiate(binding_body(ty), l));
+            ty = safe_whnf(m_tctx, instantiate(binding_body(ty), l));
         }
 
         return find_nested_occ_in_ir_arg_type_core(ty, none_expr());
@@ -332,7 +332,7 @@ class add_nested_inductive_decl_fn {
         if (is_constant(fn) && is_ginductive(m_env, const_name(fn))) {
             unsigned num_params = get_ginductive_num_params(m_env, const_name(fn));
             for (unsigned i = 0; i < num_params; ++i) {
-                if (find_nested_occ_in_ir_arg_type_core(m_tctx.whnf(args[i]), some_expr(ty), num_params))
+                if (find_nested_occ_in_ir_arg_type_core(safe_whnf(m_tctx, args[i]), some_expr(ty), num_params))
                     return true;
             }
             throw exception("inductive type being declared cannot occur as an index of another inductive type");
@@ -376,7 +376,7 @@ class add_nested_inductive_decl_fn {
         // Note: cannot use replace because we need to whnf to expose the nested occurrences
         // For the same reason, we must instantiate with locals
         // Note: only looks in the places where it would be legal to find a nested occurrence
-        expr e = m_tctx.whnf(_e);
+        expr e = safe_whnf(m_tctx, _e);
         switch (e.kind()) {
         case expr_kind::Sort:
         case expr_kind::Local:
@@ -432,7 +432,7 @@ class add_nested_inductive_decl_fn {
         // Note: cannot use replace because we need to whnf to expose the nested occurrences
         // For the same reason, we must instantiate with locals
         // Note: only looks in the places where it would be legal to find a nested occurrence
-        expr e = m_tctx.whnf(_e);
+        expr e = safe_whnf(m_tctx, _e);
         switch (e.kind()) {
         case expr_kind::Sort:
         case expr_kind::Local:
@@ -600,7 +600,7 @@ class add_nested_inductive_decl_fn {
                 buffer<expr> locals;
                 buffer<expr> result_args;
 
-                expr ty = m_tctx.whnf(mlocal_type(ir));
+                expr ty = safe_whnf(m_tctx, mlocal_type(ir));
                 while (is_pi(ty)) {
                     expr l = mk_local_for(ty);
                     if (optional<pair<expr, unsigned> > packed_arg_arity = pack_ir_arg(l)) {
@@ -611,7 +611,7 @@ class add_nested_inductive_decl_fn {
                         result_args.push_back(l);
                     }
                     locals.push_back(l);
-                    ty = m_tctx.whnf(instantiate(binding_body(ty), l));
+                    ty = safe_whnf(m_tctx, instantiate(binding_body(ty), l));
                 }
 
                 expr new_ir_val  = Fun(m_nested_decl.get_params(), Fun(locals, mk_app(m_inner_decl.get_c_ir_params(ind_idx, ir_idx), result_args)));
@@ -636,7 +636,7 @@ class add_nested_inductive_decl_fn {
     }
 
     optional<pair<expr, unsigned> > build_pi_pack_unpack(expr const & arg_ty) {
-        expr ty = m_tctx.whnf(arg_ty);
+        expr ty = safe_whnf(m_tctx, arg_ty);
 
         // TODO(dhs): make sure pack doesn't structural change expr if it never finds a nested occ
         if (ty == pack_nested_occs(ty))
@@ -649,7 +649,7 @@ class add_nested_inductive_decl_fn {
         while (is_pi(ty)) {
             expr l = mk_local_for(ty);
             pi_args.push_back(l);
-            ty = m_tctx.whnf(instantiate(binding_body(ty), l));
+            ty = safe_whnf(m_tctx, instantiate(binding_body(ty), l));
         }
         expr body_to_pack = mk_app(x_to_pack, pi_args);
         expr body_to_unpack = mk_app(x_to_unpack, pi_args);
@@ -718,8 +718,8 @@ class add_nested_inductive_decl_fn {
 
         expr remaining_type;
         {
-            expr remaining_unpacked_type = m_tctx.whnf(m_tctx.infer(start));
-            expr remaining_packed_type = m_tctx.whnf(m_tctx.infer(end));
+            expr remaining_unpacked_type = safe_whnf(m_tctx, m_tctx.infer(start));
+            expr remaining_packed_type = safe_whnf(m_tctx, m_tctx.infer(end));
             lean_assert(remaining_unpacked_type == remaining_packed_type);
             remaining_type = remaining_unpacked_type;
         }
@@ -727,11 +727,11 @@ class add_nested_inductive_decl_fn {
         // Indices
         buffer<expr> indices;
         {
-            expr ty = m_tctx.whnf(remaining_type);
+            expr ty = safe_whnf(m_tctx, remaining_type);
             while (is_pi(ty)) {
                 expr l = mk_local_for(ty);
                 indices.push_back(l);
-                ty = m_tctx.whnf(instantiate(binding_body(ty), l));
+                ty = safe_whnf(m_tctx, instantiate(binding_body(ty), l));
             }
         }
 
@@ -765,8 +765,8 @@ class add_nested_inductive_decl_fn {
             expr c_unpacked_ir = mk_app(mk_constant(intro_rule, const_levels(fn)), unpacked_params);
             expr c_packed_ir = mk_app(mk_constant(intro_rule, const_levels(fn)), packed_params);
 
-            expr unpacked_ir_type = m_tctx.whnf(m_tctx.infer(c_unpacked_ir));
-            expr packed_ir_type = m_tctx.whnf(m_tctx.infer(c_packed_ir));
+            expr unpacked_ir_type = safe_whnf(m_tctx, m_tctx.infer(c_unpacked_ir));
+            expr packed_ir_type = safe_whnf(m_tctx, m_tctx.infer(c_packed_ir));
 
             // for definition
             buffer<expr> unpacked_rec_args;
@@ -845,8 +845,8 @@ class add_nested_inductive_decl_fn {
                         packed_rhs_args.push_back(packed_l);
                     }
                 }
-                unpacked_ir_type = m_tctx.whnf(instantiate(binding_body(unpacked_ir_type), unpacked_l));
-                packed_ir_type = m_tctx.whnf(instantiate(binding_body(packed_ir_type), packed_l));
+                unpacked_ir_type = safe_whnf(m_tctx, instantiate(binding_body(unpacked_ir_type), unpacked_l));
+                packed_ir_type = safe_whnf(m_tctx, instantiate(binding_body(packed_ir_type), packed_l));
             }
 
             lean_assert(!is_pi(unpacked_ir_type) && !is_pi(packed_ir_type));
@@ -917,19 +917,19 @@ class add_nested_inductive_decl_fn {
         buffer<expr> nest_params;
         expr nest_fn = get_app_args(m_nested_occ, nest_params);
 
-        expr remaining_unpacked_type = m_tctx.whnf(m_tctx.infer(m_nested_occ));
-        expr remaining_packed_type = m_tctx.whnf(m_tctx.infer(m_replacement));
+        expr remaining_unpacked_type = safe_whnf(m_tctx, m_tctx.infer(m_nested_occ));
+        expr remaining_packed_type = safe_whnf(m_tctx, m_tctx.infer(m_replacement));
         lean_assert(remaining_unpacked_type == remaining_packed_type);
         expr remaining_type = remaining_unpacked_type;
 
         // Indices
         buffer<expr> indices;
         {
-            expr ty = m_tctx.whnf(remaining_type);
+            expr ty = safe_whnf(m_tctx, remaining_type);
             while (is_pi(ty)) {
                 expr l = mk_local_for(ty);
                 indices.push_back(l);
-                ty = m_tctx.whnf(instantiate(binding_body(ty), l));
+                ty = safe_whnf(m_tctx, instantiate(binding_body(ty), l));
             }
         }
 
@@ -970,8 +970,8 @@ class add_nested_inductive_decl_fn {
             expr c_unpacked_ir = mk_app(mk_constant(intro_rule, const_levels(nest_fn)), nest_params);
             expr c_packed_ir = m_inner_decl.mk_const_params(mk_inner_name(intro_rule));
 
-            expr unpacked_ir_type = m_tctx.whnf(m_tctx.infer(c_unpacked_ir));
-            expr packed_ir_type = m_tctx.whnf(m_tctx.infer(c_packed_ir));
+            expr unpacked_ir_type = safe_whnf(m_tctx, m_tctx.infer(c_unpacked_ir));
+            expr packed_ir_type = safe_whnf(m_tctx, m_tctx.infer(c_packed_ir));
 
             // for definition
             buffer<expr> unpacked_rec_args;
@@ -1034,8 +1034,8 @@ class add_nested_inductive_decl_fn {
                     packed_return_args.push_back(packed_l);
                     packed_rhs_args.push_back(packed_l);
                 }
-                unpacked_ir_type = m_tctx.whnf(instantiate(binding_body(unpacked_ir_type), unpacked_l));
-                packed_ir_type = m_tctx.whnf(instantiate(binding_body(packed_ir_type), packed_l));
+                unpacked_ir_type = safe_whnf(m_tctx, instantiate(binding_body(unpacked_ir_type), unpacked_l));
+                packed_ir_type = safe_whnf(m_tctx, instantiate(binding_body(packed_ir_type), packed_l));
             }
             lean_assert(!is_pi(unpacked_ir_type) && !is_pi(packed_ir_type));
 
@@ -1247,11 +1247,11 @@ class add_nested_inductive_decl_fn {
 
         type_context tctx(m_env, m_tctx.get_options());
 
-        expr ty = tctx.whnf(args[0]);
+        expr ty = safe_whnf(tctx, (args[0]);
         while (is_pi(ty)) {
             expr l = tctx.push_local(binding_name(ty), binding_domain(ty), binding_info(ty));
             pi_args.push_back(l);
-            ty = tctx.whnf(instantiate(binding_body(ty), l));
+            ty = safe_whnf(tctx, (instantiate(binding_body(ty), l));
         }
 
         buffer<expr> result_args, result_params, result_indices;
@@ -1304,7 +1304,7 @@ class add_nested_inductive_decl_fn {
         expr pi_unpack_pack_type = Pi(m_nested_decl.get_params(), tctx_synth.mk_pi(m_param_insts, Pi(ldeps, Pi(x_unpacked, goal))));
         expr pi_unpack_pack_val;
 
-        expr ty = tctx_synth.whnf(arg_ty);
+        expr ty = safe_whnf(tctx_synth, arg_ty);
         if (is_pi(ty)) {
             pi_unpack_pack_val = Fun(m_nested_decl.get_params(), tctx_synth.mk_lambda(m_param_insts, Fun(ldeps, Fun(x_unpacked, mk_eq_refl(tctx_synth, mk_nat_zero())))));
         } else {
@@ -1355,7 +1355,7 @@ class add_nested_inductive_decl_fn {
         buffer<expr> inner_minor_premises;
         for (unsigned ir_idx = 0; ir_idx < minor_premises.size(); ++ir_idx) {
             expr const & minor_premise = minor_premises[ir_idx];
-            expr ty = m_tctx.whnf(pack_type(mlocal_type(minor_premise)));
+            expr ty = safe_whnf(m_tctx, pack_type(mlocal_type(minor_premise)));
 
             buffer<expr> inner_minor_premise_args;
             buffer<expr> inner_minor_premise_rec_args;
@@ -1367,7 +1367,7 @@ class add_nested_inductive_decl_fn {
                 } else {
                     inner_minor_premise_rec_args.push_back(arg);
                 }
-                ty = m_tctx.whnf(instantiate(binding_body(ty), arg));
+                ty = safe_whnf(m_tctx, instantiate(binding_body(ty), arg));
             }
             inner_minor_premises.push_back(build_nested_minor_premise_fn(*this, ind_idx, ir_idx, minor_premise, inner_minor_premise_args,
                                                                          inner_minor_premise_rec_args, ty)());
@@ -1383,20 +1383,20 @@ class add_nested_inductive_decl_fn {
     expr introduce_locals_for_nested_recursor(unsigned ind_idx, expr const & outer_recursor_type,
                                               expr & C, buffer<expr> & minor_premises,
                                               buffer<expr> & indices, expr & major_premise) {
-        expr ty = m_tctx.whnf(outer_recursor_type);
+        expr ty = safe_whnf(m_tctx, outer_recursor_type);
 
         C = mk_local_for(ty, "C");
-        ty = m_tctx.whnf(instantiate(binding_body(ty), C));
+        ty = safe_whnf(m_tctx, instantiate(binding_body(ty), C));
 
         for (unsigned ir_idx = 0; ir_idx < m_nested_decl.get_num_intro_rules(ind_idx); ++ir_idx) {
             expr minor_premise = mk_local_for(ty);
             minor_premises.push_back(minor_premise);
-            ty = m_tctx.whnf(instantiate(binding_body(ty), minor_premise));
+            ty = safe_whnf(m_tctx, instantiate(binding_body(ty), minor_premise));
         }
 
         while (is_pi(ty)) {
             expr l = mk_local_for(ty);
-            ty = m_tctx.whnf(instantiate(binding_body(ty), l));
+            ty = safe_whnf(m_tctx, instantiate(binding_body(ty), l));
             if (is_pi(ty))
                 indices.push_back(l);
             else
@@ -1498,7 +1498,7 @@ class add_nested_inductive_decl_fn {
                 while (is_pi(ir_ty)) {
                     expr local = mk_local_for(ir_ty);
                     locals.push_back(local);
-                    ir_ty = tctx_synth.whnf(instantiate(binding_body(ir_ty), local));
+                    ir_ty = safe_whnf(tctx_synth, instantiate(binding_body(ir_ty), local));
                 }
                 buffer<expr> fully_packed_args;
                 get_app_args(tctx_synth.relaxed_whnf(mk_app(c_nested_ir, locals)), fully_packed_args);
