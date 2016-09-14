@@ -141,8 +141,8 @@ class add_nested_inductive_decl_fn {
 
     expr safe_whnf(type_context & tctx, expr const & e) {
         // TODO(dhs): better way?
+        type_context::transparency_scope m_scope(tctx, transparency_mode::All);
         return tctx.whnf_pred(e, [&](expr const & t) {
-                buffer<expr> args;
                 expr fn = get_app_fn(t);
                 if (!is_constant(fn))
                     return true;
