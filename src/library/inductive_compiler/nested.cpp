@@ -139,6 +139,26 @@ class add_nested_inductive_decl_fn {
 
     // Helpers
 
+    expr whnf(type_context & tctx, expr const & e) {
+        // TODO(dhs): better way?
+        return tctx.whnf_pred(e, [&](expr const & t) {
+                buffer<expr> args;
+                expr fn = get_app_fn(t);
+                if (!is_constant(fn))
+                    return true;
+                name n = const_name(fn);
+                for (expr const & ind : m_nested_decl.get_inds()) {
+                    if (n == mlocal_name(ind))
+                        return false;
+                }
+                for (expr const & ind : m_inner_decl.get_inds()) {
+                    if (n == mlocal_name(ind))
+                        return false;
+                }
+                return true;
+            });
+    }
+
     void add_inner_decl() {
         try {
             m_env = add_inner_inductive_declaration(m_env, m_opts, m_implicit_infer_map, m_inner_decl);
