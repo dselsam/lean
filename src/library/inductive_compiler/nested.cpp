@@ -693,10 +693,10 @@ class add_nested_inductive_decl_fn {
         return optional<pair<expr, unsigned> >(pi_pack, m_nested_decl.get_num_params() + ldeps.size() + 1);
     }
 
-    optional<expr_pair> build_nested_pack_unpack(expr const & fn, buffer<expr> const & unpacked_params) {
-        if (mk_app(fn, unpacked_params) == m_nested_occ)
+    optional<expr_pair> build_nested_pack_unpack(expr const & fn, buffer<expr> const & params) {
+        if (mk_app(fn, params) == m_nested_occ)
             return optional<expr_pair>(m_primitive_pack, m_primitive_unpack);
-        if (mk_app(fn, unpacked_params) == pack_nested_occs(mk_app(fn, unpacked_params)))
+        if (mk_app(fn, params) == pack_nested_occs(mk_app(fn, params)))
             return optional<expr_pair>();
 
         unsigned nest_idx = m_curr_nest_idx++;
@@ -705,12 +705,12 @@ class add_nested_inductive_decl_fn {
         lean_assert(is_ginductive(m_env, const_name(fn)));
 
         // TODO(dhs): previous version whnf-ed the (parameter) arguments here, claiming something to do with sizeof instances
-        for (expr & unpacked_param : unpacked_params)
-            unpacked_param = safe_whnf(m_tctx, unpacked_param);
-
-        buffer<expr> packed_params;
-        for (expr const & unpacked_param : unpacked_params)
-            packed_params.push_back(pack_type(unpacked_param));
+        buffer<expr> unpacked_params, packed_params;
+        for (expr const & param : params) {
+            expr p = safe_whnf(m_tctx, param);
+            unpacked_params.push_back(p);
+            packed_params.push_back(pack_type(p));
+        }
 
         expr start = mk_app(fn, unpacked_params);
         expr end   = mk_app(fn, packed_params);
