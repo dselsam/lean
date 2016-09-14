@@ -392,7 +392,7 @@ attribute [instance]
 definition default_has_sizeof (A : Type) : has_sizeof A :=
 has_sizeof.mk (λ a, nat.zero)
 
-attribute [simp, defeq]
+attribute [simp, defeq, simp.sizeof]
 definition default_has_sizeof_eq (A : Type) (a : A) : @sizeof A (default_has_sizeof A) a = 0 :=
 rfl
 
@@ -495,3 +495,6 @@ rfl
 attribute [simp, defeq, simp.sizeof]
 definition sizeof_list_cons_eq {A : Type} [has_sizeof A] (a : A) (l : list A) : sizeof (list.cons a l) = 1 + sizeof a + sizeof l :=
 rfl
+
+attribute [simp, simp.sizeof]
+lemma nat_add_zero (n : nat) : n + 0 = n := sorry

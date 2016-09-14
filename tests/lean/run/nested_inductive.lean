@@ -54,3 +54,37 @@ inductive foo.{l} (A : Type.{l}) : Type.{max 1 l}
 | mk₂ : Pi (n : nat), A -> list A -> prod A A -> (Pi (m : nat), vec foo (n + m)) -> vec foo n -> foo
 
 end X7
+
+namespace X8
+
+inductive foo.{l} (A : Type.{l}) : Type.{max 1 l}
+| mk₁ : Pi (n : nat), A -> (Pi (m : nat), vec (list (list foo)) (n + m)) -> vec foo n -> foo
+| mk₂ : Pi (n : nat), A -> list A -> prod A A -> (Pi (m : nat), vec foo (n + m)) -> vec foo n -> foo
+
+end X8
+
+namespace X9
+
+inductive foo.{l} (A : Type.{l}) : Type.{max 1 l}
+| mk₁ : Pi (n : nat), A -> (Pi (m : nat), vec (list (list foo)) (n + m)) -> vec foo n -> foo
+| mk₂ : Pi (n : nat), A -> list A -> prod A A -> (Pi (m : nat), vec foo (n + m)) -> vec foo n -> foo
+
+end X9
+
+namespace X10
+print "many layers of nesting nested inductive types"
+
+inductive wrap (A : Type) : Type
+| mk : A -> wrap
+
+inductive box.{l} (A : Type.{l}) : Type.{max 1 l}
+| mk : wrap (list box) -> box
+
+inductive foo.{l} (A : Type.{l}) : Type.{max 1 l}
+| mk : A -> box (box foo) -> foo
+
+inductive bar.{l} : Type.{max 1 l}
+| mk : box (foo bar) -> wrap (box (foo bar)) -> bar
+
+check @bar.mk
+end X10
