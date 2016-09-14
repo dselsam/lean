@@ -114,5 +114,4 @@ inductive foo.{l} (A : Type.{l}) : Type.{max 1 l}
 inductive bar.{l} : Type.{max 1 l}
 | mk : box (foo bar) -> wrap (box (foo bar)) -> bar
 
-check @bar.mk
 end X12
