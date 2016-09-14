@@ -32,6 +32,7 @@ Author: Daniel Selsam
 #include "library/inductive_compiler/nested.h"
 #include "library/inductive_compiler/util.h"
 #include "library/tactic/induction_tactic.h"
+#include "library/tactic/simp_result.h"
 #include "library/tactic/simplifier/simplifier.h"
 #include "library/tactic/simplifier/simp_lemmas.h"
 
@@ -821,7 +822,7 @@ class add_nested_inductive_decl_fn {
                 packed_locals.push_back(packed_l);
                 packed_lhs_args.push_back(packed_l);
 
-                if (mk_app(unpacked_arg_fn, unpacked_params.size(), unpacked_arg_args.data()) == start) {
+                if (unpacked_arg_args.size() >= unpacked_params.size() && mk_app(unpacked_arg_fn, unpacked_params.size(), unpacked_arg_args.data()) == start) {
                     // it is a recursive argument
                     expr unpacked_rec_arg_type = mk_app(end, unpacked_arg_args.size() - unpacked_params.size(), unpacked_arg_args.data() + unpacked_params.size());
                     expr unpacked_l_rec = mk_local_pp("x_unpacked", unpacked_rec_arg_type);
@@ -1123,9 +1124,82 @@ class add_nested_inductive_decl_fn {
     /////////////////////////////
 
     expr force_recursors(expr const & lhs) {
-        // TODO(dhs): handle stuck recursors
-        // Returns a proof of type [lhs = rhs]
-        return mk_eq_refl(m_tctx, lhs);
+        return finalize(m_tctx, get_eq_name(), force_recursors_core(lhs)).get_proof();
+    }
+
+    simp_result force_recursors_core(expr const & lhs) {
+        expr e = safe_whnf(m_tctx, lhs);
+        buffer<expr> rec_args;
+        expr rec_fn = get_app_args(e, rec_args);
+        if (is_constant(rec_fn, get_eq_rec_name())) {
+            lean_assert(rec_args.size() == 6);
+            simp_result r_first = force_eq_rec(rec_fn, rec_args);
+            simp_result r_rest = force_recursors_core(r_first.get_new());
+            return join(m_tctx, get_eq_name(), r_first, r_rest);
+        } else {
+            return simp_result(lhs);
+        }
+    }
+
+    simp_result force_eq_rec(expr const & rec_fn, buffer<expr> const & rec_args) {
+        lean_assert(is_constant(rec_fn, get_eq_rec_name()) && rec_args.size() == 6);
+        expr B      = rec_args[0];
+        expr from   = rec_args[1]; /* (f (g (f a))) */
+        expr C      = rec_args[2];
+        expr minor  = rec_args[3]; /* (h (g (f a))) */
+        expr to     = rec_args[4]; /* (f a) */
+        expr major  = rec_args[5]; /* (f_g_eq (f a)) */
+        lean_assert(is_app(from) && is_app(minor));
+        assert_def_eq(m_env, app_arg(from), app_arg(minor));
+        expr h     = app_fn(minor);
+        expr g_f_a = app_arg(from);
+        lean_assert(is_app(g_f_a));
+        assert_def_eq(m_env, app_arg(g_f_a), to);
+        expr g     = get_app_fn(g_f_a);
+        lean_assert(is_constant(g));
+        expr f_a   = to;
+        lean_assert(is_app(f_a));
+        expr f     = get_app_fn(f_a);
+        expr a     = app_arg(f_a);
+        lean_assert(is_constant(f));
+        optional<inverse_info> info = has_inverse(m_env, const_name(f));
+        lean_assert(info && info->m_inv == const_name(g));
+        name g_f_name = info->m_lemma;
+        optional<inverse_info> info_inv = has_inverse(m_env, const_name(g));
+        lean_assert(info_inv && info_inv->m_inv == const_name(f));
+        buffer<expr> major_args;
+        expr f_g_eq = get_app_args(major, major_args);
+        lean_assert(is_constant(f_g_eq) && !major_args.empty());
+        assert_def_eq(m_env, f_a, major_args.back());
+        lean_assert(const_name(f_g_eq) == info_inv->m_lemma);
+        expr A          = m_tctx.infer(a);
+        level A_lvl     = get_level(m_tctx, A);
+        expr h_a        = mk_app(h, a);
+        expr refl_h_a   = mk_eq_refl(m_tctx, h_a);
+        expr f_a_eq_f_a = mk_eq(m_tctx, f_a, f_a);
+        /* (fun H : f a = f a, eq.refl (h a)) */
+        expr pr_minor   = mk_lambda("_H", f_a_eq_f_a, refl_h_a);
+        type_context::tmp_locals aux_locals(m_tctx);
+        expr x          = aux_locals.push_local("_x", A);
+        /* Remark: we cannot use mk_app(f, x) in the following line.
+           Reason: f may have implicit arguments. So, app_fn(f_x) is not equal to f in general,
+           and app_fn(f_a) is f + implicit arguments. */
+        expr f_x        = mk_app(app_fn(f_a), x);
+        expr f_x_eq_f_a = mk_eq(m_tctx, f_x, f_a);
+        expr H          = aux_locals.push_local("_H", f_x_eq_f_a);
+        expr h_x        = mk_app(h, x);
+        /* (@eq.rec B (f x) C (h x) (f a) H) */
+        expr eq_rec2    = mk_app(rec_fn, {B, f_x, C, h_x, f_a, H});
+        /* (@eq.rec B (f x) C (h x) (f a) H) = h a */
+        expr eq_rec2_eq = mk_eq(m_tctx, eq_rec2, h_a);
+        /* (fun x : A, (forall H : f x = f a, @eq.rec B (f x) C (h x) (f a) H = h a)) */
+        expr pr_motive  = m_tctx.mk_lambda(x, m_tctx.mk_pi(H, eq_rec2_eq));
+        expr g_f_eq_a   = mk_app(m_tctx, g_f_name, a);
+        /* (eq.symm (g_f_eq a)) */
+        expr pr_major   = mk_eq_symm(m_tctx, g_f_eq_a);
+        expr pr         = mk_app(mk_constant(get_eq_rec_name(), {mk_level_zero(), A_lvl}),
+                                 {A, a, pr_motive, pr_minor, g_f_a, pr_major, major});
+        return simp_result(h_a, pr);
     }
 
     expr prove_by_simp(local_context const & lctx, expr const & thm, list<expr> Hs, bool use_sizeof) {

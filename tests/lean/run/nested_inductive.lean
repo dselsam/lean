@@ -115,3 +115,20 @@ inductive bar.{l} : Type.{max 1 l}
 | mk : box (foo bar) -> wrap (box (foo bar)) -> bar
 
 end X12
+
+namespace X13
+print "crazy additional nesting"
+
+inductive wrap (A : Type) : Type
+| mk : Pi (n : nat), vec (list (list A)) n -> wrap
+
+inductive box.{l} (A : Type.{l}) : Type.{max 1 l}
+| mk : Pi (n : nat), vec (wrap (list box)) n -> box
+
+inductive foo.{l} (A : Type.{l}) : Type.{max 1 l}
+| mk : A -> list (box (box (wrap foo))) -> foo
+
+inductive bar.{l} : Type.{max 1 l}
+| mk : foo (box (foo bar)) -> foo (wrap (box (foo bar))) -> bar
+
+end X13
