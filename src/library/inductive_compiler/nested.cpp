@@ -1022,9 +1022,8 @@ class add_nested_inductive_decl_fn {
                 unpacked_locals.push_back(unpacked_l);
                 unpacked_lhs_args.push_back(unpacked_l);
 
-                expr packed_l = mk_local_for(packed_ir_type);
-                packed_locals.push_back(packed_l);
-                packed_lhs_args.push_back(packed_l);
+                expr packed_l;
+
 
                 if (unpacked_arg_fn == nest_fn) {
                     // it is a recursive argument
@@ -1035,6 +1034,10 @@ class add_nested_inductive_decl_fn {
                     unpacked_rhs_args.push_back(mk_app(mk_app(m_primitive_pack, unpacked_arg_args.size() - nest_params.size(), unpacked_arg_args.data() + nest_params.size()),
                                                        unpacked_l));
 
+                    packed_l = mk_local_for(packed_ir_type);
+                    packed_locals.push_back(packed_l);
+                    packed_lhs_args.push_back(packed_l);
+
                     expr packed_rec_arg_type = mk_app(m_nested_occ, packed_arg_args.size() - m_nested_decl.get_num_params(), packed_arg_args.data() + m_nested_decl.get_num_params());
                     expr packed_l_rec = mk_local_pp("x_packed", packed_rec_arg_type);
                     packed_rec_args.push_back(packed_l_rec);
@@ -1042,16 +1045,14 @@ class add_nested_inductive_decl_fn {
                     packed_rhs_args.push_back(mk_app(mk_app(m_primitive_unpack, packed_arg_args.size() - m_nested_decl.get_num_params(), packed_arg_args.data() + m_nested_decl.get_num_params()),
                                                      packed_l));
                 } else {
-                    assert_def_eq(m_env, mlocal_type(unpacked_l), mlocal_type(packed_l));
-                    if (mlocal_type(unpacked_l) != mlocal_type(packed_l)) {
-                        // We want to replace [nest.foo] with [foo] so that the two are structurally equal
-                        // Issue: other the type-context will not be able to unify them without transparency_mode::All
-                        packed_l = unpacked_l;
-                        packed_locals.back() = unpacked_l;
-                        packed_lhs_args.back() = unpacked_l;
-                    }
+                    assert_def_eq(m_env, mlocal_type(unpacked_l), binding_domain(packed_ir_type));
+
                     unpacked_return_args.push_back(unpacked_l);
                     unpacked_rhs_args.push_back(unpacked_l);
+
+                    packed_l = unpacked_l;
+                    packed_locals.push_back(packed_l);
+                    packed_lhs_args.push_back(packed_l);
 
                     packed_return_args.push_back(packed_l);
                     packed_rhs_args.push_back(packed_l);
