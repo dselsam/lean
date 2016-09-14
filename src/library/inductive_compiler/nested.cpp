@@ -168,6 +168,18 @@ class add_nested_inductive_decl_fn {
         m_tctx.set_env(m_env);
     }
 
+    void set_all_inds_reducible() {
+        for (name const & ind : get_ginductive_all_ind_names(m_env)) {
+            m_env = set_reducible(m_env, ind, reducible_status::Reducible, true);
+        }
+    }
+
+    void set_all_inds_irreducible() {
+        for (name const & ind : get_ginductive_all_ind_names(m_env)) {
+            m_env = set_reducible(m_env, ind, reducible_status::Irreducible, true);
+        }
+    }
+
     void define_theorem(name const & n, expr const & ty, expr const & val) {
         assert_no_locals(n, ty);
         assert_no_locals(n, val);
@@ -506,7 +518,6 @@ class add_nested_inductive_decl_fn {
             }
         }
 
-        // For each type mutually inductive to the nested occurrence, we mimic the type and its intro rules
         buffer<expr> nested_occ_params;
         expr nested_occ_fn = get_app_args(m_nested_occ, nested_occ_params);
         name mimic_name = const_name(nested_occ_fn);
@@ -1144,7 +1155,7 @@ class add_nested_inductive_decl_fn {
         list<list<expr> > subgoal_hypotheses;
         hsubstitution_list subgoal_substitutions;
         list<name> ns;
-        list<expr> subgoals = induction(tctx.env(), tctx.get_options(), transparency_mode::Reducible, mctx,
+        list<expr> subgoals = induction(tctx.env(), tctx.get_options(), transparency_mode::None, mctx,
                                         goal, H, rec_name, ns, &subgoal_hypotheses, &subgoal_substitutions);
 
         for_each2(subgoals, subgoal_hypotheses, [&](expr const & m, list<expr> const & Hs) {
@@ -1538,6 +1549,7 @@ public:
 
         construct_inner_decl();
         add_inner_decl();
+        set_all_inds_reducible();
 
         define_nested_inds();
         compute_inner_sizeof_simp_lemmas();
@@ -1548,6 +1560,7 @@ public:
         define_nested_recursors();
         define_nested_sizeof_lemmas();
 
+        set_all_inds_irreducible();
         return optional<environment>(m_env);
     }
 

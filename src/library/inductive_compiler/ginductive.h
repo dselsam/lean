@@ -167,6 +167,9 @@ unsigned get_ginductive_num_params(environment const & env, name const & ind_nam
 /* \brief Returns the names of all types that are mutually inductive with \e ind_name */
 list<name> get_ginductive_mut_ind_names(environment const & env, name const & ind_name);
 
+/* \brief Returns the names of all ginductive types */
+list<name> get_ginductive_all_ind_names(environment const & env);
+
 void initialize_inductive_compiler_ginductive();
 void finalize_inductive_compiler_ginductive();
 }
