@@ -300,7 +300,7 @@ bool local_context::well_formed(expr const & e) const {
     return ok;
 }
 
-format local_context::pp(formatter const & fmt) const {
+format local_context::pp(formatter const & fmt, bool full_names) const {
     options const & opts = fmt.get_options();
     unsigned indent      = get_pp_indent(opts);
     unsigned max_hs      = get_pp_goal_max_hyps(opts);
@@ -324,6 +324,8 @@ format local_context::pp(formatter const & fmt) const {
             }
 
             name n = sanitize_if_fresh(d.get_pp_name());
+            if (full_names)
+                n = n + d.get_name();
 
             if (d.get_value()) {
                 if (first) first = false;

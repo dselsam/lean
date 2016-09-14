@@ -1144,7 +1144,7 @@ class add_nested_inductive_decl_fn {
             formatter_factory const & fmtf = get_global_ios().get_formatter_factory();
             lean_trace(name({"inductive_compiler", "nested", "simp", "failure"}),
                        tout() << "\n-------------------\n"
-                       << lctx.pp(fmtf(m_env, m_tctx.get_options(), m_tctx))
+                       << lctx.pp(fmtf(m_env, m_tctx.get_options(), m_tctx), true)
                        << "\n---------------\n"
                        << r.get_new() << "\n";);
         }

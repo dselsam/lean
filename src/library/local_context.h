@@ -167,7 +167,7 @@ public:
         That is, all local_decl references in \c e are defined in this context. */
     bool well_formed(expr const & e) const;
 
-    format pp(formatter const & fmt) const;
+    format pp(formatter const & fmt, bool full_names = false) const;
 
     /** \brief Replaced assigned metavariables with their values.
         This method is a little bit hackish since it reuses the names and ids of
