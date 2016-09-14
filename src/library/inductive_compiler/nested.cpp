@@ -1027,11 +1027,7 @@ class add_nested_inductive_decl_fn {
                 expr packed_arg_fn = get_app_args(binding_domain(packed_ir_type), packed_arg_args);
 
                 expr unpacked_l = mk_local_for(unpacked_ir_type);
-                unpacked_locals.push_back(unpacked_l);
-                unpacked_lhs_args.push_back(unpacked_l);
-
                 expr packed_l;
-
 
                 if (unpacked_arg_fn == nest_fn) {
                     // it is a recursive argument
@@ -1043,8 +1039,6 @@ class add_nested_inductive_decl_fn {
                                                        unpacked_l));
 
                     packed_l = mk_local_for(packed_ir_type);
-                    packed_locals.push_back(packed_l);
-                    packed_lhs_args.push_back(packed_l);
 
                     expr packed_rec_arg_type = mk_app(m_nested_occ, packed_arg_args.size() - m_nested_decl.get_num_params(), packed_arg_args.data() + m_nested_decl.get_num_params());
                     expr packed_l_rec = mk_local_pp("x_packed", packed_rec_arg_type);
@@ -1059,12 +1053,17 @@ class add_nested_inductive_decl_fn {
                     unpacked_rhs_args.push_back(unpacked_l);
 
                     packed_l = unpacked_l;
-                    packed_locals.push_back(packed_l);
-                    packed_lhs_args.push_back(packed_l);
 
                     packed_return_args.push_back(packed_l);
                     packed_rhs_args.push_back(packed_l);
                 }
+
+                unpacked_locals.push_back(unpacked_l);
+                unpacked_lhs_args.push_back(unpacked_l);
+
+                packed_locals.push_back(packed_l);
+                packed_lhs_args.push_back(packed_l);
+
                 unpacked_ir_type = safe_whnf(m_tctx, instantiate(binding_body(unpacked_ir_type), unpacked_l));
                 packed_ir_type = safe_whnf(m_tctx, instantiate(binding_body(packed_ir_type), packed_l));
             }
