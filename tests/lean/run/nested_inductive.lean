@@ -1,5 +1,5 @@
 set_option trace.inductive_compiler.nested.define.failure true
-set_option pp.binder_types true
+set_option max_memory 1000000
 
 inductive vec (A : Type) : nat -> Type
 | vnil : vec 0
@@ -139,7 +139,6 @@ print "insane nesting"
 inductive wrap (A : Type) : Type
 | mk : Pi (n : nat), vec A n -> wrap
 
-set_option pp.locals_full_names true
 inductive box.{l} (A : Type.{l}) : Type.{max 1 l}
 | mk : Pi (n : nat), vec (wrap (list box)) n -> box
 | mk₂ : wrap box -> box
