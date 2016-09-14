@@ -32,6 +32,7 @@ Author: Daniel Selsam
 #include "library/inductive_compiler/basic.h"
 #include "library/inductive_compiler/nested.h"
 #include "library/inductive_compiler/util.h"
+#include "library/inductive_compiler/ginductive.h"
 #include "library/tactic/induction_tactic.h"
 #include "library/tactic/simp_result.h"
 #include "library/tactic/simplifier/simplifier.h"

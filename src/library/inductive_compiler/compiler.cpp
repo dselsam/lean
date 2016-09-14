@@ -14,6 +14,7 @@ Author: Daniel Selsam
 #include "library/inductive_compiler/basic.h"
 #include "library/inductive_compiler/mutual.h"
 #include "library/inductive_compiler/nested.h"
+#include "library/inductive_compiler/ginductive.h"
 
 namespace lean {
 
