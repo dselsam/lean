@@ -977,7 +977,7 @@ class add_nested_inductive_decl_fn {
 
         expr remaining_unpacked_type = safe_whnf(m_tctx, m_tctx.infer(m_nested_occ));
         expr remaining_packed_type = safe_whnf(m_tctx, m_tctx.infer(m_replacement));
-        lean_assert(remaining_unpacked_type == remaining_packed_type);
+        lean_assert(all_args_eq(remaining_unpacked_type, remaining_packed_type));
         expr remaining_type = remaining_unpacked_type;
 
         // Indices

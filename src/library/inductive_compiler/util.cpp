@@ -101,4 +101,10 @@ void split_params_indices(buffer<expr> const & args, unsigned num_params, buffer
     for (unsigned i = num_params; i < args.size(); ++i)
         indices.push_back(args[i]);
 }
+
+bool all_args_eq(expr const & e1, expr const & e2) {
+    // TODO(dhs): take a type context URGENT
+    return true;
+}
+
 }
