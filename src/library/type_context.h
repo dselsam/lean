@@ -265,6 +265,8 @@ public:
 
     bool is_def_eq_core(level const & l1, level const & l2);
     bool is_def_eq(level const & l1, level const & l2);
+    expr whnf_no_delta(expr const & e) { return whnf_core(e); }
+
     virtual expr whnf(expr const & e) override;
     virtual expr infer(expr const & e) override;
     virtual expr check(expr const & e) override;
@@ -580,6 +582,7 @@ public:
     virtual expr whnf(expr const & e) override;
     virtual bool is_def_eq(expr const & e1, expr const & e2) override;
 
+    expr whnf_no_delta(expr const & e);
 
     expr mk_lambda(buffer<expr> const & locals, expr const & e);
     expr mk_pi(buffer<expr> const & locals, expr const & e);

@@ -93,8 +93,8 @@ simp_lemmas add_core(tmp_type_context & tmp_tctx, simp_lemmas const & s,
         /* We only clear the eassignment since we want to reuse the temporary universe metavariables associated
            with the declaration. */
         tmp_tctx.clear_eassignment();
-        expr rule  = tmp_tctx.whnf(p.first);
-        expr proof = tmp_tctx.whnf(p.second);
+        expr rule  = tmp_tctx.whnf_no_delta(p.first);
+        expr proof = tmp_tctx.whnf_no_delta(p.second);
         bool is_perm = is_permutation_ceqv(env, rule);
         buffer<expr> emetas;
         buffer<bool> instances;
@@ -102,7 +102,7 @@ simp_lemmas add_core(tmp_type_context & tmp_tctx, simp_lemmas const & s,
             expr mvar = tmp_tctx.mk_tmp_mvar(binding_domain(rule));
             emetas.push_back(mvar);
             instances.push_back(binding_info(rule).is_inst_implicit());
-            rule = tmp_tctx.whnf(instantiate(binding_body(rule), mvar));
+            rule = tmp_tctx.whnf_no_delta(instantiate(binding_body(rule), mvar));
             proof = mk_app(proof, mvar);
         }
         expr rel, lhs, rhs;
@@ -122,7 +122,7 @@ static simp_lemmas add_core(tmp_type_context & tmp_tctx, simp_lemmas const & s, 
         us.push_back(tmp_tctx.mk_tmp_univ_mvar());
     }
     levels ls = to_list(us);
-    expr e    = tmp_tctx.whnf(instantiate_type_univ_params(d, ls));
+    expr e    = tmp_tctx.whnf_no_delta(instantiate_type_univ_params(d, ls));
     expr h    = mk_constant(cname, ls);
     return add_core(tmp_tctx, s, cname, ls, e, h, priority);
 }
@@ -179,7 +179,7 @@ simp_lemmas add_congr_core(tmp_type_context & tmp_tctx, simp_lemmas const & s, n
         us.push_back(tmp_tctx.mk_tmp_univ_mvar());
     }
     levels ls = to_list(us);
-    expr rule    = tmp_tctx.whnf(instantiate_type_univ_params(d, ls));
+    expr rule    = tmp_tctx.whnf_no_delta(instantiate_type_univ_params(d, ls));
     expr proof   = mk_constant(n, ls);
 
     buffer<expr> emetas;
@@ -190,7 +190,7 @@ simp_lemmas add_congr_core(tmp_type_context & tmp_tctx, simp_lemmas const & s, n
         emetas.push_back(mvar);
         explicits.push_back(is_explicit(binding_info(rule)));
         instances.push_back(binding_info(rule).is_inst_implicit());
-        rule = tmp_tctx.whnf(instantiate(binding_body(rule), mvar));
+        rule = tmp_tctx.whnf_no_delta(instantiate(binding_body(rule), mvar));
         proof = mk_app(proof, mvar);
     }
     expr rel, lhs, rhs;
