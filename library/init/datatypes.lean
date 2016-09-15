@@ -496,5 +496,5 @@ attribute [simp, defeq, simp.sizeof]
 definition sizeof_list_cons_eq {A : Type} [has_sizeof A] (a : A) (l : list A) : sizeof (list.cons a l) = 1 + sizeof a + sizeof l :=
 rfl
 
-attribute [simp, simp.sizeof]
-lemma nat_add_zero (n : nat) : n + 0 = n := sorry
+attribute [simp, defeq, simp.sizeof]
+lemma nat_add_zero (n : nat) : n + 0 = n := rfl
