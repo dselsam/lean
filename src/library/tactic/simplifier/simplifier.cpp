@@ -1134,7 +1134,10 @@ bool simplifier::instantiate_emetas(tmp_type_context & tmp_tctx, unsigned num_em
             i--;
             if (failed) return;
             expr m_type = tmp_tctx.instantiate_mvars(tmp_tctx.infer(m));
-            lean_assert(!has_metavar(m_type));
+            if (has_metavar(m_type)) {
+                failed = true;
+                return;
+            }
 
             if (tmp_tctx.is_eassigned(i)) return;
 

@@ -74,7 +74,8 @@ static name * g_ginductive_extension = nullptr;
 static std::string * g_ginductive_key = nullptr;
 
 struct ginductive_env_ext : public environment_extension {
-    list<name>                m_all_ind_names;
+    list<name>                m_all_nested_inds;
+    list<name>                m_all_mutual_inds;
     name_map<list<name> >     m_ind_to_irs;
     name_map<list<name> >     m_ind_to_mut_inds;
     name_map<ginductive_kind> m_ind_to_kind;
@@ -89,7 +90,11 @@ struct ginductive_env_ext : public environment_extension {
 
         unsigned ind_idx = 0;
         for (name const & ind : entry.m_inds) {
-            m_all_ind_names = list<name>(ind, m_all_ind_names);
+            switch (entry.m_kind) {
+            case ginductive_kind::BASIC: break;
+            case ginductive_kind::MUTUAL: m_all_mutual_inds = list<name>(ind, m_all_mutual_inds); break;
+            case ginductive_kind::NESTED: m_all_nested_inds = list<name>(ind, m_all_nested_inds); break;
+            }
             m_ind_to_irs.insert(ind, intro_rules[ind_idx]);
             m_ind_to_mut_inds.insert(ind, entry.m_inds);
             m_ind_to_kind.insert(ind, entry.m_kind);
@@ -134,8 +139,12 @@ struct ginductive_env_ext : public environment_extension {
         return *mut_ind_names;
     }
 
-    list<name> get_all_ind_names() const {
-        return m_all_ind_names;
+    list<name> get_all_nested_inds() const {
+        return m_all_nested_inds;
+    }
+
+    list<name> get_all_mutual_inds() const {
+        return m_all_mutual_inds;
     }
 };
 
@@ -201,8 +210,12 @@ list<name> get_ginductive_mut_ind_names(environment const & env, name const & in
     return get_extension(env).get_mut_ind_names(ind_name);
 }
 
-list<name> get_ginductive_all_ind_names(environment const & env) {
-    return get_extension(env).get_all_ind_names();
+list<name> get_ginductive_all_mutual_inds(environment const & env) {
+    return get_extension(env).get_all_mutual_inds();
+}
+
+list<name> get_ginductive_all_nested_inds(environment const & env) {
+    return get_extension(env).get_all_nested_inds();
 }
 
 static void ginductive_reader(deserializer & d, shared_environment & senv,
