@@ -1184,20 +1184,20 @@ class add_nested_inductive_decl_fn {
     }
 
     options get_simp_options(options opts) {
-        opts = remove_all_with_prefix(name{"simplify"}, m_tctx.get_options());
-        opts = opts.update(name{"simplify", "max_steps"}, 1000000);
-        opts = opts.update(name{"simplify", "nary_assoc"}, false);
-        opts = opts.update(name{"simplify", "memoize"}, true);
-        opts = opts.update(name{"simplify", "contextual"}, false);
-        opts = opts.update(name{"simplify", "user_extensions"}, false);
-        opts = opts.update(name{"simplify", "rewrite"}, true);
-        opts = opts.update(name{"simplify", "unsafe_nary"}, false);
-        opts = opts.update(name{"simplify", "theory"}, true);
-        opts = opts.update(name{"simplify", "topdown"}, false);
-        opts = opts.update(name{"simplify", "lift_eq"}, false);
-        opts = opts.update(name{"simplify", "canonize_instances_fixed_point"}, false);
-        opts = opts.update(name{"simplify", "canonize_proofs_fixed_point"}, false);
-        opts = opts.update(name{"simplify", "canonize_subsingletons"}, false);
+        opts = remove_all_with_prefix(get_simplify_prefix_name(), m_tctx.get_options());
+        opts = opts.update(get_simplify_max_steps_name(), 100000);
+        opts = opts.update(get_simplify_nary_assoc_name(), false);
+        opts = opts.update(get_simplify_memoize_name(), true);
+        opts = opts.update(get_simplify_contextual_name(), false);
+        opts = opts.update(get_simplify_user_extensions_name(), false);
+        opts = opts.update(get_simplify_rewrite_name(), true);
+        opts = opts.update(get_simplify_unsafe_nary_name(), false);
+        opts = opts.update(get_simplify_theory_name(), true);
+        opts = opts.update(get_simplify_topdown_name(), false);
+        opts = opts.update(get_simplify_lift_eq_name(), false);
+        opts = opts.update(get_simplify_canonize_instances_fixed_point_name(), false);
+        opts = opts.update(get_simplify_canonize_proofs_fixed_point_name(), false);
+        opts = opts.update(get_simplify_canonize_subsingletons_name(), false);
         return opts;
     }
 
