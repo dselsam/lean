@@ -17,7 +17,7 @@ Author: Daniel Selsam
 #include "util/sexpr/option_declarations.h"
 #include "util/list_fn.h"
 #include "util/fresh_name.h"
-#include "util/name_hash_set.h"
+#include "util/name_hash_map.h"
 #include "library/locals.h"
 #include "library/app_builder.h"
 #include "library/constants.h"
@@ -71,7 +71,7 @@ class add_nested_inductive_decl_fn {
 
     buffer<buffer<buffer<optional<unsigned> > > > m_pack_arity; // [ind_idx][ir_idx][ir_arg_idx]
 
-    name_hash_set                 m_make_reducible;
+    name_hash_map<reducible_status> m_make_reducible;
 
     // For the pack_ir_arg recursion
     bool                          m_in_define_nested_irs{false};
@@ -144,8 +144,8 @@ class add_nested_inductive_decl_fn {
     // Helpers
     void try_make_reducible(name const & n) {
         if (!m_make_reducible.count(n)) {
+            m_make_reducible.insert({n, get_reducible_status(m_env, n)});
             m_env = set_reducible(m_env, n, reducible_status::Reducible, true);
-            m_make_reducible.insert(n);
         }
     }
 
@@ -165,7 +165,6 @@ class add_nested_inductive_decl_fn {
     }
 
     expr safe_whnf(type_context & tctx, expr const & e) {
-        // TODO(dhs): better way?
         type_context::transparency_scope m_scope(tctx, transparency_mode::All);
         expr r = tctx.whnf_pred(e, [&](expr const & t) {
                 expr fn = get_app_fn(t);
@@ -180,9 +179,10 @@ class add_nested_inductive_decl_fn {
                     if (n == mlocal_name(ind))
                         return false;
                 }
-                if (!static_cast<bool>(is_ginductive(m_env, n)))
+                if (!static_cast<bool>(is_ginductive(m_env, n)) && !is_reducible(m_env, n))
                     return false;
-                try_make_reducible(n);
+                if (!is_reducible(m_env, n))
+                    try_make_reducible(n);
                 return true;
             });
         tctx.set_env(m_env);
@@ -199,18 +199,9 @@ class add_nested_inductive_decl_fn {
         m_tctx.set_env(m_env);
     }
 
-    void set_all_inds_reducible() {
-        for (name const & ind : get_ginductive_all_mutual_inds(m_env)) {
-            m_env = set_reducible(m_env, ind, reducible_status::Reducible, true);
-        }
-        for (name const & ind : get_ginductive_all_nested_inds(m_env)) {
-            m_env = set_reducible(m_env, ind, reducible_status::Reducible, true);
-        }
-    }
-
     void set_all_inds_irreducible() {
-        for (name const & n : m_make_reducible) {
-            m_env = set_reducible(m_env, n, reducible_status::Irreducible, true);
+        for (auto const & p : m_make_reducible) {
+            m_env = set_reducible(m_env, p.first, p.second, true);
         }
         for (unsigned ind_idx = 0; ind_idx < m_nested_decl.get_num_inds(); ++ind_idx) {
             expr const & ind = m_nested_decl.get_ind(ind_idx);
@@ -839,6 +830,10 @@ class add_nested_inductive_decl_fn {
             buffer<expr> packed_rhs_args;
 
             while (is_pi(unpacked_ir_type) && is_pi(packed_ir_type)) {
+                // In case we have a nesting with a reducible constant
+                unpacked_ir_type = update_binding(unpacked_ir_type, safe_whnf(m_tctx, binding_domain(unpacked_ir_type)), binding_body(unpacked_ir_type));
+                packed_ir_type = update_binding(packed_ir_type, safe_whnf(m_tctx, binding_domain(packed_ir_type)), binding_body(packed_ir_type));
+
                 buffer<expr> unpacked_arg_args;
                 expr unpacked_arg_fn = get_app_args(binding_domain(unpacked_ir_type), unpacked_arg_args);
 
@@ -1686,7 +1681,7 @@ public:
         m_env(env), m_opts(opts), m_implicit_infer_map(implicit_infer_map),
         m_nested_decl(nested_decl), m_inner_decl(m_nested_decl.get_lp_names(), m_nested_decl.get_params()),
         m_prefix(g_nested_prefix->append_after(g_next_nest_id++)),
-        m_tctx(env, opts, transparency_mode::Semireducible) { }
+        m_tctx(env, opts) { }
 
     optional<environment> operator()() {
         if (!find_nested_occ())
