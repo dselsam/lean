@@ -555,7 +555,8 @@ class add_nested_inductive_decl_fn {
             throw exception(sstream() << "cannot nest occurrence inside mutually inductive type '" << mimic_name << "'");
 
         expr c_mimic_ind = mk_app(mk_constant(mimic_name, const_levels(nested_occ_fn)), nested_occ_params);
-        expr mimic_ind = mk_local(mk_inner_name(mimic_name), m_tctx.infer(c_mimic_ind));
+        expr mimic_ind_type = update_result_sort(m_tctx.infer(c_mimic_ind), m_nested_decl.get_result_level());
+        expr mimic_ind = mk_local(mk_inner_name(mimic_name), mimic_ind_type);
         m_inner_decl.get_inds().push_back(mimic_ind);
 
         lean_trace(name({"inductive_compiler", "nested", "mimic", "ind"}),

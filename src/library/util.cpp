@@ -183,6 +183,16 @@ level get_datatype_level(expr ind_type) {
     return sort_level(ind_type);
 }
 
+expr update_result_sort(expr t, level const & l) {
+    if (is_pi(t)) {
+        return update_binding(t, binding_domain(t), update_result_sort(binding_body(t), l));
+    } else if (is_sort(t)) {
+        return update_sort(t, l);
+    } else {
+        lean_unreachable();
+    }
+}
+
 bool is_inductive_predicate(environment const & env, name const & n) {
     if (!is_standard(env))
         return false;

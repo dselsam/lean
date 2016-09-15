@@ -5,6 +5,7 @@
   Author: Daniel Selsam
 */
 #include "library/inductive_compiler/ginductive_decl.h"
+#include "library/util.cpp"
 
 namespace lean {
 
@@ -80,6 +81,10 @@ expr ginductive_decl::get_app_indices(expr const & e, buffer<expr> & indices) co
 bool ginductive_decl::is_param(expr const & e) const {
     return is_local(e)
         && std::any_of(m_params.begin(), m_params.end(), [&](expr const & param) { return e == param; });
+}
+
+level ginductive_decl::get_result_level() const {
+    return get_datatype_level(mlocal_type(m_inds[0]));
 }
 
 }

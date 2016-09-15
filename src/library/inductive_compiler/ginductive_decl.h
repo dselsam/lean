@@ -63,5 +63,6 @@ public:
     void args_to_indices(buffer<expr> const & args, buffer<expr> & indices) const;
     expr get_app_indices(expr const & e, buffer<expr> & indices) const;
     bool is_param(expr const & e) const;
+    level get_result_level() const;
 };
 }

@@ -230,31 +230,6 @@ class inductive_cmd_fn {
         return mk_result_level(m_env, r_lvls);
     }
 
-    /** \brief Return the universe level of the given type, if it is not a sort, then raise an exception. */
-    level get_datatype_result_level(expr d_type) {
-        d_type = m_ctx.relaxed_whnf(d_type);
-        type_context::tmp_locals locals(m_ctx);
-        while (is_pi(d_type)) {
-            d_type = instantiate(binding_body(d_type), locals.push_local_from_binding(d_type));
-            d_type = m_ctx.relaxed_whnf(d_type);
-        }
-        if (!is_sort(d_type))
-            throw_error(sstream() << "invalid inductive datatype, resultant type is not a sort");
-        return sort_level(d_type);
-    }
-
-    /** \brief Update the result sort of the given type */
-    expr update_result_sort(expr t, level const & l) {
-        t = m_ctx.whnf(t);
-        if (is_pi(t)) {
-            return update_binding(t, binding_domain(t), update_result_sort(binding_body(t), l));
-        } else if (is_sort(t)) {
-            return update_sort(t, l);
-        } else {
-            lean_unreachable();
-        }
-    }
-
     void parse_intro_rules(bool has_params, expr const & ind, buffer<expr> & intro_rules, bool prepend_ns) {
         // If the next token is not `|`, then the inductive type has no constructors
         if (m_p.curr_is_token(get_bar_tk())) {
@@ -310,7 +285,7 @@ class inductive_cmd_fn {
             expr new_ind_type = mlocal_type(ind);
             if (is_placeholder(new_ind_type))
                 new_ind_type = mk_sort(mk_level_placeholder());
-            level l = get_datatype_result_level(new_ind_type);
+            level l = get_datatype_level(new_ind_type);
             if (is_placeholder(l)) {
                 if (m_explicit_levels)
                     throw_error("resultant universe must be provided, when using explicit universe levels");
