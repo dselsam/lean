@@ -11,12 +11,14 @@ Author: Daniel Selsam
 
 namespace lean {
 
-environment register_ginductive_decl(environment const & env, ginductive_decl const & decl);
+enum class ginductive_kind { BASIC, MUTUAL, NESTED };
 
-bool is_ginductive(environment const & env, name const & ind_name);
+environment register_ginductive_decl(environment const & env, ginductive_decl const & decl, ginductive_kind k);
+
+optional<ginductive_kind> is_ginductive(environment const & env, name const & ind_name);
 
 /* \brief Returns the names of the introduction rules for the inductive type \e ind_name. */
-optional<list<name> > get_ginductive_intro_rules(environment const & env, name const & ind_name);
+list<name> get_ginductive_intro_rules(environment const & env, name const & ind_name);
 
 /* \brief Returns the name of the inductive type if \e ir_name is indeed an introduction rule. */
 optional<name> is_ginductive_intro_rule(environment const & env, name const & ir_name);

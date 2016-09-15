@@ -87,7 +87,7 @@ inductive bar.{l} : Type.{max 1 l}
 | mk : box (foo bar) -> wrap (box (foo bar)) -> bar
 
 end X10
-
+exit
 namespace X11
 print "intro rule that introduces additional nesting"
 

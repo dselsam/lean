@@ -4,7 +4,6 @@
 
   Author: Daniel Selsam
 */
-#pragma once
 #include "library/inductive_compiler/ginductive_decl.h"
 
 namespace lean {
