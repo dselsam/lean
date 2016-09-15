@@ -72,6 +72,7 @@ class inductive_cmd_fn {
     level                           m_u; // temporary auxiliary global universe used for inferring the result
                                          // universe of an inductive datatype declaration.
     bool                            m_infer_result_universe{false};
+    bool                            m_found_nested_universe{false};
 
     [[ noreturn ]] void throw_error(char const * error_msg) const { throw parser_error(error_msg, m_pos); }
     [[ noreturn ]] void throw_error(sstream const & strm) const { throw parser_error(strm, m_pos); }
@@ -164,9 +165,14 @@ class inductive_cmd_fn {
        If the level contains the result level, it must be a `max`, in which case we accumulate the
        other max arguments. Otherwise, we throw an exception.
     */
+    void insert_level(level const & lvl, buffer<level> & r_lvls) {
+        if (std::find(r_lvls.begin(), r_lvls.end(), lvl) == r_lvls.end())
+            r_lvls.push_back(lvl);
+    }
     void accumulate_level(level const & lvl, buffer<level> & r_lvls) {
         if (lvl == m_u) {
-            return;
+            for (name const & lp_name : m_lp_names)
+                insert_level(mk_param_univ(lp_name), r_lvls);
         } else if (occurs(m_u, lvl)) {
             if (is_max(lvl)) {
                 accumulate_level(max_lhs(lvl), r_lvls);
@@ -176,9 +182,7 @@ class inductive_cmd_fn {
                                 "provide the universe levels explicitly");
             }
         } else {
-            if (std::find(r_lvls.begin(), r_lvls.end(), lvl) == r_lvls.end()) {
-                r_lvls.push_back(lvl);
-            }
+            insert_level(lvl, r_lvls);
         }
     }
 

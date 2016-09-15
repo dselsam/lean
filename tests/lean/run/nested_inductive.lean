@@ -7,56 +7,56 @@ inductive vec (A : Type) : nat -> Type
 
 namespace X1
 
-inductive foo.{l} : Type.{max 1 l}
+inductive foo
 | mk : list foo -> foo
 
 end X1
 
 namespace X2
 
-inductive foo.{l} (A : Type.{l}) : Type.{max 1 l}
+inductive foo (A : Type)
 | mk : A -> list foo -> foo
 
 end X2
 
 namespace X3
 
-inductive foo.{l} (A : Type.{l}) : Type.{max 1 l}
-| mk : A -> vec foo 0 -> foo
+inductive foo (A B : Type)
+| mk : A -> B -> vec foo 0 -> foo
 
 end X3
 
 namespace X4
 
-inductive foo.{l} (A : Type.{l}) : Type.{max 1 l}
+inductive foo (A : Type)
 | mk : Pi (n : nat), A -> vec foo n -> foo
 
 end X4
 
 namespace X5
 
-inductive foo.{l} (A : Type.{l}) : Type.{max 1 l}
+inductive foo (A : Type)
 | mk : A -> (Pi (m : nat), vec foo m) -> foo
 
 end X5
 
 namespace X6
 
-inductive foo.{l} (A : Type.{l}) : Type.{max 1 l}
+inductive foo (A : Type)
 | mk : Pi (n : nat), A -> (Pi (m : nat), vec foo (n + m)) -> foo
 
 end X6
 
 namespace X7
 
-inductive foo.{l} (A : Type.{l}) : Type.{max 1 l}
+inductive foo (A : Type)
 | mk : Pi (n : nat), A -> list A -> prod A A -> (Pi (m : nat), vec foo (n + m)) -> vec foo n -> foo
 
 end X7
 
 namespace X8
 
-inductive foo.{l} (A : Type.{l}) : Type.{max 1 l}
+inductive foo (A : Type)
 | mk₁ : Pi (n : nat), A -> (Pi (m : nat), vec (list (list foo)) (n + m)) -> vec foo n -> foo
 | mk₂ : Pi (n : nat), A -> list A -> prod A A -> (Pi (m : nat), vec foo (n + m)) -> vec foo n -> foo
 
@@ -64,7 +64,7 @@ end X8
 
 namespace X9
 
-inductive foo.{l} (A : Type.{l}) : Type.{max 1 l}
+inductive foo (A : Type)
 | mk₁ : Pi (n : nat), A -> (Pi (m : nat), vec (list (list foo)) (n + m)) -> vec foo n -> foo
 | mk₂ : Pi (n : nat), A -> list A -> prod A A -> (Pi (m : nat), vec foo (n + m)) -> vec foo n -> foo
 
@@ -73,16 +73,16 @@ end X9
 namespace X10
 print "many layers of nesting nested inductive types"
 
-inductive wrap (A : Type) : Type
+inductive wrap (A : Type)
 | mk : A -> wrap
 
-inductive box.{l} (A : Type.{l}) : Type.{max 1 l}
+inductive box (A : Type)
 | mk : wrap (list box) -> box
 
-inductive foo.{l} (A : Type.{l}) : Type.{max 1 l}
+inductive foo (A : Type)
 | mk : A -> box foo -> foo
 
-inductive bar.{l} : Type.{max 1 l}
+inductive bar
 | mk : box (foo bar) -> bar
 
 end X10
@@ -93,7 +93,7 @@ print "intro rule that introduces additional nesting"
 inductive wrap (A : Type) : Type
 | mk : list A -> wrap
 
-inductive foo.{l} : Type.{max 1 l}
+inductive foo
 | mk : wrap foo -> foo
 
 end X11
@@ -104,13 +104,13 @@ print "intro rule that introduces a lot of additional nesting"
 inductive wrap (A : Type) : Type
 | mk : list (list A) -> wrap
 
-inductive box.{l} (A : Type.{l}) : Type.{max 1 l}
+inductive box (A : Type)
 | mk : wrap (list box) -> box
 
-inductive foo.{l} (A : Type.{l}) : Type.{max 1 l}
+inductive foo (A : Type)
 | mk : A -> box (wrap foo) -> foo
 
-inductive bar.{l} : Type.{max 1 l}
+inductive bar
 | mk : box (foo bar) -> bar
 
 end X12
@@ -121,13 +121,13 @@ print "crazy additional nesting"
 inductive wrap (A : Type) : Type
 | mk : Pi (n : nat), vec (list A) n -> wrap
 
-inductive box.{l} (A : Type.{l}) : Type.{max 1 l}
+inductive box (A : Type)
 | mk : Pi (n : nat), vec (wrap box) n -> box
 
-inductive foo.{l} (A : Type.{l}) : Type.{max 1 l}
+inductive foo (A : Type)
 | mk : A -> box (wrap foo) -> foo
 
-inductive bar.{l} : Type.{max 1 l}
+inductive bar
 | mk : box (foo bar) -> bar
 
 end X13
@@ -142,10 +142,10 @@ inductive wrap (A : Type) : Type
 
 attribute [reducible] definition wrap' := @wrap
 
-inductive foo.{l} (A : Type.{l}) : Type.{max 1 l}
+inductive foo (A : Type)
 | mk : A -> wrap' (list' foo) -> foo
 
-inductive bar.{l} (A : Type.{l}) : Type.{max 1 l}
+inductive bar (A : Type)
 | mk : A -> foo bar -> bar
 
 end X15
