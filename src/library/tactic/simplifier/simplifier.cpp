@@ -123,7 +123,7 @@ static unsigned get_simplify_max_steps(options const & o) {
 }
 
 static unsigned get_simplify_nary_assoc(options const & o) {
-    return o.get_unsigned(*g_simplify_nary_assoc, LEAN_DEFAULT_SIMPLIFY_NARY_ASSOC);
+    return o.get_bool(*g_simplify_nary_assoc, LEAN_DEFAULT_SIMPLIFY_NARY_ASSOC);
 }
 
 static bool get_simplify_memoize(options const & o) {
