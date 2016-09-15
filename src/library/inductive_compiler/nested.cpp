@@ -71,8 +71,6 @@ class add_nested_inductive_decl_fn {
 
     buffer<buffer<buffer<optional<unsigned> > > > m_pack_arity; // [ind_idx][ir_idx][ir_arg_idx]
 
-    name_hash_map<reducible_status> m_make_reducible;
-
     // For the pack_ir_arg recursion
     bool                          m_in_define_nested_irs{false};
     unsigned                      m_curr_nest_idx{0};
@@ -142,30 +140,7 @@ class add_nested_inductive_decl_fn {
     name mk_spec_name(name const & base, name const & ir_name) { return base + ir_name + "spec"; }
 
     // Helpers
-    void try_make_reducible(name const & n) {
-        if (!m_make_reducible.count(n)) {
-            m_make_reducible.insert({n, get_reducible_status(m_env, n)});
-            m_env = set_reducible(m_env, n, reducible_status::Reducible, true);
-        }
-    }
-
-    void set_inner_inds_reducible(reducible_status s) {
-        for (expr const & ind : m_inner_decl.get_inds()) {
-            declaration d = m_env.get(mlocal_name(ind));
-            while (d.is_definition()) {
-                m_env = set_reducible(m_env, d.get_name(), s, true);
-                expr e = d.get_value();
-                while (is_lambda(e)) e = binding_body(e);
-                expr fn = get_app_fn(e);
-                lean_assert(is_constant(fn));
-                d = m_env.get(const_name(fn));
-            }
-        }
-        m_tctx.set_env(m_env);
-    }
-
     expr safe_whnf(type_context & tctx, expr const & e) {
-        type_context::transparency_scope m_scope(tctx, transparency_mode::All);
         expr r = tctx.whnf_pred(e, [&](expr const & t) {
                 expr fn = get_app_fn(t);
                 if (!is_constant(fn))
@@ -179,14 +154,8 @@ class add_nested_inductive_decl_fn {
                     if (n == mlocal_name(ind))
                         return false;
                 }
-                if (!static_cast<bool>(is_ginductive(m_env, n)) && !is_reducible(m_env, n))
-                    return false;
-                if (!is_reducible(m_env, n))
-                    try_make_reducible(n);
                 return true;
             });
-        tctx.set_env(m_env);
-        m_tctx.set_env(m_env);
         return r;
     }
 
@@ -195,17 +164,6 @@ class add_nested_inductive_decl_fn {
             m_env = add_inner_inductive_declaration(m_env, m_opts, m_implicit_infer_map, m_inner_decl);
         } catch (exception & ex) {
             throw nested_exception(sstream() << "nested inductive type compiled to invalid inductive type", ex);
-        }
-        m_tctx.set_env(m_env);
-    }
-
-    void set_all_inds_irreducible() {
-        for (auto const & p : m_make_reducible) {
-            m_env = set_reducible(m_env, p.first, p.second, true);
-        }
-        for (unsigned ind_idx = 0; ind_idx < m_nested_decl.get_num_inds(); ++ind_idx) {
-            expr const & ind = m_nested_decl.get_ind(ind_idx);
-            m_env = set_reducible(m_env, mlocal_name(ind), reducible_status::Irreducible, true);
         }
         m_tctx.set_env(m_env);
     }
@@ -592,10 +550,6 @@ class add_nested_inductive_decl_fn {
         }
     }
 
-    void make_nested_inds_irreducible() {
-    }
-
-
     /////////////////////////////////////////////////////////////////////////////
     ///// Stage 4: sizeof-simp lemmas for inner type in terms of outer type /////
     /////////////////////////////////////////////////////////////////////////////
@@ -666,7 +620,6 @@ class add_nested_inductive_decl_fn {
                 new_ir_type = infer_implicit_params(new_ir_type, m_nested_decl.get_params().size(), k);
 
                 define(mlocal_name(ir), new_ir_type, new_ir_val);
-                m_env = set_reducible(m_env, mlocal_name(ir), reducible_status::Irreducible, true);
                 m_tctx.set_env(m_env);
             }
         }
@@ -957,10 +910,6 @@ class add_nested_inductive_decl_fn {
             m_lemmas = add_poly(m_tctx, m_lemmas, n, LEAN_DEFAULT_PRIORITY);
         }
 
-        m_env = set_reducible(m_env, mk_nested_name(fn_type::PACK, nest_idx), reducible_status::Irreducible, true);
-        m_env = set_reducible(m_env, mk_nested_name(fn_type::UNPACK, nest_idx), reducible_status::Irreducible, true);
-        m_tctx.set_env(m_env);
-
         prove_nested_pack_unpack(start, end, c_nested_pack, c_nested_unpack, indices, nest_idx);
         prove_nested_unpack_pack(start, end, c_nested_pack, c_nested_unpack, indices, nest_idx);
         prove_nested_pack_sizeof(start, end, c_nested_pack, indices, nest_idx);
@@ -1144,10 +1093,6 @@ class add_nested_inductive_decl_fn {
             define_theorem(n, ty, pf);
             m_lemmas = add_poly(m_tctx, m_lemmas, n, LEAN_DEFAULT_PRIORITY);
         }
-
-        m_env = set_reducible(m_env, mk_primitive_name(fn_type::PACK), reducible_status::Irreducible, true);
-        m_env = set_reducible(m_env, mk_primitive_name(fn_type::UNPACK), reducible_status::Irreducible, true);
-        m_tctx.set_env(m_env);
 
         prove_primitive_pack_unpack(indices);
         prove_primitive_unpack_pack(indices);
@@ -1690,7 +1635,6 @@ public:
 
         construct_inner_decl();
         add_inner_decl();
-        set_inner_inds_reducible(reducible_status::Reducible);
 
         define_nested_inds();
         compute_inner_sizeof_simp_lemmas();
@@ -1701,9 +1645,6 @@ public:
         define_nested_recursors();
         define_nested_sizeof_lemmas();
 
-        set_inner_inds_reducible(reducible_status::Irreducible);
-        set_all_inds_irreducible();
-//        make_nested_inds_irreducible();
         return optional<environment>(m_env);
     }
 

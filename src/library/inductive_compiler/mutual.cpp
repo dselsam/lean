@@ -270,8 +270,16 @@ class add_mutual_inductive_decl_fn {
             lean_assert(!has_local(new_ind_type));
             lean_assert(!has_local(new_ind_val));
             m_env = module::add(m_env, check(m_env, mk_definition_inferring_trusted(m_env, mlocal_name(ind), to_list(m_mut_decl.get_lp_names()), new_ind_type, new_ind_val, true)));
+            // Alternative: safe_whnf
             m_env = set_reducible(m_env, mlocal_name(ind), reducible_status::Irreducible, true);
             m_tctx.set_env(m_env);
+        }
+    }
+
+    void make_ind_types_reducible() {
+        for (unsigned ind_idx = 0; ind_idx < m_mut_decl.get_inds().size(); ++ind_idx) {
+            expr const & ind = m_mut_decl.get_ind(ind_idx);
+            m_env = set_reducible(m_env, mlocal_name(ind), reducible_status::Reducible, true);
         }
     }
 
@@ -308,7 +316,7 @@ class add_mutual_inductive_decl_fn {
             ty = m_tctx.whnf(instantiate(binding_body(ty), param_inst));
         }
 
-        type_context tctx_synth(m_env, m_tctx.get_options(), m_tctx.lctx(), transparency_mode::Semireducible);
+        type_context tctx_synth(m_env, m_tctx.get_options(), m_tctx.lctx());
 
         for (unsigned ind_idx = 0; ind_idx < m_mut_decl.get_inds().size(); ++ind_idx) {
             expr const & ind = m_mut_decl.get_ind(ind_idx);
@@ -419,7 +427,6 @@ class add_mutual_inductive_decl_fn {
                 lean_trace(name({"inductive_compiler", "mutual", "ir"}), tout() << mlocal_name(ir) << " : " << new_ir_type << "\n";);
 
                 m_env = module::add(m_env, check(m_env, mk_definition_inferring_trusted(m_env, mlocal_name(ir), to_list(m_mut_decl.get_lp_names()), new_ir_type, new_ir_val, true)));
-                m_env = set_reducible(m_env, mlocal_name(ir), reducible_status::Irreducible, true);
                 m_tctx.set_env(m_env);
                 basic_ir_idx++;
             }
@@ -745,6 +752,7 @@ public:
         define_sizeofs();
 
         define_recursors();
+        make_ind_types_reducible();
         return m_env;
     }
 };
