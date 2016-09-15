@@ -142,11 +142,9 @@ class add_nested_inductive_decl_fn {
     name mk_inner_name(name const & n) { return m_prefix + n; }
     name mk_unpacked_name(name const & n) { return mk_inner_name(n) + "unpacked"; }
     name mk_spec_name(name const & base, name const & ir_name) { return base + ir_name + "spec"; }
-    // Helpers
 
+    // Helpers
     expr safe_whnf(type_context & tctx, expr const & e) {
-        // TODO(dhs): better way?
-        type_context::transparency_scope m_scope(tctx, transparency_mode::All);
         return tctx.whnf_pred(e, [&](expr const & t) {
                 expr fn = get_app_fn(t);
                 if (!is_constant(fn))
@@ -271,7 +269,7 @@ class add_nested_inductive_decl_fn {
     ///////////////////////////////////////////
     ///// Stage 1: find nested occurrence /////
     ///////////////////////////////////////////
-
+/*
     void try_set_reducible(name const & n) {
         if (!m_ginds_to_set_irreducible.count(n)) {
             m_ginds_to_set_irreducible.insert(n);
@@ -293,7 +291,10 @@ class add_nested_inductive_decl_fn {
     }
 
     void collect_inds_to_make_reducible_ir_ty(expr const & ir_ty) {
-        buffer<name> const_names;
+        name_hash_set const_names;
+        for_each(ir_ty, [&](expr const & e) {
+                if (is_constant(e) && static_cast<bool>(is_ginductive(m_env, const_name(e)))
+                    const_names.insert(const_name(e))
 
     }
 
@@ -304,7 +305,7 @@ class add_nested_inductive_decl_fn {
             }
         }
     }
-
+*/
     bool find_nested_occ() {
         for (buffer<expr> const & irs : m_nested_decl.get_intro_rules()) {
             for (expr const & ir : irs) {
@@ -374,7 +375,6 @@ class add_nested_inductive_decl_fn {
         }
 
         if (is_constant(fn) && is_ginductive(m_env, const_name(fn))) {
-            make_gind_path_reducible(const_name(fn));
             unsigned num_params = get_ginductive_num_params(m_env, const_name(fn));
             for (unsigned i = 0; i < num_params; ++i) {
                 if (find_nested_occ_in_ir_arg_type_core(safe_whnf(m_tctx, args[i]), some_expr(ty), num_params))
@@ -565,7 +565,7 @@ class add_nested_inductive_decl_fn {
                    tout() << mlocal_name(mimic_ind) << " : " << mlocal_type(mimic_ind) << "\n";);
 
         m_inner_decl.get_intro_rules().emplace_back();
-        list<name> mimic_intro_rule_names = *get_ginductive_intro_rules(m_env, mimic_name);
+        list<name> mimic_intro_rule_names = get_ginductive_intro_rules(m_env, mimic_name);
         for (name const & ir : mimic_intro_rule_names) {
             expr c_mimic_ir = mk_app(mk_constant(ir, const_levels(nested_occ_fn)), nested_occ_params);
             expr mimic_ir = mk_local(mk_inner_name(ir), pack_type(m_tctx.infer(c_mimic_ir)));
@@ -812,7 +812,7 @@ class add_nested_inductive_decl_fn {
         expr unpack_C = construct_C(end, start);
 
         // Minor premises
-        list<name> intro_rules = *get_ginductive_intro_rules(m_env, const_name(fn));
+        list<name> intro_rules = get_ginductive_intro_rules(m_env, const_name(fn));
         buffer<expr> pack_minor_premises, unpack_minor_premises;
         buffer<spec_lemma> spec_lemmas;
         for (name const & intro_rule : intro_rules) {
@@ -1025,7 +1025,7 @@ class add_nested_inductive_decl_fn {
         lean_trace(name({"inductive_compiler", "nested", "unpack", "primitive"}), tout() << " C := " << unpack_C << "\n";);
 
         // 3. minor premises
-        list<name> intro_rules = *get_ginductive_intro_rules(m_env, const_name(nest_fn));
+        list<name> intro_rules = get_ginductive_intro_rules(m_env, const_name(nest_fn));
         buffer<expr> pack_minor_premises, unpack_minor_premises;
         buffer<spec_lemma> spec_lemmas;
         for (name const & intro_rule : intro_rules) {

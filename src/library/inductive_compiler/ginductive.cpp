@@ -30,7 +30,7 @@ inline serializer & operator<<(serializer & s, ginductive_kind k) {
     return s;
 }
 
-inline deserializer & operator>>(deserializer & d, ginductive_kind k) {
+inline deserializer & operator>>(deserializer & d, ginductive_kind & k) {
     unsigned i = d.read_unsigned();
     lean_assert(i <= 2);
     if (i == 0) k = ginductive_kind::BASIC;
@@ -101,7 +101,11 @@ struct ginductive_env_ext : public environment_extension {
     }
 
     optional<ginductive_kind> is_ginductive(name const & ind_name) const {
-        return m_ind_to_irs.contains(ind_name);
+        ginductive_kind const * k = m_ind_to_kind.find(ind_name);
+        if (k)
+            return optional<ginductive_kind>(*k);
+        else
+            return optional<ginductive_kind>();
     }
 
     list<name> get_intro_rules(name const & ind_name) const {
@@ -150,10 +154,11 @@ static environment update(environment const & env, ginductive_env_ext const & ex
     return env.update(g_ext->m_ext_id, std::make_shared<ginductive_env_ext>(ext));
 }
 
-environment register_ginductive_decl(environment const & env, ginductive_decl const & decl) {
+environment register_ginductive_decl(environment const & env, ginductive_decl const & decl, ginductive_kind k) {
     ginductive_env_ext ext(get_extension(env));
 
     ginductive_entry entry;
+    entry.m_kind = k;
     entry.m_num_params = decl.get_num_params();
 
     buffer<name> inds;
