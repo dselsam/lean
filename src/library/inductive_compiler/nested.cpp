@@ -1167,7 +1167,7 @@ class add_nested_inductive_decl_fn {
     }
 
     simp_result force_recursors_core(expr const & lhs) {
-        expr e = safe_whnf(m_tctx, lhs);
+        expr e = m_tctx.relaxed_whnf(lhs);
         buffer<expr> rec_args;
         expr rec_fn = get_app_args(e, rec_args);
         if (is_constant(rec_fn, get_eq_rec_name())) {
