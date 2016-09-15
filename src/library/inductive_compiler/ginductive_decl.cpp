@@ -5,7 +5,7 @@
   Author: Daniel Selsam
 */
 #include "library/inductive_compiler/ginductive_decl.h"
-#include "library/util.cpp"
+#include "library/util.h"
 
 namespace lean {
 

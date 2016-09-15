@@ -180,6 +180,7 @@ bool is_reflexive_datatype(abstract_type_context & tc, name const & n) {
 level get_datatype_level(expr ind_type) {
     while (is_pi(ind_type))
         ind_type = binding_body(ind_type);
+    lean_assert(is_sort(ind_type));
     return sort_level(ind_type);
 }
 
