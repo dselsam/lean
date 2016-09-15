@@ -16,7 +16,6 @@ Author: Daniel Selsam
 #include "util/sexpr/options.h"
 #include "util/sexpr/option_declarations.h"
 #include "util/list_fn.h"
-#include "util/name_hash_set.h"
 #include "util/fresh_name.h"
 #include "library/locals.h"
 #include "library/app_builder.h"
@@ -29,11 +28,11 @@ Author: Daniel Selsam
 #include "library/protected.h"
 #include "library/attribute_manager.h"
 #include "library/constructions/has_sizeof.h"
+#include "library/inductive_compiler/ginductive.h"
 #include "library/inductive_compiler/compiler.h"
 #include "library/inductive_compiler/basic.h"
 #include "library/inductive_compiler/nested.h"
 #include "library/inductive_compiler/util.h"
-#include "library/inductive_compiler/ginductive.h"
 #include "library/tactic/induction_tactic.h"
 #include "library/tactic/simp_result.h"
 #include "library/tactic/simplifier/simplifier.h"
@@ -55,8 +54,6 @@ class add_nested_inductive_decl_fn {
     ginductive_decl const &       m_nested_decl;
     ginductive_decl               m_inner_decl;
     name                          m_prefix;
-
-    name_hash_set                 m_ginds_to_set_irreducible;
 
     type_context                  m_tctx;
 
@@ -142,9 +139,11 @@ class add_nested_inductive_decl_fn {
     name mk_inner_name(name const & n) { return m_prefix + n; }
     name mk_unpacked_name(name const & n) { return mk_inner_name(n) + "unpacked"; }
     name mk_spec_name(name const & base, name const & ir_name) { return base + ir_name + "spec"; }
-
     // Helpers
+
     expr safe_whnf(type_context & tctx, expr const & e) {
+        // TODO(dhs): better way?
+        type_context::transparency_scope m_scope(tctx, transparency_mode::All);
         return tctx.whnf_pred(e, [&](expr const & t) {
                 expr fn = get_app_fn(t);
                 if (!is_constant(fn))
@@ -171,8 +170,20 @@ class add_nested_inductive_decl_fn {
         m_tctx.set_env(m_env);
     }
 
-    void set_inds_irreducible() {
-        for (name const & ind : m_ginds_to_set_irreducible) {
+    void set_all_inds_reducible() {
+        for (name const & ind : get_ginductive_all_mutual_inds(m_env)) {
+            m_env = set_reducible(m_env, ind, reducible_status::Reducible, true);
+        }
+        for (name const & ind : get_ginductive_all_nested_inds(m_env)) {
+            m_env = set_reducible(m_env, ind, reducible_status::Reducible, true);
+        }
+    }
+
+    void set_all_inds_irreducible() {
+        for (name const & ind : get_ginductive_all_mutual_inds(m_env)) {
+            m_env = set_reducible(m_env, ind, reducible_status::Irreducible, true);
+        }
+        for (name const & ind : get_ginductive_all_nested_inds(m_env)) {
             m_env = set_reducible(m_env, ind, reducible_status::Irreducible, true);
         }
     }
@@ -269,43 +280,7 @@ class add_nested_inductive_decl_fn {
     ///////////////////////////////////////////
     ///// Stage 1: find nested occurrence /////
     ///////////////////////////////////////////
-/*
-    void try_set_reducible(name const & n) {
-        if (!m_ginds_to_set_irreducible.count(n)) {
-            m_ginds_to_set_irreducible.insert(n);
-            m_env = set_reducible(m_env, n, reducible_status::Reducible, true);
-        }
-    }
 
-    void make_gind_path_reducible(name const & ind_name) {
-        declaration d = m_env.get(ind_name);
-        while (d.is_definition()) {
-            try_set_reducible(d.get_name());
-            expr val = d.get_value();
-            while (is_lambda(val))
-                val = binding_domain(val);
-            expr fn = get_app_fn(val);
-            lean_assert(is_constant(fn));
-            d = m_env.get(const_name(fn));
-        }
-    }
-
-    void collect_inds_to_make_reducible_ir_ty(expr const & ir_ty) {
-        name_hash_set const_names;
-        for_each(ir_ty, [&](expr const & e) {
-                if (is_constant(e) && static_cast<bool>(is_ginductive(m_env, const_name(e)))
-                    const_names.insert(const_name(e))
-
-    }
-
-    void collect_inds_to_make_reducible() {
-        for (buffer<expr> const & irs : m_nested_decl.get_intro_rules()) {
-            for (expr const & ir : irs) {
-                collect_inds_to_make_reducible_ir_ty(mlocal_type(ir));
-            }
-        }
-    }
-*/
     bool find_nested_occ() {
         for (buffer<expr> const & irs : m_nested_decl.get_intro_rules()) {
             for (expr const & ir : irs) {
@@ -1693,6 +1668,7 @@ public:
 
         construct_inner_decl();
         add_inner_decl();
+        set_all_inds_reducible();
 
         define_nested_inds();
         compute_inner_sizeof_simp_lemmas();
@@ -1703,9 +1679,8 @@ public:
         define_nested_recursors();
         define_nested_sizeof_lemmas();
 
-        set_inds_irreducible();
+        set_all_inds_irreducible();
         make_nested_inds_irreducible();
-
         return optional<environment>(m_env);
     }
 
