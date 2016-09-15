@@ -159,16 +159,26 @@ class inductive_cmd_fn {
         return mk_local(mk_fresh_name(), binding_name(b), binding_domain(b), binding_info(b), b.get_tag());
     }
 
-    /* \brief Add \c lvl to \c r_lvls (if it is not already there.
+    /* \brief Add \c lvl to \c r_lvls (if it is not already there).
 
-       \pre lvl does not contain m_u.
+       If the level contains the result level, it must be a `max`, in which case we accumulate the
+       other max arguments. Otherwise, we throw an exception.
     */
     void accumulate_level(level const & lvl, buffer<level> & r_lvls) {
-        if (occurs(m_u, lvl)) {
-            throw exception("failed to infer inductive datatype resultant universe, "
-                            "provide the universe levels explicitly");
-        } else if (std::find(r_lvls.begin(), r_lvls.end(), lvl) == r_lvls.end()) {
-            r_lvls.push_back(lvl);
+        if (lvl == m_u) {
+            return;
+        } else if (occurs(m_u, lvl)) {
+            if (is_max(lvl)) {
+                accumulate_level(max_lhs(lvl), r_lvls);
+                accumulate_level(max_rhs(lvl), r_lvls);
+            } else {
+                throw exception("failed to infer inductive datatype resultant universe, "
+                                "provide the universe levels explicitly");
+            }
+        } else {
+            if (std::find(r_lvls.begin(), r_lvls.end(), lvl) == r_lvls.end()) {
+                r_lvls.push_back(lvl);
+            }
         }
     }
 
