@@ -854,7 +854,7 @@ simp_result simplifier::lift_from_eq(expr const & old_e, simp_result const & r_e
 
 /* Whnf + Eta */
 expr simplifier::whnf_eta(expr const & e) {
-    return try_eta(m_tctx.whnf_no_delta(e));
+    return try_eta(m_tctx.whnf(e));
 }
 
 simp_result simplifier::simplify_subterms_lambda(expr const & old_e) {

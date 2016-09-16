@@ -244,7 +244,6 @@ class add_nested_inductive_decl_fn {
         } catch (exception & ex) {
             lean_trace(name({"inductive_compiler", "nested", "define", "failure"}), tout() << n << " : " << ty << " :=\n" << val << "\n";);
             m_env = module::add(m_env, check(m_env, mk_axiom(n, to_list(m_nested_decl.get_lp_names()), ty)));
-            //lean_assert(false);
         }
         m_tctx.set_env(m_env);
     }
@@ -1656,7 +1655,6 @@ class add_nested_inductive_decl_fn {
                 expr dsimp_rule_val = Fun(m_nested_decl.get_params(), tctx_synth.mk_lambda(m_param_insts, Fun(locals, mk_eq_refl(tctx_synth, lhs))));
                 name dsimp_rule_name = mk_sizeof_spec_name(mlocal_name(m_nested_decl.get_intro_rule(ind_idx, ir_idx)));
 
-                //assert_def_eq(m_env, tctx_synth.infer(dsimp_rule_val), dsimp_rule_type);
                 define_theorem(dsimp_rule_name, dsimp_rule_type, dsimp_rule_val);
                 m_env = set_simp_sizeof(m_env, dsimp_rule_name);
                 m_env = add_protected(m_env, dsimp_rule_name);
@@ -1691,7 +1689,6 @@ public:
 
         return optional<environment>(m_env);
     }
-
 };
 
 optional<environment> add_nested_inductive_decl(environment const & env, options const & opts,

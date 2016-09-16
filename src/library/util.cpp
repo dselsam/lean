@@ -511,7 +511,7 @@ expr mk_pr2(abstract_type_context & ctx, expr const & p) {
 }
 
 expr mk_nat_zero() {
-   return mk_app(mk_constant(get_zero_name(), {mk_level_one()}), {mk_constant(get_nat_name()), mk_constant(get_nat_has_zero_name())});
+    return mk_app(mk_constant(get_zero_name(), {mk_level_one()}), {mk_constant(get_nat_name()), mk_constant(get_nat_has_zero_name())});
 }
 
 expr mk_nat_one() {
