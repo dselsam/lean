@@ -133,7 +133,7 @@ class add_nested_inductive_decl_fn {
     name mk_nested_name(fn_type t, unsigned nest_idx) {
         return append_with_nest_idx(append_with_ir_arg(mlocal_name(m_nested_decl.get_ind(get_curr_ind_idx())) + to_name(fn_layer::NESTED) + to_name(t)), nest_idx);
     }
-    name mk_primitive_name(fn_type t) { return m_prefix + to_name(fn_layer::PRIMITIVE) + to_name(t); }
+    name mk_primitive_name(fn_type t) { return mlocal_name(m_nested_decl.get_ind(0)) + to_name(fn_layer::PRIMITIVE) + to_name(t); }
     name mk_inner_name(name const & n) { return m_prefix + n; }
     name mk_spec_name(name const & base, name const & ir_name) { return base + ir_name + "spec"; }
 
