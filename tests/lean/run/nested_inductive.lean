@@ -57,7 +57,7 @@ end X7
 namespace X8
 print "many different nestings, some sharing"
 inductive foo (A : Type)
-| mk₁ : Pi (n : nat), A -> (Pi (m : nat), vec (list (list foo)) (n + m)) -> vec foo n -> foo
+| mk₁ : Pi (n : nat), A -> (Pi (m : nat), vec (list foo) (n + m)) -> vec foo n -> foo
 | mk₂ : Pi (n : nat), A -> list A -> prod A A -> (Pi (m : nat), vec foo (n + m)) -> vec foo n -> foo
 
 end X8
@@ -79,13 +79,13 @@ inductive wrap (A : Type)
 | mk : A -> wrap
 
 inductive box (A : Type)
-| mk : A -> wrap (list box) -> box
+| mk : A -> wrap box -> box
 
 inductive foo (A : Type)
 | mk : A -> box foo -> foo
 
 inductive bar
-| mk : box (foo bar) -> bar
+| mk : foo bar -> bar
 
 end X10
 
@@ -107,7 +107,7 @@ inductive wrap (A : Type) : Type
 | mk : list (list A) -> wrap
 
 inductive box (A : Type)
-| mk : A -> wrap (wrap box) -> box
+| mk : A -> wrap box -> box
 
 end X12
 
@@ -124,20 +124,4 @@ attribute [reducible] definition wrap' := @wrap
 inductive foo (A : Type)
 | mk : A -> wrap' (list' foo) -> foo
 
-inductive bar (A : Type)
-| mk : A -> foo bar -> bar
-
 end X13
-
-namespace X14
-print "several layers"
-
-attribute [reducible] definition list' := @list
-
-inductive wrap (A : Type) : Type
-| mk : list (list A) -> wrap
-
-inductive foo (A : Type)
-| mk : wrap (wrap (wrap foo)) -> foo
-
-end X14

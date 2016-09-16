@@ -198,13 +198,14 @@ class add_nested_inductive_decl_fn {
                 if (!is_constant(fn))
                     return true;
                 name n = const_name(fn);
-                for (expr const & ind : m_nested_decl.get_inds()) {
-                    if (n == mlocal_name(ind))
-                        return false;
-                }
-                for (expr const & ind : m_inner_decl.get_inds()) {
-                    if (n == mlocal_name(ind))
-                        return false;
+                if (!m_inner_decl.get_inds().empty() && n == mlocal_name(m_inner_decl.get_inds().back()))
+                    return false;
+
+                // TODO(dhs): this is a rough edge, which we will revisit once we rethink our global delta-reduction strategy.
+                auto gind_kind = is_ginductive(m_env, n);
+                if (gind_kind && *gind_kind != ginductive_kind::BASIC && !is_reducible(m_env, n)) {
+                    throw exception(sstream() << "simulated (i.e. mutual or nested) inductive type '" << n << "' has been set to not be reducible, "
+                                    << "and as a result it currently cannot be used inside a nested occurrence of another inductive type");
                 }
                 return true;
             });
@@ -1674,6 +1675,10 @@ public:
     optional<environment> operator()() {
         if (!find_nested_occ())
             return optional<environment>();
+
+        if (is_reducible(m_env, get_sizeof_name())) {
+            throw exception("compiling nested inductive types requires that sizeof is not reducible");
+        }
 
         construct_inner_decl();
         add_inner_decl();
