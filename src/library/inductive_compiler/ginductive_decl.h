@@ -53,13 +53,17 @@ public:
     expr get_c_ir(unsigned ind_idx, unsigned ir_idx) const { return mk_const(mlocal_name(m_intro_rules[ind_idx][ir_idx])); }
     expr get_c_ir_params(unsigned ind_idx, unsigned ir_idx) const { return mk_const_params(mlocal_name(m_intro_rules[ind_idx][ir_idx])); }
 
+    bool is_ind_name(name const & n) const;
+    bool is_ind_name(name const & n, unsigned ind_idx) { return n == mlocal_name(m_inds[ind_idx]); }
     bool is_ind(expr const & e, unsigned ind_idx) const { return e == get_c_ind(ind_idx); }
-    bool is_ind(expr const & e) const;
+    bool is_ind(expr const & e) const { return is_constant(e) && is_ind_name(const_name(e)); }
     bool has_ind_occ(expr const & t) const;
     bool is_ind_app(expr const & e, unsigned ind_idx) const { return is_ind(get_app_fn(e), ind_idx); }
     bool is_ind_app(expr const & e, unsigned ind_idx, buffer<expr> & indices) const;
     bool is_ind_app(expr const & e) const { return is_ind(get_app_fn(e)); }
     bool is_ind_app(expr const & e, buffer<expr> & indices) const;
+    bool is_ir_name(name const & n, unsigned ind_idx) const;
+    bool is_ir_name(name const & n) const;
     bool is_ir(expr const & e, unsigned ind_idx) const;
     bool is_ir(expr const & e) const;
     void args_to_indices(buffer<expr> const & args, buffer<expr> & indices) const;

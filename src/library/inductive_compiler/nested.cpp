@@ -166,14 +166,11 @@ class add_nested_inductive_decl_fn {
     }
 
     name mk_inner_name(name const & n) {
-        // 1. nested decl
-        for (expr const & ind : m_nested_decl.get_inds()) {
-            if (n == mlocal_name(ind)) {
-                return nest(n);
-            }
-        }
-        // 2. others
-        return nest(n + mlocal_name(m_nested_decl.get_ind(0)));
+        if (m_nested_decl.is_ind_name(n) || m_nested_decl.is_ir_name(n))
+            return nest(n);
+        else
+            // Note: we append after so that "nest_" is not added as a prefix
+            return nest(n + mlocal_name(m_nested_decl.get_ind(0)));
     }
 
     name mk_spec_name(name const & base, name const & ir_name) { return base + ir_name + "spec"; }
