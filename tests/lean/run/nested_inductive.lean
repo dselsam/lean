@@ -70,6 +70,16 @@ inductive foo (A : Type)
 
 end X9
 
+namespace X9b
+
+mutual_inductive foo, bar
+with foo : Type
+| mk : list (list foo) -> foo
+with bar : Type
+| mk : list foo -> bar
+
+end X9b
+
 namespace X10
 print "many layers of nesting nested inductive types"
 

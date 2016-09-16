@@ -127,7 +127,7 @@ class add_nested_inductive_decl_fn {
     name append_with_nest_idx(name const & n, unsigned nest_idx) { return rcons(n, nest_idx); }
 
     name mk_pi_name(fn_type t, unsigned ind_idx, unsigned ir_idx, unsigned ir_arg_idx) {
-        return append_with_ir_arg(mlocal_name(m_nested_decl.get_ind(ind_idx)) + to_name(fn_layer::PI) + to_name(t), ir_idx, ir_arg_idx);
+        return append_with_ir_arg(mlocal_name(m_nested_decl.get_ind(ind_idx)) + to_name(t), ir_idx, ir_arg_idx);
     }
     name mk_pi_name(fn_type t) { return mk_pi_name(t, get_curr_ind_idx(), get_curr_ir_idx(), get_curr_ir_arg_idx()); }
     name mk_nested_name(fn_type t, unsigned nest_idx) {
