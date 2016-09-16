@@ -1259,15 +1259,13 @@ class add_nested_inductive_decl_fn {
         }
         lean_trace(name({"inductive_compiler", "nested", "simp", "start"}), tout() << thm << "\n";);
         simp_result r = simplify(tctx, get_eq_name(), all_lemmas, thm);
-        // TODO(dhs): remove
         if (r.get_new() != mk_true()) {
             formatter_factory const & fmtf = get_global_ios().get_formatter_factory();
             lean_trace(name({"inductive_compiler", "nested", "simp", "failure"}),
                        tout() << "\n-------------------\n"
-                       << lctx.pp(fmtf(m_env, m_tctx.get_options(), m_tctx), true)
+                       << lctx.pp(fmtf(m_env, m_tctx.get_options(), m_tctx))
                        << "\n---------------\n"
                        << r.get_new() << "\n";);
-            lean_assert(r.get_new() == mk_true());
             throw exception("simplifier failed to prove goal; trace 'inductive_compiler.nested.simp.failure' for more information");
         }
         return mk_app(tctx, get_eq_mpr_name(), r.get_proof(), mk_true_intro());
