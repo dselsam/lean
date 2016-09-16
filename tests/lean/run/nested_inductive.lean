@@ -77,7 +77,7 @@ inductive wrap (A : Type)
 | mk : A -> wrap
 
 inductive box (A : Type)
-| mk : wrap (list box) -> box
+| mk : A -> wrap (list box) -> box
 
 inductive foo (A : Type)
 | mk : A -> box foo -> foo
@@ -105,7 +105,7 @@ inductive wrap (A : Type) : Type
 | mk : list (list A) -> wrap
 
 inductive box (A : Type)
-| mk : wrap (list box) -> box
+| mk : A -> wrap (list box) -> box
 
 inductive foo (A : Type)
 | mk : A -> box (wrap foo) -> foo
@@ -122,7 +122,7 @@ inductive wrap (A : Type) : Type
 | mk : Pi (n : nat), vec (list A) n -> wrap
 
 inductive box (A : Type)
-| mk : Pi (n : nat), vec (wrap box) n -> box
+| mk : Pi (n : nat), A -> vec (wrap box) n -> box
 
 inductive foo (A : Type)
 | mk : A -> box (wrap foo) -> foo
@@ -138,7 +138,7 @@ print "with reducible definitions"
 attribute [reducible] definition list' := @list
 
 inductive wrap (A : Type) : Type
-| mk : list' A -> wrap
+| mk : A -> list' A -> wrap
 
 attribute [reducible] definition wrap' := @wrap
 

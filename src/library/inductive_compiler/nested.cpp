@@ -60,14 +60,13 @@ class add_nested_inductive_decl_fn {
 
     expr                          m_nested_occ; // (fn1.{ind-ls} ind_params) without the indices
 
-    level                         m_nested_occ_result_level;
-    levels                        m_nested_occ_fn_levels;
-
     expr                          m_replacement; // (fn2.{nested-ls} nested_params)
     name get_replacement_name() { return const_name(get_app_fn(m_replacement)); }
 
     expr                          m_primitive_pack;
     expr                          m_primitive_unpack;
+
+    bool                          m_elim_to_type;
 
     buffer<buffer<buffer<optional<unsigned> > > > m_pack_arity; // [ind_idx][ir_idx][ir_arg_idx]
 
@@ -166,6 +165,20 @@ class add_nested_inductive_decl_fn {
             throw nested_exception(sstream() << "nested inductive type compiled to invalid inductive type", ex);
         }
         m_tctx.set_env(m_env);
+    }
+
+    void check_elim_to_type() {
+        declaration d_nest = m_env.get(inductive::get_elim_name(const_name(get_app_fn(m_nested_occ))));
+        declaration d_inner = m_env.get(inductive::get_elim_name(mk_inner_name(const_name(get_app_fn(m_nested_occ)))));
+        bool nest_elim_to_type = d_nest.get_num_univ_params() > length(const_levels(get_app_fn(m_nested_occ)));
+        bool inner_elim_to_type = d_inner.get_num_univ_params() > m_inner_decl.get_lp_names().size();
+        // Note: this exception may not be needed once the kernel is updated so that all inductive types that may or may not live in Prop must
+        // eliminate to Type.
+        if (nest_elim_to_type != inner_elim_to_type)
+            throw exception(sstream() << "invalid nested occurrence '" << m_nested_occ
+                            << "', either both must eliminate to Type or both must eliminate only to Prop");
+
+        m_elim_to_type = nest_elim_to_type;
     }
 
     void define_theorem(name const & n, expr const & ty, expr const & val) {
@@ -315,12 +328,15 @@ class add_nested_inductive_decl_fn {
             // we found a nested occurrence
             m_nested_occ = mk_app(outer_fn, outer_params);
 
-            // confirm that it contains no non-param locals
             if (contains_non_param_locals(m_nested_occ))
                 throw exception(sstream() << "nested occurrence '" << m_nested_occ << "' contains variables that are not parameters");
 
-            m_nested_occ_result_level = get_level(m_tctx, *outer_app);
-            m_nested_occ_fn_levels = const_levels(outer_fn);
+            level nested_occ_result_level = get_level(m_tctx, *outer_app);
+            if (!m_tctx.is_def_eq(nested_occ_result_level, m_nested_decl.get_result_level()))
+                throw exception(sstream() << "nested occurrence '" << m_nested_occ
+                                << "' lives in universe '" << nested_occ_result_level << "' but must live in the same universe "
+                                << "as the inductive types being declared, which is '"
+                                << m_nested_decl.get_result_level() << "'");
 
             m_replacement = m_nested_decl.mk_const_params(mk_inner_name(const_name(outer_fn)));
 
@@ -944,16 +960,10 @@ class add_nested_inductive_decl_fn {
         list<level> pack_elim_levels, unpack_elim_levels;
         {
             pack_elim_levels = const_levels(nest_fn);
-            declaration d_nest = m_env.get(inductive::get_elim_name(const_name(nest_fn)));
-            if (length(pack_elim_levels) < d_nest.get_num_univ_params()) {
-                lean_assert(length(pack_elim_levels) + 1 == d_nest.get_num_univ_params());
-                pack_elim_levels = list<level>(sort_level(get_ind_result_type(m_tctx, m_replacement)), pack_elim_levels);
-            }
             unpack_elim_levels = m_inner_decl.get_levels();
-            declaration d_inner = m_env.get(inductive::get_elim_name(get_replacement_name()));
-            if (length(unpack_elim_levels) < d_inner.get_num_univ_params()) {
-                lean_assert(length(unpack_elim_levels) + 1 == d_inner.get_num_univ_params());
-                unpack_elim_levels = list<level>(m_nested_occ_result_level, unpack_elim_levels);
+            if (m_elim_to_type) {
+                pack_elim_levels = list<level>(m_nested_decl.get_result_level(), pack_elim_levels);
+                unpack_elim_levels = list<level>(m_nested_decl.get_result_level(), unpack_elim_levels);
             }
         }
 
@@ -1635,6 +1645,7 @@ public:
 
         construct_inner_decl();
         add_inner_decl();
+        check_elim_to_type();
 
         define_nested_inds();
         compute_inner_sizeof_simp_lemmas();
