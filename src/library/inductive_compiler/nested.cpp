@@ -40,6 +40,33 @@ Author: Daniel Selsam
 #include "library/tactic/simplifier/simplifier.h"
 #include "library/tactic/simplifier/simp_lemmas.h"
 
+/**
+Notes:
+
+1. Delta-reduction.
+
+   The design may need to be updated in the future, especially if the global delta-reduction strategy is changed.
+   Here are the important requirements:
+   a) All ginductive decls not currently being defined must be unfolded in [whnf], so that all nested occurrences are
+      inside BASIC inductive types.
+   b) All ginductive decls including the ones currently being defined need to be unfolded in [is_def_eq],
+      specifically in the simplifier. It is very difficult to maintain the invariant that only
+      one version of each ginductive type ever appears and not worth the trouble.
+   c) The "mimic" inductive type at this level must not be unfolded, specically when building the primitive-unpack.
+      A different strategy is to temporarily mark it as not reducible during the primitive_unpack processing.
+      We continue to use [safe_whnf] everywhere for now because we want to throw an exception if a non-basic ginductive type
+      is found that is not reducible.
+   d) [sizeof] cannot be unfolded during [is_def_eq] inside the simplifier, or else unification can result in partially-unfolded
+      terms that mess up the invariants. This problem may go away once [is_def_eq] uses rfl lemmas.
+
+2. Performance
+
+   There is a known performance problem here: the indexing datastructures we currently use with the simplifier are based
+   only on the head-symbol, so simplifying with the [sizeof] simp-set scales with the number of [sizeof] simp lemmas,
+   which scales with the number of introduction rules of any inductive type. Although we could implement special-case
+   workarounds in this module, we instead will try to address the root of the problem in the future.
+ */
+
 namespace lean {
 
 static name * g_nest_prefix = nullptr;
@@ -66,6 +93,8 @@ class add_nested_inductive_decl_fn {
     expr                          m_primitive_unpack;
 
     bool                          m_elim_to_type;
+
+    simp_lemmas                   m_sizeof_lemmas; // currently cached at thread-local but may not always be
 
     buffer<buffer<buffer<optional<unsigned> > > > m_pack_arity; // [ind_idx][ir_idx][ir_arg_idx]
 
@@ -1227,7 +1256,7 @@ class add_nested_inductive_decl_fn {
 
     expr prove_by_simp(local_context const & lctx, expr const & thm, list<expr> Hs, bool use_sizeof) {
         type_context tctx(m_env, get_simp_options(m_tctx.get_options()), lctx);
-        simp_lemmas all_lemmas = use_sizeof ? join(m_lemmas, get_sizeof_simp_lemmas(tctx)) : m_lemmas;
+        simp_lemmas all_lemmas = use_sizeof ? join(m_sizeof_lemmas, m_lemmas) : m_lemmas;
         for (expr const & H : Hs) {
             expr H_type = tctx.infer(H);
             all_lemmas = add(tctx, all_lemmas, mlocal_name(H), H_type, H, LEAN_DEFAULT_PRIORITY);
@@ -1657,6 +1686,7 @@ public:
         construct_inner_decl();
         add_inner_decl();
         check_elim_to_type();
+        m_sizeof_lemmas = get_sizeof_simp_lemmas(m_tctx);
 
         define_nested_inds();
 
@@ -1687,39 +1717,6 @@ void initialize_inductive_compiler_nested() {
     register_trace_class(name({"inductive_compiler", "nested", "inner", "ind"}));
     register_trace_class(name({"inductive_compiler", "nested", "inner", "ir"}));
 
-    register_trace_class(name({"inductive_compiler", "nested", "nested"}));
-    register_trace_class(name({"inductive_compiler", "nested", "nested", "ind"}));
-    register_trace_class(name({"inductive_compiler", "nested", "nested", "ir"}));
-
-    register_trace_class(name({"inductive_compiler", "nested", "rec"}));
-    register_trace_class(name({"inductive_compiler", "nested", "has_sizeof"}));
-
-    register_trace_class(name({"inductive_compiler", "nested", "pack"}));
-    register_trace_class(name({"inductive_compiler", "nested", "pack", "primitive"}));
-    register_trace_class(name({"inductive_compiler", "nested", "pack", "nested"}));
-    register_trace_class(name({"inductive_compiler", "nested", "pack", "pi"}));
-
-    register_trace_class(name({"inductive_compiler", "nested", "unpack"}));
-    register_trace_class(name({"inductive_compiler", "nested", "unpack", "primitive"}));
-    register_trace_class(name({"inductive_compiler", "nested", "unpack", "nested"}));
-    register_trace_class(name({"inductive_compiler", "nested", "unpack", "pi"}));
-
-    register_trace_class(name({"inductive_compiler", "nested", "unpack_pack"}));
-    register_trace_class(name({"inductive_compiler", "nested", "unpack_pack", "primitive"}));
-    register_trace_class(name({"inductive_compiler", "nested", "unpack_pack", "nested"}));
-    register_trace_class(name({"inductive_compiler", "nested", "unpack_pack", "pi"}));
-
-    register_trace_class(name({"inductive_compiler", "nested", "pack_unpack"}));
-    register_trace_class(name({"inductive_compiler", "nested", "pack_unpack", "primitive"}));
-    register_trace_class(name({"inductive_compiler", "nested", "pack_unpack", "nested"}));
-    register_trace_class(name({"inductive_compiler", "nested", "pack_unpack", "pi"}));
-
-    register_trace_class(name({"inductive_compiler", "nested", "pack_sizeof"}));
-    register_trace_class(name({"inductive_compiler", "nested", "pack_sizeof", "primitive"}));
-    register_trace_class(name({"inductive_compiler", "nested", "pack_sizeof", "nested"}));
-    register_trace_class(name({"inductive_compiler", "nested", "pack_sizeof", "pi"}));
-
-    register_trace_class(name({"inductive_compiler", "nested", "force_simplify"}));
     register_trace_class(name({"inductive_compiler", "nested", "define"}));
     register_trace_class(name({"inductive_compiler", "nested", "define", "success"}));
     register_trace_class(name({"inductive_compiler", "nested", "define", "failure"}));
