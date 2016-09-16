@@ -6,72 +6,64 @@ inductive vec (A : Type) : nat -> Type
 | vcons : Pi (n : nat), A -> vec n -> vec (n+1)
 
 namespace X1
-
+print "simple"
 inductive foo
 | mk : list foo -> foo
 
 end X1
 
 namespace X2
-
+print "with param"
 inductive foo (A : Type)
 | mk : A -> list foo -> foo
 
 end X2
 
 namespace X3
-
+print "with indices"
 inductive foo (A B : Type)
 | mk : A -> B -> vec foo 0 -> foo
 
 end X3
 
 namespace X4
-
+print "with locals in indices"
 inductive foo (A : Type)
 | mk : Pi (n : nat), A -> vec foo n -> foo
 
 end X4
 
 namespace X5
-
+print "nested-reflexive"
 inductive foo (A : Type)
 | mk : A -> (Pi (m : nat), vec foo m) -> foo
 
 end X5
 
 namespace X6
-
+print "locals + nested-reflexive locals in indices"
 inductive foo (A : Type)
 | mk : Pi (n : nat), A -> (Pi (m : nat), vec foo (n + m)) -> foo
 
 end X6
 
 namespace X7
-
+print "many different nestings"
 inductive foo (A : Type)
 | mk : Pi (n : nat), A -> list A -> prod A A -> (Pi (m : nat), vec foo (n + m)) -> vec foo n -> foo
 
 end X7
 
 namespace X8
-
+print "many different nestings, some sharing"
 inductive foo (A : Type)
 | mk₁ : Pi (n : nat), A -> (Pi (m : nat), vec (list (list foo)) (n + m)) -> vec foo n -> foo
 | mk₂ : Pi (n : nat), A -> list A -> prod A A -> (Pi (m : nat), vec foo (n + m)) -> vec foo n -> foo
 
 end X8
 
-namespace X9
-
-inductive foo (A : Type)
-| mk₁ : Pi (n : nat), A -> (Pi (m : nat), vec (list (list foo)) (n + m)) -> vec foo n -> foo
-| mk₂ : Pi (n : nat), A -> list A -> prod A A -> (Pi (m : nat), vec foo (n + m)) -> vec foo n -> foo
-
-end X9
-
 namespace X9b
-
+print "mutual + nesting"
 mutual_inductive foo, bar
 with foo : Type
 | mk : list (list foo) -> foo
@@ -115,34 +107,11 @@ inductive wrap (A : Type) : Type
 | mk : list (list A) -> wrap
 
 inductive box (A : Type)
-| mk : A -> wrap (list box) -> box
-
-inductive foo (A : Type)
-| mk : A -> box (wrap foo) -> foo
-
-inductive bar
-| mk : box (foo bar) -> bar
+| mk : A -> wrap (wrap box) -> box
 
 end X12
 
 namespace X13
-print "crazy additional nesting"
-
-inductive wrap (A : Type) : Type
-| mk : Pi (n : nat), vec (list A) n -> wrap
-
-inductive box (A : Type)
-| mk : Pi (n : nat), A -> vec (wrap box) n -> box
-
-inductive foo (A : Type)
-| mk : A -> box (wrap foo) -> foo
-
-inductive bar
-| mk : box (foo bar) -> bar
-
-end X13
-
-namespace X15
 print "with reducible definitions"
 
 attribute [reducible] definition list' := @list
@@ -158,4 +127,17 @@ inductive foo (A : Type)
 inductive bar (A : Type)
 | mk : A -> foo bar -> bar
 
-end X15
+end X13
+
+namespace X14
+print "several layers"
+
+attribute [reducible] definition list' := @list
+
+inductive wrap (A : Type) : Type
+| mk : list (list A) -> wrap
+
+inductive foo (A : Type)
+| mk : wrap (wrap (wrap foo)) -> foo
+
+end X14
