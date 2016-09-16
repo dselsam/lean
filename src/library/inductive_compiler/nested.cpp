@@ -53,7 +53,6 @@ class add_nested_inductive_decl_fn {
     name_map<implicit_infer_kind> m_implicit_infer_map;
     ginductive_decl const &       m_nested_decl;
     ginductive_decl               m_inner_decl;
-    name                          m_prefix;
 
     type_context                  m_tctx;
 
@@ -126,14 +125,14 @@ class add_nested_inductive_decl_fn {
     name append_with_nest_idx(name const & n, unsigned nest_idx) { return rcons(n, nest_idx); }
 
     name mk_pi_name(fn_type t, unsigned ind_idx, unsigned ir_idx, unsigned ir_arg_idx) {
-        return append_with_ir_arg(mlocal_name(m_nested_decl.get_ind(ind_idx)) + to_name(fn_layer::PI) + to_name(t), ir_idx, ir_arg_idx);
+        return append_with_ir_arg(mlocal_name(m_nested_decl.get_ind(ind_idx)) + to_name(t), ir_idx, ir_arg_idx);
     }
     name mk_pi_name(fn_type t) { return mk_pi_name(t, get_curr_ind_idx(), get_curr_ir_idx(), get_curr_ir_arg_idx()); }
     name mk_nested_name(fn_type t, unsigned nest_idx) {
         return append_with_nest_idx(append_with_ir_arg(mlocal_name(m_nested_decl.get_ind(get_curr_ind_idx())) + to_name(fn_layer::NESTED) + to_name(t)), nest_idx);
     }
-    name mk_primitive_name(fn_type t) { return m_prefix + to_name(fn_layer::PRIMITIVE) + to_name(t); }
-    name mk_inner_name(name const & n) { return m_prefix + n; }
+    name mk_primitive_name(fn_type t) { return mlocal_name(m_nested_decl.get_ind(0)) + to_name(fn_layer::PRIMITIVE) + to_name(t); }
+    name mk_inner_name(name const & n) { return n + *g_nested_suffix; }
     name mk_spec_name(name const & base, name const & ir_name) { return base + ir_name + "spec"; }
 
     // Helpers
