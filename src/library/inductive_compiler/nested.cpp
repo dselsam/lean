@@ -136,7 +136,6 @@ class add_nested_inductive_decl_fn {
     }
     name mk_primitive_name(fn_type t) { return mlocal_name(m_nested_decl.get_ind(0)) + to_name(fn_layer::PRIMITIVE) + to_name(t); }
 
-    // TODO(dhs): <>._nest_5 ==> <>._nest_6
     name nest(name const & n) {
         name prefix = n;
         while (!prefix.is_atomic()) prefix = prefix.get_prefix();
@@ -455,7 +454,6 @@ class add_nested_inductive_decl_fn {
         case expr_kind::Lambda:
         case expr_kind::Pi:
         {
-            // TODO(dhs): error handling
             expr new_dom = pack_nested_occs(binding_domain(e));
             expr l = mk_local_pp("x_new_dom", new_dom);
             expr new_body = abstract_local(pack_nested_occs(instantiate(binding_body(e), l)), l);
@@ -472,8 +470,7 @@ class add_nested_inductive_decl_fn {
                 if (candidate == m_nested_occ) {
                     return copy_tag(e, mk_app(m_replacement, args.size() - num_params, args.data() + num_params));
                 } else {
-                    // We track whether it was updated just so we don't whnf unnecessarily
-                    // May not be necessary (or may want to do the same for bindings)
+                    // We track whether it was updated just so we return a structurally equal expression if we never pack
                     bool updated = false;
                     for (unsigned i = 0; i < num_params; ++i) {
                         expr new_arg = pack_nested_occs(args[i]);
@@ -527,8 +524,7 @@ class add_nested_inductive_decl_fn {
                 if (candidate == m_replacement) {
                     return copy_tag(e, mk_app(m_nested_occ, args.size() - num_params, args.data() + num_params));
                 } else {
-                    // We track whether it was updated just so we don't whnf unnecessarily
-                    // May not be necessary (or may want to do the same for bindings)
+                    // We track whether it was updated so we can return a structurally equal expression if we never unpack
                     bool updated = false;
                     for (unsigned i = 0; i < num_params; ++i) {
                         expr new_arg = unpack_nested_occs(args[i]);
@@ -692,7 +688,6 @@ class add_nested_inductive_decl_fn {
     optional<pair<expr, unsigned> > build_pi_pack_unpack(expr const & arg_ty) {
         expr ty = safe_whnf(m_tctx, arg_ty);
 
-        // TODO(dhs): make sure pack doesn't structural change expr if it never finds a nested occ
         if (ty == pack_nested_occs(ty))
             return optional<pair<expr, unsigned> >();
 
@@ -872,9 +867,6 @@ class add_nested_inductive_decl_fn {
                 } else {
                     bool packed_arg = false;
                     if (mlocal_type(unpacked_l) != binding_domain(packed_ir_type)) {
-                        // TODO(dhs): some of these structural checks need to be [is_def_eq] checks
-                        // TODO(dhs): note that this assert might trigger at first
-                        // I may need to whnf the binding domains, not sure yet
                         lean_assert(pack_type(mlocal_type(unpacked_l)) == binding_domain(packed_ir_type));
                         lean_assert(is_constant(unpacked_arg_fn) && is_ginductive(m_env, const_name(unpacked_arg_fn)));
                         buffer<expr> unpacked_arg_params, unpacked_arg_indices;
