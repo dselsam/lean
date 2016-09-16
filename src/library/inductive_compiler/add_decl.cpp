@@ -20,7 +20,7 @@ environment add_inductive_declaration(environment const & old_env, options const
     return env;
 }
 
-environment add_structure_declaration_aux(environment const & env, options const & opts,
+environment add_structure_declaration_aux(environment const & env, options const &,
                                           buffer<name> const & lp_names, buffer<expr> const & params,
                                           expr const & ind, expr const & intro_rule) {
     buffer<expr> inds;

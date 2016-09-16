@@ -1354,7 +1354,7 @@ class add_nested_inductive_decl_fn {
         m_lemmas = add_poly(m_tctx, m_lemmas, n, LEAN_DEFAULT_PRIORITY);
     }
 
-    void prove_nested_unpack_pack(expr const & start, expr const & end, expr const & nested_pack, expr const & nested_unpack, buffer<expr> const & index_locals, unsigned nest_idx) {
+    void prove_nested_unpack_pack(expr const & start, expr const & /* end */, expr const & nested_pack, expr const & nested_unpack, buffer<expr> const & index_locals, unsigned nest_idx) {
         name n = mk_nested_name(fn_type::UNPACK_PACK, nest_idx);
         expr x_unpacked = mk_local_pp("x_unpacked", mk_app(start, index_locals));
         name rec_name = inductive::get_elim_name(const_name(get_app_fn(start)));
@@ -1366,7 +1366,7 @@ class add_nested_inductive_decl_fn {
         m_lemmas = add_poly(m_tctx, m_lemmas, n, LEAN_DEFAULT_PRIORITY);
     }
 
-    void prove_nested_pack_sizeof(expr const & start, expr const & end, expr const & nested_pack, buffer<expr> const & index_locals, unsigned nest_idx) {
+    void prove_nested_pack_sizeof(expr const & start, expr const & /* end */, expr const & nested_pack, buffer<expr> const & index_locals, unsigned nest_idx) {
         name n = mk_nested_name(fn_type::SIZEOF_PACK, nest_idx);
         type_context tctx_synth(m_env, m_tctx.get_options(), m_synth_lctx);
 
