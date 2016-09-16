@@ -739,7 +739,7 @@ public:
     add_mutual_inductive_decl_fn(environment const & env, options const & opts,
                                  name_map<implicit_infer_kind> const & implicit_infer_map, ginductive_decl const & mut_decl):
         m_env(env), m_opts(opts), m_implicit_infer_map(implicit_infer_map),
-        m_mut_decl(mut_decl), m_basic_decl(m_mut_decl.get_lp_names(), m_mut_decl.get_params()),
+        m_mut_decl(mut_decl), m_basic_decl(m_mut_decl.get_nest_depth() + 1, m_mut_decl.get_lp_names(), m_mut_decl.get_params()),
         m_tctx(env, opts) {}
 
     environment operator()() {

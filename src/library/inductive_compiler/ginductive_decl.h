@@ -11,18 +11,20 @@ Author: Daniel Selsam
 namespace lean {
 
 class ginductive_decl {
+    unsigned m_nest_depth{0};
     buffer<name> m_lp_names;
     buffer<expr> m_params;
     buffer<expr> m_inds;
     buffer<buffer<expr> > m_intro_rules;
 public:
     ginductive_decl() {}
-    ginductive_decl(buffer<name> const & lp_names, buffer<expr> const & params):
-        m_lp_names(lp_names), m_params(params) {}
-    ginductive_decl(buffer<name> const & lp_names, buffer<expr> const & params,
+    ginductive_decl(unsigned nest_depth, buffer<name> const & lp_names, buffer<expr> const & params):
+        m_nest_depth(nest_depth), m_lp_names(lp_names), m_params(params) {}
+    ginductive_decl(unsigned nest_depth, buffer<name> const & lp_names, buffer<expr> const & params,
                     buffer<expr> const & inds, buffer<buffer<expr> > const & intro_rules):
-        m_lp_names(lp_names), m_params(params), m_inds(inds), m_intro_rules(intro_rules) {}
+        m_nest_depth(nest_depth), m_lp_names(lp_names), m_params(params), m_inds(inds), m_intro_rules(intro_rules) {}
 
+    unsigned get_nest_depth() const { return m_nest_depth; }
     bool is_mutual() const { return m_inds.size() > 1; }
     unsigned get_num_params() const { return m_params.size(); }
     unsigned get_num_inds() const { return m_inds.size(); }
