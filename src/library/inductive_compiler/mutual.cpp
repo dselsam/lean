@@ -27,8 +27,7 @@ Author: Daniel Selsam
 
 namespace lean {
 
-static unsigned g_next_mutual_id = 0;
-static name * g_mutual_prefix = nullptr;
+static name * g_mutual_suffix = nullptr;
 
 class add_mutual_inductive_decl_fn {
     environment                   m_env;
@@ -36,7 +35,9 @@ class add_mutual_inductive_decl_fn {
     name_map<implicit_infer_kind> m_implicit_infer_map;
     ginductive_decl const &       m_mut_decl;
     ginductive_decl               m_basic_decl;
-    name                          m_prefix;
+
+    name                          m_basic_ind_name;
+    name                          m_basic_prefix;
 
     type_context                  m_tctx;
 
@@ -159,12 +160,25 @@ class add_mutual_inductive_decl_fn {
         }
     }
 
-    name mk_prefix() {
-        return m_prefix;
+    void compute_basic_ind_name() {
+        name prefix = mlocal_name(m_mut_decl.get_ind(0));
+        while (!prefix.is_anonymous()
+               && std::any_of(m_mut_decl.get_inds().begin(), m_mut_decl.get_inds().end(), [&](expr const & ind) {
+                    return !is_prefix_of(prefix, mlocal_name(ind));
+                   })) {
+            prefix = prefix.get_prefix();
+        }
+
+        name basic_ind_name = prefix;
+        for (expr const & ind : m_mut_decl.get_inds()) {
+            basic_ind_name = basic_ind_name + mlocal_name(ind).replace_prefix(prefix, name());
+        }
+        m_basic_prefix = prefix;
+        m_basic_ind_name = basic_ind_name + *g_mutual_suffix;
     }
 
     void compute_new_ind() {
-        expr ind = mk_local(mk_prefix(), mk_arrow(m_full_index_type, get_ind_result_type(m_tctx, m_mut_decl.get_ind(0))));
+        expr ind = mk_local(m_basic_ind_name, mk_arrow(m_full_index_type, get_ind_result_type(m_tctx, m_mut_decl.get_ind(0))));
         lean_trace(name({"inductive_compiler", "mutual", "basic_ind"}), tout() << mlocal_name(ind) << " : " << mlocal_type(ind) << "\n";);
         m_basic_decl.get_inds().push_back(ind);
     }
@@ -221,7 +235,7 @@ class add_mutual_inductive_decl_fn {
     }
 
     expr translate_ir(unsigned ind_idx, expr const & ir) {
-        name ir_name = mk_prefix() + mlocal_name(ir);
+        name ir_name = m_basic_ind_name + mlocal_name(ir).replace_prefix(m_basic_prefix, name());
         buffer<expr> locals;
         expr ty = m_tctx.whnf(mlocal_type(ir));
         while (is_pi(ty)) {
@@ -725,10 +739,11 @@ public:
                                  name_map<implicit_infer_kind> const & implicit_infer_map, ginductive_decl const & mut_decl):
         m_env(env), m_opts(opts), m_implicit_infer_map(implicit_infer_map),
         m_mut_decl(mut_decl), m_basic_decl(m_mut_decl.get_lp_names(), m_mut_decl.get_params()),
-        m_prefix("_mut" + std::to_string(g_next_mutual_id++)),
         m_tctx(env, opts) {}
 
     environment operator()() {
+        compute_basic_ind_name();
+
         compute_index_types();
         compute_makers();
         compute_putters();
@@ -773,10 +788,10 @@ void initialize_inductive_compiler_mutual() {
     register_trace_class(name({"inductive_compiler", "mutual", "rec"}));
     register_trace_class(name({"inductive_compiler", "mutual", "sizeof"}));
 
-    g_mutual_prefix = new name(name::mk_internal_unique_name());
+    g_mutual_suffix = new name("_mut_");
 }
 
 void finalize_inductive_compiler_mutual() {
-    delete g_mutual_prefix;
+    delete g_mutual_suffix;
 }
 }

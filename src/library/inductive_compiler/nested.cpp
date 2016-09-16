@@ -41,8 +41,7 @@ Author: Daniel Selsam
 
 namespace lean {
 
-static unsigned g_next_nest_id = 0;
-static name * g_nested_prefix = nullptr;
+static name * g_nested_suffix = nullptr;
 
 static expr mk_local_for(expr const & b) { return mk_local(mk_fresh_name(), binding_name(b), binding_domain(b), binding_info(b)); }
 static expr mk_local_for(expr const & b, name const & n) { return mk_local(mk_fresh_name(), n, binding_domain(b), binding_info(b)); }
@@ -1616,7 +1615,6 @@ public:
                                  name_map<implicit_infer_kind> const & implicit_infer_map, ginductive_decl const & nested_decl):
         m_env(env), m_opts(opts), m_implicit_infer_map(implicit_infer_map),
         m_nested_decl(nested_decl), m_inner_decl(m_nested_decl.get_lp_names(), m_nested_decl.get_params()),
-        m_prefix(g_nested_prefix->append_after(g_next_nest_id++)),
         m_tctx(env, opts) { }
 
     optional<environment> operator()() {
@@ -1697,10 +1695,10 @@ void initialize_inductive_compiler_nested() {
     register_trace_class(name({"inductive_compiler", "nested", "simp", "start"}));
     register_trace_class(name({"inductive_compiler", "nested", "simp", "failure"}));
 
-    g_nested_prefix = new name("_nest");
+    g_nested_suffix = new name("_nest_");
 }
 
 void finalize_inductive_compiler_nested() {
-    delete g_nested_prefix;
+    delete g_nested_suffix;
 }
 }
