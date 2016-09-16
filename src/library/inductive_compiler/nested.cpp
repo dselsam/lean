@@ -136,7 +136,35 @@ class add_nested_inductive_decl_fn {
     name mk_primitive_name(fn_type t) { return mlocal_name(m_nested_decl.get_ind(0)) + to_name(fn_layer::PRIMITIVE) + to_name(t); }
 
     // TODO(dhs): <>._nest_5 ==> <>._nest_6
-    name nest(name const & n) { return n + *g_nested_suffix; }
+    name nest(name const & n) {
+        name prefix = n;
+        while (!prefix.is_atomic()) prefix = prefix.get_prefix();
+
+        lean_assert(!prefix.is_anonymous());
+        lean_assert(prefix.is_string());
+
+        std::string s1 = prefix.to_string();
+        if (s1.length() > 6) {
+            std::string s2 = s1;
+            s2.resize(6);
+            std::string rest = s1.substr(6);
+
+            // <shared_depth>_<indiv_depth>
+            std::string::size_type sep = rest.find("_");
+            std::string indiv_depth = rest.substr(sep+1);
+
+            if (s2 == g_nested_suffix->get_string() + std::string("_")) {
+                try {
+                    unsigned previous_nest_value = std::stoul(s1.substr(6));
+                    return n.replace_prefix(prefix, g_nested_suffix->append_after(m_inner_decl.get_nest_depth()).append_after(previous_nest_value + 1));
+                } catch (std::exception & ex) {
+                    throw exception(sstream() << "Failed to extract numeral from prefix of string: " << n << ", " << s1 << ", " << s1.substr(6));
+                }
+            }
+        }
+        return g_nested_suffix->append_after(m_inner_decl.get_nest_depth()).append_after((unsigned) 1) + n;
+    }
+
     name mk_inner_name(name const & n) {
         // 1. nested decl
         for (expr const & ind : m_nested_decl.get_inds()) {
@@ -145,7 +173,7 @@ class add_nested_inductive_decl_fn {
             }
         }
         // 2. others
-        return mlocal_name(m_nested_decl.get_ind(0)) + n + *g_nested_suffix;
+        return nest(n + mlocal_name(m_nested_decl.get_ind(0)));
     }
 
     name mk_spec_name(name const & base, name const & ir_name) { return base + ir_name + "spec"; }
@@ -1710,7 +1738,7 @@ void initialize_inductive_compiler_nested() {
     register_trace_class(name({"inductive_compiler", "nested", "simp", "start"}));
     register_trace_class(name({"inductive_compiler", "nested", "simp", "failure"}));
 
-    g_nested_suffix = new name("_nest_");
+    g_nested_suffix = new name("_nest");
 }
 
 void finalize_inductive_compiler_nested() {
