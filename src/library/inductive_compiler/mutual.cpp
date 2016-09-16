@@ -270,7 +270,6 @@ class add_mutual_inductive_decl_fn {
             lean_assert(!has_local(new_ind_type));
             lean_assert(!has_local(new_ind_val));
             m_env = module::add(m_env, check(m_env, mk_definition_inferring_trusted(m_env, mlocal_name(ind), to_list(m_mut_decl.get_lp_names()), new_ind_type, new_ind_val, true)));
-            // Alternative: safe_whnf
             m_env = set_reducible(m_env, mlocal_name(ind), reducible_status::Irreducible, true);
             m_tctx.set_env(m_env);
         }
@@ -401,8 +400,7 @@ class add_mutual_inductive_decl_fn {
                            << dsimp_rule_name << " : " << dsimp_rule_type << " :=\n  "<< dsimp_rule_val << "\n";);
 
                 m_env = module::add(m_env, check(m_env, mk_definition_inferring_trusted(m_env, dsimp_rule_name, to_list(m_mut_decl.get_lp_names()), dsimp_rule_type, dsimp_rule_val, true)));
-                // Note: we do not add to the [simp.sizeof] set, because these lemmas are not useful to the nested module
-                // since they refer to variables with the inner inductive type. The nested module will create similar lemmas but with unpacked types.
+                m_env = set_simp_sizeof(m_env, dsimp_rule_name);
                 m_env = add_protected(m_env, dsimp_rule_name);
 
                 tctx_synth.set_env(m_env);

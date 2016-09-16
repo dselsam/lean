@@ -566,22 +566,6 @@ class add_nested_inductive_decl_fn {
         }
     }
 
-    /////////////////////////////////////////////////////////////////////////////
-    ///// Stage 4: sizeof-simp lemmas for inner type in terms of outer type /////
-    /////////////////////////////////////////////////////////////////////////////
-
-    void compute_inner_sizeof_simp_lemmas() {
-        for (buffer<expr> const & irs : m_inner_decl.get_intro_rules()) {
-            for (expr const & ir : irs) {
-                // TODO(dhs): aux declarations?
-                if (optional<declaration> d = m_env.find(mk_sizeof_spec_name(mlocal_name(ir)))) {
-                    m_lemmas = add(m_tctx, m_lemmas, d->get_name(),
-                                   unpack_constants(d->get_type()), unpack_constants(d->get_value()), LEAN_DEFAULT_PRIORITY);
-                }
-            }
-        }
-    }
-
     //////////////////////////////////////////////
     ///// Stage 5: define nested has_sizeofs /////
     /////////////////////////////////////////////
@@ -1229,7 +1213,7 @@ class add_nested_inductive_decl_fn {
                        << "\n---------------\n"
                        << r.get_new() << "\n";);
             lean_assert(r.get_new() == mk_true());
-            throw exception("simplified failed to prove goal; trace 'inductive_compiler.nested.simp.failure' for more information");
+            throw exception("simplifier failed to prove goal; trace 'inductive_compiler.nested.simp.failure' for more information");
         }
         return mk_app(tctx, get_eq_mpr_name(), r.get_proof(), mk_true_intro());
     }
@@ -1624,7 +1608,7 @@ class add_nested_inductive_decl_fn {
 
                 //assert_def_eq(m_env, tctx_synth.infer(dsimp_rule_val), dsimp_rule_type);
                 define_theorem(dsimp_rule_name, dsimp_rule_type, dsimp_rule_val);
-                set_simp_sizeof(m_env, dsimp_rule_name);
+                m_env = set_simp_sizeof(m_env, dsimp_rule_name);
                 m_env = add_protected(m_env, dsimp_rule_name);
                 m_tctx.set_env(m_env);
             }
@@ -1648,7 +1632,6 @@ public:
         check_elim_to_type();
 
         define_nested_inds();
-        compute_inner_sizeof_simp_lemmas();
 
         define_nested_has_sizeofs();
         build_primitive_pack_unpack();
