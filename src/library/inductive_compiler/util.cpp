@@ -36,18 +36,7 @@ expr get_ind_result_type(type_context & tctx, expr const & ind) {
 }
 
 void assert_no_locals(name const & n, expr const & e) {
-    // TODO(dhs): don't use iostream
-    if (!has_local(e))
-        return;
-
-    std::cout << "\n\nerror: found locals in '" << n << "'" << std::endl;
-    std::cout << e << std::endl;
-    collected_locals ls;
-    collect_locals(e, ls);
-    for (expr const & l : ls.get_collected()) {
-        std::cout << mlocal_name(l) << "." << local_pp_name(l) << " : " << mlocal_type(l) << std::endl;
-    }
-    lean_assert(false);
+    lean_assert(!has_local(e));
 }
 
 void assert_def_eq(environment const & env, expr const & e1, expr const & e2) {
@@ -101,10 +90,4 @@ void split_params_indices(buffer<expr> const & args, unsigned num_params, buffer
     for (unsigned i = num_params; i < args.size(); ++i)
         indices.push_back(args[i]);
 }
-
-bool all_args_eq(expr const & e1, expr const & e2) {
-    // TODO(dhs): take a type context URGENT
-    return true;
-}
-
 }

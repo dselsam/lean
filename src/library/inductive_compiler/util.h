@@ -19,5 +19,4 @@ void assert_no_locals(name const & n, expr const & e);
 expr get_app_params_indices(expr const & e, unsigned num_params, buffer<expr> & params, buffer<expr> & indices);
 expr get_app_indices(expr const & e, unsigned num_params, buffer<expr> & indices);
 void split_params_indices(buffer<expr> const & args, unsigned num_params, buffer<expr> & params, buffer<expr> & indices);
-bool all_args_eq(expr const & e1, expr const & e2);
 }
