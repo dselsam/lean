@@ -6,15 +6,6 @@ inductive tree (A : Type)
 
 attribute [pattern] tree.node
 attribute [pattern] tree.leaf
-attribute [reducible] tree
-attribute [reducible] tree.leaf
-attribute [reducible] tree.node
-attribute [reducible] _nest_0.tree
-attribute [reducible] _nest_0.list
-attribute [reducible] _nest_0.tree.leaf
-attribute [reducible] _nest_0.tree.node
-attribute [reducible] _nest_0.list.nil
-attribute [reducible] _nest_0.list.cons
 
 set_option trace.eqn_compiler true
 definition sz {A : Type} : tree A → nat
@@ -32,8 +23,8 @@ noncomputable definition bla {A : Type} : ∀ n : tree A, P n
 check bla._main.equations.eqn_1
 check bla._main.equations.eqn_2
 
-definition foo {A : Type} : nat → tree A → nat
-| 0     _                   := 0
+noncomputable definition foo {A : Type} : nat → tree A → nat
+| 0     _                   := sorry
 | (n+1) (tree.leaf a)       := 0
 | (n+1) (tree.node [])      := foo n (tree.node [])
 | (n+1) (tree.node (x::xs)) := foo n x

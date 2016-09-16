@@ -169,12 +169,8 @@ class add_mutual_inductive_decl_fn {
             prefix = prefix.get_prefix();
         }
 
-        name basic_ind_name = prefix;
-        for (expr const & ind : m_mut_decl.get_inds()) {
-            basic_ind_name = basic_ind_name + mlocal_name(ind).replace_prefix(prefix, name());
-        }
+        m_basic_ind_name = prefix + mlocal_name(m_mut_decl.get_ind(0)) + *g_mutual_suffix;
         m_basic_prefix = prefix;
-        m_basic_ind_name = basic_ind_name + *g_mutual_suffix;
     }
 
     void compute_new_ind() {
@@ -235,7 +231,7 @@ class add_mutual_inductive_decl_fn {
     }
 
     expr translate_ir(unsigned ind_idx, expr const & ir) {
-        name ir_name = m_basic_ind_name + mlocal_name(ir).replace_prefix(m_basic_prefix, name());
+        name ir_name = mlocal_name(m_mut_decl.get_ind(ind_idx)) + mlocal_name(ir).replace_prefix(m_basic_prefix, name());
         buffer<expr> locals;
         expr ty = m_tctx.whnf(mlocal_type(ir));
         while (is_pi(ty)) {

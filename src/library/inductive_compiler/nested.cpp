@@ -165,12 +165,28 @@ class add_nested_inductive_decl_fn {
         return g_nested_suffix->append_after(m_inner_decl.get_nest_depth()).append_after((unsigned) 1) + n;
     }
 
+    name try_strip_nest_prefix(name const & n) {
+        name prefix = n;
+        while (!prefix.is_atomic()) prefix = prefix.get_prefix();
+
+        lean_assert(!prefix.is_anonymous());
+        lean_assert(prefix.is_string());
+
+        std::string s1 = prefix.to_string();
+        if (s1.length() > 6 && s1.substr(0, 5) == *g_nested_suffix) {
+                return n.replace_prefix(prefix, name());
+        } else {
+            return n;
+        }
+    }
+
     name mk_inner_name(name const & n) {
-        if (m_nested_decl.is_ind_name(n) || m_nested_decl.is_ir_name(n))
+        if (m_nested_decl.is_ind_name(n) || m_nested_decl.is_ir_name(n)) {
             return nest(n);
-        else
-            // Note: we append after so that "nest_" is not added as a prefix
+        } else {
+            // We append the ind name at the end so that we don't put the "nest_" in the beginning
             return nest(n + mlocal_name(m_nested_decl.get_ind(0)));
+        }
     }
 
     name mk_spec_name(name const & base, name const & ir_name) { return base + ir_name + "spec"; }
