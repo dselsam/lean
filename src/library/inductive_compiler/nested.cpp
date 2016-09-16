@@ -28,6 +28,7 @@ Author: Daniel Selsam
 #include "library/inverse.h"
 #include "library/protected.h"
 #include "library/attribute_manager.h"
+#include "library/pattern_attribute.h"
 #include "library/constructions/has_sizeof.h"
 #include "library/inductive_compiler/ginductive.h"
 #include "library/inductive_compiler/compiler.h"
@@ -673,6 +674,7 @@ class add_nested_inductive_decl_fn {
                 new_ir_type = infer_implicit_params(new_ir_type, m_nested_decl.get_params().size(), k);
 
                 define(mlocal_name(ir), new_ir_type, new_ir_val);
+                m_env = set_pattern_attribute(m_env, mlocal_name(ir));
                 m_tctx.set_env(m_env);
             }
         }

@@ -4,9 +4,6 @@ inductive tree (A : Type)
 | leaf : A -> tree
 | node : list tree -> tree
 
-attribute [pattern] tree.node
-attribute [pattern] tree.leaf
-
 set_option trace.eqn_compiler true
 definition sz {A : Type} : tree A → nat
 | (tree.leaf a) := 1

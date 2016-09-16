@@ -19,6 +19,7 @@ Author: Daniel Selsam
 #include "library/protected.h"
 #include "library/type_context.h"
 #include "library/attribute_manager.h"
+#include "library/pattern_attribute.h"
 #include "library/constructions/has_sizeof.h"
 #include "library/inductive_compiler/compiler.h"
 #include "library/inductive_compiler/basic.h"
@@ -436,6 +437,7 @@ class add_mutual_inductive_decl_fn {
                 lean_trace(name({"inductive_compiler", "mutual", "ir"}), tout() << mlocal_name(ir) << " : " << new_ir_type << "\n";);
 
                 m_env = module::add(m_env, check(m_env, mk_definition_inferring_trusted(m_env, mlocal_name(ir), to_list(m_mut_decl.get_lp_names()), new_ir_type, new_ir_val, true)));
+                m_env = set_pattern_attribute(m_env, mlocal_name(ir));
                 m_tctx.set_env(m_env);
                 basic_ir_idx++;
             }
