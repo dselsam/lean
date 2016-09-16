@@ -135,7 +135,6 @@ class add_nested_inductive_decl_fn {
     }
     name mk_primitive_name(fn_type t) { return m_prefix + to_name(fn_layer::PRIMITIVE) + to_name(t); }
     name mk_inner_name(name const & n) { return m_prefix + n; }
-    name mk_unpacked_name(name const & n) { return mk_inner_name(n) + "unpacked"; }
     name mk_spec_name(name const & base, name const & ir_name) { return base + ir_name + "spec"; }
 
     // Helpers
@@ -1252,14 +1251,11 @@ class add_nested_inductive_decl_fn {
     void prove_primitive_pack_unpack(buffer<expr> const & index_locals) {
         name n = mk_primitive_name(fn_type::PACK_UNPACK);
         expr x_packed = mk_local_pp("x_packed", mk_app(m_replacement, index_locals));
+        name rec_name = inductive::get_elim_name(mlocal_name(m_inner_decl.get_inds().back()));
         expr lhs = mk_app(mk_app(m_primitive_pack, index_locals), mk_app(mk_app(m_primitive_unpack, index_locals), x_packed));
         expr goal = mk_eq(m_tctx, lhs, x_packed);
         expr primitive_pack_unpack_type = Pi(m_nested_decl.get_params(), Pi(index_locals, Pi(x_packed, goal)));
-        // We need to create a special recursor for the packed type, to replace [nest.foo] with [foo]
-        declaration d_rec = m_env.get(inductive::get_elim_name(mlocal_name(m_inner_decl.get_inds().back())));
-        name lifted_rec_name = mk_unpacked_name(d_rec.get_name());
-        define(lifted_rec_name, unpack_constants(d_rec.get_type()), unpack_constants(d_rec.get_value()), d_rec.get_univ_params());
-        expr primitive_pack_unpack_val = prove_by_induction_simp(lifted_rec_name, primitive_pack_unpack_type, false);
+        expr primitive_pack_unpack_val = prove_by_induction_simp(rec_name, primitive_pack_unpack_type, false);
         define_theorem(n, primitive_pack_unpack_type, primitive_pack_unpack_val);
         m_lemmas = add_poly(m_tctx, m_lemmas, n, LEAN_DEFAULT_PRIORITY);
     }
