@@ -24,11 +24,12 @@ noncomputable definition bla {A : Type} : ∀ n : tree A, P n
 check bla._main.equations.eqn_1
 check bla._main.equations.eqn_2
 
-noncomputable definition foo {A : Type} [inhabited A] : nat → tree A → nat
-| 0     _                                    := sorry
-| (n+1) (tree.leaf a)                        := 0
-| (n+1) (tree.node m x)                      := foo n (tree.node 0 (vec.vnil (list (tree A))))
+noncomputable definition foo {A : Type} : nat → tree A → nat
+| 0     _                                     := sorry
+| (n+1) (tree.leaf a)                         := 0
+| (n+1) (tree.node m x)                       := foo n (tree.node 0 (vec.vnil (list (tree A))))
+| (n+1) (tree.node (m+1) (vec.vcons .m x xs)) := foo n (tree.node m xs)
 
 check @foo._main.equations.eqn_1
 check @foo._main.equations.eqn_2
-print @foo._main.equations.eqn_3
+check @foo._main.equations.eqn_3
