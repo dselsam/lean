@@ -4,7 +4,6 @@
 
   Author: Daniel Selsam
 */
-#include <iostream>
 #include "kernel/inductive/inductive.h"
 #include "kernel/abstract.h"
 #include "kernel/instantiate.h"
@@ -12,6 +11,7 @@
 #include "util/sexpr/option_declarations.h"
 #include "library/locals.h"
 #include "library/module.h"
+#include "library/trace.h"
 #include "library/attribute_manager.h"
 #include "library/inductive_compiler/util.h"
 
@@ -36,7 +36,17 @@ expr get_ind_result_type(type_context & tctx, expr const & ind) {
 }
 
 void assert_no_locals(name const & n, expr const & e) {
-    lean_assert(!has_local(e));
+     if (!has_local(e))
+        return;
+    collected_locals ls;
+    collect_locals(e, ls);
+
+    lean_trace(name({"debug", "inductive_compiler"}),
+               tout() << "\n\nerror: found locals in '" << n << "'\n" << e << "\n";
+               for (expr const & l : ls.get_collected()) {
+                   tout() << mlocal_name(l) << "." << local_pp_name(l) << " : " << mlocal_type(l) << "\n";
+               });
+    lean_assert(false);
 }
 
 void assert_def_eq(environment const & env, expr const & e1, expr const & e2) {
