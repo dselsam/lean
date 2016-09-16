@@ -93,7 +93,7 @@ class to_ceqvs_fn {
             auto r2    = lift(Hnc, apply(arg2, H2, restricted));
             return append(r1, r2);
         } else if (!restricted) {
-            expr new_e = m_tmp_tctx.whnf_no_delta(e);
+            expr new_e = m_tmp_tctx.whnf(e);
             if (new_e != e) {
                 if (auto r = apply(new_e, H, true))
                     return r;
