@@ -265,8 +265,6 @@ public:
 
     bool is_def_eq_core(level const & l1, level const & l2);
     bool is_def_eq(level const & l1, level const & l2);
-    expr whnf_no_delta(expr const & e) { return whnf_core(e); }
-
     virtual expr whnf(expr const & e) override;
     virtual expr infer(expr const & e) override;
     virtual expr check(expr const & e) override;
@@ -279,11 +277,6 @@ public:
     virtual optional<expr> is_stuck(expr const &) override;
 
     virtual expr push_local(name const & pp_name, expr const & type, binder_info const & bi = binder_info()) override;
-    expr push_local_from_binding(expr const & e) {
-        lean_assert(is_binding(e));
-        return push_local(binding_name(e), binding_domain(e), binding_info(e));
-    }
-
     virtual void pop_local() override;
     virtual expr abstract_locals(expr const & e, unsigned num_locals, expr const * locals) override;
 
@@ -582,7 +575,6 @@ public:
     virtual expr whnf(expr const & e) override;
     virtual bool is_def_eq(expr const & e1, expr const & e2) override;
 
-    expr whnf_no_delta(expr const & e);
 
     expr mk_lambda(buffer<expr> const & locals, expr const & e);
     expr mk_pi(buffer<expr> const & locals, expr const & e);
