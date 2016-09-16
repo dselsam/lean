@@ -42,8 +42,7 @@ Author: Daniel Selsam
 
 namespace lean {
 
-static unsigned g_next_nest_id = 0;
-static name * g_nested_suffix = nullptr;
+static name * g_nest_prefix = nullptr;
 
 static expr mk_local_for(expr const & b) { return mk_local(mk_fresh_name(), binding_name(b), binding_domain(b), binding_info(b)); }
 static expr mk_local_for(expr const & b, name const & n) { return mk_local(mk_fresh_name(), n, binding_domain(b), binding_info(b)); }
@@ -55,7 +54,6 @@ class add_nested_inductive_decl_fn {
     name_map<implicit_infer_kind> m_implicit_infer_map;
     ginductive_decl const &       m_nested_decl;
     ginductive_decl               m_inner_decl;
-    name                          m_prefix;
 
     type_context                  m_tctx;
 
@@ -144,40 +142,26 @@ class add_nested_inductive_decl_fn {
         lean_assert(prefix.is_string());
 
         std::string s1 = prefix.to_string();
-        if (s1.length() > 6) {
+        std::string::size_type nest_prefix_len = g_nest_prefix->to_string().size();
+        if (s1.length() > nest_prefix_len) {
             std::string s2 = s1;
-            s2.resize(6);
-            std::string rest = s1.substr(6);
+            s2.resize(nest_prefix_len);
+            // Note: the + 1 is for the '_' that `append_after` adds
+            std::string rest = s1.substr(nest_prefix_len + 1);
 
-            // <shared_depth>_<indiv_depth>
-            std::string::size_type sep = rest.find("_");
-            std::string indiv_depth = rest.substr(sep+1);
-
-            if (s2 == g_nested_suffix->get_string() + std::string("_")) {
+            if (s2 == g_nest_prefix->get_string()) {
                 try {
-                    unsigned previous_nest_value = std::stoul(s1.substr(6));
-                    return n.replace_prefix(prefix, g_nested_suffix->append_after(m_inner_decl.get_nest_depth()).append_after(previous_nest_value + 1));
+                    // <shared_depth>_<indiv_depth>
+                    std::string::size_type sep = rest.find("_");
+                    std::string indiv_depth = rest.substr(sep+1);
+                    unsigned previous_nest_value = std::stoul(s1.substr(nest_prefix_len+1));
+                    return n.replace_prefix(prefix, g_nest_prefix->append_after(m_inner_decl.get_nest_depth()).append_after(previous_nest_value + 1));
                 } catch (std::exception & ex) {
-                    throw exception(sstream() << "Failed to extract numeral from prefix of string: " << n << ", " << s1 << ", " << s1.substr(6));
+                    throw exception(sstream() << "Failed to extract numeral from prefix of string: " << n << ", " << s1 << ", " << rest);
                 }
             }
         }
-        return g_nested_suffix->append_after(m_inner_decl.get_nest_depth()).append_after((unsigned) 1) + n;
-    }
-
-    name try_strip_nest_prefix(name const & n) {
-        name prefix = n;
-        while (!prefix.is_atomic()) prefix = prefix.get_prefix();
-
-        lean_assert(!prefix.is_anonymous());
-        lean_assert(prefix.is_string());
-
-        std::string s1 = prefix.to_string();
-        if (s1.length() > 6 && s1.substr(0, 5) == *g_nested_suffix) {
-                return n.replace_prefix(prefix, name());
-        } else {
-            return n;
-        }
+        return g_nest_prefix->append_after(m_inner_decl.get_nest_depth()).append_after((unsigned) 1) + n;
     }
 
     name mk_inner_name(name const & n) {
@@ -1660,7 +1644,6 @@ public:
                                  name_map<implicit_infer_kind> const & implicit_infer_map, ginductive_decl const & nested_decl):
         m_env(env), m_opts(opts), m_implicit_infer_map(implicit_infer_map),
         m_nested_decl(nested_decl), m_inner_decl(m_nested_decl.get_nest_depth() + 1, m_nested_decl.get_lp_names(), m_nested_decl.get_params()),
-        m_prefix(g_nested_suffix->append_after(g_next_nest_id++)),
         m_tctx(env, opts) { }
 
     optional<environment> operator()() {
@@ -1744,10 +1727,10 @@ void initialize_inductive_compiler_nested() {
     register_trace_class(name({"inductive_compiler", "nested", "simp", "start"}));
     register_trace_class(name({"inductive_compiler", "nested", "simp", "failure"}));
 
-    g_nested_suffix = new name("_nest");
+    g_nest_prefix = new name("_nest");
 }
 
 void finalize_inductive_compiler_nested() {
-    delete g_nested_suffix;
+    delete g_nest_prefix;
 }
 }
