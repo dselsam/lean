@@ -10,67 +10,58 @@ import init.meta.relation_tactics
 namespace tactic
 namespace smt
 
--- Prelim
-def bool.to_string_true_false : bool -> string
-| tt := "true"
-| ff := "false"
+-- Preliminaries
 
-def list.to_string_spaces_aux {A : Type*} [has_to_string A] : bool -> list A -> string
+private def list.with_spaces_aux {X : Type} (f : X -> string) : bool -> list X -> string
 | b [] := ""
-| tt (x::xs) := to_string x ++ list.to_string_spaces_aux ff xs
-| ff (x::xs) := " " ++ to_string x ++ list.to_string_spaces_aux ff xs
+| tt (x::xs) := f x ++ list.with_spaces_aux ff xs
+| ff (x::xs) := " " ++ f x ++ list.with_spaces_aux ff xs
 
-def list.to_string_spaces {A : Type*} [has_to_string A] : list A → string :=
-list.to_string_spaces_aux tt
+def list.with_spaces {X : Type} (f : X -> string) : list X -> string := list.with_spaces_aux f tt
+
+def bool.to_smt (b : bool) : string := cond b "true" "false"
+def num.to_smt (n : num) := to_string (nat.of_num n)
 
 -- Basics
-@[reducible] definition Numeral : Type := num
-@[reducible] definition Symbol : Type := string
+definition Numeral : Type := num
+def Numeral.to_smt := @num.to_smt
 
-instance : has_to_string Numeral := ⟨to_string ∘ nat.of_num⟩
+definition Symbol : Type := string
+def Symbol.to_smt (sym : Symbol) := sym
 
 -- SExprs
 
 -- TODO(dhs): hex/binary, strings
-@[reducible] definition SpecConstant : Type := Numeral
+definition SpecConstant : Type := Numeral
+def SpecConstant.to_smt := @Numeral.to_smt
 
 inductive SExpr : Type
 | const : SpecConstant -> SExpr
 | symbol : Symbol -> SExpr
 | seq : list SExpr -> SExpr
 
-mutual def SExpr.to_string, SExpr.seq_to_string
-with SExpr.to_string : SExpr -> string
-| (const sc) := to_string sc
-| (symbol sym) := sym
-| (seq xs) := "(" ++ SExpr.seq_to_string tt xs ++ ")"
-with SExpr.seq_to_string : list SExpr -> string
-| b [] := ""
-| tt (x::xs) := SExpr.to_string x ++ SExpr.seq_to_string xs
-| ff (x::xs) := " " ++ SExpr.to_string x ++ SExpr.seq_to_string xs
-
--- Note: mutual def not yet implemented!
--- instance : has_to_string SExpr := ⟨SExpr.to_string⟩
+meta def SExpr.to_smt : SExpr -> string
+| (SExpr.const sc) := sc~>to_smt
+| (SExpr.symbol sym) := sym
+| (SExpr.seq xs) := "(" ++ list.with_spaces SExpr.to_smt xs ++ ")"
 
 -- Identifiers
 definition Index : Type := Numeral ⊕ Symbol
+definition Index.to_smt : Index -> string
+| (sum.inl n) := n~>to_smt
+| (sum.inr s) := s~>to_smt
+
 structure Identifier : Type := (id : Symbol) (args : list Index)
+meta def Identifier.to_smt : Identifier -> string
+| ⟨id, []⟩ := id~>to_smt
+| ⟨id, idxs⟩ := "(_ " ++ id~>to_smt ++ " " ++ list.with_spaces Index.to_smt idxs ++ ")"
 
 -- Sorts
 
--- TODO(dhs): allow nested inductive types in structures?
-inductive Sort : Type
-| mk : Identifier -> list Sort -> Sort
-
-mutual def Sort.to_string, Sort.seq_to_string
-with Sort.to_string : Sort -> string
-| ⟨id, []⟩ := id
-| ⟨id, sorts⟩ := "(" ++ id ++ Sort.seq_to_string ++ ")"
-with Sort.seq_to_string : list Sort -> string
-| [] := ""
-| (s::ss) := " " ++ Sort.to_string s ++ Sort.seq_to_string ss
-
---instance : has_to_string Sort := ⟨Sort.to_string⟩
+inductive Sort : Type | mk : Identifier -> list Sort -> Sort
+meta def Sort.to_smt : Sort -> string
+| (Sort.mk id []) := id~>to_smt
+| (Sort.mk id sorts) := "(" ++ id~>to_smt ++ " " ++ list.with_spaces Sort.to_smt sorts ++ ")"
 
 -- Attributes
 inductive AttributeValue : Type
@@ -84,6 +75,9 @@ structure Attribute : Type := (key : Symbol) (val : option AttributeValue)
 definition QualIdentifier : Type := Identifier -- TODO(dhs): (as <id> <sort>)
 structure SortedVar : Type := (id : Symbol) (sort : Sort)
 
+meta def SortedVar.to_smt : SortedVar -> string
+| ⟨id, sort⟩ := "(" ++ id~>to_smt ++ " " ++ sort~>to_smt ++ ")"
+
 mutual inductive Term, VarBinding
 with Term : Type
 | const : SpecConstant -> Term
@@ -95,14 +89,8 @@ with Term : Type
 with VarBinding : Type
 | mk : Symbol -> Term -> VarBinding
 
-namespace Examples
-
-def Term.example1 : Term := Term.const 5
-def Term.example2 : Term := Term.ident (Identifier.mk "f" []) []
-def Term.example3 : Term := Term.tlet [VarBinding.mk "x" Term.example1] Term.example2
-
-end Examples
-
+-- Deadend -- need mutual definition to define the `to_smt` function
+/-
 mutual def Term.to_string, VarBinding.to_string
 with Term.to_string : Term -> string
 | (Term.const sc) := to_string sc
@@ -114,6 +102,15 @@ with Term.to_string : Term -> string
 | (Term.tattr attrs t) := "(! " ++ Term.to_string t ++ list.to_string_spaces attrs ++ ")"
 with VarBinding.to_string : VarBinding -> string
 | (VarBinding.mk id t) := "(" ++ id ++ " " ++ Term.to_string t ++ ")"
+
+namespace Examples
+
+def Term.example1 : Term := Term.const (5 : num)
+def Term.example2 : Term := Term.ident (Identifier.mk "f" []) []
+def Term.example3 : Term := Term.tlet [VarBinding.mk "x" Term.example1] Term.example2
+
+end Examples
+
 
 -- Command Options
 
@@ -167,6 +164,7 @@ inductive CommandResponse : Type
 
 
 
+-/
 
 end smt
 end tactic
