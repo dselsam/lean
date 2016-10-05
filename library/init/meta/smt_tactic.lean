@@ -70,6 +70,8 @@ inductive AttributeValue : Type
 | sexpr : list SExpr -> AttributeValue
 
 structure Attribute : Type := (key : Symbol) (val : option AttributeValue)
+meta def Attribute.to_smt : Attribute -> string
+| attr := "" -- TODO(dhs): generate strings from attributes
 
 -- Terms
 definition QualIdentifier : Type := Identifier -- TODO(dhs): (as <id> <sort>)
@@ -78,30 +80,28 @@ structure SortedVar : Type := (id : Symbol) (sort : Sort)
 meta def SortedVar.to_smt : SortedVar -> string
 | ⟨id, sort⟩ := "(" ++ id~>to_smt ++ " " ++ sort~>to_smt ++ ")"
 
-mutual inductive Term, VarBinding
-with Term : Type
+-- Note: was using mutual inductive here for VarBinding as in the standard,
+-- but mutual def is not implemented yet.
+inductive Term : Type
 | const : SpecConstant -> Term
 | ident : QualIdentifier -> list Term -> Term
-| tlet : list VarBinding -> Term -> Term
+| tlet : list (prod Symbol Term) -> Term -> Term
 | tforall : list SortedVar -> Term -> Term
 | texists : list SortedVar -> Term -> Term
 | tattr : list Attribute -> Term -> Term
-with VarBinding : Type
-| mk : Symbol -> Term -> VarBinding
 
--- Deadend -- need mutual definition to define the `to_smt` function
-/-
-mutual def Term.to_string, VarBinding.to_string
-with Term.to_string : Term -> string
-| (Term.const sc) := to_string sc
-| (Term.ident qid []) := to_string qid
-| (Term.ident qid ts) := "(_ " ++ to_string qid ++ list.to_string_spaces ts ++ ")"
-| (Term.tlet vbs t) := "(let (" ++ list.to_string_spaces vbs ++ ") " ++ Term.to_string t ++ ")"
-| (Term.tforall svs t) := "(forall (" ++ list.to_string_spaces svs ++ ") " ++ Term.to_string t ++ ")"
-| (Term.texists svs t) := "(exists (" ++ list.to_string_spaces svs ++ ") " ++ Term.to_string t ++ ")"
-| (Term.tattr attrs t) := "(! " ++ Term.to_string t ++ list.to_string_spaces attrs ++ ")"
-with VarBinding.to_string : VarBinding -> string
-| (VarBinding.mk id t) := "(" ++ id ++ " " ++ Term.to_string t ++ ")"
+meta def VarBinding.to_smt (f : Term -> string) : prod Symbol Term -> string
+| ⟨id, t⟩ := "(" ++ id~>to_smt ++ " " ++ f t ++ ")"
+
+meta def Term.to_smt : Term -> string
+| (Term.const sc) := sc~>to_smt
+| (Term.ident qid []) := qid~>to_smt
+| (Term.ident qid args) := "(" ++ qid~>to_smt ++ " " ++ list.with_spaces Term.to_smt args ++ ")"
+| (Term.tlet vbs t) := "(let (" ++ list.with_spaces (VarBinding.to_smt Term.to_smt) vbs ++ ") " ++ Term.to_smt t ++ ")"
+| (Term.tforall svs t) := "(forall (" ++ list.with_spaces SortedVar.to_smt svs ++ ") " ++ Term.to_smt t ++ ")"
+| (Term.texists svs t) := "(exists (" ++ list.with_spaces SortedVar.to_smt svs ++ ") " ++ Term.to_smt t ++ ")"
+| (Term.tattr attrs t) := "(! " ++ Term.to_smt t ++ " " ++ list.with_spaces Attribute.to_smt attrs ++ ")"
+
 
 namespace Examples
 
@@ -109,26 +109,25 @@ def Term.example1 : Term := Term.const (5 : num)
 def Term.example2 : Term := Term.ident (Identifier.mk "f" []) []
 def Term.example3 : Term := Term.tlet [VarBinding.mk "x" Term.example1] Term.example2
 
+--vm_eval Term.to_smt Term.example3
 end Examples
 
 
 -- Command Options
-
 inductive CommandOption : Type
 | produceModels : bool -> CommandOption
 | produceUnsatCores : bool -> CommandOption
--- TODO(dhs): many other options
 
-def CommandOption.to_string : CommandOption -> string
-| (CommandOption.produceModels b) := "(set-option :produce-models " ++ bool.to_string_true_false b ++ ")"
-| (CommandOption.produceUnsatCores b) := "(set-option :produce-unsat-cores " ++ bool.to_string_true_false b ++ ")"
+-- TODO(dhs): many other options
+def CommandOption.to_smt : CommandOption -> string
+| (CommandOption.produceModels b) := ":produce-models " ++ b~>to_smt
+| (CommandOption.produceUnsatCores b) := ":produce-unsat-cores " ++ b~>to_smt
 
 -- Commands
-structure FunDec : Type := (id : Symbol) (vars : list SortedVar) (sort : Sort)
 structure FunDef : Type := (id : Symbol) (vars : list SortedVar) (sort : Sort) (val : Term)
 
-def FunDec.to_string : FunDec -> string
-| ⟨id, vars, sort⟩ := "(" ++ id ++ " (" ++ list.to_string_spaces vars ++ ") " ++ to_string sort ++ ")"
+def FunDef.to_smt : FunDef -> string
+| ⟨id, vars, sort, val⟩ := id ++ " (" ++ list.with_spaces SortedVar.to_smt vars ++ ") " ++ sort~>to_smt ++ " " ++ val~>to_smt
 
 inductive Command : Type
 | assert : Term -> Command
@@ -142,9 +141,16 @@ inductive Command : Type
 | setOption : CommandOption -> Command
 -- TODO(dhs): many others
 
---def Command.to_string : Command -> string
---| (assert t) := "(assert " ++ to_string
-
+meta def Command.to_smt : Command -> string
+| (Command.assert t) := "(assert " ++ t~>to_smt ++ ")"
+| (Command.checkSat) := "(check-sat)"
+| (Command.declareConst id sort) := "(declare-const " ++ id~>to_smt ++ " " ++ sort~>to_smt ++ ")"
+| (Command.declareFun id sorts sort) := "(declare-const " ++ id~>to_smt ++ " (" ++ list.with_spaces Sort.to_smt sorts ++ ") " ++ sort~>to_smt ++ ")"
+| (Command.declareSort id n) := "(declare-sort " ++ id~>to_smt ++ " " ++ n~>to_smt ++ ")"
+| (Command.getModel) := "(get-model)"
+| (Command.getUnsatAssumptions) := "(get-unsat-assumptions)"
+| (Command.getUnsatCore) := "(get-unsat-core)"
+| (Command.setOption co) := "(set-option " ++ co~>to_smt ++ ")"
 
 -- Command Responses
 inductive ErrorBehavior : Type | immediateExit, continuedExecution
@@ -159,12 +165,6 @@ inductive CommandResponse : Type
 | getModel : GetModelResponse -> CommandResponse
 | getUnsatAssumptions : GetUnsatAssumptionsResponse -> CommandResponse
 | getUnsatCore : GetUnsatCoreResponse -> CommandResponse
-
-
-
-
-
--/
 
 end smt
 end tactic
