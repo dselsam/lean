@@ -19,6 +19,8 @@ private def list.with_spaces_aux {X : Type} (f : X -> string) : bool -> list X -
 
 def list.with_spaces {X : Type} (f : X -> string) : list X -> string := list.with_spaces_aux f tt
 
+meta constant trustZ3 : expr -> expr
+
 namespace tactic
 namespace smt
 
@@ -165,11 +167,15 @@ inductive CommandResponse : Type
 | getUnsatAssumptions : list Symbol -> CommandResponse
 | getUnsatCore : list Symbol -> CommandResponse
 
-meta constant execZ3 : string -> tactic string
-meta constant trustZ3 : expr -> expr
+meta constant callZ3 : string -> tactic string
 
+namespace Examples
 
+example : false :=
+by do x ←  callZ3 Command.checkSat~>to_smt,
+      trace x
 
+end Examples
 
 
 
