@@ -19,6 +19,19 @@ private def list.with_spaces_aux {X : Type} (f : X -> string) : bool -> list X -
 
 def list.with_spaces {X : Type} (f : X -> string) : list X -> string := list.with_spaces_aux f tt
 
+-- TODO(dhs): prove this and put it in init/list.lean
+namespace list
+instance decidable_eq {A : Type*} [decidable_eq A] : decidable_eq (list A)
+| [] [] := is_true rfl
+| (x::xs) (y::ys) := if h₁ : x = y
+                     then match decidable_eq xs ys with
+                          | is_true h₂ := is_true sorry
+                          | is_false h₂ := is_false sorry
+                          end
+                     else is_false sorry
+| _ _ := is_false sorry
+end list
+
 meta constant trustZ3 : expr -> expr
 
 namespace tactic
@@ -108,6 +121,9 @@ meta def Term.to_smt : Term -> string
 
 namespace Examples
 
+def Term.false : Term := Term.ident (Identifier.mk "false" []) []
+def Term.true : Term := Term.ident (Identifier.mk "true" []) []
+
 def Term.example1 : Term := Term.const (5 : num)
 def Term.example2 : Term := Term.ident (Identifier.mk "f" []) []
 def Term.example3 : Term := Term.tforall [SortedVar.mk "x" (Sort.mk (Identifier.mk "X" []) [])] Term.example2
@@ -169,11 +185,19 @@ inductive CommandResponse : Type
 
 meta constant callZ3 : string -> tactic string
 
-namespace Examples
+meta def Z3CanProve (cmds : list Command) : tactic bool :=
+do ret ← callZ3 (list.with_spaces Command.to_smt cmds),
+   return $ if ret = "unsat\n" then tt else ff
 
-example : false :=
-by do x ←  callZ3 Command.checkSat~>to_smt,
-      trace x
+namespace Examples
+example : true :=
+by do should_be_true ← Z3CanProve [Command.assert Term.false, Command.checkSat],
+      trace "should be true:",
+      trace should_be_true,
+      should_be_false ← Z3CanProve [Command.assert Term.true, Command.checkSat],
+      trace "should be false:",
+      trace should_be_false,
+      triv
 
 end Examples
 
