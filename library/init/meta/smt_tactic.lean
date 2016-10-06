@@ -201,6 +201,46 @@ by do should_be_true ← Z3CanProve [Command.assert Term.false, Command.checkSat
 
 end Examples
 
+/-
+TODO(dhs): the next thing to do is to take a goal and construct a list of Commands.
+We will not implement anything fancy yet, just the "Core" theory and arithmetic
+for now.
+
+The basic idea is as follows:
+
+We maintain:
+1. A map from sort names to arities (X |-> 0, Y |-> 1)
+2. A map from names to function defs (x |-> {[], X []}, y |-> {[X], Y X})
+3. A list of asserted terms
+
+We may decide to use StateT tactic for this, although it seems heavy-handed.
+
+We traverse each hypothesis in sequence. At every subexpression, we give each theory a chance to "claim" the expression.
+
+Example: `(@add nat _ _ _)` will be claimed by arithmetic. Note that implicit arguments may be taken into account.
+
+If no one (excluding UF) claims it, we may throw an error if it is:
+1. A pi that is not in Prop
+2. A lambda
+3. A macro
+
+Otherwise, we add the operator to our set of function defs (if necessary).
+
+Either way, we recursively visit the subterms. If the type of the hypothesis is a Prop, then we build up a Term object as we go along, and Assert the term at the end.
+
+The theory processors will be responsible for returning the subexpressions that need to be processed.
+For the UF case, all arguments will be considered important subterms.
+
+We traverse the goal just like any other hypothesis, except we negate it at the end.
+
+There are many issues with the approach I have just described.
+1. Dependent types outside of Prop
+   - Can I handle [M : matrix m n]? What about [M : matrix (m1 + m2) (n1 + n2)]? I don't really care.
+   - But what about bitvectors? For sure I need these. Maybe they can be special-cased? The bit-vector theory can claim them.
+   - I think I can be very conservative for now about what kind of dependent types I can support.
+
+-/
+
 
 
 end smt
