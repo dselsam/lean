@@ -7,10 +7,10 @@ prelude
 import init.meta.tactic init.meta.attribute init.meta.constructor_tactic
 import init.meta.relation_tactics
 
-namespace tactic
-namespace smt
-
 -- Preliminaries
+
+def bool.to_smt (b : bool) : string := cond b "true" "false"
+def num.to_smt (n : num) := to_string (nat.of_num n)
 
 private def list.with_spaces_aux {X : Type} (f : X -> string) : bool -> list X -> string
 | b [] := ""
@@ -19,8 +19,8 @@ private def list.with_spaces_aux {X : Type} (f : X -> string) : bool -> list X -
 
 def list.with_spaces {X : Type} (f : X -> string) : list X -> string := list.with_spaces_aux f tt
 
-def bool.to_smt (b : bool) : string := cond b "true" "false"
-def num.to_smt (n : num) := to_string (nat.of_num n)
+namespace tactic
+namespace smt
 
 -- Basics
 definition Numeral : Type := num
@@ -97,7 +97,8 @@ meta def Term.to_smt : Term -> string
 | (Term.const sc) := sc~>to_smt
 | (Term.ident qid []) := qid~>to_smt
 | (Term.ident qid args) := "(" ++ qid~>to_smt ++ " " ++ list.with_spaces Term.to_smt args ++ ")"
-| (Term.tlet vbs t) := "(let (" ++ list.with_spaces (VarBinding.to_smt Term.to_smt) vbs ++ ") " ++ Term.to_smt t ++ ")"
+--| (Term.tlet vbs t) := "(let (" ++ list.with_spaces (VarBinding.to_smt Term.to_smt) vbs ++ ") " ++ Term.to_smt t ++ ")"
+| (Term.tlet vbs t) := "<assert-failure, erase_irrelevant:160>"
 | (Term.tforall svs t) := "(forall (" ++ list.with_spaces SortedVar.to_smt svs ++ ") " ++ Term.to_smt t ++ ")"
 | (Term.texists svs t) := "(exists (" ++ list.with_spaces SortedVar.to_smt svs ++ ") " ++ Term.to_smt t ++ ")"
 | (Term.tattr attrs t) := "(! " ++ Term.to_smt t ++ " " ++ list.with_spaces Attribute.to_smt attrs ++ ")"
@@ -107,9 +108,9 @@ namespace Examples
 
 def Term.example1 : Term := Term.const (5 : num)
 def Term.example2 : Term := Term.ident (Identifier.mk "f" []) []
-def Term.example3 : Term := Term.tlet [VarBinding.mk "x" Term.example1] Term.example2
+def Term.example3 : Term := Term.tforall [SortedVar.mk "x" (Sort.mk (Identifier.mk "X" []) [])] Term.example2
 
---vm_eval Term.to_smt Term.example3
+vm_eval Term.example3~>to_smt
 end Examples
 
 
@@ -124,9 +125,10 @@ def CommandOption.to_smt : CommandOption -> string
 | (CommandOption.produceUnsatCores b) := ":produce-unsat-cores " ++ b~>to_smt
 
 -- Commands
+
 structure FunDef : Type := (id : Symbol) (vars : list SortedVar) (sort : Sort) (val : Term)
 
-def FunDef.to_smt : FunDef -> string
+meta def FunDef.to_smt : FunDef -> string
 | ⟨id, vars, sort, val⟩ := id ++ " (" ++ list.with_spaces SortedVar.to_smt vars ++ ") " ++ sort~>to_smt ++ " " ++ val~>to_smt
 
 inductive Command : Type
@@ -156,15 +158,20 @@ meta def Command.to_smt : Command -> string
 inductive ErrorBehavior : Type | immediateExit, continuedExecution
 inductive ModelResponse : Type | fundef : FunDef -> ModelResponse
 inductive CheckSatResponse : Type | sat,  unsat, unknown
-definition GetModelResponse : Type := list ModelResponse
-definition GetUnsatAssumptionsResponse : Type := list Symbol
-definition GetUnsatCoreResponse : Type := list Symbol
 
 inductive CommandResponse : Type
 | checkSat : CheckSatResponse -> CommandResponse
-| getModel : GetModelResponse -> CommandResponse
-| getUnsatAssumptions : GetUnsatAssumptionsResponse -> CommandResponse
-| getUnsatCore : GetUnsatCoreResponse -> CommandResponse
+| getModel : list ModelResponse -> CommandResponse
+| getUnsatAssumptions : list Symbol -> CommandResponse
+| getUnsatCore : list Symbol -> CommandResponse
+
+meta constant execZ3 : string -> tactic string
+meta constant trustZ3 : expr -> expr
+
+
+
+
+
 
 end smt
 end tactic
