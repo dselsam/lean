@@ -5,7 +5,8 @@ Authors: Daniel Selsam
 -/
 prelude
 import init.meta.tactic init.meta.attribute init.meta.constructor_tactic
-import init.meta.relation_tactics
+import init.meta.relation_tactics init.meta.rb_map
+import init.monad init.monad_combinators init.state
 
 -- Preliminaries
 
@@ -172,6 +173,8 @@ meta def Command.to_smt : Command -> string
 | (Command.getUnsatCore) := "(get-unsat-core)"
 | (Command.setOption co) := "(set-option " ++ co~>to_smt ++ ")"
 
+definition SMTProblem := list Command
+
 -- Command Responses
 inductive ErrorBehavior : Type | immediateExit, continuedExecution
 inductive ModelResponse : Type | fundef : FunDef -> ModelResponse
@@ -185,7 +188,7 @@ inductive CommandResponse : Type
 
 meta constant callZ3 : string -> tactic string
 
-meta def Z3CanProve (cmds : list Command) : tactic bool :=
+meta def Z3CanProve (cmds : SMTProblem) : tactic bool :=
 do ret ← callZ3 (list.with_spaces Command.to_smt cmds),
    return $ if ret = "unsat\n" then tt else ff
 
@@ -200,6 +203,39 @@ by do should_be_true ← Z3CanProve [Command.assert Term.false, Command.checkSat
       triv
 
 end Examples
+
+namespace BuildSMTProblem
+open monad
+
+meta structure BuildSMTProblemState : Type := (sorts : rb_map name Sort) (defs : rb_map name FunDef) (assertions : list Term)
+
+meta def initBuildSMTProblemState : BuildSMTProblemState := ⟨rb_map.mk name Sort, rb_map.mk name FunDef, []⟩
+
+set_option trace.eqn_compiler.elim_match true
+meta def processHypothesis : expr -> state BuildSMTProblemState Term
+| (expr.app (expr.const `not []) e) := do t ← processHypothesis e, return $ Term.ident ⟨"not", []⟩ [t])
+| (expr.const `true []) := return $ Term.ident ⟨"true", []⟩ []
+| (expr.const `false []) := return $ Term.ident ⟨"false", []⟩ []
+| _ := return $ Term.ident ⟨"FAIL", []⟩ []
+
+vm_eval (processHypothesis (expr.const `true []) initBuildSMTProblemState).1~>to_smt
+
+
+
+/-
+meta def buildSMTProblemCore (hyps : list expr) (goal : expr) : state BuildSMTProblemState unit :=
+do mapM processHypothesis hyps,
+   processHypothesis (expr.app (expr.const `not []) goal)
+-/
+
+end BuildSMTProblem
+
+
+
+-- meta constant {u₁ u₂} rb_map : Type u₁ → Type u₂ → Type (max u₁ u₂ 1)
+
+
+
 
 /-
 TODO(dhs): the next thing to do is to take a goal and construct a list of Commands.
