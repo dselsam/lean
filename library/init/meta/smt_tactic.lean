@@ -6,6 +6,7 @@ Authors: Daniel Selsam
 prelude
 import init.meta.tactic init.meta.attribute init.meta.constructor_tactic
 import init.meta.relation_tactics init.meta.rb_map
+import init.instances
 import init.monad init.monad_combinators init.state
 
 -- Preliminaries
@@ -19,19 +20,6 @@ private def list.with_spaces_aux {X : Type} (f : X -> string) : bool -> list X -
 | ff (x::xs) := " " ++ f x ++ list.with_spaces_aux ff xs
 
 def list.with_spaces {X : Type} (f : X -> string) : list X -> string := list.with_spaces_aux f tt
-
--- TODO(dhs): prove this and put it in init/list.lean
-namespace list
-instance decidable_eq {A : Type*} [decidable_eq A] : decidable_eq (list A)
-| [] [] := is_true rfl
-| (x::xs) (y::ys) := if h₁ : x = y
-                     then match decidable_eq xs ys with
-                          | is_true h₂ := is_true sorry
-                          | is_false h₂ := is_false sorry
-                          end
-                     else is_false sorry
-| _ _ := is_false sorry
-end list
 
 meta constant trustZ3 : expr -> expr
 
