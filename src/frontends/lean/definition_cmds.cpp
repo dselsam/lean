@@ -188,6 +188,7 @@ static expr_pair parse_definition(parser & p, buffer<name> & lp_names, buffer<ex
     } else {
         throw parser_error("invalid definition, '|' or ':=' expected", p.pos());
     }
+
     collect_implicit_locals(p, lp_names, params, {mlocal_type(fn), val});
     return mk_pair(fn, val);
 }
