@@ -70,6 +70,8 @@ meta def Sort.to_smt : Sort -> string
 | (Sort.mk id []) := id~>to_smt
 | (Sort.mk id sorts) := "(" ++ id~>to_smt ++ " " ++ list.with_spaces Sort.to_smt sorts ++ ")"
 
+instance : decidable_eq Sort := by mk_dec_eq_instance
+
 -- Attributes
 inductive AttributeValue : Type
 | const : SpecConstant -> AttributeValue
@@ -195,6 +197,7 @@ end Examples
 meta structure SMTProblemState : Type := (sorts : rb_map name SortDecl) (fdecls : rb_map name FunDecl) (assertions : list Term)
 @[reducible] meta def SMTMethod : Type -> Type := stateT SMTProblemState tactic
 
+-- Define for monad transformers, and perhaps make a coercion
 meta def liftSMT {A : Type} (tac : tactic A) : SMTMethod A := λ s, do res ← tac, return (res, s)
 
 namespace SMTMethod
@@ -265,26 +268,43 @@ alternative.mk (@monad.map _ _)
   @SMTMethod.failed
   @SMTMethod.orelse
 
+meta def Term.Bool : Term := Term.ident ⟨"Bool", []⟩ [] -- for our own use TODO
+
+meta def Term.true : Term := Term.ident ⟨"true", []⟩ []
+meta def Term.false : Term := Term.ident ⟨"false", []⟩ []
+meta def Term.not (xs : list Term) : Term := Term.ident ⟨"false", []⟩ xs
+meta def Term.implies (xs : list Term) : Term := Term.ident ⟨"implies", []⟩ xs
+meta def Term.and (xs : list Term) : Term := Term.ident ⟨"and", []⟩ xs
+meta def Term.or (xs : list Term) : Term := Term.ident ⟨"or", []⟩ xs
+
+meta def Sort.Bool : Sort := Sort.mk ⟨"Bool", []⟩ []
+
+-- For our own use
+meta def Sort.Type : Sort := Sort.mk ⟨"Type", []⟩ []
+
 namespace Theory
 
-meta def Extension : Type := expr -> SMTMethod (list expr × (list Term -> SMTMethod Term))
+meta def Extension : Type := expr -> SMTMethod (list expr × (list (Term × Sort) -> SMTMethod (Term × Sort)))
 
 -- Maybe return the types as well? Or also take a bool for whether it is "top-level"?
 meta def core : Extension
+| (expr.const `Prop [])
+  := return ([], λ (xs : list (Term × Sort)), return (Term.Bool, Sort.Type))
 | (expr.const `true [])
-  := return ([], λ (xs : list Term), return $ Term.ident ⟨"true", []⟩ [])
+  := return ([], λ (xs : list (Term × Sort)), return (Term.true, Sort.Bool))
 | (expr.const `false [])
-  := return ([], λ (xs : list Term), return $ Term.ident ⟨"false", []⟩ [])
+  := return ([], λ (xs : list (Term × Sort)), return (Term.false, Sort.Bool))
 | (expr.app (expr.const `not []) e)
-  := return ([e], λ (xs : list Term), return $ Term.ident ⟨"not", []⟩ xs)
+  := return ([e], λ (xs : list (Term × Sort)), return (Term.not (list.map prod.fst xs), Sort.Bool))
 | (expr.app (expr.const `implies []) e)
-  := return ([e], λ (xs : list Term), return $ Term.ident ⟨"=>", []⟩ xs)
+  := return ([e], λ (xs : list (Term × Sort)), return (Term.implies (list.map prod.fst xs), Sort.Bool))
 | (expr.app (expr.app (expr.const `and []) e1) e2)
-  := return ([e1, e2], λ (xs : list Term), return $ Term.ident ⟨"and", []⟩ xs)
+  := return ([e1, e2], λ (xs : list (Term × Sort)), return (Term.and (list.map prod.fst xs), Sort.Bool))
 | (expr.app (expr.app (expr.const `or []) e1) e2)
-  := return ([e1, e2], λ (xs : list Term), return $ Term.ident ⟨"or", []⟩ xs)
-| (expr.app (expr.app (expr.app (expr.const `eq []) ty) e1) e2)
-  := return ([e1, e2], λ (xs : list Term), return $ Term.ident ⟨"=", []⟩ xs)
+  := return ([e1, e2], λ (xs : list (Term × Sort)), return $ (Term.or (list.map prod.fst xs), Sort.Bool))
+-- TODO(dhs): eq is trickier than this
+--| (expr.app (expr.app (expr.app (expr.const `eq []) ty) e1) e2)
+--  := return ([e1, e2], λ (xs : list Term), return $ Term.ident ⟨"=", []⟩ list.tail xs)
 | e
   := SMTMethod.fail $ "core failed on " ++ expr.to_string e
 -- TODO(dhs): XOR, distinct, ite
@@ -298,17 +318,18 @@ meta def first {A : Type} : list (SMTMethod A) → SMTMethod A
 | []      := SMTMethod.fail "first failed, no more alternatives"
 | (t::ts) := t <|> first ts
 
-meta def traverseExpr (exts : list Theory.Extension) : expr -> SMTMethod Term
+meta def traverseExpr (exts : list Theory.Extension) : expr -> SMTMethod (Term × Sort)
 | e := do (xs, k) ← first (list.map (λ (ext : Theory.Extension), ext e) exts),
           ts ← mapM traverseExpr xs,
           k ts
 
 meta def processHypothesis (hyp : expr) : SMTMethod unit :=
-do n    ← return $ expr.local_uniq_name hyp,
-   ty   ← liftSMT $ infer_type hyp,
-   t    ← traverseExpr Theory.extensions ty,
-   tyTy ← liftSMT $ infer_type ty,
-   if tyTy = expr.prop then addAssertion t else return ()
+do n            ← return $ expr.local_uniq_name hyp,
+   ty           ← liftSMT $ infer_type hyp,
+   (term, sort) ← traverseExpr Theory.extensions ty,
+   if sort = Sort.Bool then addAssertion term else
+   addFunDecl
+
 
 meta def buildSMTProblemCore (hyps : list expr) : SMTMethod unit :=
    mapM processHypothesis hyps >> return ()
