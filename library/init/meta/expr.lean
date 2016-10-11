@@ -204,5 +204,8 @@ meta def binding_body : expr → expr
 | e             := e
 
 meta def prop : expr := expr.sort level.zero
+meta def is_sort : expr -> bool
+| (expr.sort _) := tt
+| _             := ff
 
 end expr

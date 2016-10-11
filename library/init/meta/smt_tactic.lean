@@ -255,22 +255,28 @@ meta def traverseExpr : expr -> SMTMethod Term
 | _ := return $ Term.ident ⟨"FAIL", []⟩ []
 -- TODO(dhs): much more stuff to handle
 
-meta def processHypothesis : expr -> SMTMethod unit :=
-λ (e : expr),
+-- TODO(dhs): need to create the sortDecls and the funDecls
+meta def processType : name -> expr -> SMTMethod unit :=
+λ (n : name) (e : expr),
 do t     ← traverseExpr e,
    eType ← liftSMT (infer_type e),
-   if eType = expr.prop then addAssertion t else return ()
+   if eType = expr.prop then addAssertion t else
+   if expr.is_sort eType then addSort n t else
+   addFunDecl n t
 
 --vm_eval (processHypothesis (expr.const `true []) initBuildSMTProblemState).1~>to_smt
 
 meta def buildSMTProblemCore (hyps : list expr) (goal : expr) : SMTMethod unit :=
-do mapM processHypothesis hyps,
+do hypNames ← return $ list.map expr.local_uniq_name hyps,
+   hypTypes ← liftSMT $ mapM infer_type hyps,
+   mapM processType hypTypes,
    processHypothesis (expr.app (expr.const `not []) goal),
    return ()
 
-
 meta def buildSMTProblem : tactic (list Command) :=
 do hyps  ← local_context,
+   trace "\nlocal_context: ",
+   trace hyps,
    tgt   ← target,
    state ← stateT.exec (buildSMTProblemCore hyps tgt) initBuildSMTProblemState,
    match state with
@@ -280,15 +286,14 @@ do hyps  ← local_context,
      ++ list.map Command.assert assertions
    end
 
-exit
-example (h : true) : true :=
+example (h₁ h₂ : true) : true :=
 by do cmds : list Command ← buildSMTProblem,
       strs : list string ← return $ list.map Command.to_smt cmds,
       trace "\nSMT Problem: ",
       trace strs,
       failed
 
-
+exit
 end BuildSMTProblem
 
 
