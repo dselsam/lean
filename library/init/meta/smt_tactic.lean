@@ -7,7 +7,9 @@ prelude
 import init.meta.tactic init.meta.attribute init.meta.constructor_tactic
 import init.meta.relation_tactics init.meta.rb_map
 import init.instances
-import init.monad init.monad_combinators init.state
+import init.monad init.monad_combinators init.monad_trans init.state
+
+set_option eqn_compiler.max_steps 1000
 
 -- Preliminaries
 
@@ -61,6 +63,7 @@ meta def Identifier.to_smt : Identifier -> string
 | ⟨id, idxs⟩ := "(_ " ++ id~>to_smt ++ " " ++ list.with_spaces Index.to_smt idxs ++ ")"
 
 -- Sorts
+structure SortDecl : Type := (id : Symbol) (numArgs : Numeral)
 
 inductive Sort : Type | mk : Identifier -> list Sort -> Sort
 meta def Sort.to_smt : Sort -> string
@@ -132,7 +135,7 @@ def CommandOption.to_smt : CommandOption -> string
 | (CommandOption.produceUnsatCores b) := ":produce-unsat-cores " ++ b~>to_smt
 
 -- Commands
-
+structure FunDecl : Type := (id : Symbol) (vars : list Sort) (sort : Sort)
 structure FunDef : Type := (id : Symbol) (vars : list SortedVar) (sort : Sort) (val : Term)
 
 meta def FunDef.to_smt : FunDef -> string
@@ -141,27 +144,22 @@ meta def FunDef.to_smt : FunDef -> string
 inductive Command : Type
 | assert : Term -> Command
 | checkSat : Command
-| declareConst : Symbol -> Sort -> Command
-| declareFun : Symbol -> list Sort -> Sort -> Command
-| declareSort : Symbol -> Numeral -> Command
+| declareFun : FunDecl -> Command
+| declareSort : SortDecl -> Command
 | getModel : Command
 | getUnsatAssumptions : Command
 | getUnsatCore : Command
 | setOption : CommandOption -> Command
--- TODO(dhs): many others
 
 meta def Command.to_smt : Command -> string
 | (Command.assert t) := "(assert " ++ t~>to_smt ++ ")"
 | (Command.checkSat) := "(check-sat)"
-| (Command.declareConst id sort) := "(declare-const " ++ id~>to_smt ++ " " ++ sort~>to_smt ++ ")"
-| (Command.declareFun id sorts sort) := "(declare-const " ++ id~>to_smt ++ " (" ++ list.with_spaces Sort.to_smt sorts ++ ") " ++ sort~>to_smt ++ ")"
-| (Command.declareSort id n) := "(declare-sort " ++ id~>to_smt ++ " " ++ n~>to_smt ++ ")"
+| (Command.declareSort ⟨id, n⟩) := "(declare-sort " ++ id~>to_smt ++ " " ++ n~>to_smt ++ ")"
+| (Command.declareFun ⟨id, sorts, sort⟩) := "(declare-const " ++ id~>to_smt ++ " (" ++ list.with_spaces Sort.to_smt sorts ++ ") " ++ sort~>to_smt ++ ")"
 | (Command.getModel) := "(get-model)"
 | (Command.getUnsatAssumptions) := "(get-unsat-assumptions)"
 | (Command.getUnsatCore) := "(get-unsat-core)"
 | (Command.setOption co) := "(set-option " ++ co~>to_smt ++ ")"
-
-definition SMTProblem := list Command
 
 -- Command Responses
 inductive ErrorBehavior : Type | immediateExit, continuedExecution
@@ -176,11 +174,13 @@ inductive CommandResponse : Type
 
 meta constant callZ3 : string -> tactic string
 
-meta def Z3CanProve (cmds : SMTProblem) : tactic bool :=
+meta def Z3CanProve (cmds : list Command) : tactic bool :=
 do ret ← callZ3 (list.with_spaces Command.to_smt cmds),
    return $ if ret = "unsat\n" then tt else ff
 
 namespace Examples
+print "Checking Z3 connection..."
+
 example : true :=
 by do should_be_true ← Z3CanProve [Command.assert Term.false, Command.checkSat],
       trace "should be true:",
@@ -192,29 +192,102 @@ by do should_be_true ← Z3CanProve [Command.assert Term.false, Command.checkSat
 
 end Examples
 
-namespace BuildSMTProblem
+meta structure BuildSMTProblemState : Type := (sorts : rb_map name SortDecl) (fdecls : rb_map name FunDecl) (assertions : list Term)
+@[reducible] meta def SMTMethod : Type -> Type := stateT BuildSMTProblemState tactic
+
+meta def liftSMT {A : Type} (tac : tactic A) : SMTMethod A := λ s, do res ← tac, return (res, s)
+
+namespace SMTMethod
 open monad
 
-meta structure BuildSMTProblemState : Type := (sorts : rb_map name Sort) (defs : rb_map name FunDef) (assertions : list Term)
+meta def initBuildSMTProblemState : BuildSMTProblemState := ⟨rb_map.mk name SortDecl, rb_map.mk name FunDecl, []⟩
 
-meta def initBuildSMTProblemState : BuildSMTProblemState := ⟨rb_map.mk name Sort, rb_map.mk name FunDef, []⟩
+-- Add
+meta def addSort (n : name) (sort : SortDecl) : SMTMethod unit :=
+do s ← stateT.read,
+   match s with
+   | ⟨sorts, funDecls, assertions⟩ := stateT.write $ ⟨rb_map.insert sorts n sort, funDecls, assertions⟩
+   end
 
-set_option trace.eqn_compiler.elim_match true
-meta def processHypothesis : expr -> state BuildSMTProblemState Term
-| (expr.app (expr.const `not []) e) := do t ← processHypothesis e, return $ Term.ident ⟨"not", []⟩ [t])
+meta def addFunDef (n : name) (funDecl : FunDecl) : SMTMethod unit :=
+do s ← stateT.read,
+   match s with
+   | ⟨sorts, funDecls, assertions⟩ := stateT.write $ ⟨sorts, rb_map.insert funDecls n funDecl, assertions⟩
+   end
+
+meta def addAssertion (term : Term) : SMTMethod unit :=
+do s ← stateT.read,
+   match s with
+   | ⟨sorts, funDecls, assertions⟩ := stateT.write $ ⟨sorts, funDecls, assertions ++ [term]⟩
+   end
+
+-- Find
+meta def findSort (n : name) : SMTMethod (option SortDecl) :=
+do s ← stateT.read,
+   match s with
+   | ⟨sorts, funDecls, assertions⟩ := return $ rb_map.find sorts n
+   end
+
+meta def findFunDef (n : name) : SMTMethod (option FunDecl) :=
+do s ← stateT.read,
+   match s with
+   | ⟨sorts, funDecls, assertions⟩ := return $ rb_map.find funDecls n
+   end
+
+-- Contains
+meta def containsSort (n : name) : SMTMethod bool :=
+do s ← stateT.read,
+   match s with
+   | ⟨sorts, funDecls, assertions⟩ := return $ rb_map.contains sorts n
+   end
+
+meta def containsFunDef (n : name) : SMTMethod bool :=
+do s ← stateT.read,
+   match s with
+   | ⟨sorts, funDecls, assertions⟩ := return $ rb_map.contains funDecls n
+   end
+
+-- The main expression traversal function
+meta def traverseExpr : expr -> SMTMethod Term
+| (expr.app (expr.const `not []) e) := do t ← traverseExpr e, return $ Term.ident ⟨"not", []⟩ [t]
 | (expr.const `true []) := return $ Term.ident ⟨"true", []⟩ []
 | (expr.const `false []) := return $ Term.ident ⟨"false", []⟩ []
 | _ := return $ Term.ident ⟨"FAIL", []⟩ []
+-- TODO(dhs): much more stuff to handle
 
-vm_eval (processHypothesis (expr.const `true []) initBuildSMTProblemState).1~>to_smt
+meta def processHypothesis : expr -> SMTMethod unit :=
+λ (e : expr),
+do t     ← traverseExpr e,
+   eType ← liftSMT (infer_type e),
+   if eType = expr.prop then addAssertion t else return ()
 
+--vm_eval (processHypothesis (expr.const `true []) initBuildSMTProblemState).1~>to_smt
 
-
-/-
-meta def buildSMTProblemCore (hyps : list expr) (goal : expr) : state BuildSMTProblemState unit :=
+meta def buildSMTProblemCore (hyps : list expr) (goal : expr) : SMTMethod unit :=
 do mapM processHypothesis hyps,
-   processHypothesis (expr.app (expr.const `not []) goal)
--/
+   processHypothesis (expr.app (expr.const `not []) goal),
+   return ()
+
+
+meta def buildSMTProblem : tactic (list Command) :=
+do hyps  ← local_context,
+   tgt   ← target,
+   state ← stateT.exec (buildSMTProblemCore hyps tgt) initBuildSMTProblemState,
+   match state with
+   | ⟨sorts, funDecls, assertions⟩ := return $
+     list.map Command.declareSort (rb_map.values sorts)
+     ++ list.map Command.declareFun (rb_map.values funDecls)
+     ++ list.map Command.assert assertions
+   end
+
+exit
+example (h : true) : true :=
+by do cmds : list Command ← buildSMTProblem,
+      strs : list string ← return $ list.map Command.to_smt cmds,
+      trace "\nSMT Problem: ",
+      trace strs,
+      failed
+
 
 end BuildSMTProblem
 
