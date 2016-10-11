@@ -261,8 +261,8 @@ meta def processType : name -> expr -> SMTMethod unit :=
 do t     ← traverseExpr e,
    eType ← liftSMT (infer_type e),
    if eType = expr.prop then addAssertion t else
-   if expr.is_sort eType then addSort n t else
-   addFunDecl n t
+   if expr.is_sort eType then addSort n ⟨n, 0⟩ else
+   addFunDecl n ⟨n,
 
 --vm_eval (processHypothesis (expr.const `true []) initBuildSMTProblemState).1~>to_smt
 
