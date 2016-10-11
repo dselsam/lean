@@ -269,6 +269,7 @@ namespace Theory
 
 meta def Extension : Type := expr -> SMTMethod (list expr × (list Term -> SMTMethod Term))
 
+-- Maybe return the types as well? Or also take a bool for whether it is "top-level"?
 meta def core : Extension
 | (expr.const `true [])
   := return ([], λ (xs : list Term), return $ Term.ident ⟨"true", []⟩ [])
