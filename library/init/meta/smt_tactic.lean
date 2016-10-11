@@ -70,7 +70,8 @@ meta def Sort.to_smt : Sort -> string
 | (Sort.mk id []) := id~>to_smt
 | (Sort.mk id sorts) := "(" ++ id~>to_smt ++ " " ++ list.with_spaces Sort.to_smt sorts ++ ")"
 
-instance : decidable_eq Sort := by mk_dec_eq_instance
+-- TODO(dhs): figure out why mk_dec_eq_instance doesn't work with nested inductive types
+instance : decidable_eq Sort := sorry -- by mk_dec_eq_instance
 
 -- Attributes
 inductive AttributeValue : Type
@@ -278,6 +279,8 @@ meta def Term.and (xs : list Term) : Term := Term.ident ⟨"and", []⟩ xs
 meta def Term.or (xs : list Term) : Term := Term.ident ⟨"or", []⟩ xs
 
 meta def Sort.Bool : Sort := Sort.mk ⟨"Bool", []⟩ []
+meta def Sort.Int : Sort := Sort.mk ⟨"Int", []⟩ []
+meta def Sort.Real : Sort := Sort.mk ⟨"Real", []⟩ []
 
 -- For our own use
 meta def Sort.Type : Sort := Sort.mk ⟨"Type", []⟩ []
@@ -323,13 +326,30 @@ meta def traverseExpr (exts : list Theory.Extension) : expr -> SMTMethod (Term �
           ts ← mapM traverseExpr xs,
           k ts
 
+set_option trace.app_builder true
+meta def mkFunDeclCore (n : name) : Term -> SMTMethod (list Sort × Sort)
+| (Term.ident ⟨"Arrow", []⟩ [dom, bod]) :=
+  do d ←  mkFunDeclCore dom,
+     b ←  mkFunDeclCore bod,
+     match (b, d) with
+     | (([], dret), (args, bret)) := return (dret::args, bret)
+     | _                          := SMTMethod.fail "mkFunDeclCore failed"
+     end
+| (Term.ident ⟨"Int", []⟩ [])  := return ([], Sort.Int)
+| (Term.ident ⟨"Real", []⟩ []) := return ([], Sort.Real)
+| (Term.ident ⟨"Prop", []⟩ []) := return ([], Sort.Bool)
+| _                            := SMTMethod.fail "mkFunDeclCore failed"
+
+meta def mkFunDecl (n : name) (term : Term) : SMTMethod unit :=
+  mkFunDeclCore n term >> return ()
+
 meta def processHypothesis (hyp : expr) : SMTMethod unit :=
 do n            ← return $ expr.local_uniq_name hyp,
    ty           ← liftSMT $ infer_type hyp,
    (term, sort) ← traverseExpr Theory.extensions ty,
    if sort = Sort.Bool then addAssertion term else
-   addFunDecl
-
+   if sort = Sort.Type then mkFunDecl n term else
+   fail $ "Unknown Sort"
 
 meta def buildSMTProblemCore (hyps : list expr) : SMTMethod unit :=
    mapM processHypothesis hyps >> return ()
