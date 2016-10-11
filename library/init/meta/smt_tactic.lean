@@ -192,15 +192,23 @@ by do should_be_true ← Z3CanProve [Command.assert Term.false, Command.checkSat
 
 end Examples
 
-meta structure BuildSMTProblemState : Type := (sorts : rb_map name SortDecl) (fdecls : rb_map name FunDecl) (assertions : list Term)
-@[reducible] meta def SMTMethod : Type -> Type := stateT BuildSMTProblemState tactic
+meta structure SMTProblemState : Type := (sorts : rb_map name SortDecl) (fdecls : rb_map name FunDecl) (assertions : list Term)
+@[reducible] meta def SMTMethod : Type -> Type := stateT SMTProblemState tactic
 
 meta def liftSMT {A : Type} (tac : tactic A) : SMTMethod A := λ s, do res ← tac, return (res, s)
 
 namespace SMTMethod
 open monad
 
-meta def initBuildSMTProblemState : BuildSMTProblemState := ⟨rb_map.mk name SortDecl, rb_map.mk name FunDecl, []⟩
+-- Failure
+meta def SMTMethod.fail {A B : Type} [has_to_format B] (msg : B) : SMTMethod A :=
+liftSMT $ @tactic.fail A _ _ msg
+
+meta def SMTMethod.failed {A : Type} : SMTMethod A :=
+SMTMethod.fail "failed"
+
+-- Initial value
+meta def initSMTProblemState : SMTProblemState := ⟨rb_map.mk name SortDecl, rb_map.mk name FunDecl, []⟩
 
 -- Add
 meta def addSort (n : name) (sort : SortDecl) : SMTMethod unit :=
@@ -209,7 +217,7 @@ do s ← stateT.read,
    | ⟨sorts, funDecls, assertions⟩ := stateT.write $ ⟨rb_map.insert sorts n sort, funDecls, assertions⟩
    end
 
-meta def addFunDef (n : name) (funDecl : FunDecl) : SMTMethod unit :=
+meta def addFunDecl (n : name) (funDecl : FunDecl) : SMTMethod unit :=
 do s ← stateT.read,
    match s with
    | ⟨sorts, funDecls, assertions⟩ := stateT.write $ ⟨sorts, rb_map.insert funDecls n funDecl, assertions⟩
@@ -247,38 +255,69 @@ do s ← stateT.read,
    | ⟨sorts, funDecls, assertions⟩ := return $ rb_map.contains funDecls n
    end
 
--- The main expression traversal function
-meta def traverseExpr : expr -> SMTMethod Term
-| (expr.app (expr.const `not []) e) := do t ← traverseExpr e, return $ Term.ident ⟨"not", []⟩ [t]
-| (expr.const `true []) := return $ Term.ident ⟨"true", []⟩ []
-| (expr.const `false []) := return $ Term.ident ⟨"false", []⟩ []
-| _ := return $ Term.ident ⟨"FAIL", []⟩ []
--- TODO(dhs): much more stuff to handle
+meta def SMTMethod.orelse {A : Type} (p1 p2 : SMTMethod A) : SMTMethod A :=
+take state, p1 state <|> p2 state
 
--- TODO(dhs): need to create the sortDecls and the funDecls
-meta def processType : name -> expr -> SMTMethod unit :=
-λ (n : name) (e : expr),
-do t     ← traverseExpr e,
-   eType ← liftSMT (infer_type e),
-   if eType = expr.prop then addAssertion t else
-   if expr.is_sort eType then addSort n ⟨n, 0⟩ else
-   addFunDecl n ⟨n,
+meta instance : alternative SMTMethod :=
+alternative.mk (@monad.map _ _)
+  (@applicative.pure _ (monad_is_applicative SMTMethod))
+  (@applicative.seq _ (monad_is_applicative SMTMethod))
+  @SMTMethod.failed
+  @SMTMethod.orelse
 
---vm_eval (processHypothesis (expr.const `true []) initBuildSMTProblemState).1~>to_smt
+namespace Theory
 
-meta def buildSMTProblemCore (hyps : list expr) (goal : expr) : SMTMethod unit :=
-do hypNames ← return $ list.map expr.local_uniq_name hyps,
-   hypTypes ← liftSMT $ mapM infer_type hyps,
-   mapM processType hypTypes,
-   processHypothesis (expr.app (expr.const `not []) goal),
-   return ()
+meta def Extension : Type := expr -> SMTMethod (list expr × (list Term -> SMTMethod Term))
+
+meta def core : Extension
+| (expr.const `true [])
+  := return ([], λ (xs : list Term), return $ Term.ident ⟨"true", []⟩ [])
+| (expr.const `false [])
+  := return ([], λ (xs : list Term), return $ Term.ident ⟨"false", []⟩ [])
+| (expr.app (expr.const `not []) e)
+  := return ([e], λ (xs : list Term), return $ Term.ident ⟨"not", []⟩ xs)
+| (expr.app (expr.const `implies []) e)
+  := return ([e], λ (xs : list Term), return $ Term.ident ⟨"=>", []⟩ xs)
+| (expr.app (expr.app (expr.const `and []) e1) e2)
+  := return ([e1, e2], λ (xs : list Term), return $ Term.ident ⟨"and", []⟩ xs)
+| (expr.app (expr.app (expr.const `or []) e1) e2)
+  := return ([e1, e2], λ (xs : list Term), return $ Term.ident ⟨"or", []⟩ xs)
+| (expr.app (expr.app (expr.app (expr.const `eq []) ty) e1) e2)
+  := return ([e1, e2], λ (xs : list Term), return $ Term.ident ⟨"=", []⟩ xs)
+| e
+  := SMTMethod.fail $ "core failed on " ++ expr.to_string e
+-- TODO(dhs): XOR, distinct, ite
+
+meta def extensions : list Extension := [core]
+
+end Theory
+
+-- TODO(dhs): define for [alternative]
+meta def first {A : Type} : list (SMTMethod A) → SMTMethod A
+| []      := SMTMethod.fail "first failed, no more alternatives"
+| (t::ts) := t <|> first ts
+
+meta def traverseExpr (exts : list Theory.Extension) : expr -> SMTMethod Term
+| e := do (xs, k) ← first (list.map (λ (ext : Theory.Extension), ext e) exts),
+          ts ← mapM traverseExpr xs,
+          k ts
+
+meta def processHypothesis (hyp : expr) : SMTMethod unit :=
+do n    ← return $ expr.local_uniq_name hyp,
+   ty   ← liftSMT $ infer_type hyp,
+   t    ← traverseExpr Theory.extensions ty,
+   tyTy ← liftSMT $ infer_type ty,
+   if tyTy = expr.prop then addAssertion t else return ()
+
+meta def buildSMTProblemCore (hyps : list expr) : SMTMethod unit :=
+   mapM processHypothesis hyps >> return ()
 
 meta def buildSMTProblem : tactic (list Command) :=
 do hyps  ← local_context,
-   trace "\nlocal_context: ",
    trace hyps,
    tgt   ← target,
-   state ← stateT.exec (buildSMTProblemCore hyps tgt) initBuildSMTProblemState,
+   if not (tgt = expr.const `false []) then fail "expecting goal to be false" else do
+   state ← stateT.exec (buildSMTProblemCore hyps) initSMTProblemState,
    match state with
    | ⟨sorts, funDecls, assertions⟩ := return $
      list.map Command.declareSort (rb_map.values sorts)
@@ -286,15 +325,16 @@ do hyps  ← local_context,
      ++ list.map Command.assert assertions
    end
 
-example (h₁ h₂ : true) : true :=
-by do cmds : list Command ← buildSMTProblem,
+example : true -> false -> and true false -> or (not true) (not (and false true)) -> false :=
+by do intros,
+      cmds : list Command ← buildSMTProblem,
       strs : list string ← return $ list.map Command.to_smt cmds,
       trace "\nSMT Problem: ",
       trace strs,
       failed
 
 exit
-end BuildSMTProblem
+end SMTMethod
 
 
 
