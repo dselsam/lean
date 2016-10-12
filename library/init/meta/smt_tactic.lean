@@ -3,12 +3,6 @@ Copyright (c) 2016 Microsoft Corporation. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Daniel Selsam
 -/
-prelude
-import init.meta.tactic init.meta.attribute init.meta.constructor_tactic
-import init.meta.relation_tactics init.meta.rb_map
-import init.instances
-import init.monad init.monad_combinators init.monad_trans init.state
-
 set_option eqn_compiler.max_steps 1000
 
 -- Preliminaries
@@ -29,22 +23,28 @@ namespace tactic
 namespace smt
 
 -- Basics
-definition Numeral : Type := num
+
+
+
+@[reducible] definition Numeral : Type := num
 def Numeral.to_smt := @num.to_smt
 
-definition Symbol : Type := string
+@[reducible] definition Symbol : Type := string
 def Symbol.to_smt (sym : Symbol) := sym
 
 -- SExprs
 
 -- TODO(dhs): hex/binary, strings
-definition SpecConstant : Type := Numeral
+@[reducible] definition SpecConstant : Type := Numeral
+
 def SpecConstant.to_smt := @Numeral.to_smt
 
 inductive SExpr : Type
 | const : SpecConstant -> SExpr
 | symbol : Symbol -> SExpr
 | seq : list SExpr -> SExpr
+
+instance : decidable_eq SExpr := by mk_dec_eq_instance
 
 meta def SExpr.to_smt : SExpr -> string
 | (SExpr.const sc) := sc~>to_smt
@@ -53,25 +53,29 @@ meta def SExpr.to_smt : SExpr -> string
 
 -- Identifiers
 definition Index : Type := Numeral ⊕ Symbol
+instance Index.decidable_eq : decidable_eq Index := by mk_dec_eq_instance
+
 definition Index.to_smt : Index -> string
 | (sum.inl n) := n~>to_smt
 | (sum.inr s) := s~>to_smt
 
 structure Identifier : Type := (id : Symbol) (args : list Index)
+instance Identifier.decidable_eq : decidable_eq Identifier := by mk_dec_eq_instance
+
 meta def Identifier.to_smt : Identifier -> string
 | ⟨id, []⟩ := id~>to_smt
 | ⟨id, idxs⟩ := "(_ " ++ id~>to_smt ++ " " ++ list.with_spaces Index.to_smt idxs ++ ")"
 
 -- Sorts
 structure SortDecl : Type := (id : Symbol) (numArgs : Numeral)
+instance SortDecl.decidable_eq : decidable_eq SortDecl := by mk_dec_eq_instance
 
 inductive Sort : Type | mk : Identifier -> list Sort -> Sort
+instance Sort.decidable_eq : decidable_eq Sort := by mk_dec_eq_instance
+
 meta def Sort.to_smt : Sort -> string
 | (Sort.mk id []) := id~>to_smt
 | (Sort.mk id sorts) := "(" ++ id~>to_smt ++ " " ++ list.with_spaces Sort.to_smt sorts ++ ")"
-
--- TODO(dhs): figure out why mk_dec_eq_instance doesn't work with nested inductive types
-instance : decidable_eq Sort := sorry -- by mk_dec_eq_instance
 
 -- Attributes
 inductive AttributeValue : Type

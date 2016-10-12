@@ -20,5 +20,11 @@ by mk_dec_eq_instance
 instance : decidable_eq unit :=
 by mk_dec_eq_instance
 
+instance : decidable_eq pos_num :=
+by mk_dec_eq_instance
+
+instance : decidable_eq num :=
+by mk_dec_eq_instance
+
 instance {A : Type u} {B : Type v} [decidable_eq A] [decidable_eq B] : decidable_eq (A ⊕ B) :=
 by mk_dec_eq_instance
