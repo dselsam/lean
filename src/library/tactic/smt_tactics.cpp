@@ -89,7 +89,10 @@ expr mk_z3_macro(expr const & thm) {
 
 
 // Exposed VM functions
-vm_obj trust_z3(vm_obj const & thm) { return to_obj(mk_z3_macro(to_expr(thm))); }
+vm_obj trust_z3(vm_obj const & thm, vm_obj const & vm_s) {
+    tactic_state s = to_tactic_state(vm_s);
+    return mk_tactic_success(to_obj(mk_z3_macro(to_expr(thm))), s);
+}
 
 vm_obj call_z3(vm_obj const & vm_input, vm_obj const & vm_s) {
     tactic_state s = to_tactic_state(vm_s);
@@ -126,7 +129,7 @@ void initialize_smt_tactics() {
                                     return mk_z3_macro(args[0]);
                                 });
 
-    DECLARE_VM_BUILTIN(name("trustZ3"), trust_z3);
+    DECLARE_VM_BUILTIN(name({"tactic", "smt", "trustZ3"}), trust_z3);
     DECLARE_VM_BUILTIN(name({"tactic", "smt", "callZ3"}), call_z3);
 }
 

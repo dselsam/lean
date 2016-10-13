@@ -4,8 +4,20 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Daniel Selsam
 -/
 constants (Int Real : Type)
+instance : has_zero Int := sorry
+instance : has_one Int := sorry
+instance : has_add Int := sorry
+instance : has_mul Int := sorry
+instance : has_lt Int := sorry
+
+instance : has_zero Real := sorry
+instance : has_one Real := sorry
+instance : has_add Real := sorry
+instance : has_mul Real := sorry
+instance : has_lt Real := sorry
+
 set_option pp.all true
-set_option eqn_compiler.max_steps 1000
+set_option eqn_compiler.max_steps 5000
 
 namespace Util
 
@@ -35,7 +47,12 @@ namespace expr
 
 end expr
 
+namespace tactic
 namespace smt
+
+meta constant trustZ3 : expr -> tactic expr
+meta constant callZ3 : string -> tactic string
+
 open expr nat
 
 -- Sorts
@@ -125,25 +142,25 @@ meta def Nullary.toSMT : Nullary → string
 | false := "false"
 
 inductive Unary : Type
-| not, implies
+| not
 | uminus, abs --, to_Real, to_Int, is_Int
 
 namespace Unary
 meta def toSMT : Unary → string
 | not     := "not"
-| implies := "=>"
 | uminus  := "-"
 | abs     := "abs"
 end Unary
 
 inductive Binary : Type
-| and, or, eq
+| and, or, eq, implies
 | plus, sub, times, idiv, mod, div, lt, le, gt, ge
 
 namespace Binary
 meta def toSMT : Binary → string
 | and     := "and"
 | or      := "or"
+| implies := "=>"
 | eq      := "="
 | plus    := "+"
 | sub     := "-"
@@ -183,20 +200,39 @@ meta def ofExpr : expr → Term
 | (const `false [])                 := nullary Nullary.false
 
 | (app (const `not []) e)           := unary Unary.not (ofExpr e)
-| (app (const `implies []) e)       := unary Unary.implies (ofExpr e)
 
 | (app (const `neg []) e)           := unary Unary.uminus (ofExpr e)
 | (app (const `abs []) e)           := unary Unary.abs (ofExpr e)
 
 | (app (app (app (const `eq ls) _) e₁) e₂) := binary Binary.eq (ofExpr e₁) (ofExpr e₂)
+| (app (app (app (const `ne ls) _) e₁) e₂) := unary Unary.not (binary Binary.eq (ofExpr e₁) (ofExpr e₂))
 
 | (app (app (const `and []) e₁) e₂) := binary Binary.and (ofExpr e₁) (ofExpr e₂)
 | (app (app (const `or []) e₁) e₂)  := binary Binary.or (ofExpr e₁) (ofExpr e₂)
 
--- TODO(dhs): none of this arith stuff will work as is, because of type classes
--- Do we want to strip them during pre-processing or strip them here?
+-- Arith
+-- TODO(dhs): could flatten n-ary applications here
+-- TODO(dhs): Do we want to strip the type class abstractions here or  during pre-processing?
+| (app (app (const `zero [level.one]) (const `Int [])) _) := num 0
+| (app (app (const `one [level.one])  (const `Int [])) _) := num 1
+| (app (app (app (app (const `add [level.one]) (const `Int [])) _) e₁) e₂) := binary Binary.plus (ofExpr e₁) (ofExpr e₂)
+| (app (app (app (app (const `mul [level.one]) (const `Int [])) _) e₁) e₂) := binary Binary.times (ofExpr e₁) (ofExpr e₂)
+| (app (app (app (app (const `gt [level.one]) (const `Int [])) _) e₁) e₂) := binary Binary.gt (ofExpr e₁) (ofExpr e₂)
+| (app (app (app (app (const `ge [level.one]) (const `Int [])) _) e₁) e₂) := binary Binary.ge (ofExpr e₁) (ofExpr e₂)
+| (app (app (app (app (const `lt [level.one]) (const `Int [])) _) e₁) e₂) := binary Binary.lt (ofExpr e₁) (ofExpr e₂)
+| (app (app (app (app (const `le [level.one]) (const `Int [])) _) e₁) e₂) := binary Binary.le (ofExpr e₁) (ofExpr e₂)
 
-| e := match (get_app_fn e, get_app_args e) with
+| (app (app (const `zero [level.one]) (const `Real [])) _) := num 0
+| (app (app (const `one [level.one])  (const `Real [])) _) := num 1
+| (app (app (app (app (const `add [level.one]) (const `Real [])) _) e₁) e₂) := binary Binary.plus (ofExpr e₁) (ofExpr e₂)
+| (app (app (app (app (const `mul [level.one]) (const `Real [])) _) e₁) e₂) := binary Binary.times (ofExpr e₁) (ofExpr e₂)
+| (app (app (app (app (const `gt [level.one]) (const `Real [])) _) e₁) e₂) := binary Binary.gt (ofExpr e₁) (ofExpr e₂)
+| (app (app (app (app (const `ge [level.one]) (const `Real [])) _) e₁) e₂) := binary Binary.ge (ofExpr e₁) (ofExpr e₂)
+| (app (app (app (app (const `lt [level.one]) (const `Real [])) _) e₁) e₂) := binary Binary.lt (ofExpr e₁) (ofExpr e₂)
+| (app (app (app (app (const `le [level.one]) (const `Real [])) _) e₁) e₂) := binary Binary.le (ofExpr e₁) (ofExpr e₂)
+
+| e := if is_arrow e then binary Binary.implies (ofExpr $ binding_domain e) (ofExpr $ binding_body e) else
+       match (get_app_fn e, get_app_args e) with
        | (local_const _ userName _ _, args) := user userName (list.map ofExpr args)
        | _                                := user (mk_str_name e~>to_string "TERM_ERROR") [] -- ERROR
        end
@@ -207,13 +243,15 @@ inductive Command : Type
 | declareSort : SortDecl → Command
 | declareFun  : FunDecl → Command
 | assert      : Term → Command
+| checkSAT    : Command
 
 namespace Command
 
 meta def toSMT : Command -> string
 | (declareSort sortDecl) := "(declare-sort " ++ sortDecl~>toSMT ++ ")"
-| (declareFun funDecl) := "(declare-fun " ++ funDecl~>toSMT ++ ")"
-| (assert t) := "(assert " ++ t~>toSMT ++ ")"
+| (declareFun funDecl)   := "(declare-fun " ++ funDecl~>toSMT ++ ")"
+| (assert t)             := "(assert " ++ t~>toSMT ++ ")"
+| checkSAT               := "(check-sat)"
 
 open tactic
 
@@ -231,16 +269,63 @@ do hypName ← return $ local_pp_name hyp,
 
 end Command
 
-open tactic monad
 
-meta def goalToCommands : tactic (list Command) :=
-do hyps  ← local_context,
+meta def Z3 : tactic unit :=
+do intros,
+   hyps  ← local_context,
    tgt   ← target,
-   if not (tgt = expr.const `false [])
-   then fail "expecting goal to be false"
-   else mapM Command.ofHypothesis hyps
+   guard (tgt = expr.const `false []),
+   cmds ← monad.mapM Command.ofHypothesis hyps,
+   cmdString ← return $ list.withSep Command.toSMT " " (cmds ++ [Command.checkSAT]),
+   trace cmdString,
+   result ← callZ3 cmdString,
+   trace result,
+   if result = "unsat\n" then trustZ3 tgt >>= exact else fail "Z3 could not prove goal"
 
-example (X : Type) (Y : Type → Type) (x : X) (f g : X → Y Int) (H : f x = g x) : false :=
+end smt
+end tactic
+
+namespace Examples
+open tactic
+open tactic.smt
+
+-- Prop logic
+example (P : Prop) : P → P → false := by Z3 -- should FAIL
+example (P : Prop) : P → ¬ P → false := by Z3
+example (P Q : Prop) : P ∧ Q → ¬ P → (¬ P ∨ ¬ Q) → false := by Z3
+example (P Q : Prop) : P ∧ Q → ¬ P → (¬ P → ¬ Q) → false := by Z3
+
+-- EUF
+example (X Y : Type) (f g : X → X → Y) (x1 x1B x2 x2B : X) : x1 ≠ x1B → x2 ≠ x2B → f x1 x2 = f x1B x2B → false := by Z3 -- should FAIL
+example (X Y : Type) (f g : X → X → Y) (x1 x1B x2 x2B : X) : x1 = x1B → x2 = x2B → f x1 x2 ≠ f x1B x2B → false := by Z3
+
+-- Ints
+example (z1 z2 z3 : Int) : z1 = z2 + z3 → z2 = z1 + z3 → z3 = z1 + z2 → z1 = 0 → false := by Z3 -- should FAIL
+example (z1 z2 z3 : Int) : z1 = z2 + z3 → z2 = z1 + z3 → z3 = z1 + z2 → z1 > 0 → false := by Z3
+
+-- Reals
+example (z1 z2 z3 : Real) : z1 = z2 + z3 → z2 = z1 + z3 → z3 = z1 + z2 → z1 = 0 → false := by Z3 -- should FAIL
+example (z1 z2 z3 : Real) : z1 = z2 + z3 → z2 = z1 + z3 → z3 = z1 + z2 → z1 > 0 → false := by Z3
+
+
+
+end Examples
+
+
+/-
+
+example (X : Type)
+        (Y : Type → Type)
+        (x₁ x₂ : X)
+        (f g : X → Y X)
+        (H₁ : f x₁ = g x₁)
+        (a₁ a₂ a₃ : Int)
+        (H₂ : a₁ * a₂ = a₃)
+        (g : Int → Int)
+        (H₃ : g a₁ + g (a₂ + a₃) = g (a₁ + a₂ + a₃))
+        (P Q : Prop)
+        (H₄ : P ∧ Q → Q ∧ P)
+: false :=
 by do commands ← goalToCommands,
       trace $ list.withSep Command.toSMT "\n" commands,
       failed
@@ -250,6 +335,4 @@ by do commands ← goalToCommands,
 
 
 
-
-
-end smt
+-/
