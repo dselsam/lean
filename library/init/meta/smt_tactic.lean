@@ -260,6 +260,13 @@ meta def ofExpr : expr → tactic Term
 | (app (app (app (app (const `le [level.one]) (const `Real [])) _) e₁) e₂) :=
        do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.le t₁ t₂
 
+-- FOL
+| (app (app (const `Exists [level.one]) dom) bod) :=
+       do uniqName ← mk_fresh_name,
+          l ← return $ local_const uniqName `x_exists binder_info.default dom,
+          t ← whnf (app bod l) >>= ofExpr,
+          return $ texists [⟨`x_exists, Sort.ofExpr dom⟩] t
+
 -- TODO(dhs): assumes all dependent Pis are foralls, and all non-dependent ones are implications
 -- Would need to make this a tactic to infer the type.
 | (pi n bi dom bod) := do domType ← infer_type dom,
@@ -348,7 +355,9 @@ example (z1 z2 z3 : Int) : z1 = z2 + z3 → z2 = z1 + z3 → z3 = z1 + z2 → z1
 example (z1 z2 z3 : Real) : z1 = z2 + z3 → z2 = z1 + z3 → z3 = z1 + z2 → z1 > 0 → false := by Z3
 
 -- Quantifiers
+--example (X : Type) (x : X) (f g : X → X) : (∀ (x : X), f x = g x) → (∃ (x : X), f x = g x) → false := by Z3 -- should FAIL
 example (X : Type) (x1 x2 : X) (f : X → X) : (∀ (x1 x2 : X), f x1 = f x2 → x1 = x2) →  f x1 = f x2 → x1 ≠ x2 → false := by Z3
+example (X : Type) (x : X) (f g : X → X) : (∃ (x : X), f x = g x) → (∀ (x : X), f x ≠ g x) → false := by Z3
 end Examples
 
 /-
@@ -365,7 +374,8 @@ Notes:
    - no '
    - (check smtlib)
 
-3. Flatten n-ary operators in Term.ofExpr?
+3. Flatten n-ary operators (and let/forall/exists variables) in Term.ofExpr?
+   - May want to wait until mutual definitions for this
 
 4. BitVectors! Essential!
 -/
