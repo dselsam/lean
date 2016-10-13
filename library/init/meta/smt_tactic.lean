@@ -262,18 +262,19 @@ meta def ofExpr : expr → tactic Term
 
 -- TODO(dhs): assumes all dependent Pis are foralls, and all non-dependent ones are implications
 -- Would need to make this a tactic to infer the type.
-| (pi n bi dom bod) := do bodType ← infer_type bod,
-                          bodTypeIsProp ← (is_def_eq bodType mk_Prop >> return tt) <|> return ff,
-                          when (bodTypeIsProp ∧ has_var bod) $ fail "no dependent foralls allowed",
-                          if bodTypeIsProp
-                          then do t₁ ← ofExpr dom, t₂ ← ofExpr bod, return (binary Binary.implies (ofExpr dom) (ofExpr bod))
+| (pi n bi dom bod) := do domType ← infer_type dom,
+                          domTypeIsProp ← (is_def_eq domType mk_Prop >> return tt) <|> return ff,
+                          when (domTypeIsProp ∧ has_var bod) $ fail "no dependent implications allowed",
+                          if domTypeIsProp
+                          then do t₁ ← ofExpr dom, t₂ ← ofExpr bod, return $ binary Binary.implies t₁ t₂
                           else do uniqName ← mk_fresh_name,
                                   l ← return $ local_const uniqName n bi dom,
-                                  return $ tforall [⟨n, Sort.ofExpr dom⟩] (ofExpr $ instantiate_var bod l)
+                                  t ← ofExpr $ instantiate_var bod l,
+                                  return $ tforall [⟨n, Sort.ofExpr dom⟩] t
 
 | e := match get_app_fn_args e with
-       | (local_const _ userName _ _, args) := user userName (list.map ofExpr args)
-       | _                                  := user (mk_str_name e~>to_string "TERM_ERROR") [] -- ERROR
+       | (local_const _ userName _ _, args) := do ts ← monad.mapM ofExpr args, return $ user userName ts
+       | _                                  := return $ user (mk_str_name e~>to_string "TERM_ERROR") [] -- ERROR
        end
 
 end Term
@@ -300,7 +301,7 @@ do hypName ← return $ local_pp_name hyp,
    hypTypeType ← infer_type hypType,
 --   trace (hypName, hypType, hypTypeType),
    match hypTypeType with
-   | mk_Prop  := return $ assert (Term.ofExpr hypType)
+   | mk_Prop  := do t ← Term.ofExpr hypType, return $ assert t
    | mk_Type  := return $ declareFun (FunDecl.ofExpr hypName hypType)
    | mk_Type₂ := return $ declareSort (SortDecl.ofExpr hypName hypType)
    | _        := fail $ "unexpected Type of hypothesis: " ++ expr.to_string hypType
