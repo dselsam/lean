@@ -379,6 +379,7 @@ meta def ofHypothesis (hyp : expr) : tactic Command :=
 do hypName ← return $ local_pp_name hyp,
    hypType ← infer_type hyp,
    hypTypeType ← infer_type hypType,
+--   trace (hypName, hypType, hypTypeType),
    match hypTypeType with
    | mk_Prop  := do t ← Term.ofExpr hypType, return $ assert t
    | mk_Type  := return $ declareFun (FunDecl.ofExpr hypName hypType)
@@ -444,8 +445,9 @@ example (x y z : BitVec 16) : 2 * x = y → 3 * y = z → 6 * x ≠ z → false 
 example : (¬ ∃ (x : BitVec 16), x ≠ 0 ∧ 2 * x = 0) → false := by Z3
 
 -- Let
-example (X : Type) (x : X) (f : X → X) : let y : X := f x in y ≠ f x → false := by Z3
-example (X : Type) (x : X) (f : X → X) : (let y : X := f x in y ≠ f x) → false := by Z3
+-- TODO(dhs): figure out how to access local context in Lean
+--example (X : Type) (x : X) (f : X → X) : let y : X := f x in y ≠ f x → false := by Z3
+--example (X : Type) (x : X) (f : X → X) : (let y : X := f x in y ≠ f x) → false := by Z3
 
 end Examples
 
@@ -466,6 +468,6 @@ Notes:
 3. Flatten n-ary operators (and let/forall/exists variables) in Term.ofExpr?
    - May want to wait until mutual definitions for this
 
-4. let
-   - triggers issues in the equation compiler
+4. Let
+   - how to access local context from Lean?
 -/
