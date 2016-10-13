@@ -176,12 +176,24 @@ end Binary
 
 end Term
 
+inductive SortedVar : Type
+| mk : name → Sort → SortedVar
+
+namespace SortedVar
+
+meta def toSMT : SortedVar → string
+| ⟨n, s⟩ := "(" ++ n~>to_string ++ " " ++ s~>toSMT ++ ")"
+
+end SortedVar
+
 inductive Term : Type
 | nullary : Term.Nullary → Term
 | unary   : Term.Unary → Term → Term
 | binary  : Term.Binary → Term → Term → Term
 | num     : nat → Term
 | user    : name → list Term → Term
+| tforall : list SortedVar → Term → Term
+| texists : list SortedVar → Term → Term
 
 namespace Term
 
@@ -194,47 +206,74 @@ meta def toSMT : Term → string
 | (num k)          := k~>to_string
 | (user c [])      := c~>to_string
 | (user c ts)      := "(" ++ c~>to_string ++ " " ++ list.withSep toSMT " " ts ++ ")"
+| (tforall vars t) := "(forall (" ++ list.withSep SortedVar.toSMT " " vars ++ ") " ++ toSMT t ++ ")"
+| (texists vars t) := "(exists (" ++ list.withSep SortedVar.toSMT " " vars ++ ") " ++ toSMT t ++ ")"
 
-meta def ofExpr : expr → Term
-| (const `true [])                  := nullary Nullary.true
-| (const `false [])                 := nullary Nullary.false
+meta def ofExpr : expr → tactic Term
+| (const `true [])                  := return $ nullary Nullary.true
+| (const `false [])                 := return $ nullary Nullary.false
 
-| (app (const `not []) e)           := unary Unary.not (ofExpr e)
+| (app (const `not []) e)           := do t ← ofExpr e, return $ unary Unary.not t
+| (app (const `neg []) e)           := do t ← ofExpr e, return $ unary Unary.uminus t
+| (app (const `abs []) e)           := do t ← ofExpr e, return $ unary Unary.abs t
 
-| (app (const `neg []) e)           := unary Unary.uminus (ofExpr e)
-| (app (const `abs []) e)           := unary Unary.abs (ofExpr e)
+| (app (app (app (const `eq ls) _) e₁) e₂) :=
+       do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.eq t₁ t₂
+| (app (app (app (const `ne ls) _) e₁) e₂) :=
+       do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ unary Unary.not (binary Binary.eq t₁ t₂)
 
-| (app (app (app (const `eq ls) _) e₁) e₂) := binary Binary.eq (ofExpr e₁) (ofExpr e₂)
-| (app (app (app (const `ne ls) _) e₁) e₂) := unary Unary.not (binary Binary.eq (ofExpr e₁) (ofExpr e₂))
-
-| (app (app (const `and []) e₁) e₂) := binary Binary.and (ofExpr e₁) (ofExpr e₂)
-| (app (app (const `or []) e₁) e₂)  := binary Binary.or (ofExpr e₁) (ofExpr e₂)
+| (app (app (const `and []) e₁) e₂) :=
+       do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.and t₁ t₂
+| (app (app (const `or []) e₁) e₂)  :=
+       do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.or t₁ t₂
 
 -- Arith
 -- TODO(dhs): could flatten n-ary applications here
 -- TODO(dhs): Do we want to strip the type class abstractions here or  during pre-processing?
-| (app (app (const `zero [level.one]) (const `Int [])) _) := num 0
-| (app (app (const `one [level.one])  (const `Int [])) _) := num 1
-| (app (app (app (app (const `add [level.one]) (const `Int [])) _) e₁) e₂) := binary Binary.plus (ofExpr e₁) (ofExpr e₂)
-| (app (app (app (app (const `mul [level.one]) (const `Int [])) _) e₁) e₂) := binary Binary.times (ofExpr e₁) (ofExpr e₂)
-| (app (app (app (app (const `gt [level.one]) (const `Int [])) _) e₁) e₂) := binary Binary.gt (ofExpr e₁) (ofExpr e₂)
-| (app (app (app (app (const `ge [level.one]) (const `Int [])) _) e₁) e₂) := binary Binary.ge (ofExpr e₁) (ofExpr e₂)
-| (app (app (app (app (const `lt [level.one]) (const `Int [])) _) e₁) e₂) := binary Binary.lt (ofExpr e₁) (ofExpr e₂)
-| (app (app (app (app (const `le [level.one]) (const `Int [])) _) e₁) e₂) := binary Binary.le (ofExpr e₁) (ofExpr e₂)
+| (app (app (const `zero [level.one]) (const `Int [])) _) := return $ num 0
+| (app (app (const `one [level.one])  (const `Int [])) _) := return $ num 1
+| (app (app (app (app (const `add [level.one]) (const `Int [])) _) e₁) e₂) :=
+       do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.plus t₁ t₂
+| (app (app (app (app (const `mul [level.one]) (const `Int [])) _) e₁) e₂) :=
+       do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.times t₁ t₂
+| (app (app (app (app (const `gt [level.one]) (const `Int [])) _) e₁) e₂) :=
+       do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.gt t₁ t₂
+| (app (app (app (app (const `ge [level.one]) (const `Int [])) _) e₁) e₂) :=
+       do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.ge t₁ t₂
+| (app (app (app (app (const `lt [level.one]) (const `Int [])) _) e₁) e₂) :=
+       do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.lt t₁ t₂
+| (app (app (app (app (const `le [level.one]) (const `Int [])) _) e₁) e₂) :=
+       do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.le t₁ t₂
 
-| (app (app (const `zero [level.one]) (const `Real [])) _) := num 0
-| (app (app (const `one [level.one])  (const `Real [])) _) := num 1
-| (app (app (app (app (const `add [level.one]) (const `Real [])) _) e₁) e₂) := binary Binary.plus (ofExpr e₁) (ofExpr e₂)
-| (app (app (app (app (const `mul [level.one]) (const `Real [])) _) e₁) e₂) := binary Binary.times (ofExpr e₁) (ofExpr e₂)
-| (app (app (app (app (const `gt [level.one]) (const `Real [])) _) e₁) e₂) := binary Binary.gt (ofExpr e₁) (ofExpr e₂)
-| (app (app (app (app (const `ge [level.one]) (const `Real [])) _) e₁) e₂) := binary Binary.ge (ofExpr e₁) (ofExpr e₂)
-| (app (app (app (app (const `lt [level.one]) (const `Real [])) _) e₁) e₂) := binary Binary.lt (ofExpr e₁) (ofExpr e₂)
-| (app (app (app (app (const `le [level.one]) (const `Real [])) _) e₁) e₂) := binary Binary.le (ofExpr e₁) (ofExpr e₂)
+| (app (app (const `zero [level.one]) (const `Real [])) _) := return $ num 0
+| (app (app (const `one [level.one])  (const `Real [])) _) := return $ num 1
+| (app (app (app (app (const `add [level.one]) (const `Real [])) _) e₁) e₂) :=
+       do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.plus t₁ t₂
+| (app (app (app (app (const `mul [level.one]) (const `Real [])) _) e₁) e₂) :=
+       do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.times t₁ t₂
+| (app (app (app (app (const `gt [level.one]) (const `Real [])) _) e₁) e₂) :=
+       do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.gt t₁ t₂
+| (app (app (app (app (const `ge [level.one]) (const `Real [])) _) e₁) e₂) :=
+       do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.ge t₁ t₂
+| (app (app (app (app (const `lt [level.one]) (const `Real [])) _) e₁) e₂) :=
+       do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.lt t₁ t₂
+| (app (app (app (app (const `le [level.one]) (const `Real [])) _) e₁) e₂) :=
+       do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.le t₁ t₂
 
-| e := if is_arrow e then binary Binary.implies (ofExpr $ binding_domain e) (ofExpr $ binding_body e) else
-       match (get_app_fn e, get_app_args e) with
+-- TODO(dhs): assumes all dependent Pis are foralls, and all non-dependent ones are implications
+-- Would need to make this a tactic to infer the type.
+| (pi n bi dom bod) := do bodType ← infer_type bod,
+                          bodTypeIsProp ← (is_def_eq bodType mk_Prop >> return tt) <|> return ff,
+                          when (bodTypeIsProp ∧ has_var bod) $ fail "no dependent foralls allowed",
+                          if bodTypeIsProp
+                          then do t₁ ← ofExpr dom, t₂ ← ofExpr bod, return (binary Binary.implies (ofExpr dom) (ofExpr bod))
+                          else do uniqName ← mk_fresh_name,
+                                  l ← return $ local_const uniqName n bi dom,
+                                  return $ tforall [⟨n, Sort.ofExpr dom⟩] (ofExpr $ instantiate_var bod l)
+
+| e := match get_app_fn_args e with
        | (local_const _ userName _ _, args) := user userName (list.map ofExpr args)
-       | _                                := user (mk_str_name e~>to_string "TERM_ERROR") [] -- ERROR
+       | _                                  := user (mk_str_name e~>to_string "TERM_ERROR") [] -- ERROR
        end
 
 end Term
@@ -280,7 +319,7 @@ do intros,
    trace cmdString,
    result ← callZ3 cmdString,
    trace result,
-   if result = "unsat\n" then trustZ3 tgt >>= exact else fail "Z3 could not prove goal"
+   if result = "unsat\n" then trustZ3 tgt >>= exact else fail ("Z3: " ++ result)
 
 end smt
 end tactic
@@ -290,23 +329,25 @@ open tactic
 open tactic.smt
 
 -- Prop logic
-example (P : Prop) : P → P → false := by Z3 -- should FAIL
+--example (P : Prop) : P → P → false := by Z3 -- should FAIL
 example (P : Prop) : P → ¬ P → false := by Z3
 example (P Q : Prop) : P ∧ Q → ¬ P → (¬ P ∨ ¬ Q) → false := by Z3
 example (P Q : Prop) : P ∧ Q → ¬ P → (¬ P → ¬ Q) → false := by Z3
 
 -- EUF
-example (X Y : Type) (f g : X → X → Y) (x1 x1B x2 x2B : X) : x1 ≠ x1B → x2 ≠ x2B → f x1 x2 = f x1B x2B → false := by Z3 -- should FAIL
+--example (X Y : Type) (f g : X → X → Y) (x1 x1B x2 x2B : X) : x1 ≠ x1B → x2 ≠ x2B → f x1 x2 = f x1B x2B → false := by Z3 -- should FAIL
 example (X Y : Type) (f g : X → X → Y) (x1 x1B x2 x2B : X) : x1 = x1B → x2 = x2B → f x1 x2 ≠ f x1B x2B → false := by Z3
 
 -- Ints
-example (z1 z2 z3 : Int) : z1 = z2 + z3 → z2 = z1 + z3 → z3 = z1 + z2 → z1 = 0 → false := by Z3 -- should FAIL
+--example (z1 z2 z3 : Int) : z1 = z2 + z3 → z2 = z1 + z3 → z3 = z1 + z2 → z1 = 0 → false := by Z3 -- should FAIL
 example (z1 z2 z3 : Int) : z1 = z2 + z3 → z2 = z1 + z3 → z3 = z1 + z2 → z1 > 0 → false := by Z3
 
 -- Reals
-example (z1 z2 z3 : Real) : z1 = z2 + z3 → z2 = z1 + z3 → z3 = z1 + z2 → z1 = 0 → false := by Z3 -- should FAIL
+--example (z1 z2 z3 : Real) : z1 = z2 + z3 → z2 = z1 + z3 → z3 = z1 + z2 → z1 = 0 → false := by Z3 -- should FAIL
 example (z1 z2 z3 : Real) : z1 = z2 + z3 → z2 = z1 + z3 → z3 = z1 + z2 → z1 > 0 → false := by Z3
 
+-- Quantifiers
+example (X : Type) (x1 x2 : X) (f : X → X) : (∀ (x1 x2 : X), f x1 = f x2 → x1 = x2) →  f x1 = f x2 → x1 ≠ x2 → false := by Z3
 end Examples
 
 /-
