@@ -402,7 +402,7 @@ example (X : Type) (x1 x2 : X) (f : X → X) : (∀ (x1 x2 : X), f x1 = f x2 →
 example (X : Type) (x : X) (f g : X → X) : (∃ (x : X), f x = g x) → (∀ (x : X), f x ≠ g x) → false := by Z3
 
 -- BitVectors
-example (x y z : BitVec 16) : x + x = y → y + y = z → 4 * x ≠ z → false := by Z3
+example (x y z : BitVec 16) : x + x = y → y + y = z → x + x + x + x ≠ z → false := by Z3
 end Examples
 
 /-
