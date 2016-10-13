@@ -171,6 +171,9 @@ meta def list_to_tactic_format {A : Type} [has_to_tactic_format A] : list A → 
 meta instance {A : Type} [has_to_tactic_format A] : has_to_tactic_format (list A) :=
 ⟨list_to_tactic_format⟩
 
+meta instance {A B : Type} [has_to_tactic_format A] [has_to_tactic_format B] : has_to_tactic_format (A × B) :=
+⟨λ p, prod.rec_on p (λ x y, do x' ← pp x, y' ← pp y, return $ to_fmt "(" ++ x' ++ ", " ++ y' ++ ")")⟩
+
 meta instance has_to_format_to_has_to_tactic_format (A : Type) [has_to_format A] : has_to_tactic_format A :=
 ⟨(λ x, return x) ∘ to_fmt⟩
 

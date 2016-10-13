@@ -3,28 +3,35 @@ Copyright (c) 2016 Microsoft Corporation. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Daniel Selsam
 -/
-constants (int real : Type)
-
+constants (Int Real : Type)
+set_option pp.all true
 set_option eqn_compiler.max_steps 1000
 
 namespace Util
 
-private def list.withSpacesCore {X : Type} (f : X -> string) : bool -> list X -> string
+private def list.withSepCore {X : Type} (f : X -> string) (sep : string) : bool -> list X -> string
 | b [] := ""
-| tt (x::xs) := f x ++ list.withSpacesCore ff xs
-| ff (x::xs) := " " ++ f x ++ list.withSpacesCore ff xs
+| tt (x::xs) := f x ++ list.withSepCore ff xs
+| ff (x::xs) := sep ++ f x ++ list.withSepCore ff xs
 
-def list.withSpaces {X : Type} (f : X -> string) : list X -> string := list.withSpacesCore f tt
+def list.withSep {X : Type} (f : X -> string) (sep : string) : list X -> string := list.withSepCore f sep tt
 
 end Util
 
 open Util
 
+namespace level
+
+@[reducible, pattern] definition one : level := succ zero
+@[reducible, pattern] definition two : level := succ one
+
+end level
+
 namespace expr
 
-@[reducible] meta def mk_Prop : expr := sort level.zero
-@[reducible] meta def mk_Type : expr := sort (level.succ level.zero)
-@[reducible] meta def mk_Type₂ : expr := sort (level.succ $ level.succ level.zero)
+@[reducible, pattern] meta def mk_Prop : expr := sort level.zero
+@[reducible, pattern] meta def mk_Type : expr := sort level.one
+@[reducible, pattern] meta def mk_Type₂ : expr := sort level.two
 
 end expr
 
@@ -48,15 +55,16 @@ meta def toSMT : Sort → string
 | Bool        := "Bool"
 | Int         := "Int"
 | Real        := "Real"
-| (User n xs) := "(" ++ n~>to_string ++ " " ++ list.withSpaces toSMT xs ++ ")"
+| (User n []) := n~>to_string
+| (User n xs) := "(" ++ n~>to_string ++ " " ++ list.withSep toSMT " " xs ++ ")"
 
 meta def ofExpr : expr → Sort
-| mk_Prop          := Sort.Bool
-| (const `int [])  := Sort.Int
-| (const `real []) := Sort.Real
+| mk_Prop          := Bool
+| (const `Int [])  := Int
+| (const `Real []) := Real
 | e                := match get_app_fn e with
-                      | (const n ls) := Sort.User n (list.map ofExpr $ get_app_args e)
-                      | _            := default Sort
+                      | (local_const _ n _ _) := User n (list.map ofExpr $ get_app_args e)
+                      | f                     := User (mk_str_name f~>to_string "SORT_ERROR") []
                       end
 
 end Sort
@@ -75,7 +83,7 @@ meta def toSMT : SortDecl → string
 meta def ofExprCore (sortName : name) : expr → nat → SortDecl
 | (pi _ _ mk_Type b)  k := ofExprCore b (succ k)
 | mk_Type             k := ⟨sortName, k⟩
-| _                   _ := default SortDecl
+| e                   _ := ⟨mk_str_name e~>to_string "SORTDECL_ERROR", 0⟩
 
 meta def ofExpr (n : name) (e : expr) : SortDecl := ofExprCore n e 0
 
@@ -90,7 +98,7 @@ namespace FunDecl
 instance : inhabited FunDecl := ⟨⟨`_errorFunDecl, [], default Sort⟩⟩
 
 meta def toSMT : FunDecl → string
-| (mk n xs x) := n~>to_string ++ " (" ++ list.withSpaces Sort.toSMT xs ++ ") " ++ Sort.toSMT x
+| (mk n xs x) := n~>to_string ++ " (" ++ list.withSep Sort.toSMT " " xs ++ ") " ++ Sort.toSMT x
 
 meta def ofExprCore : expr →  list Sort × Sort
 | (pi _ _ dom bod) := match ofExprCore bod with
@@ -118,19 +126,22 @@ meta def Nullary.toSMT : Nullary → string
 
 inductive Unary : Type
 | not, implies
-| uminus, abs --, to_real, to_int, is_int
+| uminus, abs --, to_Real, to_Int, is_Int
 
-meta def Unary.toSMT : Unary → string
+namespace Unary
+meta def toSMT : Unary → string
 | not     := "not"
 | implies := "=>"
 | uminus  := "-"
 | abs     := "abs"
+end Unary
 
 inductive Binary : Type
 | and, or, eq
 | plus, sub, times, idiv, mod, div, lt, le, gt, ge
 
-meta def Binary.toSMT : Binary → string
+namespace Binary
+meta def toSMT : Binary → string
 | and     := "and"
 | or      := "or"
 | eq      := "="
@@ -144,6 +155,7 @@ meta def Binary.toSMT : Binary → string
 | le      := "<="
 | gt      := ">"
 | ge      := ">="
+end Binary
 
 end Term
 
@@ -163,7 +175,8 @@ meta def toSMT : Term → string
 | (unary c t)      := "(" ++ c~>toSMT ++ " " ++ toSMT t ++ ")"
 | (binary c t₁ t₂) := "(" ++ c~>toSMT ++ " " ++ toSMT t₁ ++ " " ++ toSMT t₂ ++ ")"
 | (num k)          := k~>to_string
-| (user c ts)      := "(" ++ c~>to_string ++ " " ++ list.withSpaces toSMT ts ++ ")"
+| (user c [])      := c~>to_string
+| (user c ts)      := "(" ++ c~>to_string ++ " " ++ list.withSep toSMT " " ts ++ ")"
 
 meta def ofExpr : expr → Term
 | (const `true [])                  := nullary Nullary.true
@@ -175,24 +188,17 @@ meta def ofExpr : expr → Term
 | (app (const `neg []) e)           := unary Unary.uminus (ofExpr e)
 | (app (const `abs []) e)           := unary Unary.abs (ofExpr e)
 
-| (app (const `and [])   (app e₁ e₂)) := binary Binary.and (ofExpr e₁) (ofExpr e₂)
-| (app (const `or [])    (app e₁ e₂)) := binary Binary.or  (ofExpr e₁) (ofExpr e₂)
-| (app (const `eq [])    (app e₁ e₂)) := binary Binary.eq  (ofExpr e₁) (ofExpr e₂)
+| (app (app (app (const `eq ls) _) e₁) e₂) := binary Binary.eq (ofExpr e₁) (ofExpr e₂)
 
-| (app (const `plus [])  (app e₁ e₂)) := binary Binary.plus (ofExpr e₁) (ofExpr e₂)
-| (app (const `sub [])   (app e₁ e₂)) := binary Binary.sub (ofExpr e₁) (ofExpr e₂)
-| (app (const `times []) (app e₁ e₂)) := binary Binary.times (ofExpr e₁) (ofExpr e₂)
-| (app (const `idiv [])  (app e₁ e₂)) := binary Binary.idiv (ofExpr e₁) (ofExpr e₂)
-| (app (const `mod [])   (app e₁ e₂)) := binary Binary.mod (ofExpr e₁) (ofExpr e₂)
-| (app (const `div [])   (app e₁ e₂)) := binary Binary.div (ofExpr e₁) (ofExpr e₂)
-| (app (const `lt [])    (app e₁ e₂)) := binary Binary.lt (ofExpr e₁) (ofExpr e₂)
-| (app (const `le [])    (app e₁ e₂)) := binary Binary.le (ofExpr e₁) (ofExpr e₂)
-| (app (const `gt [])    (app e₁ e₂)) := binary Binary.gt (ofExpr e₁) (ofExpr e₂)
-| (app (const `ge [])    (app e₁ e₂)) := binary Binary.ge (ofExpr e₁) (ofExpr e₂)
+| (app (app (const `and []) e₁) e₂) := binary Binary.and (ofExpr e₁) (ofExpr e₂)
+| (app (app (const `or []) e₁) e₂)  := binary Binary.or (ofExpr e₁) (ofExpr e₂)
+
+-- TODO(dhs): none of this arith stuff will work as is, because of type classes
+-- Do we want to strip them during pre-processing or strip them here?
 
 | e := match (get_app_fn e, get_app_args e) with
-       | (const userName [], args) := user userName (list.map ofExpr args)
-       | _                         := default Term
+       | (local_const _ userName _ _, args) := user userName (list.map ofExpr args)
+       | _                                := user (mk_str_name e~>to_string "TERM_ERROR") [] -- ERROR
        end
 
 end Term
@@ -212,9 +218,10 @@ meta def toSMT : Command -> string
 open tactic
 
 meta def ofHypothesis (hyp : expr) : tactic Command :=
-do hypName ← return $ local_uniq_name hyp,
+do hypName ← return $ local_pp_name hyp,
    hypType ← infer_type hyp,
    hypTypeType ← infer_type hypType,
+--   trace (hypName, hypType, hypTypeType),
    match hypTypeType with
    | mk_Prop  := return $ assert (Term.ofExpr hypType)
    | mk_Type  := return $ declareFun (FunDecl.ofExpr hypName hypType)
@@ -233,9 +240,9 @@ do hyps  ← local_context,
    then fail "expecting goal to be false"
    else mapM Command.ofHypothesis hyps
 
-example (X : Type) (Y : Type → Type) (x : X) (f g : X → Y int) (H : f x = g x) : false :=
+example (X : Type) (Y : Type → Type) (x : X) (f g : X → Y Int) (H : f x = g x) : false :=
 by do commands ← goalToCommands,
-      trace $ list.withSpaces Command.toSMT commands,
+      trace $ list.withSep Command.toSMT "\n" commands,
       failed
 
 
