@@ -322,4 +322,8 @@ Notes:
    - no unicode
    - no '
    - (check smtlib)
+
+3. Flatten n-ary operators in Term.ofExpr?
+
+4. BitVectors! Essential!
 -/
