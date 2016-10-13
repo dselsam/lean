@@ -307,32 +307,19 @@ example (z1 z2 z3 : Int) : z1 = z2 + z3 → z2 = z1 + z3 → z3 = z1 + z2 → z1
 example (z1 z2 z3 : Real) : z1 = z2 + z3 → z2 = z1 + z3 → z3 = z1 + z2 → z1 = 0 → false := by Z3 -- should FAIL
 example (z1 z2 z3 : Real) : z1 = z2 + z3 → z2 = z1 + z3 → z3 = z1 + z2 → z1 > 0 → false := by Z3
 
-
-
 end Examples
 
-
 /-
+Notes:
 
-example (X : Type)
-        (Y : Type → Type)
-        (x₁ x₂ : X)
-        (f g : X → Y X)
-        (H₁ : f x₁ = g x₁)
-        (a₁ a₂ a₃ : Int)
-        (H₂ : a₁ * a₂ = a₃)
-        (g : Int → Int)
-        (H₃ : g a₁ + g (a₂ + a₃) = g (a₁ + a₂ + a₃))
-        (P Q : Prop)
-        (H₄ : P ∧ Q → Q ∧ P)
-: false :=
-by do commands ← goalToCommands,
-      trace $ list.withSep Command.toSMT "\n" commands,
-      failed
+1. A lot of design freedom for how much is done in the pre-processing vs the (essentially-atomic) end-game tactic
+   - type classes?
+   - by contradiction?
+   - intros?
+   - P -> Q ==> implies P Q?
 
-
-
-
-
-
+2. We need to escape strings
+   - no unicode
+   - no '
+   - (check smtlib)
 -/
