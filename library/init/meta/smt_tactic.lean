@@ -431,7 +431,7 @@ example : (∃ (n : Int), (7 : Int) * n = 1) → false := by Z3
 -- example : (∀ (n : Real), n ≠ 0 → ∃ (m : Real), n * m = 1) → false := by Z3 -- should FAIL/TIMEOUT
 example (z1 z2 z3 : Real) : z1 = z2 + z3 → z2 = z1 + z3 → z3 = z1 + z2 → z1 > 0 → false := by Z3
 example : (7 : Real) * 5 > 40 → false := by Z3
-example : (∃ (n : Int), n > 10 ∧ (7 : Int) * n = 1) → false := by Z3
+example : (∃ (n : Real), n > 10 ∧ (7 : Real) * n = 1) → false := by Z3
 
 -- Quantifiers
 --example (X : Type) (x : X) (f g : X → X) : (∀ (x : X), f x = g x) → (∃ (x : X), f x = g x) → false := by Z3 -- should FAIL
@@ -446,8 +446,9 @@ example : (¬ ∃ (x : BitVec 16), x ≠ 0 ∧ 2 * x = 0) → false := by Z3
 
 -- Let
 -- TODO(dhs): figure out how to access local context in Lean
---example (X : Type) (x : X) (f : X → X) : let y : X := f x in y ≠ f x → false := by Z3
 --example (X : Type) (x : X) (f : X → X) : (let y : X := f x in y ≠ f x) → false := by Z3
+--example (X : Type) (x : X) (f : X → X) : let y : X := f x in y ≠ f x → false := by Z3
+
 
 end Examples
 
