@@ -457,18 +457,52 @@ Notes:
 
 1. A lot of design freedom for how much is done in the pre-processing vs the (essentially-atomic) end-game tactic
    - type classes?
+     + right now we assume everything is left in terms of add, mul, etc., even for bitvectors
    - by contradiction?
+     + right now we don't handle this
    - intros?
+     + right now we call intros
    - P -> Q ==> implies P Q?
+     + right now we don't handle this, but do handle `→` directly as the smt "=>"
 
 2. We need to escape strings
    - no unicode
    - no '
+   - no .
    - (check smtlib)
 
 3. Flatten n-ary operators (and let/forall/exists variables) in Term.ofExpr?
    - May want to wait until mutual definitions for this
 
 4. Let
-   - how to access local context from Lean?
+   - compiler still crashing
+   - even if it worked, how to access local context from Lean?
+
+5. Nat
+   - Right now I am not handling ℕ at all, only Int and Real
+   - I am assuming there will be an entire pass devoted to ℕ → Int, where
+     + (x : nat) ==> (x : Int) (H : x >= 0)
+     + (f : X -> nat) ==> (f : X → Int) (H : ∀ x, f x >= 0)
+     + (f : nat -> X) ==> (f : int → X),
+       and all lemmas involving f take (H : x ≥ 0) as a precondition whenever (f x) appears
+       (this is the trickier one)
+
+6. General issue, that merits waiting until the bitvector library is actually developed
+   - What types will the lean BitVec operators have?
+
+Main extensions:
+
+1. Collect constants that appear in the goal
+   - Declare them (Sorts / Funs)
+   - For functions: optionally include their defining equations, or just their definitions, as lemmas
+     + this will introduce new constants and the cycle will need to repeat, perhaps with some depth-cutoff
+     + since there are ordering dependencies, I see this as a probable StateT <stuff> tactic computation
+   - Next level: relevancy filter for finding other lemmas to include
+
+2. Generic subtype handling?
+
+
+3. Generic dependent types handling, with a HasType predicate?
+   - Way out of scope for now
+
 -/
