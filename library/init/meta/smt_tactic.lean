@@ -3,7 +3,9 @@ Copyright (c) 2016 Microsoft Corporation. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Daniel Selsam
 -/
+-- Arith
 constants (Int Real : Type)
+
 instance : has_zero Int := sorry
 instance : has_one Int := sorry
 instance : has_add Int := sorry
@@ -16,8 +18,17 @@ instance : has_add Real := sorry
 instance : has_mul Real := sorry
 instance : has_lt Real := sorry
 
+-- Bit vectors
+
+constants (BitVec : ℕ → Type)
+
+instance (n : ℕ) : has_zero (BitVec n) := sorry
+instance (n : ℕ) : has_one (BitVec n) := sorry
+instance (n : ℕ) : has_add (BitVec n) := sorry
+instance (n : ℕ) : has_mul (BitVec n) := sorry
+
 set_option pp.all true
-set_option eqn_compiler.max_steps 5000
+set_option eqn_compiler.max_steps 10000
 
 namespace Util
 
@@ -45,6 +56,13 @@ namespace expr
 @[reducible, pattern] meta def mk_Type : expr := sort level.one
 @[reducible, pattern] meta def mk_Type₂ : expr := sort level.two
 
+meta def toNat : expr → ℕ
+| (app (app (const `zero _) (const `nat [])) _) := 0
+| (app (app (const `one _)  (const `nat [])) _)  := 1
+| (app (app (app (const `bit0 _) (const `nat [])) _) e) := 2 * toNat e
+| (app (app (app (app (const `bit1 _) (const `nat [])) _) _) e) := 2 * (toNat e) + 1
+| _ := 0 -- ERROR
+
 end expr
 
 namespace tactic
@@ -62,6 +80,7 @@ inductive Sort : Type
 | Bool : Sort
 | Int : Sort
 | Real : Sort
+| BitVec : ℕ → Sort
 | User : name → list Sort → Sort
 
 namespace Sort
@@ -72,17 +91,19 @@ meta def toSMT : Sort → string
 | Bool        := "Bool"
 | Int         := "Int"
 | Real        := "Real"
+| (BitVec n)  := "(_ BitVec " ++ n~>to_string ++ ")"
 | (User n []) := n~>to_string
 | (User n xs) := "(" ++ n~>to_string ++ " " ++ list.withSep toSMT " " xs ++ ")"
 
 meta def ofExpr : expr → Sort
-| mk_Prop          := Bool
-| (const `Int [])  := Int
-| (const `Real []) := Real
-| e                := match get_app_fn e with
-                      | (local_const _ n _ _) := User n (list.map ofExpr $ get_app_args e)
-                      | f                     := User (mk_str_name f~>to_string "SORT_ERROR") []
-                      end
+| mk_Prop                    := Bool
+| (const `Int [])            := Int
+| (const `Real [])           := Real
+| (app (const `BitVec []) e) := BitVec (toNat e)
+| e                          := match get_app_fn e with
+                                | (local_const _ n _ _) := User n (list.map ofExpr $ get_app_args e)
+                                | f                     := User (mk_str_name f~>to_string "SORT_ERROR") []
+                                end
 
 end Sort
 
@@ -135,11 +156,19 @@ end FunDecl
 namespace Term
 
 inductive Nullary : Type
-| true, false
+| true : Nullary
+| false : Nullary
+| bv0 : ℕ → Nullary
+| bv1 : ℕ → Nullary
 
-meta def Nullary.toSMT : Nullary → string
+namespace Nullary
+meta def toSMT : Nullary → string
 | true := "true"
 | false := "false"
+| (bv0 n) := "(_ bv0 " ++ n~>to_string ++ ")"
+| (bv1 n) := "(_ bv1 " ++ n~>to_string ++ ")"
+
+end Nullary
 
 inductive Unary : Type
 | not
@@ -155,6 +184,7 @@ end Unary
 inductive Binary : Type
 | and, or, eq, implies
 | plus, sub, times, idiv, mod, div, lt, le, gt, ge
+| bvadd, bvmul
 
 namespace Binary
 meta def toSMT : Binary → string
@@ -172,6 +202,8 @@ meta def toSMT : Binary → string
 | le      := "<="
 | gt      := ">"
 | ge      := ">="
+| bvadd   := "bvadd"
+| bvmul   := "bvmul"
 end Binary
 
 end Term
@@ -259,6 +291,16 @@ meta def ofExpr : expr → tactic Term
        do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.lt t₁ t₂
 | (app (app (app (app (const `le [level.one]) (const `Real [])) _) e₁) e₂) :=
        do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.le t₁ t₂
+
+-- BitVectors
+-- TODO(dhs): spit out the dependent tags (_ bv0 <n>) (_ bv1 <n>)
+| (app (app (const `zero [level.one]) (app (const `BitVec []) e)) _) := return $ nullary (Nullary.bv0 $ toNat e)
+| (app (app (const `one [level.one]) (app (const `BitVec []) e)) _) := return $ nullary (Nullary.bv1 $ toNat e)
+
+| (app (app (app (app (const `add [level.one]) (app (const `BitVec []) e)) _) e₁) e₂) :=
+       do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.bvadd t₁ t₂
+| (app (app (app (app (const `mul [level.one]) (app (const `BitVec []) e)) _) e₁) e₂) :=
+       do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.bvmul t₁ t₂
 
 -- FOL
 | (app (app (const `Exists [level.one]) dom) bod) :=
@@ -358,6 +400,9 @@ example (z1 z2 z3 : Real) : z1 = z2 + z3 → z2 = z1 + z3 → z3 = z1 + z2 → z
 --example (X : Type) (x : X) (f g : X → X) : (∀ (x : X), f x = g x) → (∃ (x : X), f x = g x) → false := by Z3 -- should FAIL
 example (X : Type) (x1 x2 : X) (f : X → X) : (∀ (x1 x2 : X), f x1 = f x2 → x1 = x2) →  f x1 = f x2 → x1 ≠ x2 → false := by Z3
 example (X : Type) (x : X) (f g : X → X) : (∃ (x : X), f x = g x) → (∀ (x : X), f x ≠ g x) → false := by Z3
+
+-- BitVectors
+example (x y z : BitVec 16) : x + x = y → y + y = z → 4 * x ≠ z → false := by Z3
 end Examples
 
 /-
@@ -377,5 +422,5 @@ Notes:
 3. Flatten n-ary operators (and let/forall/exists variables) in Term.ofExpr?
    - May want to wait until mutual definitions for this
 
-4. BitVectors! Essential!
+4. BitVectors! Essentia!
 -/
