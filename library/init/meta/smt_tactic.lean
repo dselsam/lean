@@ -57,11 +57,18 @@ namespace expr
 @[reducible, pattern] meta def mk_Type₂ : expr := sort level.two
 
 meta def toNat : expr → ℕ
-| (app (app (const `zero _) (const `nat [])) _) := 0
-| (app (app (const `one _)  (const `nat [])) _)  := 1
-| (app (app (app (const `bit0 _) (const `nat [])) _) e) := 2 * toNat e
-| (app (app (app (app (const `bit1 _) (const `nat [])) _) _) e) := 2 * (toNat e) + 1
+| (app (app (const `zero _) _) _) := 0
+| (app (app (const `one _)  _) _)  := 1
+| (app (app (app (const `bit0 _) _) _) e) := 2 * toNat e
+| (app (app (app (app (const `bit1 _) _) _) _) e) := 2 * (toNat e) + 1
 | _ := 0 -- ERROR
+
+meta def toMaybeNat : expr → option (ℕ × expr)
+| (app (app (const `zero _) ty) _) := some (0, ty)
+| (app (app (const `one _)  ty) _)  := some (1, ty)
+| (app (app (app (const `bit0 _) ty) _) e) := do n ← toMaybeNat e, return (2 * n~>fst, ty)
+| (app (app (app (app (const `bit1 _) ty) _) _) e) := do n ← toMaybeNat e, return $ (2 * n~>fst + 1, ty)
+| _ := none
 
 end expr
 
@@ -156,17 +163,12 @@ end FunDecl
 namespace Term
 
 inductive Nullary : Type
-| true : Nullary
-| false : Nullary
-| bv0 : ℕ → Nullary
-| bv1 : ℕ → Nullary
+| true, false
 
 namespace Nullary
 meta def toSMT : Nullary → string
 | true := "true"
 | false := "false"
-| (bv0 n) := "(_ bv0 " ++ n~>to_string ++ ")"
-| (bv1 n) := "(_ bv1 " ++ n~>to_string ++ ")"
 
 end Nullary
 
@@ -223,6 +225,7 @@ inductive Term : Type
 | unary   : Term.Unary → Term → Term
 | binary  : Term.Binary → Term → Term → Term
 | num     : nat → Term
+| bvnum   : nat → nat → Term
 | user    : name → list Term → Term
 | tforall : list SortedVar → Term → Term
 | texists : list SortedVar → Term → Term
@@ -236,6 +239,7 @@ meta def toSMT : Term → string
 | (unary c t)      := "(" ++ c~>toSMT ++ " " ++ toSMT t ++ ")"
 | (binary c t₁ t₂) := "(" ++ c~>toSMT ++ " " ++ toSMT t₁ ++ " " ++ toSMT t₂ ++ ")"
 | (num k)          := k~>to_string
+| (bvnum k n)      := "(_ bv" ++ k~>to_string ++ " " ++ n~>to_string ++ ")"
 | (user c [])      := c~>to_string
 | (user c ts)      := "(" ++ c~>to_string ++ " " ++ list.withSep toSMT " " ts ++ ")"
 | (tforall vars t) := "(forall (" ++ list.withSep SortedVar.toSMT " " vars ++ ") " ++ toSMT t ++ ")"
@@ -294,8 +298,8 @@ meta def ofExpr : expr → tactic Term
 
 -- BitVectors
 -- TODO(dhs): spit out the dependent tags (_ bv0 <n>) (_ bv1 <n>)
-| (app (app (const `zero [level.one]) (app (const `BitVec []) e)) _) := return $ nullary (Nullary.bv0 $ toNat e)
-| (app (app (const `one [level.one]) (app (const `BitVec []) e)) _) := return $ nullary (Nullary.bv1 $ toNat e)
+| (app (app (const `zero [level.one]) (app (const `BitVec []) e)) _) := return $ bvnum 0 (toNat e)
+| (app (app (const `one [level.one]) (app (const `BitVec []) e)) _) := return $ bvnum 1 (toNat e)
 
 | (app (app (app (app (const `add [level.one]) (app (const `BitVec []) e)) _) e₁) e₂) :=
        do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.bvadd t₁ t₂
@@ -321,9 +325,17 @@ meta def ofExpr : expr → tactic Term
                                   t ← ofExpr $ instantiate_var bod l,
                                   return $ tforall [⟨n, Sort.ofExpr dom⟩] t
 
-| e := match get_app_fn_args e with
+| e := match toMaybeNat e with
+       | some (k, const `Int []) := return $ num k
+       | some (k, const `Real []) := return $ num k
+       | some (k, app (const `BitVec []) e) := return $ bvnum k (toNat e) -- TODO(dhs): handle errors?
+       | some _ := return $ user (mk_str_name e~>to_string "TERM_ERROR::UNEXPECTED_NUMERAL") [] -- ERROR
+       | _ :=
+       -- TODO(dhs): syntactically awkward
+       match get_app_fn_args e with
        | (local_const _ userName _ _, args) := do ts ← monad.mapM ofExpr args, return $ user userName ts
        | _                                  := return $ user (mk_str_name e~>to_string "TERM_ERROR") [] -- ERROR
+       end
        end
 
 end Term
@@ -391,10 +403,12 @@ example (X Y : Type) (f g : X → X → Y) (x1 x1B x2 x2B : X) : x1 = x1B → x2
 -- Ints
 --example (z1 z2 z3 : Int) : z1 = z2 + z3 → z2 = z1 + z3 → z3 = z1 + z2 → z1 = 0 → false := by Z3 -- should FAIL
 example (z1 z2 z3 : Int) : z1 = z2 + z3 → z2 = z1 + z3 → z3 = z1 + z2 → z1 > 0 → false := by Z3
+example : (∀ (n : Int), ∃ (m : Int), n * m = 1) → false := by Z3
 
 -- Reals
 --example (z1 z2 z3 : Real) : z1 = z2 + z3 → z2 = z1 + z3 → z3 = z1 + z2 → z1 = 0 → false := by Z3 -- should FAIL
 example (z1 z2 z3 : Real) : z1 = z2 + z3 → z2 = z1 + z3 → z3 = z1 + z2 → z1 > 0 → false := by Z3
+-- example : (∀ (n : Real), n ≠ 0 → ∃ (m : Real), n * m = 1) → false := by Z3 -- should timeout
 
 -- Quantifiers
 --example (X : Type) (x : X) (f g : X → X) : (∀ (x : X), f x = g x) → (∃ (x : X), f x = g x) → false := by Z3 -- should FAIL
@@ -403,6 +417,7 @@ example (X : Type) (x : X) (f g : X → X) : (∃ (x : X), f x = g x) → (∀ (
 
 -- BitVectors
 example (x y z : BitVec 16) : x + x = y → y + y = z → x + x + x + x ≠ z → false := by Z3
+example (x y z : BitVec 16) : 2 * x = y → 3 * y = z → 6 * x ≠ z → false := by Z3
 end Examples
 
 /-
