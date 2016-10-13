@@ -404,11 +404,15 @@ example (X Y : Type) (f g : X → X → Y) (x1 x1B x2 x2B : X) : x1 = x1B → x2
 --example (z1 z2 z3 : Int) : z1 = z2 + z3 → z2 = z1 + z3 → z3 = z1 + z2 → z1 = 0 → false := by Z3 -- should FAIL
 example (z1 z2 z3 : Int) : z1 = z2 + z3 → z2 = z1 + z3 → z3 = z1 + z2 → z1 > 0 → false := by Z3
 example : (∀ (n : Int), ∃ (m : Int), n * m = 1) → false := by Z3
+example : (7 : Int) * 5 > 40 → false := by Z3
+example : (∃ (n : Int), (7 : Int) * n = 1) → false := by Z3
 
 -- Reals
 --example (z1 z2 z3 : Real) : z1 = z2 + z3 → z2 = z1 + z3 → z3 = z1 + z2 → z1 = 0 → false := by Z3 -- should FAIL
 example (z1 z2 z3 : Real) : z1 = z2 + z3 → z2 = z1 + z3 → z3 = z1 + z2 → z1 > 0 → false := by Z3
--- example : (∀ (n : Real), n ≠ 0 → ∃ (m : Real), n * m = 1) → false := by Z3 -- should timeout
+-- example : (∀ (n : Real), n ≠ 0 → ∃ (m : Real), n * m = 1) → false := by Z3 -- should FAIL/TIMEOUT
+example : (7 : Real) * 5 > 40 → false := by Z3
+example : (∃ (n : Int), n > 10 ∧ (7 : Int) * n = 1) → false := by Z3
 
 -- Quantifiers
 --example (X : Type) (x : X) (f g : X → X) : (∀ (x : X), f x = g x) → (∃ (x : X), f x = g x) → false := by Z3 -- should FAIL
@@ -418,6 +422,8 @@ example (X : Type) (x : X) (f g : X → X) : (∃ (x : X), f x = g x) → (∀ (
 -- BitVectors
 example (x y z : BitVec 16) : x + x = y → y + y = z → x + x + x + x ≠ z → false := by Z3
 example (x y z : BitVec 16) : 2 * x = y → 3 * y = z → 6 * x ≠ z → false := by Z3
+example : (¬ ∃ (x : BitVec 16), x ≠ 0 ∧ 2 * x = 0) → false := by Z3
+
 end Examples
 
 /-
