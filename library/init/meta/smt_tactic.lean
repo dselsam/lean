@@ -73,6 +73,12 @@ meta def toMaybeNat : expr → option (ℕ × expr)
 end expr
 
 namespace tactic
+
+-- TODO(dhs): cheap trick to avoid needing to either write C++ or use a gensym monad transformer
+meta def mk_fresh_nat : tactic ℕ :=
+do (name.mk_numeral k _) ← mk_fresh_name | failed,
+   return k~>val
+
 namespace smt
 
 meta constant trustZ3 : expr -> tactic expr
@@ -227,6 +233,7 @@ inductive Term : Type
 | num     : nat → Term
 | bvnum   : nat → nat → Term
 | user    : name → list Term → Term
+| tlet    : list (prod name Term) → Term → Term
 | tforall : list SortedVar → Term → Term
 | texists : list SortedVar → Term → Term
 
@@ -242,6 +249,10 @@ meta def toSMT : Term → string
 | (bvnum k n)      := "(_ bv" ++ k~>to_string ++ " " ++ n~>to_string ++ ")"
 | (user c [])      := c~>to_string
 | (user c ts)      := "(" ++ c~>to_string ++ " " ++ list.withSep toSMT " " ts ++ ")"
+-- TODO(dhs): factoring out this lambda triggers compiler issue
+| (tlet vars t)    := "(let (" ++ list.withSep
+                                    (λ (nt : prod name Term), nt~>fst~>to_string ++ " " ++ toSMT nt~>snd)
+                                    " " vars ++ ") " ++ toSMT t ++ ")"
 | (tforall vars t) := "(forall (" ++ list.withSep SortedVar.toSMT " " vars ++ ") " ++ toSMT t ++ ")"
 | (texists vars t) := "(exists (" ++ list.withSep SortedVar.toSMT " " vars ++ ") " ++ toSMT t ++ ")"
 
@@ -309,12 +320,12 @@ meta def ofExpr : expr → tactic Term
 -- FOL
 | (app (app (const `Exists [level.one]) dom) bod) :=
        do uniqName ← mk_fresh_name,
-          l ← return $ local_const uniqName `x_exists binder_info.default dom,
+          uniqId   ← mk_fresh_nat,
+          ppName  ← return ∘ mk_simple_name $ "x_" ++ uniqId~>to_string,
+          l ← return $ local_const uniqName ppName binder_info.default dom,
           t ← whnf (app bod l) >>= ofExpr,
-          return $ texists [⟨`x_exists, Sort.ofExpr dom⟩] t
+          return $ texists [⟨ppName, Sort.ofExpr dom⟩] t
 
--- TODO(dhs): assumes all dependent Pis are foralls, and all non-dependent ones are implications
--- Would need to make this a tactic to infer the type.
 | (pi n bi dom bod) := do domType ← infer_type dom,
                           domTypeIsProp ← (is_def_eq domType mk_Prop >> return tt) <|> return ff,
                           when (domTypeIsProp ∧ has_var bod) $ fail "no dependent implications allowed",
@@ -325,6 +336,14 @@ meta def ofExpr : expr → tactic Term
                                   t ← ofExpr $ instantiate_var bod l,
                                   return $ tforall [⟨n, Sort.ofExpr dom⟩] t
 
+-- Let
+| (elet n t v b) := do varVal ← ofExpr v,
+                       uniqName ← mk_fresh_name,
+                       l ← return $ local_const uniqName n binder_info.default t,
+                       body ← ofExpr $ instantiate_var b l,
+                       return $ tlet [⟨n, varVal⟩] body
+
+-- Rest
 | e := match toMaybeNat e with
        | some (k, const `Int []) := return $ num k
        | some (k, const `Real []) := return $ num k
@@ -360,7 +379,6 @@ meta def ofHypothesis (hyp : expr) : tactic Command :=
 do hypName ← return $ local_pp_name hyp,
    hypType ← infer_type hyp,
    hypTypeType ← infer_type hypType,
---   trace (hypName, hypType, hypTypeType),
    match hypTypeType with
    | mk_Prop  := do t ← Term.ofExpr hypType, return $ assert t
    | mk_Type  := return $ declareFun (FunDecl.ofExpr hypName hypType)
@@ -409,8 +427,8 @@ example : (∃ (n : Int), (7 : Int) * n = 1) → false := by Z3
 
 -- Reals
 --example (z1 z2 z3 : Real) : z1 = z2 + z3 → z2 = z1 + z3 → z3 = z1 + z2 → z1 = 0 → false := by Z3 -- should FAIL
-example (z1 z2 z3 : Real) : z1 = z2 + z3 → z2 = z1 + z3 → z3 = z1 + z2 → z1 > 0 → false := by Z3
 -- example : (∀ (n : Real), n ≠ 0 → ∃ (m : Real), n * m = 1) → false := by Z3 -- should FAIL/TIMEOUT
+example (z1 z2 z3 : Real) : z1 = z2 + z3 → z2 = z1 + z3 → z3 = z1 + z2 → z1 > 0 → false := by Z3
 example : (7 : Real) * 5 > 40 → false := by Z3
 example : (∃ (n : Int), n > 10 ∧ (7 : Int) * n = 1) → false := by Z3
 
@@ -418,11 +436,16 @@ example : (∃ (n : Int), n > 10 ∧ (7 : Int) * n = 1) → false := by Z3
 --example (X : Type) (x : X) (f g : X → X) : (∀ (x : X), f x = g x) → (∃ (x : X), f x = g x) → false := by Z3 -- should FAIL
 example (X : Type) (x1 x2 : X) (f : X → X) : (∀ (x1 x2 : X), f x1 = f x2 → x1 = x2) →  f x1 = f x2 → x1 ≠ x2 → false := by Z3
 example (X : Type) (x : X) (f g : X → X) : (∃ (x : X), f x = g x) → (∀ (x : X), f x ≠ g x) → false := by Z3
+example (X : Type) (x1 x2 : X) : x1 ≠ x2 → (¬ ∃ (x1 x2 : X), x1 ≠ x2) → false := by Z3
 
 -- BitVectors
 example (x y z : BitVec 16) : x + x = y → y + y = z → x + x + x + x ≠ z → false := by Z3
 example (x y z : BitVec 16) : 2 * x = y → 3 * y = z → 6 * x ≠ z → false := by Z3
 example : (¬ ∃ (x : BitVec 16), x ≠ 0 ∧ 2 * x = 0) → false := by Z3
+
+-- Let
+example (X : Type) (x : X) (f : X → X) : let y : X := f x in y ≠ f x → false := by Z3
+example (X : Type) (x : X) (f : X → X) : (let y : X := f x in y ≠ f x) → false := by Z3
 
 end Examples
 
@@ -443,5 +466,6 @@ Notes:
 3. Flatten n-ary operators (and let/forall/exists variables) in Term.ofExpr?
    - May want to wait until mutual definitions for this
 
-4. BitVectors! Essentia!
+4. let
+   - triggers issues in the equation compiler
 -/
