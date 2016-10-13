@@ -7,55 +7,74 @@ constants (int real : Type)
 
 namespace expr
 
-@[reducible] definition prop : expr := sort zero
-@[reducible] definition type : expr := sort (succ zero)
+@[reducible] meta def mk_Prop : expr := sort level.zero
+@[reducible] meta def mk_Type : expr := sort (level.succ level.zero)
 
 end expr
 
 namespace smt
-open expr level
+open expr nat
 
 -- Sorts
 
+-- (declare-const x <Sort>)
 inductive Sort : Type
 | Bool : Sort
 | Int : Sort
 | Real : Sort
 | User : name → list Sort → Sort
 
-instance : inhabited Sort := ⟨Sort.Bool⟩
+namespace Sort
+instance : inhabited Sort := ⟨Sort.User `_errorSort []⟩
 
-meta def exprToSort : expr → Sort
-| prop      := Sort.Bool
+meta def ofExpr : expr → Sort
+| mk_Prop          := Sort.Bool
 | (const `int [])  := Sort.Int
 | (const `real []) := Sort.Real
 | e                := match get_app_fn e with
-                      | (const n ls) := Sort.User n (list.map exprToSort $ get_app_args e)
+                      | (const n ls) := Sort.User n (list.map ofExpr $ get_app_args e)
                       | _            := default Sort
                       end
 
--- Declarations
+end Sort
 
+-- (declare-sort List 1)
 inductive SortDecl : Type
 | mk : name → ℕ → SortDecl
 
-instance : inhabited SortDecl := ⟨SortDecl.mk SortDecl 0⟩
+namespace SortDecl
 
+instance : inhabited SortDecl := ⟨⟨`_errorSortDecl, 0⟩⟩
 
+meta def ofExprCore (sortName : name) : expr → nat → SortDecl
+| (pi _ _ mk_Type b)  k := ofExprCore b (succ k)
+| mk_Type             k := ⟨sortName, k⟩
+| _                   _ := default SortDecl
 
-meta def exprToSortDeclCore (sortName : name) : expr → nat → SortDecl
-| (pi n bi type e) k := exprToSortDecl (succ k) e
-| type             k := SortDecl sortName k
+meta def ofExpr (n : name) (e : expr) : SortDecl := ofExprCore n e 0
 
-meta def exprToSortDecl (n : name) (e : expr) : SortDecl := exprToSortDeclCore n e 0
+end SortDecl
 
-
-
-
-
-
+-- (declare-fun f (Int Real) Bool)
 inductive FunDecl : Type
-| mk : string → list Sort → Sort → FunDecl
+| mk : name → list Sort → Sort → FunDecl
+
+namespace FunDecl
+
+instance : inhabited FunDecl := ⟨⟨`_errorFunDecl, [], default Sort⟩⟩
+
+meta def ofExprCore : expr →  list Sort × Sort
+| (pi _ _ dom bod) := match ofExprCore bod with
+                      | (xs, x) := ((Sort.ofExpr dom) :: xs, x)
+                      end
+| bod              := ([], Sort.ofExpr bod)
+
+meta def ofExpr (funName : name) (e : expr) : FunDecl :=
+  match ofExprCore e with
+  | (xs, x) := ⟨funName, xs, x⟩
+  end
+
+end FunDecl
 
 -- Terms
 
@@ -82,8 +101,4 @@ inductive Term : Type
 | user    : string → list Term → Term
 | arrow   : Term → Term → Term
 
---
-
-
 end smt
--/
