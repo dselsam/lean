@@ -373,7 +373,6 @@ meta def ofExpr : expr → tactic Term
 
 end Term
 
-exit
 inductive Command : Type
 | declareSort : SortDecl → Command
 | declareFun  : FunDecl → Command
@@ -464,6 +463,9 @@ example : (¬ ∃ (x : BitVec 16), x ≠ 0 ∧ 2 * x = 0) → false := by Z3
 --example (X : Type) (x : X) (f : X → X) : (let y : X := f x in y ≠ f x) → false := by Z3
 --example (X : Type) (x : X) (f : X → X) : let y : X := f x in y ≠ f x → false := by Z3
 
+-- Compound names
+-- Note: cannot even form compound binders, so I can only trigger the compound-name bug programmatically
+-- example (X.hello : Type) (x.hello : X) : x ≠ x → false := by Z3
 
 end Examples
 
