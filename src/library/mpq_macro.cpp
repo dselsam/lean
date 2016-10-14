@@ -8,11 +8,17 @@ Author: Daniel Selsam
 #include "util/sstream.h"
 #include "util/hash.h"
 #include "library/num.h"
+#include "library/type_context.h"
+#include "library/app_builder.h"
 #include "library/mpq_macro.h"
 #include "library/constants.h"
 #include "library/kernel_serializer.h"
 #include "library/type_context.h"
 #include "library/arith_instance_manager.h"
+#include "library/vm/vm.h"
+#include "library/vm/vm_expr.h"
+#include "library/vm/vm_environment.h"
+#include "library/vm/vm_nat.h"
 
 namespace lean {
 
@@ -131,18 +137,62 @@ bool is_mpq_macro(expr const & e) {
         return false;
 }
 
-bool is_mpq_macro(expr const & e, mpq & q) {
+optional<expr> is_mpq_macro(expr const & e, mpq & q) {
     if (is_macro(e)) {
         if (auto def = dynamic_cast<mpq_macro_definition_cell const *>(macro_def(e).raw())) {
             q = def->get_mpq();
-            return true;
+            return some_expr(macro_arg(e, 0));
         } else {
-            return false;
+            return none_expr();
         }
     } else {
-        return false;
+        return none_expr();
     }
 }
+
+// TODO(dhs): maybe these two ought to be tactics, and be inside the tactic folder
+// Reason: library is not supposed to depend on library/vm
+// I could also put them in library/vm, but then I would still need to take the environment
+// I don't want to separate them.
+vm_obj mk_numeral_macro(vm_obj const & vm_n, vm_obj const & vm_cty) {
+    mpq n(to_unsigned(vm_n));
+    expr cty = to_expr(vm_cty);
+
+    if (cty == mk_constant(get_ConcreteArithType_Int_name())) {
+        return to_obj(mk_mpq_macro(n, mk_constant(get_Int_name())));
+    } else if (cty == mk_constant(get_ConcreteArithType_Real_name())) {
+        return to_obj(mk_mpq_macro(n, mk_constant(get_Real_name())));
+    } else {
+        throw exception(sstream() << "Unexpected ConcreteArithType '" << cty << "' passed to mk_numeral_macro");
+    }
+}
+
+vm_obj is_numeral_macro(vm_obj const & vm_env, vm_obj const & vm_e) {
+    environment env = to_env(vm_env);
+    expr e = to_expr(vm_e);
+    mpq q;
+    optional<expr> ty = is_mpq_macro(e, q);
+
+    type_context tctx(env);
+
+    expr prod_type = mk_app(tctx, get_prod_name(),
+                            mk_constant(get_nat_name()),
+                            mk_constant(get_ConcreteArithType_name()));
+
+    vm_obj fail = to_obj(mk_app(tctx, get_option_none_name(), prod_type));
+
+    if (!ty || !q.is_integer())
+        return fail;
+
+    unsigned n = q.get_numerator().get_unsigned_int();
+
+    if (*ty == mk_constant(get_Int_name()) || *ty == mk_constant(get_Real_name()))
+        return to_obj(mk_app(tctx, get_option_some_name(),
+                             mk_app(tctx, get_prod_mk_name(), to_expr(mk_vm_nat(n)), *ty)));
+    else
+        return fail;
+}
+
 
 void initialize_mpq_macro() {
     g_mpq_macro_name = new name("mpq");

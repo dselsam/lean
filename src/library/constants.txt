@@ -10,6 +10,7 @@ and
 and.elim_left
 and.elim_right
 and.intro
+BitVec
 bit0
 bit1
 bool
@@ -35,6 +36,10 @@ comm_semiring
 congr
 congr_arg
 congr_fun
+ConcreteArithType
+ConcreteArithType.Int
+ConcreteArithType.Real
+ConcreteArithType.BitVec
 cyclic_numerals
 cyclic_numerals.bound
 decidable
@@ -116,6 +121,7 @@ implies_of_if_neg
 implies_of_if_pos
 implies.resolve
 insert
+Int
 int
 int.of_nat
 int.has_zero
@@ -277,6 +283,7 @@ quot.lift
 rat.divide
 rat.of_num
 rat.of_int
+Real
 real
 real.has_zero
 real.has_one

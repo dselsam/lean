@@ -13,7 +13,7 @@ namespace lean {
 expr mk_mpq_macro(mpq const & q, expr const & type);
 
 bool is_mpq_macro(expr const & e);
-bool is_mpq_macro(expr const & e, mpq & q);
+optional<expr> is_mpq_macro(expr const & e, mpq & q);
 
 void initialize_mpq_macro();
 void finalize_mpq_macro();
