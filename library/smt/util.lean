@@ -66,9 +66,17 @@ meta def exprToNat : expr → tactic ℕ
 | (app (app (app (app (const `bit1 _) _) _) _) e) := do n ← exprToNat e, return $ 2 * n + 1
 | e := fail $ "cannot parse number from '" ++ e~>to_string ++ "'"
 
-meta def mk_fresh_nat : tactic ℕ :=
+meta def mkFreshNat : tactic ℕ :=
 do (name.mk_numeral k _) ← mk_fresh_name | failed,
    return k~>val
 
 meta def revertAll : tactic unit := local_context >>= revert_lst >> return ()
+
+meta def introNot : tactic expr :=
+do tgt ← target,
+   match tgt with
+   | (app (const `not []) e) := intro1
+   | _                       := fail "target not an application of 'not'"
+   end
+
 end tactic

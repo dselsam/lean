@@ -1,4 +1,4 @@
 + *.lean
 - flycheck*.lean
 - .#*.lean
-- smt_errors.lean
+- ERRORS.lean

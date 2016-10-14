@@ -54,13 +54,10 @@ example (X : Type) (x : X) (f : X → X) : let y : X := f x in y ≠ f x → fal
 namespace WithConstants
 constants (Y : Type) (y : Y)
 
-example (X : Type) (x : X) (f : X → Y) : f x = y → y ≠ f x → false :=
-by do revertAll, generalizeNonTheoryConstants, Z3
+example (X : Type) (x : X) (f : X → Y) : f x = y → y ≠ f x → false := by Z3
 
 -- This one is tricker, as generalizing a constant introduces a new constant
-example : y ≠ y → false :=
-by do revertAll, generalizeNonTheoryConstants, Z3
-
+example : y ≠ y → false := by Z3
 
 
 end WithConstants

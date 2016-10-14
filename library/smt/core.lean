@@ -11,8 +11,22 @@ set_option eqn_compiler.max_steps 10000
 namespace tactic
 namespace smt
 
-meta constant trustZ3 : expr -> tactic expr
-meta constant callZ3 : string -> tactic string
+/-
+Meta constants
+--------------
+These are the only two meta-constants in the SMT library.
+
+The first (trustZ3) simply wraps an expression in the Z3 macro and
+claims to provide a proof for it.
+
+The second (callZ3) simply executes Z3 on the command line on the
+string passed, and returns the result as a string.
+
+We keep this extra flexibility so that we can recover more information
+from Z3 in the future, e.g. models.
+-/
+private meta constant trustZ3 : expr -> tactic expr
+private meta constant callZ3 : string -> tactic string
 
 open expr nat monad
 
@@ -208,7 +222,6 @@ meta def ofExpr : expr → tactic Term
 
 -- Arith
 -- TODO(dhs): could flatten n-ary applications here
--- TODO(dhs): Do we want to strip the type class abstractions here or  during pre-processing?
 | (app (app (const `zero [level.one]) (const `Int [])) _) := return $ num 0
 | (app (app (const `one [level.one])  (const `Int [])) _) := return $ num 1
 | (app (app (app (app (const `add [level.one]) (const `Int [])) _) e₁) e₂) :=
@@ -240,7 +253,6 @@ meta def ofExpr : expr → tactic Term
        do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.le t₁ t₂
 
 -- BitVectors
--- TODO(dhs): spit out the dependent tags (_ bv0 <n>) (_ bv1 <n>)
 | (app (app (const `zero [level.one]) (app (const `BitVec []) e)) _) := do n ← exprToNat e, return $ bvnum 0 n
 | (app (app (const `one [level.one]) (app (const `BitVec []) e)) _) := do n ← exprToNat e, return $ bvnum 1 n
 
@@ -252,7 +264,7 @@ meta def ofExpr : expr → tactic Term
 -- FOL
 | (app (app (const `Exists [level.one]) dom) bod) :=
        do uniqName ← mk_fresh_name,
-          uniqId   ← mk_fresh_nat,
+          uniqId   ← mkFreshNat,
           ppName  ← return ∘ mk_simple_name $ "x_" ++ uniqId~>to_string,
           l ← return $ local_const uniqName ppName binder_info.default dom,
           t ← whnf (app bod l) >>= ofExpr,
@@ -338,14 +350,20 @@ let names : list name :=
      `not, `ne, `neg, `abs,
      `and, `or, `eq, `implies,
      `add, `sub, `mul, `div, `mod, `lt, `le, `gt, `ge,
-     `bvadd, `bvmul] in
+     `bvadd, `bvmul,
+     `Exists, `bit0, `bit1,
+     -- We currently need to espace type classes that are going to be stripped
+     `has_zero, `has_one, `has_add, `has_mul,
+     `Int.has_zero, `Int.has_one, `Int.has_add, `Int.has_mul, `Int.has_lt,
+     `Real.has_zero, `Real.has_one, `Real.has_add, `Real.has_mul, `Real.has_lt,
+     `BitVec.has_zero, `BitVec.has_one, `BitVec.has_add, `BitVec.has_mul
+     ] in
 rb_map.of_list (list.zip names (list.repeat () $ list.length names))
 
 meta def isTheoryName (n : name) : bool := theoryNames~>contains n
 
-meta def Z3 : tactic unit :=
-do intros,
-   hyps  ← local_context,
+meta def Z3Core : tactic unit :=
+do hyps  ← local_context,
    tgt   ← target,
    guard (tgt = expr.const `false []),
    cmds ← mapM Command.ofHypothesis hyps,
