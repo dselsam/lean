@@ -1,4 +1,4 @@
-import smt.smt_tactic smt.smt_constants
+import smt.tactic smt.constants
 
 namespace Examples
 open tactic

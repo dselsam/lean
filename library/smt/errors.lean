@@ -1,4 +1,4 @@
-import smt.smt_theory smt.smt_tactic smt.smt_constants
+import smt.theory smt.tactic smt.constants
 
 namespace Errors
 open tactic

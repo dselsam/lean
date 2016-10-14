@@ -3,7 +3,7 @@ Copyright (c) 2016 Microsoft Corporation. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Daniel Selsam
 -/
-import smt.smt_theory smt.smt_util
+import smt.theory smt.util
 
 set_option pp.all true
 set_option eqn_compiler.max_steps 10000

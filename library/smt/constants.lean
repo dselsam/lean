@@ -1,4 +1,4 @@
-import smt.smt_tactic
+import smt.core
 
 namespace tactic
 namespace smt
