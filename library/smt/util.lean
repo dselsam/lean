@@ -43,6 +43,14 @@ meta def toMaybeNat : expr → option (ℕ × expr)
 | (app (app (app (app (const `bit1 _) ty) _) _) e) := do n ← toMaybeNat e, return $ (2 * n~>fst + 1, ty)
 | _ := none
 
+inductive ConcreteArithType
+| Int, Real
+| BitVec : ℕ → ConcreteArithType
+
+-- TODO(dhs): expose
+meta constant mkNumeralMacro : ℕ → ConcreteArithType → expr
+meta constant isNumeralMacro : expr → option (ℕ × expr)
+
 end expr
 
 namespace lref

@@ -1,4 +1,4 @@
-import smt.theory
+import smt.util smt.theory
 set_option eqn_compiler.max_steps 10000
 
 namespace tactic
@@ -57,8 +57,20 @@ private meta def strip : bool → expr → option expr
 | _ (app (app (app (app (const `mul _) (app (const `BitVec []) e)) _) e₁) e₂) :=
        do t₁ ← strip tt e₁, t₂ ← strip tt e₂, some $ app (app (app (const `BitVec.mul []) e) t₁) t₂
 
-| ff _ := none
-| tt e := some e
+-- Numerals
+| b e := match toMaybeNat e with
+         | some (n, const `Int []) := some $ mkNumeralMacro n ConcreteArithType.Int
+         | some (n, const `Real []) := some $ mkNumeralMacro n ConcreteArithType.Real
+         | some (n, app (const `BitVec []) k) := match toMaybeNat k with
+                                                 | some (v, const `nat []) := some $ mkNumeralMacro n (ConcreteArithType.BitVec v)
+                                                 | _ := none
+                                                 end
+         | _ :=
+         match b with
+         | ff := none
+         | tt := some e
+         end
+         end
 
 meta def stripTypeclasses : tactic unit :=
 do tgt ← target,
