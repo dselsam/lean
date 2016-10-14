@@ -262,9 +262,11 @@ meta def toSMT : Term → string
 | (user c [])      := c~>toSMT
 | (user c ts)      := "(" ++ c~>toSMT ++ " " ++ list.withSep toSMT " " ts ++ ")"
 -- TODO(dhs): factoring out this lambda triggers compiler issue
-| (tlet vars t)    := "(let (" ++ list.withSep
+| (tlet vars t)    := "<let not supported yet>"
+/-| (tlet vars t)    := "(let (" ++ list.withSep
                                     (λ (nt : prod name Term), nt~>fst~>to_string ++ " " ++ toSMT nt~>snd)
                                     " " vars ++ ") " ++ toSMT t ++ ")"
+-/
 | (tforall vars t) := "(forall (" ++ list.withSep SortedVar.toSMT " " vars ++ ") " ++ toSMT t ++ ")"
 | (texists vars t) := "(exists (" ++ list.withSep SortedVar.toSMT " " vars ++ ") " ++ toSMT t ++ ")"
 
@@ -371,6 +373,7 @@ meta def ofExpr : expr → tactic Term
 
 end Term
 
+exit
 inductive Command : Type
 | declareSort : SortDecl → Command
 | declareFun  : FunDecl → Command
