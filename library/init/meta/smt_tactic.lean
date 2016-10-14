@@ -43,6 +43,18 @@ end Util
 
 open Util
 
+namespace name
+
+-- TODO(dhs): will need to get rid of unicode, and do other things as well
+def toSMT : name → string
+| anonymous                := "[anonymous]"
+| (mk_string s anonymous)  := s
+| (mk_numeral v anonymous) := v~>val~>to_string
+| (mk_string s n)          := toSMT n ++ "__" ++ s
+| (mk_numeral v n)         := toSMT n ++ "__" ++ v~>val~>to_string
+
+end name
+
 namespace level
 
 @[reducible, pattern] definition one : level := succ zero
@@ -105,8 +117,8 @@ meta def toSMT : Sort → string
 | Int         := "Int"
 | Real        := "Real"
 | (BitVec n)  := "(_ BitVec " ++ n~>to_string ++ ")"
-| (User n []) := n~>to_string
-| (User n xs) := "(" ++ n~>to_string ++ " " ++ list.withSep toSMT " " xs ++ ")"
+| (User n []) := n~>toSMT
+| (User n xs) := "(" ++ n~>toSMT ++ " " ++ list.withSep toSMT " " xs ++ ")"
 
 meta def ofExpr : expr → Sort
 | mk_Prop                    := Bool
@@ -129,7 +141,7 @@ namespace SortDecl
 instance : inhabited SortDecl := ⟨⟨`_errorSortDecl, 0⟩⟩
 
 meta def toSMT : SortDecl → string
-| (mk n k) := n~>to_string ++ " " ++ k~>to_string
+| (mk n k) := n~>toSMT ++ " " ++ k~>to_string
 
 meta def ofExprCore (sortName : name) : expr → nat → SortDecl
 | (pi _ _ mk_Type b)  k := ofExprCore b (succ k)
@@ -149,7 +161,7 @@ namespace FunDecl
 instance : inhabited FunDecl := ⟨⟨`_errorFunDecl, [], default Sort⟩⟩
 
 meta def toSMT : FunDecl → string
-| (mk n xs x) := n~>to_string ++ " (" ++ list.withSep Sort.toSMT " " xs ++ ") " ++ Sort.toSMT x
+| (mk n xs x) := n~>toSMT ++ " (" ++ list.withSep Sort.toSMT " " xs ++ ") " ++ Sort.toSMT x
 
 meta def ofExprCore : expr →  list Sort × Sort
 | (pi _ _ dom bod) := match ofExprCore bod with
@@ -222,7 +234,7 @@ inductive SortedVar : Type
 namespace SortedVar
 
 meta def toSMT : SortedVar → string
-| ⟨n, s⟩ := "(" ++ n~>to_string ++ " " ++ s~>toSMT ++ ")"
+| ⟨n, s⟩ := "(" ++ n~>toSMT ++ " " ++ s~>toSMT ++ ")"
 
 end SortedVar
 
@@ -247,8 +259,8 @@ meta def toSMT : Term → string
 | (binary c t₁ t₂) := "(" ++ c~>toSMT ++ " " ++ toSMT t₁ ++ " " ++ toSMT t₂ ++ ")"
 | (num k)          := k~>to_string
 | (bvnum k n)      := "(_ bv" ++ k~>to_string ++ " " ++ n~>to_string ++ ")"
-| (user c [])      := c~>to_string
-| (user c ts)      := "(" ++ c~>to_string ++ " " ++ list.withSep toSMT " " ts ++ ")"
+| (user c [])      := c~>toSMT
+| (user c ts)      := "(" ++ c~>toSMT ++ " " ++ list.withSep toSMT " " ts ++ ")"
 -- TODO(dhs): factoring out this lambda triggers compiler issue
 | (tlet vars t)    := "(let (" ++ list.withSep
                                     (λ (nt : prod name Term), nt~>fst~>to_string ++ " " ++ toSMT nt~>snd)
