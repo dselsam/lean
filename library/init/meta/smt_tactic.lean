@@ -84,6 +84,17 @@ meta def toMaybeNat : expr → option (ℕ × expr)
 
 end expr
 
+namespace lref
+open expr tactic
+
+meta def getUniqName (e : expr) : name := local_uniq_name e
+meta def getPPName (e : expr) : name := local_pp_name e
+meta def getType (e : expr) : tactic expr := infer_type e
+meta def getValue (e : expr) : tactic (option expr) :=
+  do v ← whnf_no_delta e, if v = e then return none else return (some v)
+
+end lref
+
 namespace tactic
 
 -- TODO(dhs): cheap trick to avoid needing to either write C++ or use a gensym monad transformer
@@ -376,6 +387,7 @@ end Term
 inductive Command : Type
 | declareSort : SortDecl → Command
 | declareFun  : FunDecl → Command
+| defineFun  : FunDecl → Term → Command
 | assert      : Term → Command
 | checkSAT    : Command
 
@@ -384,19 +396,25 @@ namespace Command
 meta def toSMT : Command -> string
 | (declareSort sortDecl) := "(declare-sort " ++ sortDecl~>toSMT ++ ")"
 | (declareFun funDecl)   := "(declare-fun " ++ funDecl~>toSMT ++ ")"
+| (defineFun funDecl t)  := "(define-fun " ++ funDecl~>toSMT ++ " " ++ t~>toSMT ++ ")"
 | (assert t)             := "(assert " ++ t~>toSMT ++ ")"
 | checkSAT               := "(check-sat)"
 
 open tactic
 
 meta def ofHypothesis (hyp : expr) : tactic Command :=
-do hypName ← return $ local_pp_name hyp,
-   hypType ← infer_type hyp,
+do hypName ← return $ lref.getPPName hyp,
+   hypType ← lref.getType hyp,
+   hypValue ← lref.getValue hyp,
    hypTypeType ← infer_type hypType,
+
 --   trace (hypName, hypType, hypTypeType),
    match hypTypeType with
    | mk_Prop  := do t ← Term.ofExpr hypType, return $ assert t
-   | mk_Type  := return $ declareFun (FunDecl.ofExpr hypName hypType)
+   | mk_Type  := match hypValue with
+                 | none   := return $ declareFun (FunDecl.ofExpr hypName hypType)
+                 | some v := do t ← Term.ofExpr v, return $ defineFun (FunDecl.ofExpr hypName hypType) t
+                 end
    | mk_Type₂ := return $ declareSort (SortDecl.ofExpr hypName hypType)
    | _        := fail $ "unexpected Type of hypothesis: " ++ expr.to_string hypType
    end
@@ -421,7 +439,7 @@ end tactic
 
 namespace Examples
 open tactic
-open tactic.smt
+open tactic.sm
 
 -- Prop logic
 --example (P : Prop) : P → P → false := by Z3 -- should FAIL
@@ -459,9 +477,11 @@ example (x y z : BitVec 16) : 2 * x = y → 3 * y = z → 6 * x ≠ z → false 
 example : (¬ ∃ (x : BitVec 16), x ≠ 0 ∧ 2 * x = 0) → false := by Z3
 
 -- Let
--- TODO(dhs): figure out how to access local context in Lean
---example (X : Type) (x : X) (f : X → X) : (let y : X := f x in y ≠ f x) → false := by Z3
---example (X : Type) (x : X) (f : X → X) : let y : X := f x in y ≠ f x → false := by Z3
+-- (a) let as a hypothesis (define-fun)
+example (X : Type) (x : X) (f : X → X) : let y : X := f x in y ≠ f x → false := by Z3
+-- (b) let in a term (let ((...)) ...)
+-- TODO(dhs): uncomment and test once compiler is fixed
+-- example (X : Type) (x : X) (f : X → X) : (let y : X := f x in y ≠ f x) → false := by Z3
 
 -- Compound names
 -- Note: cannot even form compound binders, so I can only trigger the compound-name bug programmatically
