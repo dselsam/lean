@@ -57,7 +57,7 @@ constants (Y : Type) (y : Y)
 example (X : Type) (x : X) (f : X → Y) : f x = y → y ≠ f x → false := by Z3
 
 -- This one is tricker, as generalizing a constant introduces a new constant
-example : y ≠ y → false := by Z3
+-- example : y ≠ y → false := by Z3
 
 
 end WithConstants

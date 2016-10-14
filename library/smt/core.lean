@@ -124,39 +124,46 @@ end Nullary
 
 inductive Unary : Type
 | not
-| uminus, abs --, to_Real, to_Int, is_Int
+| neg, abs
 
 namespace Unary
 meta def toSMT : Unary → string
-| not     := "not"
-| uminus  := "-"
-| abs     := "abs"
+| not      := "not"
+| neg      := "-"
+| abs      := "abs"
 end Unary
 
 inductive Binary : Type
-| and, or, eq, implies
-| plus, sub, times, idiv, mod, div, lt, le, gt, ge
+| eq, and, or, xor, implies
+| add, sub, mul, idiv, mod, div, lt, le
 | bvadd, bvmul
 
 namespace Binary
 meta def toSMT : Binary → string
 | and     := "and"
 | or      := "or"
+| xor     := "xor"
 | implies := "=>"
 | eq      := "="
-| plus    := "+"
+| add     := "+"
 | sub     := "-"
-| times   := "*"
+| mul     := "*"
 | idiv    := "div"
 | mod     := "mod"
 | div     := "/"
 | lt      := "<"
 | le      := "<="
-| gt      := ">"
-| ge      := ">="
 | bvadd   := "bvadd"
 | bvmul   := "bvmul"
 end Binary
+
+inductive Ternary : Type
+| ite
+
+namespace Ternary
+meta def toSMT : Ternary → string
+| ite     := "ite"
+end Ternary
 
 end Term
 
@@ -174,6 +181,7 @@ inductive Term : Type
 | nullary : Term.Nullary → Term
 | unary   : Term.Unary → Term → Term
 | binary  : Term.Binary → Term → Term → Term
+| ternary : Term.Ternary → Term → Term → Term → Term
 | num     : nat → Term
 | bvnum   : nat → nat → Term
 | user    : name → list Term → Term
@@ -186,79 +194,84 @@ namespace Term
 instance : inhabited Term := ⟨user `_errorTerm []⟩
 
 meta def toSMT : Term → string
-| (nullary c)      := c~>toSMT
-| (unary c t)      := "(" ++ c~>toSMT ++ " " ++ toSMT t ++ ")"
-| (binary c t₁ t₂) := "(" ++ c~>toSMT ++ " " ++ toSMT t₁ ++ " " ++ toSMT t₂ ++ ")"
-| (num k)          := k~>to_string
-| (bvnum k n)      := "(_ bv" ++ k~>to_string ++ " " ++ n~>to_string ++ ")"
-| (user c [])      := c~>toSMT
-| (user c ts)      := "(" ++ c~>toSMT ++ " " ++ list.withSep toSMT " " ts ++ ")"
--- TODO(dhs): factoring out this lambda triggers compiler issue
-| (tlet vars t)    := "<let not supported yet>"
+| (nullary c)          := c~>toSMT
+| (unary c t)          := "(" ++ c~>toSMT ++ " " ++ toSMT t ++ ")"
+| (binary c t₁ t₂)     := "(" ++ c~>toSMT ++ " " ++ toSMT t₁ ++ " " ++ toSMT t₂ ++ ")"
+| (ternary c t₁ t₂ t₃) := "(" ++ c~>toSMT ++ " " ++ toSMT t₁ ++ " " ++ toSMT t₂ ++ " " ++ toSMT t₃ ++ ")"
+| (num k)              := k~>to_string
+| (bvnum k n)          := "(_ bv" ++ k~>to_string ++ " " ++ n~>to_string ++ ")"
+| (user c [])          := c~>toSMT
+| (user c ts)          := "(" ++ c~>toSMT ++ " " ++ list.withSep toSMT " " ts ++ ")"
+-- TODO(dhs): triggers compiler issue
+| (tlet vars t)        := "<let not supported yet>"
 /-| (tlet vars t)    := "(let (" ++ list.withSep
                                     (λ (nt : prod name Term), nt~>fst~>to_string ++ " " ++ toSMT nt~>snd)
                                     " " vars ++ ") " ++ toSMT t ++ ")"
 -/
-| (tforall vars t) := "(forall (" ++ list.withSep SortedVar.toSMT " " vars ++ ") " ++ toSMT t ++ ")"
-| (texists vars t) := "(exists (" ++ list.withSep SortedVar.toSMT " " vars ++ ") " ++ toSMT t ++ ")"
+| (tforall vars t)     := "(forall (" ++ list.withSep SortedVar.toSMT " " vars ++ ") " ++ toSMT t ++ ")"
+| (texists vars t)     := "(exists (" ++ list.withSep SortedVar.toSMT " " vars ++ ") " ++ toSMT t ++ ")"
 
 meta def ofExpr : expr → tactic Term
+-- Core
 | (const `true [])                  := return $ nullary Nullary.true
 | (const `false [])                 := return $ nullary Nullary.false
 
 | (app (const `not []) e)           := do t ← ofExpr e, return $ unary Unary.not t
-| (app (const `neg []) e)           := do t ← ofExpr e, return $ unary Unary.uminus t
-| (app (const `abs []) e)           := do t ← ofExpr e, return $ unary Unary.abs t
 
-| (app (app (app (const `eq ls) _) e₁) e₂) :=
+| (app (app (app (const `eq [level.one]) _) e₁) e₂) :=
        do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.eq t₁ t₂
-| (app (app (app (const `ne ls) _) e₁) e₂) :=
+
+| (app (app (app (const `ne [level.one]) _) e₁) e₂) :=
        do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ unary Unary.not (binary Binary.eq t₁ t₂)
+
+| (app (app (app (app (app (const `ite [level.one]) cond) _) _) e₁) e₂) :=
+       do t ← ofExpr cond, t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ ternary Ternary.ite t t₁ t₂
 
 | (app (app (const `and []) e₁) e₂) :=
        do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.and t₁ t₂
 | (app (app (const `or []) e₁) e₂)  :=
        do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.or t₁ t₂
+| (app (app (const `xor []) e₁) e₂)  :=
+       do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.xor t₁ t₂
+| (app (app (const `implies []) e₁) e₂)  :=
+       do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.implies t₁ t₂
 
--- Arith
--- TODO(dhs): could flatten n-ary applications here
-| (app (app (const `zero [level.one]) (const `Int [])) _) := return $ num 0
-| (app (app (const `one [level.one])  (const `Int [])) _) := return $ num 1
-| (app (app (app (app (const `add [level.one]) (const `Int [])) _) e₁) e₂) :=
-       do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.plus t₁ t₂
-| (app (app (app (app (const `mul [level.one]) (const `Int [])) _) e₁) e₂) :=
-       do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.times t₁ t₂
-| (app (app (app (app (const `gt [level.one]) (const `Int [])) _) e₁) e₂) :=
-       do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.gt t₁ t₂
-| (app (app (app (app (const `ge [level.one]) (const `Int [])) _) e₁) e₂) :=
-       do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.ge t₁ t₂
-| (app (app (app (app (const `lt [level.one]) (const `Int [])) _) e₁) e₂) :=
-       do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.lt t₁ t₂
-| (app (app (app (app (const `le [level.one]) (const `Int [])) _) e₁) e₂) :=
-       do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.le t₁ t₂
+-- Int
+| (const `Int.zero [])                   := return $ num 0
+| (const `Int.one [])                    := return $ num 1
 
-| (app (app (const `zero [level.one]) (const `Real [])) _) := return $ num 0
-| (app (app (const `one [level.one])  (const `Real [])) _) := return $ num 1
-| (app (app (app (app (const `add [level.one]) (const `Real [])) _) e₁) e₂) :=
-       do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.plus t₁ t₂
-| (app (app (app (app (const `mul [level.one]) (const `Real [])) _) e₁) e₂) :=
-       do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.times t₁ t₂
-| (app (app (app (app (const `gt [level.one]) (const `Real [])) _) e₁) e₂) :=
-       do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.gt t₁ t₂
-| (app (app (app (app (const `ge [level.one]) (const `Real [])) _) e₁) e₂) :=
-       do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.ge t₁ t₂
-| (app (app (app (app (const `lt [level.one]) (const `Real [])) _) e₁) e₂) :=
-       do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.lt t₁ t₂
-| (app (app (app (app (const `le [level.one]) (const `Real [])) _) e₁) e₂) :=
-       do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.le t₁ t₂
+| (app (const `Int.neg []) e)  :=  do t ← ofExpr e, return $ unary Unary.neg t
+| (app (const `Int.abs []) e)  :=  do t ← ofExpr e, return $ unary Unary.abs t
 
--- BitVectors
-| (app (app (const `zero [level.one]) (app (const `BitVec []) e)) _) := do n ← exprToNat e, return $ bvnum 0 n
-| (app (app (const `one [level.one]) (app (const `BitVec []) e)) _) := do n ← exprToNat e, return $ bvnum 1 n
+| (app (app (const `Int.add []) e₁) e₂) :=  do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.add t₁ t₂
+| (app (app (const `Int.mul []) e₁) e₂) :=  do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.mul t₁ t₂
+| (app (app (const `Int.sub []) e₁) e₂) :=  do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.sub t₁ t₂
+| (app (app (const `Int.div []) e₁) e₂) :=  do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.idiv t₁ t₂
+| (app (app (const `Int.mod []) e₁) e₂) :=  do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.mod t₁ t₂
+| (app (app (const `Int.lt []) e₁) e₂)  :=  do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.lt t₁ t₂
+| (app (app (const `Int.le []) e₁) e₂)  :=  do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.le t₁ t₂
 
-| (app (app (app (app (const `add [level.one]) (app (const `BitVec []) e)) _) e₁) e₂) :=
+-- Real
+| (const `Real.zero [])                   := return $ num 0
+| (const `Real.one [])                    := return $ num 1
+
+| (app (const `Real.neg []) e)  :=  do t ← ofExpr e, return $ unary Unary.neg t
+| (app (const `Real.abs []) e)  :=  do t ← ofExpr e, return $ unary Unary.abs t
+
+| (app (app (const `Real.add []) e₁) e₂) :=  do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.add t₁ t₂
+| (app (app (const `Real.mul []) e₁) e₂) :=  do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.mul t₁ t₂
+| (app (app (const `Real.sub []) e₁) e₂) :=  do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.sub t₁ t₂
+| (app (app (const `Real.div []) e₁) e₂) :=  do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.div t₁ t₂
+| (app (app (const `Real.lt []) e₁) e₂)  :=  do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.lt t₁ t₂
+| (app (app (const `Real.le []) e₁) e₂)  :=  do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.le t₁ t₂
+
+-- BitVec
+| (app (const `BitVec.zero []) e) := do n ← exprToNat e, return $ bvnum 0 n
+| (app (const `BitVec.one []) e)  := do n ← exprToNat e, return $ bvnum 1 n
+
+| (app (app (app (const `BitVec.add []) _) e₁) e₂) :=
        do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.bvadd t₁ t₂
-| (app (app (app (app (const `mul [level.one]) (app (const `BitVec []) e)) _) e₁) e₂) :=
+| (app (app (app (const `BitVec.mul []) _) e₁) e₂) :=
        do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.bvmul t₁ t₂
 
 -- FOL
@@ -273,7 +286,7 @@ meta def ofExpr : expr → tactic Term
 
 | (pi n bi dom bod) := do domType ← infer_type dom,
                           domTypeIsProp ← (is_def_eq domType mk_Prop >> return tt) <|> return ff,
-                          when (domTypeIsProp ∧ has_var bod) $ fail "no dependent implications allowed",
+                          when (domTypeIsProp ∧ has_var bod) $ fail "SMT does not support dependent implications",
                           if domTypeIsProp
                           then do t₁ ← ofExpr dom, t₂ ← ofExpr bod, return $ binary Binary.implies t₁ t₂
                           else do uniqName ← mk_fresh_name,
@@ -290,17 +303,10 @@ meta def ofExpr : expr → tactic Term
                        return $ tlet [⟨n, varVal⟩] body
 
 -- Rest
-| e := match toMaybeNat e with
-       | some (k, const `Int []) := return $ num k
-       | some (k, const `Real []) := return $ num k
-       | some (k, app (const `BitVec []) e) := do n ← exprToNat e, return $ bvnum k n
-       | some _ := fail $ "Unexpected numeral '" ++ e~>to_string ++ "'; only Int, Real, and BitVec numerals supported"
-       | _ :=
-       -- TODO(dhs): syntactically awkward
+| e := -- TODO(dhs): numeral macros for Int, Real, and BitVec
        match get_app_fn_args e with
        | (local_const _ userName _ _, args) := do ts ← mapM ofExpr args, return $ user userName ts
        | _                                  := fail $ "Cannot construct SMT term from expr '" ++ e~>to_string ++ "'"
-       end
        end
 
 end Term
@@ -345,18 +351,13 @@ end Command
 -- TODO(dhs): note that there are many places that need to be updated when the supported theory constants change
 private meta def theoryNames : rb_map name unit :=
 let names : list name :=
-    [`Int, `Real, `BitVec,
-     `true, `false,
-     `not, `ne, `neg, `abs,
-     `and, `or, `eq, `implies,
-     `add, `sub, `mul, `div, `mod, `lt, `le, `gt, `ge,
-     `bvadd, `bvmul,
-     `Exists, `bit0, `bit1,
-     -- We currently need to espace type classes that are going to be stripped
-     `has_zero, `has_one, `has_add, `has_mul,
-     `Int.has_zero, `Int.has_one, `Int.has_add, `Int.has_mul, `Int.has_lt,
-     `Real.has_zero, `Real.has_one, `Real.has_add, `Real.has_mul, `Real.has_lt,
-     `BitVec.has_zero, `BitVec.has_one, `BitVec.has_add, `BitVec.has_mul
+    [`Exists,
+     `Int, `Real, `BitVec,
+     `true, `false, `and, `or, `not, `xor, `implies, `eq, `ite,
+     `ne, -- It is not in the SMT theory directly, but we handle it in Term.ofExpr for convenience
+     `Int.zero, `Int.one, `Int.neg, `Int.abs, `Int.add, `Int.mul, `Int.div, `Int.sub, `Int.mod, `Int.le, `Int.lt,
+     `Real.zero, `Real.one, `Real.neg, `Real.add, `Real.mul, `Real.div, `Real.sub, `Real.le, `Real.lt,
+     `BitVec.zero, `BitVec.one, `BitVec.add, `BitVec.mul
      ] in
 rb_map.of_list (list.zip names (list.repeat () $ list.length names))
 

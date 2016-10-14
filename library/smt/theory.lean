@@ -1,23 +1,53 @@
--- Arith
-constants (Int Real : Type)
+-- Core
+/-
+Already in Lean:
+Prop, true, false, and, or, not, xor, implies, eq, ite
+Note: including 'ne' for convenience
+Note: skipping 'distinct' for now
+-/
 
-instance : has_zero Int := sorry
-instance : has_one Int := sorry
-instance : has_add Int := sorry
-instance : has_mul Int := sorry
-instance : has_lt Int := sorry
+-- Int
+constants (Int : Type)
+namespace Int
+constants (zero one : Int)
+          (neg abs : Int → Int)
+          (add mul div sub mod : Int → Int → Int)
+          (le lt : Int → Int → Prop)
 
-instance : has_zero Real := sorry
-instance : has_one Real := sorry
-instance : has_add Real := sorry
-instance : has_mul Real := sorry
-instance : has_lt Real := sorry
+noncomputable instance : has_zero Int := ⟨zero⟩
+noncomputable instance : has_one Int := ⟨one⟩
+noncomputable instance : has_add Int := ⟨add⟩
+noncomputable instance : has_mul Int := ⟨mul⟩
+noncomputable instance : has_lt Int := ⟨lt⟩
+noncomputable instance : has_le Int := ⟨le⟩
 
--- Bit vectors
+end Int
+
+-- Real
+constants (Real : Type)
+namespace Real
+constants (zero one : Real)
+          (add mul div sub : Real → Real → Real)
+          (lt le : Real → Real → Prop)
+
+noncomputable instance : has_zero Real := ⟨zero⟩
+noncomputable instance : has_one Real := ⟨one⟩
+noncomputable instance : has_add Real := ⟨add⟩
+noncomputable instance : has_mul Real := ⟨mul⟩
+noncomputable instance : has_lt Real := ⟨lt⟩
+noncomputable instance : has_le Real := ⟨le⟩
+
+end Real
 
 constants (BitVec : ℕ → Type)
+namespace BitVec
 
-instance (n : ℕ) : has_zero (BitVec n) := sorry
-instance (n : ℕ) : has_one (BitVec n) := sorry
-instance (n : ℕ) : has_add (BitVec n) := sorry
-instance (n : ℕ) : has_mul (BitVec n) := sorry
+constants (zero one : Pi n, BitVec n)
+          (add mul : Pi n, BitVec n → BitVec n → BitVec n)
+
+noncomputable instance (n : nat) : has_zero (BitVec n) := ⟨zero n⟩
+noncomputable instance (n : nat) : has_one (BitVec n) := ⟨one n⟩
+noncomputable instance (n : nat) : has_add (BitVec n) := ⟨add n⟩
+noncomputable instance (n : nat) : has_mul (BitVec n) := ⟨mul n⟩
+
+end BitVec
