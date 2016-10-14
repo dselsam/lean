@@ -3,121 +3,18 @@ Copyright (c) 2016 Microsoft Corporation. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Daniel Selsam
 -/
--- Arith
-constants (Int Real : Type)
-
-instance : has_zero Int := sorry
-instance : has_one Int := sorry
-instance : has_add Int := sorry
-instance : has_mul Int := sorry
-instance : has_lt Int := sorry
-
-instance : has_zero Real := sorry
-instance : has_one Real := sorry
-instance : has_add Real := sorry
-instance : has_mul Real := sorry
-instance : has_lt Real := sorry
-
--- Bit vectors
-
-constants (BitVec : ℕ → Type)
-
-instance (n : ℕ) : has_zero (BitVec n) := sorry
-instance (n : ℕ) : has_one (BitVec n) := sorry
-instance (n : ℕ) : has_add (BitVec n) := sorry
-instance (n : ℕ) : has_mul (BitVec n) := sorry
+import smt.smt_theory smt.smt_util
 
 set_option pp.all true
 set_option eqn_compiler.max_steps 10000
 
-namespace rb_map
-
-meta def join {A B : Type} (m₁ m₂ : rb_map A B) : rb_map A B :=
-fold m₂ m₁ (λ (a : A) (b : B) (m : rb_map A B), m~>insert a b)
-
-end rb_map
-
-namespace Util
-
-private def list.withSepCore {X : Type} (f : X -> string) (sep : string) : bool -> list X -> string
-| b [] := ""
-| tt (x::xs) := f x ++ list.withSepCore ff xs
-| ff (x::xs) := sep ++ f x ++ list.withSepCore ff xs
-
-def list.withSep {X : Type} (f : X -> string) (sep : string) : list X -> string := list.withSepCore f sep tt
-
-def uncurry {A B C : Type} (f : A → B → C) (ab : A × B) : C := f ab~>fst ab~>snd
-def curry {A B C : Type} (f : A × B → C) (a : A) (b : B) : C := f (a, b)
-
-end Util
-
-open Util
-
-namespace name
-
--- TODO(dhs): will need to get rid of unicode, and do other things as well
-def toSMT : name → string
-| anonymous                := "[anonymous]"
-| (mk_string s anonymous)  := s
-| (mk_numeral v anonymous) := v~>val~>to_string
-| (mk_string s n)          := toSMT n ++ "__" ++ s
-| (mk_numeral v n)         := toSMT n ++ "__" ++ v~>val~>to_string
-
-end name
-
-namespace level
-
-@[reducible, pattern] definition one : level := succ zero
-@[reducible, pattern] definition two : level := succ one
-
-end level
-
-namespace expr
-
-@[reducible, pattern] meta def mk_Prop : expr := sort level.zero
-@[reducible, pattern] meta def mk_Type : expr := sort level.one
-@[reducible, pattern] meta def mk_Type₂ : expr := sort level.two
-
-meta def toNat : expr → ℕ
-| (app (app (const `zero _) _) _) := 0
-| (app (app (const `one _)  _) _)  := 1
-| (app (app (app (const `bit0 _) _) _) e) := 2 * toNat e
-| (app (app (app (app (const `bit1 _) _) _) _) e) := 2 * (toNat e) + 1
-| _ := 0 -- ERROR
-
-meta def toMaybeNat : expr → option (ℕ × expr)
-| (app (app (const `zero _) ty) _) := some (0, ty)
-| (app (app (const `one _)  ty) _)  := some (1, ty)
-| (app (app (app (const `bit0 _) ty) _) e) := do n ← toMaybeNat e, return (2 * n~>fst, ty)
-| (app (app (app (app (const `bit1 _) ty) _) _) e) := do n ← toMaybeNat e, return $ (2 * n~>fst + 1, ty)
-| _ := none
-
-end expr
-
-namespace lref
-open expr tactic
-
-meta def getUniqName (e : expr) : name := local_uniq_name e
-meta def getPPName (e : expr) : name := local_pp_name e
-meta def getType (e : expr) : tactic expr := infer_type e
-meta def getValue (e : expr) : tactic (option expr) :=
-  do v ← whnf_no_delta e, if v = e then return none else return (some v)
-
-end lref
-
 namespace tactic
-
--- TODO(dhs): cheap trick to avoid needing to either write C++ or use a gensym monad transformer
-meta def mk_fresh_nat : tactic ℕ :=
-do (name.mk_numeral k _) ← mk_fresh_name | failed,
-   return k~>val
-
 namespace smt
 
 meta constant trustZ3 : expr -> tactic expr
 meta constant callZ3 : string -> tactic string
 
-open expr nat
+open expr nat monad
 
 -- Sorts
 
@@ -141,14 +38,14 @@ meta def toSMT : Sort → string
 | (User n []) := n~>toSMT
 | (User n xs) := "(" ++ n~>toSMT ++ " " ++ list.withSep toSMT " " xs ++ ")"
 
-meta def ofExpr : expr → Sort
-| mk_Prop                    := Bool
-| (const `Int [])            := Int
-| (const `Real [])           := Real
-| (app (const `BitVec []) e) := BitVec (toNat e)
+meta def ofExpr : expr → tactic Sort
+| mk_Prop                    := return Bool
+| (const `Int [])            := return Int
+| (const `Real [])           := return Real
+| (app (const `BitVec []) e) := do n ← exprToNat e, return $ BitVec n
 | e                          := match get_app_fn e with
-                                | (local_const _ n _ _) := User n (list.map ofExpr $ get_app_args e)
-                                | f                     := User (mk_str_name f~>to_string "SORT_ERROR") []
+                                | (local_const _ n _ _) := do args ← mapM ofExpr (get_app_args e), return $ User n args
+                                | f                     := fail $ "Sort '" ++ e~>to_string ++ "' not understood by SMT"
                                 end
 
 end Sort
@@ -164,12 +61,12 @@ instance : inhabited SortDecl := ⟨⟨`_errorSortDecl, 0⟩⟩
 meta def toSMT : SortDecl → string
 | (mk n k) := n~>toSMT ++ " " ++ k~>to_string
 
-meta def ofExprCore (sortName : name) : expr → nat → SortDecl
+meta def ofExprCore (sortName : name) : expr → nat → tactic SortDecl
 | (pi _ _ mk_Type b)  k := ofExprCore b (succ k)
-| mk_Type             k := ⟨sortName, k⟩
-| e                   _ := ⟨mk_str_name e~>to_string "SORTDECL_ERROR", 0⟩
+| mk_Type             k := return $ ⟨sortName, k⟩
+| e                   _ := fail $ "SortDecl '" ++ e~>to_string ++ "' not understood by SMT"
 
-meta def ofExpr (n : name) (e : expr) : SortDecl := ofExprCore n e 0
+meta def ofExpr (n : name) (e : expr) : tactic SortDecl := ofExprCore n e 0
 
 end SortDecl
 
@@ -184,16 +81,16 @@ instance : inhabited FunDecl := ⟨⟨`_errorFunDecl, [], default Sort⟩⟩
 meta def toSMT : FunDecl → string
 | (mk n xs x) := n~>toSMT ++ " (" ++ list.withSep Sort.toSMT " " xs ++ ") " ++ Sort.toSMT x
 
-meta def ofExprCore : expr →  list Sort × Sort
-| (pi _ _ dom bod) := match ofExprCore bod with
-                      | (xs, x) := ((Sort.ofExpr dom) :: xs, x)
-                      end
-| bod              := ([], Sort.ofExpr bod)
+meta def ofExprCore : expr →  tactic (list Sort × Sort)
+| (pi _ _ dom bod) := do (xs, x) ← ofExprCore bod,
+                         d ← Sort.ofExpr dom,
+                         return (d :: xs, x)
+| bod              := do b ← Sort.ofExpr bod,
+                         return ([], b)
 
-meta def ofExpr (funName : name) (e : expr) : FunDecl :=
-  match ofExprCore e with
-  | (xs, x) := ⟨funName, xs, x⟩
-  end
+meta def ofExpr (funName : name) (e : expr) : tactic FunDecl :=
+do (xs, x) ← ofExprCore e,
+   return ⟨funName, xs, x⟩
 
 end FunDecl
 
@@ -344,8 +241,8 @@ meta def ofExpr : expr → tactic Term
 
 -- BitVectors
 -- TODO(dhs): spit out the dependent tags (_ bv0 <n>) (_ bv1 <n>)
-| (app (app (const `zero [level.one]) (app (const `BitVec []) e)) _) := return $ bvnum 0 (toNat e)
-| (app (app (const `one [level.one]) (app (const `BitVec []) e)) _) := return $ bvnum 1 (toNat e)
+| (app (app (const `zero [level.one]) (app (const `BitVec []) e)) _) := do n ← exprToNat e, return $ bvnum 0 n
+| (app (app (const `one [level.one]) (app (const `BitVec []) e)) _) := do n ← exprToNat e, return $ bvnum 1 n
 
 | (app (app (app (app (const `add [level.one]) (app (const `BitVec []) e)) _) e₁) e₂) :=
        do t₁ ← ofExpr e₁, t₂ ← ofExpr e₂, return $ binary Binary.bvadd t₁ t₂
@@ -359,7 +256,8 @@ meta def ofExpr : expr → tactic Term
           ppName  ← return ∘ mk_simple_name $ "x_" ++ uniqId~>to_string,
           l ← return $ local_const uniqName ppName binder_info.default dom,
           t ← whnf (app bod l) >>= ofExpr,
-          return $ texists [⟨ppName, Sort.ofExpr dom⟩] t
+          d ← Sort.ofExpr dom,
+          return $ texists [⟨ppName, d⟩] t
 
 | (pi n bi dom bod) := do domType ← infer_type dom,
                           domTypeIsProp ← (is_def_eq domType mk_Prop >> return tt) <|> return ff,
@@ -369,7 +267,8 @@ meta def ofExpr : expr → tactic Term
                           else do uniqName ← mk_fresh_name,
                                   l ← return $ local_const uniqName n bi dom,
                                   t ← ofExpr $ instantiate_var bod l,
-                                  return $ tforall [⟨n, Sort.ofExpr dom⟩] t
+                                  d ← Sort.ofExpr dom,
+                                  return $ tforall [⟨n, d⟩] t
 
 -- Let
 | (elet n t v b) := do varVal ← ofExpr v,
@@ -382,13 +281,13 @@ meta def ofExpr : expr → tactic Term
 | e := match toMaybeNat e with
        | some (k, const `Int []) := return $ num k
        | some (k, const `Real []) := return $ num k
-       | some (k, app (const `BitVec []) e) := return $ bvnum k (toNat e) -- TODO(dhs): handle errors?
-       | some _ := return $ user (mk_str_name e~>to_string "TERM_ERROR::UNEXPECTED_NUMERAL") [] -- ERROR
+       | some (k, app (const `BitVec []) e) := do n ← exprToNat e, return $ bvnum k n
+       | some _ := fail $ "Unexpected numeral '" ++ e~>to_string ++ "'; only Int, Real, and BitVec numerals supported"
        | _ :=
        -- TODO(dhs): syntactically awkward
        match get_app_fn_args e with
-       | (local_const _ userName _ _, args) := do ts ← monad.mapM ofExpr args, return $ user userName ts
-       | _                                  := return $ user (mk_str_name e~>to_string "TERM_ERROR") [] -- ERROR
+       | (local_const _ userName _ _, args) := do ts ← mapM ofExpr args, return $ user userName ts
+       | _                                  := fail $ "Cannot construct SMT term from expr '" ++ e~>to_string ++ "'"
        end
        end
 
@@ -422,30 +321,17 @@ do hypName ← return $ lref.getPPName hyp,
    match hypTypeType with
    | mk_Prop  := do t ← Term.ofExpr hypType, return $ assert t
    | mk_Type  := match hypValue with
-                 | none   := return $ declareFun (FunDecl.ofExpr hypName hypType)
-                 | some v := do t ← Term.ofExpr v, return $ defineFun (FunDecl.ofExpr hypName hypType) t
+                 | none   := do funDecl ← FunDecl.ofExpr hypName hypType, return $ declareFun funDecl
+                 | some v := do t ← Term.ofExpr v, funDecl ← FunDecl.ofExpr hypName hypType, return $ defineFun funDecl t
                  end
-   | mk_Type₂ := return $ declareSort (SortDecl.ofExpr hypName hypType)
+   | mk_Type₂ := do sortDecl ← SortDecl.ofExpr hypName hypType, return $ declareSort sortDecl
    | _        := fail $ "unexpected Type of hypothesis: " ++ expr.to_string hypType
    end
 
 end Command
 
-namespace Generalize
-
--- TODO(dhs): note that the order matters
-meta def collectConstants (f : name → bool) : expr → list expr
-| (const n ls)               := if f n then [const n ls] else []
-| (app f arg)                := list.union (collectConstants f) (collectConstants arg)
-| (lam n bi dom bod)         := list.union (collectConstants dom) (collectConstants bod)
-| (pi n bi dom bod)          := list.union (collectConstants dom) (collectConstants bod)
-| (elet n ty val bod)        := list.union (list.union (collectConstants ty) (collectConstants val)) (collectConstants bod)
-| (local_const n pp_n bi ty) := collectConstants ty
-| (mvar n ty)                := collectConstants ty
-| _                          := []
-
 -- TODO(dhs): note that there are many places that need to be updated when the supported theory constants change
-meta def theoryNames : rb_map name unit :=
+private meta def theoryNames : rb_map name unit :=
 let names : list name :=
     [`Int, `Real, `BitVec,
      `true, `false,
@@ -457,24 +343,12 @@ rb_map.of_list (list.zip names (list.repeat () $ list.length names))
 
 meta def isTheoryName (n : name) : bool := theoryNames~>contains n
 
-meta def collectNonTheoryConstants (e : expr) : list expr :=
-     collectConstants (λ (n : name), bnot $ isTheoryName n) e
-
-meta def generalizeNonTheoryConstants : tactic unit :=
-do local_context >>= revert_lst,
-   tgt ← target,
-   cs ← return $ list.reverse (collectNonTheoryConstants tgt),
-   monad.mapM' (uncurry generalize) (list.zip cs (list.map const_name cs))
-
-end Generalize
-
-
 meta def Z3 : tactic unit :=
 do intros,
    hyps  ← local_context,
    tgt   ← target,
    guard (tgt = expr.const `false []),
-   cmds ← monad.mapM Command.ofHypothesis hyps,
+   cmds ← mapM Command.ofHypothesis hyps,
    cmdString ← return $ list.withSep Command.toSMT " " (cmds ++ [Command.checkSAT]),
    trace cmdString,
    result ← callZ3 cmdString,
@@ -484,67 +358,6 @@ do intros,
 end smt
 end tactic
 
-namespace Examples
-open tactic
-open tactic.smt
-
--- Prop logic
---example (P : Prop) : P → P → false := by Z3 -- should FAIL
-example (P : Prop) : P → ¬ P → false := by Z3
-example (P Q : Prop) : P ∧ Q → ¬ P → (¬ P ∨ ¬ Q) → false := by Z3
-example (P Q : Prop) : P ∧ Q → ¬ P → (¬ P → ¬ Q) → false := by Z3
-
--- EUF
---example (X Y : Type) (f g : X → X → Y) (x1 x1B x2 x2B : X) : x1 ≠ x1B → x2 ≠ x2B → f x1 x2 = f x1B x2B → false := by Z3 -- should FAIL
-example (X Y : Type) (f g : X → X → Y) (x1 x1B x2 x2B : X) : x1 = x1B → x2 = x2B → f x1 x2 ≠ f x1B x2B → false := by Z3
-
--- Ints
---example (z1 z2 z3 : Int) : z1 = z2 + z3 → z2 = z1 + z3 → z3 = z1 + z2 → z1 = 0 → false := by Z3 -- should FAIL
-example (z1 z2 z3 : Int) : z1 = z2 + z3 → z2 = z1 + z3 → z3 = z1 + z2 → z1 > 0 → false := by Z3
-example : (∀ (n : Int), ∃ (m : Int), n * m = 1) → false := by Z3
-example : (7 : Int) * 5 > 40 → false := by Z3
-example : (∃ (n : Int), (7 : Int) * n = 1) → false := by Z3
-
--- Reals
---example (z1 z2 z3 : Real) : z1 = z2 + z3 → z2 = z1 + z3 → z3 = z1 + z2 → z1 = 0 → false := by Z3 -- should FAIL
--- example : (∀ (n : Real), n ≠ 0 → ∃ (m : Real), n * m = 1) → false := by Z3 -- should FAIL/TIMEOUT
-example (z1 z2 z3 : Real) : z1 = z2 + z3 → z2 = z1 + z3 → z3 = z1 + z2 → z1 > 0 → false := by Z3
-example : (7 : Real) * 5 > 40 → false := by Z3
-example : (∃ (n : Real), n > 10 ∧ (7 : Real) * n = 1) → false := by Z3
-
--- Quantifiers
---example (X : Type) (x : X) (f g : X → X) : (∀ (x : X), f x = g x) → (∃ (x : X), f x = g x) → false := by Z3 -- should FAIL
-example (X : Type) (x1 x2 : X) (f : X → X) : (∀ (x1 x2 : X), f x1 = f x2 → x1 = x2) →  f x1 = f x2 → x1 ≠ x2 → false := by Z3
-example (X : Type) (x : X) (f g : X → X) : (∃ (x : X), f x = g x) → (∀ (x : X), f x ≠ g x) → false := by Z3
-example (X : Type) (x1 x2 : X) : x1 ≠ x2 → (¬ ∃ (x1 x2 : X), x1 ≠ x2) → false := by Z3
-
--- BitVectors
-example (x y z : BitVec 16) : x + x = y → y + y = z → x + x + x + x ≠ z → false := by Z3
-example (x y z : BitVec 16) : 2 * x = y → 3 * y = z → 6 * x ≠ z → false := by Z3
-example : (¬ ∃ (x : BitVec 16), x ≠ 0 ∧ 2 * x = 0) → false := by Z3
-
--- Let
--- (a) let as a hypothesis (define-fun)
-example (X : Type) (x : X) (f : X → X) : let y : X := f x in y ≠ f x → false := by Z3
--- (b) let in a term (let ((...)) ...)
--- TODO(dhs): uncomment and test once compiler is fixed
--- example (X : Type) (x : X) (f : X → X) : (let y : X := f x in y ≠ f x) → false := by Z3
-
--- Compound names
--- Note: cannot even form compound binders, so I can only trigger the compound-name bug programmatically
--- example (X.hello : Type) (x.hello : X) : x ≠ x → false := by Z3
-
--- Generalizing constants
-namespace WithConstants
-constants (Y : Type) (y : Y)
-
-example (X : Type) (x : X) (f : X → Y) : f x = y → y ≠ f x → false :=
-by do Generalize.generalizeNonTheoryConstants,
-      Z3
-
-end WithConstants
-
-end Examples
 
 /-
 Notes:
