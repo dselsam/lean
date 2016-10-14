@@ -30,6 +30,13 @@ instance (n : ℕ) : has_mul (BitVec n) := sorry
 set_option pp.all true
 set_option eqn_compiler.max_steps 10000
 
+namespace rb_map
+
+meta def join {A B : Type} (m₁ m₂ : rb_map A B) : rb_map A B :=
+fold m₂ m₁ (λ (a : A) (b : B) (m : rb_map A B), m~>insert a b)
+
+end rb_map
+
 namespace Util
 
 private def list.withSepCore {X : Type} (f : X -> string) (sep : string) : bool -> list X -> string
@@ -38,6 +45,9 @@ private def list.withSepCore {X : Type} (f : X -> string) (sep : string) : bool 
 | ff (x::xs) := sep ++ f x ++ list.withSepCore ff xs
 
 def list.withSep {X : Type} (f : X -> string) (sep : string) : list X -> string := list.withSepCore f sep tt
+
+def uncurry {A B C : Type} (f : A → B → C) (ab : A × B) : C := f ab~>fst ab~>snd
+def curry {A B C : Type} (f : A × B → C) (a : A) (b : B) : C := f (a, b)
 
 end Util
 
@@ -421,6 +431,43 @@ do hypName ← return $ lref.getPPName hyp,
 
 end Command
 
+namespace Generalize
+
+-- TODO(dhs): note that the order matters
+meta def collectConstants (f : name → bool) : expr → list expr
+| (const n ls)               := if f n then [const n ls] else []
+| (app f arg)                := list.union (collectConstants f) (collectConstants arg)
+| (lam n bi dom bod)         := list.union (collectConstants dom) (collectConstants bod)
+| (pi n bi dom bod)          := list.union (collectConstants dom) (collectConstants bod)
+| (elet n ty val bod)        := list.union (list.union (collectConstants ty) (collectConstants val)) (collectConstants bod)
+| (local_const n pp_n bi ty) := collectConstants ty
+| (mvar n ty)                := collectConstants ty
+| _                          := []
+
+-- TODO(dhs): note that there are many places that need to be updated when the supported theory constants change
+meta def theoryNames : rb_map name unit :=
+let names : list name :=
+    [`Int, `Real, `BitVec,
+     `true, `false,
+     `not, `ne, `neg, `abs,
+     `and, `or, `eq, `implies,
+     `add, `sub, `mul, `div, `mod, `lt, `le, `gt, `ge,
+     `bvadd, `bvmul] in
+rb_map.of_list (list.zip names (list.repeat () $ list.length names))
+
+meta def isTheoryName (n : name) : bool := theoryNames~>contains n
+
+meta def collectNonTheoryConstants (e : expr) : list expr :=
+     collectConstants (λ (n : name), bnot $ isTheoryName n) e
+
+meta def generalizeNonTheoryConstants : tactic unit :=
+do local_context >>= revert_lst,
+   tgt ← target,
+   cs ← return $ list.reverse (collectNonTheoryConstants tgt),
+   monad.mapM' (uncurry generalize) (list.zip cs (list.map const_name cs))
+
+end Generalize
+
 
 meta def Z3 : tactic unit :=
 do intros,
@@ -439,7 +486,7 @@ end tactic
 
 namespace Examples
 open tactic
-open tactic.sm
+open tactic.smt
 
 -- Prop logic
 --example (P : Prop) : P → P → false := by Z3 -- should FAIL
@@ -486,6 +533,16 @@ example (X : Type) (x : X) (f : X → X) : let y : X := f x in y ≠ f x → fal
 -- Compound names
 -- Note: cannot even form compound binders, so I can only trigger the compound-name bug programmatically
 -- example (X.hello : Type) (x.hello : X) : x ≠ x → false := by Z3
+
+-- Generalizing constants
+namespace WithConstants
+constants (Y : Type) (y : Y)
+
+example (X : Type) (x : X) (f : X → Y) : f x = y → y ≠ f x → false :=
+by do Generalize.generalizeNonTheoryConstants,
+      Z3
+
+end WithConstants
 
 end Examples
 
