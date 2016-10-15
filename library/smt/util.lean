@@ -47,7 +47,8 @@ inductive ConcreteArithType
 | Int, Real
 -- | BitVec : ℕ → ConcreteArithType -- TODO(dhs): mpq_macro doesn't support this yet
 
-meta constant mkNumeralMacro : ℕ → ConcreteArithType → expr
+-- TODO(dhs): second arg is right now an encoding of ConcreteArithType
+meta constant mkNumeralMacro : ℕ → expr → expr
 -- TODO(dhs): note that environment is just for convenience to use the app-builder
 -- could also make it a tactic
 meta constant isNumeralMacro : environment → expr → option (ℕ × expr)

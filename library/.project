@@ -2,3 +2,4 @@
 - flycheck*.lean
 - .#*.lean
 - ERRORS.lean
+- examples.lean

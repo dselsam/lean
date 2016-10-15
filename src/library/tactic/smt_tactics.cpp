@@ -10,9 +10,15 @@ Author: Daniel Selsam
 #include <stdexcept>
 #include <string>
 #include "util/sstream.h"
+#include "library/mpq_macro.h"
+#include "library/num.h"
+#include "library/vm/vm_environment.h"
 #include "library/vm/vm_expr.h"
 #include "library/vm/vm_string.h"
+#include "library/vm/vm_nat.h"
 #include "library/exception.h"
+#include "library/constants.h"
+#include "library/app_builder.h"
 #include "library/kernel_serializer.h"
 #include "library/tactic/tactic_state.h"
 
@@ -119,6 +125,46 @@ vm_obj call_z3(vm_obj const & vm_input, vm_obj const & vm_s) {
     return mk_tactic_success(to_obj(output), s);
 }
 
+// TODO(dhs): maybe not the best place for these two
+vm_obj mk_numeral_macro(vm_obj const & vm_n, vm_obj const & vm_cty) {
+    mpq n(to_unsigned(vm_n));
+    expr cty = to_expr(vm_cty);
+
+    if (cty == mk_constant(get_ConcreteArithType_Int_name())) {
+        return to_obj(mk_mpq_macro(n, mk_constant(get_Int_name())));
+    } else if (cty == mk_constant(get_ConcreteArithType_Real_name())) {
+        return to_obj(mk_mpq_macro(n, mk_constant(get_Real_name())));
+    } else {
+        throw exception(sstream() << "Unexpected ConcreteArithType '" << cty << "' passed to mk_numeral_macro");
+    }
+}
+
+vm_obj is_numeral_macro(vm_obj const & vm_env, vm_obj const & vm_e) {
+    environment env = to_env(vm_env);
+    expr e = to_expr(vm_e);
+    mpq q;
+    optional<expr> ty = is_mpq_macro(e, q);
+
+    type_context tctx(env);
+
+    expr prod_type = mk_app(tctx, get_prod_name(),
+                            mk_constant(get_nat_name()),
+                            mk_constant(get_ConcreteArithType_name()));
+
+    vm_obj fail = to_obj(mk_app(tctx, get_option_none_name(), prod_type));
+
+    if (!ty || !q.is_integer())
+        return fail;
+
+    mpz n = q.get_numerator();
+
+    if (*ty == mk_constant(get_Int_name()) || *ty == mk_constant(get_Real_name()))
+        return to_obj(mk_app(tctx, get_option_some_name(),
+                             mk_app(tctx, get_prod_mk_name(), to_nat_expr(n), *ty)));
+    else
+        return fail;
+}
+
 void initialize_smt_tactics() {
     g_z3_macro_name = new name("z3");
     g_z3_opcode     = new std::string("Z3");
@@ -131,6 +177,9 @@ void initialize_smt_tactics() {
 
     DECLARE_VM_BUILTIN(name({"tactic", "smt", "trustZ3"}), trust_z3);
     DECLARE_VM_BUILTIN(name({"tactic", "smt", "callZ3"}), call_z3);
+
+    DECLARE_VM_BUILTIN(name({"expr", "mkNumeralMacro"}), mk_numeral_macro);
+    DECLARE_VM_BUILTIN(name({"expr", "isNumeralMacro"}), is_numeral_macro);
 }
 
 void finalize_smt_tactics() {

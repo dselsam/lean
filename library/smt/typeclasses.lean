@@ -59,12 +59,15 @@ private meta def strip : bool → expr → option expr
 
 -- Numerals
 | b e := match toMaybeNat e with
-         | some (n, const `Int []) := some $ mkNumeralMacro n ConcreteArithType.Int
-         | some (n, const `Real []) := some $ mkNumeralMacro n ConcreteArithType.Real
+         | some (n, const `Int []) := some $ mkNumeralMacro n (const `ConcreteArithType.Int [])
+         | some (n, const `Real []) := some $ mkNumeralMacro n (const `ConcreteArithType.Real [])
+-- TODO(dhs): numeral macro doesn't work for bitvec yet
+/-
          | some (n, app (const `BitVec []) k) := match toMaybeNat k with
                                                  | some (v, const `nat []) := some $ mkNumeralMacro n (ConcreteArithType.BitVec v)
                                                  | _ := none
                                                  end
+-/
          | _ :=
          match b with
          | ff := none
