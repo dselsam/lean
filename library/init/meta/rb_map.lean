@@ -28,6 +28,15 @@ meta def of_list {key : Type} {data : Type} [has_ordering key] : list (key × da
 | []           := mk key data
 | ((k, v)::ls) := insert (of_list ls) k v
 
+meta def keys {key : Type} {data : Type} [has_ordering key] (m : rb_map key data) : list key :=
+  fold m [] (λ k v ks, k::ks)
+
+meta def values {key : Type} {data : Type} [has_ordering key] (m : rb_map key data) : list data :=
+  fold m [] (λ k v vs, v::vs)
+
+meta def join {A B : Type} (m₁ m₂ : rb_map A B) : rb_map A B :=
+  fold m₂ m₁ (λ (a : A) (b : B) (m : rb_map A B), m~>insert a b)
+
 end rb_map
 
 attribute [reducible]

@@ -118,6 +118,9 @@ meta def get_app_args_aux : list expr → expr → list expr
 meta def get_app_args : expr → list expr :=
 get_app_args_aux []
 
+meta def get_app_fn_args (e : expr) : expr × list expr :=
+(get_app_fn e, get_app_args e)
+
 meta def const_name : expr → name
 | (const n ls) := n
 | e            := name.anonymous
@@ -204,5 +207,8 @@ meta def binding_body : expr → expr
 | e             := e
 
 meta def prop : expr := expr.sort level.zero
+meta def is_sort : expr -> bool
+| (expr.sort _) := tt
+| _             := ff
 
 end expr

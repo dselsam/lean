@@ -15,6 +15,15 @@ name const * g_and = nullptr;
 name const * g_and_elim_left = nullptr;
 name const * g_and_elim_right = nullptr;
 name const * g_and_intro = nullptr;
+name const * g_BitVec = nullptr;
+name const * g_BitVec_zero = nullptr;
+name const * g_BitVec_one = nullptr;
+name const * g_BitVec_add = nullptr;
+name const * g_BitVec_mul = nullptr;
+name const * g_BitVec_has_zero = nullptr;
+name const * g_BitVec_has_one = nullptr;
+name const * g_BitVec_has_add = nullptr;
+name const * g_BitVec_has_mul = nullptr;
 name const * g_bit0 = nullptr;
 name const * g_bit1 = nullptr;
 name const * g_bool = nullptr;
@@ -40,6 +49,10 @@ name const * g_comm_semiring = nullptr;
 name const * g_congr = nullptr;
 name const * g_congr_arg = nullptr;
 name const * g_congr_fun = nullptr;
+name const * g_ConcreteArithType = nullptr;
+name const * g_ConcreteArithType_Int = nullptr;
+name const * g_ConcreteArithType_Real = nullptr;
+name const * g_ConcreteArithType_BitVec = nullptr;
 name const * g_cyclic_numerals = nullptr;
 name const * g_cyclic_numerals_bound = nullptr;
 name const * g_decidable = nullptr;
@@ -121,6 +134,15 @@ name const * g_implies_of_if_neg = nullptr;
 name const * g_implies_of_if_pos = nullptr;
 name const * g_implies_resolve = nullptr;
 name const * g_insert = nullptr;
+name const * g_Int = nullptr;
+name const * g_Int_zero = nullptr;
+name const * g_Int_one = nullptr;
+name const * g_Int_add = nullptr;
+name const * g_Int_mul = nullptr;
+name const * g_Int_has_zero = nullptr;
+name const * g_Int_has_one = nullptr;
+name const * g_Int_has_add = nullptr;
+name const * g_Int_has_mul = nullptr;
 name const * g_int = nullptr;
 name const * g_int_of_nat = nullptr;
 name const * g_int_has_zero = nullptr;
@@ -282,6 +304,15 @@ name const * g_quot_lift = nullptr;
 name const * g_rat_divide = nullptr;
 name const * g_rat_of_num = nullptr;
 name const * g_rat_of_int = nullptr;
+name const * g_Real = nullptr;
+name const * g_Real_zero = nullptr;
+name const * g_Real_one = nullptr;
+name const * g_Real_add = nullptr;
+name const * g_Real_mul = nullptr;
+name const * g_Real_has_zero = nullptr;
+name const * g_Real_has_one = nullptr;
+name const * g_Real_has_add = nullptr;
+name const * g_Real_has_mul = nullptr;
 name const * g_real = nullptr;
 name const * g_real_has_zero = nullptr;
 name const * g_real_has_one = nullptr;
@@ -397,6 +428,15 @@ void initialize_constants() {
     g_and_elim_left = new name{"and", "elim_left"};
     g_and_elim_right = new name{"and", "elim_right"};
     g_and_intro = new name{"and", "intro"};
+    g_BitVec = new name{"BitVec"};
+    g_BitVec_zero = new name{"BitVec", "zero"};
+    g_BitVec_one = new name{"BitVec", "one"};
+    g_BitVec_add = new name{"BitVec", "add"};
+    g_BitVec_mul = new name{"BitVec", "mul"};
+    g_BitVec_has_zero = new name{"BitVec", "has_zero"};
+    g_BitVec_has_one = new name{"BitVec", "has_one"};
+    g_BitVec_has_add = new name{"BitVec", "has_add"};
+    g_BitVec_has_mul = new name{"BitVec", "has_mul"};
     g_bit0 = new name{"bit0"};
     g_bit1 = new name{"bit1"};
     g_bool = new name{"bool"};
@@ -422,6 +462,10 @@ void initialize_constants() {
     g_congr = new name{"congr"};
     g_congr_arg = new name{"congr_arg"};
     g_congr_fun = new name{"congr_fun"};
+    g_ConcreteArithType = new name{"ConcreteArithType"};
+    g_ConcreteArithType_Int = new name{"ConcreteArithType", "Int"};
+    g_ConcreteArithType_Real = new name{"ConcreteArithType", "Real"};
+    g_ConcreteArithType_BitVec = new name{"ConcreteArithType", "BitVec"};
     g_cyclic_numerals = new name{"cyclic_numerals"};
     g_cyclic_numerals_bound = new name{"cyclic_numerals", "bound"};
     g_decidable = new name{"decidable"};
@@ -503,6 +547,15 @@ void initialize_constants() {
     g_implies_of_if_pos = new name{"implies_of_if_pos"};
     g_implies_resolve = new name{"implies", "resolve"};
     g_insert = new name{"insert"};
+    g_Int = new name{"Int"};
+    g_Int_zero = new name{"Int", "zero"};
+    g_Int_one = new name{"Int", "one"};
+    g_Int_add = new name{"Int", "add"};
+    g_Int_mul = new name{"Int", "mul"};
+    g_Int_has_zero = new name{"Int", "has_zero"};
+    g_Int_has_one = new name{"Int", "has_one"};
+    g_Int_has_add = new name{"Int", "has_add"};
+    g_Int_has_mul = new name{"Int", "has_mul"};
     g_int = new name{"int"};
     g_int_of_nat = new name{"int", "of_nat"};
     g_int_has_zero = new name{"int", "has_zero"};
@@ -664,6 +717,15 @@ void initialize_constants() {
     g_rat_divide = new name{"rat", "divide"};
     g_rat_of_num = new name{"rat", "of_num"};
     g_rat_of_int = new name{"rat", "of_int"};
+    g_Real = new name{"Real"};
+    g_Real_zero = new name{"Real", "zero"};
+    g_Real_one = new name{"Real", "one"};
+    g_Real_add = new name{"Real", "add"};
+    g_Real_mul = new name{"Real", "mul"};
+    g_Real_has_zero = new name{"Real", "has_zero"};
+    g_Real_has_one = new name{"Real", "has_one"};
+    g_Real_has_add = new name{"Real", "has_add"};
+    g_Real_has_mul = new name{"Real", "has_mul"};
     g_real = new name{"real"};
     g_real_has_zero = new name{"real", "has_zero"};
     g_real_has_one = new name{"real", "has_one"};
@@ -780,6 +842,15 @@ void finalize_constants() {
     delete g_and_elim_left;
     delete g_and_elim_right;
     delete g_and_intro;
+    delete g_BitVec;
+    delete g_BitVec_zero;
+    delete g_BitVec_one;
+    delete g_BitVec_add;
+    delete g_BitVec_mul;
+    delete g_BitVec_has_zero;
+    delete g_BitVec_has_one;
+    delete g_BitVec_has_add;
+    delete g_BitVec_has_mul;
     delete g_bit0;
     delete g_bit1;
     delete g_bool;
@@ -805,6 +876,10 @@ void finalize_constants() {
     delete g_congr;
     delete g_congr_arg;
     delete g_congr_fun;
+    delete g_ConcreteArithType;
+    delete g_ConcreteArithType_Int;
+    delete g_ConcreteArithType_Real;
+    delete g_ConcreteArithType_BitVec;
     delete g_cyclic_numerals;
     delete g_cyclic_numerals_bound;
     delete g_decidable;
@@ -886,6 +961,15 @@ void finalize_constants() {
     delete g_implies_of_if_pos;
     delete g_implies_resolve;
     delete g_insert;
+    delete g_Int;
+    delete g_Int_zero;
+    delete g_Int_one;
+    delete g_Int_add;
+    delete g_Int_mul;
+    delete g_Int_has_zero;
+    delete g_Int_has_one;
+    delete g_Int_has_add;
+    delete g_Int_has_mul;
     delete g_int;
     delete g_int_of_nat;
     delete g_int_has_zero;
@@ -1047,6 +1131,15 @@ void finalize_constants() {
     delete g_rat_divide;
     delete g_rat_of_num;
     delete g_rat_of_int;
+    delete g_Real;
+    delete g_Real_zero;
+    delete g_Real_one;
+    delete g_Real_add;
+    delete g_Real_mul;
+    delete g_Real_has_zero;
+    delete g_Real_has_one;
+    delete g_Real_has_add;
+    delete g_Real_has_mul;
     delete g_real;
     delete g_real_has_zero;
     delete g_real_has_one;
@@ -1162,6 +1255,15 @@ name const & get_and_name() { return *g_and; }
 name const & get_and_elim_left_name() { return *g_and_elim_left; }
 name const & get_and_elim_right_name() { return *g_and_elim_right; }
 name const & get_and_intro_name() { return *g_and_intro; }
+name const & get_BitVec_name() { return *g_BitVec; }
+name const & get_BitVec_zero_name() { return *g_BitVec_zero; }
+name const & get_BitVec_one_name() { return *g_BitVec_one; }
+name const & get_BitVec_add_name() { return *g_BitVec_add; }
+name const & get_BitVec_mul_name() { return *g_BitVec_mul; }
+name const & get_BitVec_has_zero_name() { return *g_BitVec_has_zero; }
+name const & get_BitVec_has_one_name() { return *g_BitVec_has_one; }
+name const & get_BitVec_has_add_name() { return *g_BitVec_has_add; }
+name const & get_BitVec_has_mul_name() { return *g_BitVec_has_mul; }
 name const & get_bit0_name() { return *g_bit0; }
 name const & get_bit1_name() { return *g_bit1; }
 name const & get_bool_name() { return *g_bool; }
@@ -1187,6 +1289,10 @@ name const & get_comm_semiring_name() { return *g_comm_semiring; }
 name const & get_congr_name() { return *g_congr; }
 name const & get_congr_arg_name() { return *g_congr_arg; }
 name const & get_congr_fun_name() { return *g_congr_fun; }
+name const & get_ConcreteArithType_name() { return *g_ConcreteArithType; }
+name const & get_ConcreteArithType_Int_name() { return *g_ConcreteArithType_Int; }
+name const & get_ConcreteArithType_Real_name() { return *g_ConcreteArithType_Real; }
+name const & get_ConcreteArithType_BitVec_name() { return *g_ConcreteArithType_BitVec; }
 name const & get_cyclic_numerals_name() { return *g_cyclic_numerals; }
 name const & get_cyclic_numerals_bound_name() { return *g_cyclic_numerals_bound; }
 name const & get_decidable_name() { return *g_decidable; }
@@ -1268,6 +1374,15 @@ name const & get_implies_of_if_neg_name() { return *g_implies_of_if_neg; }
 name const & get_implies_of_if_pos_name() { return *g_implies_of_if_pos; }
 name const & get_implies_resolve_name() { return *g_implies_resolve; }
 name const & get_insert_name() { return *g_insert; }
+name const & get_Int_name() { return *g_Int; }
+name const & get_Int_zero_name() { return *g_Int_zero; }
+name const & get_Int_one_name() { return *g_Int_one; }
+name const & get_Int_add_name() { return *g_Int_add; }
+name const & get_Int_mul_name() { return *g_Int_mul; }
+name const & get_Int_has_zero_name() { return *g_Int_has_zero; }
+name const & get_Int_has_one_name() { return *g_Int_has_one; }
+name const & get_Int_has_add_name() { return *g_Int_has_add; }
+name const & get_Int_has_mul_name() { return *g_Int_has_mul; }
 name const & get_int_name() { return *g_int; }
 name const & get_int_of_nat_name() { return *g_int_of_nat; }
 name const & get_int_has_zero_name() { return *g_int_has_zero; }
@@ -1429,6 +1544,15 @@ name const & get_quot_lift_name() { return *g_quot_lift; }
 name const & get_rat_divide_name() { return *g_rat_divide; }
 name const & get_rat_of_num_name() { return *g_rat_of_num; }
 name const & get_rat_of_int_name() { return *g_rat_of_int; }
+name const & get_Real_name() { return *g_Real; }
+name const & get_Real_zero_name() { return *g_Real_zero; }
+name const & get_Real_one_name() { return *g_Real_one; }
+name const & get_Real_add_name() { return *g_Real_add; }
+name const & get_Real_mul_name() { return *g_Real_mul; }
+name const & get_Real_has_zero_name() { return *g_Real_has_zero; }
+name const & get_Real_has_one_name() { return *g_Real_has_one; }
+name const & get_Real_has_add_name() { return *g_Real_has_add; }
+name const & get_Real_has_mul_name() { return *g_Real_has_mul; }
 name const & get_real_name() { return *g_real; }
 name const & get_real_has_zero_name() { return *g_real_has_zero; }
 name const & get_real_has_one_name() { return *g_real_has_one; }

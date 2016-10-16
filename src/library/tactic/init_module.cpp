@@ -31,6 +31,7 @@ Author: Leonardo de Moura
 #include "library/tactic/simp_lemmas.h"
 #include "library/tactic/eqn_lemmas.h"
 #include "library/tactic/dsimplify.h"
+#include "library/tactic/smt_tactics.h"
 #include "library/tactic/simplifier/init_module.h"
 #include "library/tactic/backward/init_module.h"
 
@@ -60,6 +61,7 @@ void initialize_tactic_module() {
     initialize_simplifier_module();
     initialize_backward_module();
     initialize_elaborate();
+    initialize_smt_tactics();
     initialize_user_attribute();
     initialize_eval();
     initialize_simp_lemmas();
@@ -72,6 +74,7 @@ void finalize_tactic_module() {
     finalize_simp_lemmas();
     finalize_eval();
     finalize_user_attribute();
+    finalize_smt_tactics();
     finalize_elaborate();
     finalize_backward_module();
     finalize_simplifier_module();

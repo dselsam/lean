@@ -66,4 +66,11 @@ def read {S : Type} {M : Type → Type} [monad M] : stateT S M S :=
 
 def write {S : Type} {M : Type → Type} [monad M] : S → stateT S M unit :=
 λ s' s, return ((), s')
+
+def run {S : Type} {M : Type → Type} [monad M] {A : Type} (st : stateT S M A) (s : S) : M A :=
+do (a, s') ← st s, return a
+
+def exec {S : Type} {M : Type → Type} [monad M] {A : Type} (st : stateT S M A) (s : S) : M S :=
+do (a, s') ← st s, return s'
+
 end stateT

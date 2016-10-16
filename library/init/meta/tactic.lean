@@ -171,6 +171,9 @@ meta def list_to_tactic_format {A : Type} [has_to_tactic_format A] : list A → 
 meta instance {A : Type} [has_to_tactic_format A] : has_to_tactic_format (list A) :=
 ⟨list_to_tactic_format⟩
 
+meta instance {A B : Type} [has_to_tactic_format A] [has_to_tactic_format B] : has_to_tactic_format (A × B) :=
+⟨λ p, prod.rec_on p (λ x y, do x' ← pp x, y' ← pp y, return $ to_fmt "(" ++ x' ++ ", " ++ y' ++ ")")⟩
+
 meta instance has_to_format_to_has_to_tactic_format (A : Type) [has_to_format A] : has_to_tactic_format A :=
 ⟨(λ x, return x) ∘ to_fmt⟩
 
@@ -425,6 +428,9 @@ match (expr.is_not e) with
 | (some a) := return a
 | none     := fail "expression is not a negation"
 end
+
+meta def match_false (e : expr) : tactic unit :=
+if expr.is_false e then skip else fail "expression is not false"
 
 meta def match_eq (e : expr) : tactic (expr × expr) :=
 match (expr.is_eq e) with
