@@ -234,16 +234,10 @@ void type_context::init_core(transparency_mode m) {
     m_unfold_pred                 = nullptr;
     m_approximate                 = false;
     if (auto instance_fingerprint = m_lctx.get_instance_fingerprint()) {
-        if (m_cache->m_instance_fingerprint == instance_fingerprint) {
-            lean_trace("type_context_cache", tout() << "reusing instance cache, fingerprint: " << *instance_fingerprint << "\n";);
-            m_local_instances = m_cache->m_local_instances;
-        } else {
-            lean_trace("type_context_cache", tout() << "incompatible fingerprints, flushing instance cache\n";);
-            init_local_instances();
-            flush_instance_cache();
-            m_cache->m_instance_fingerprint = m_lctx.get_instance_fingerprint();
-            m_cache->m_local_instances      = m_local_instances;
-        }
+        init_local_instances();
+        flush_instance_cache();
+        m_cache->m_instance_fingerprint = m_lctx.get_instance_fingerprint();
+        m_cache->m_local_instances      = m_local_instances;
     } else {
         init_local_instances();
         flush_instance_cache();
@@ -279,7 +273,7 @@ type_context::~type_context() {
 }
 
 void type_context::set_env(environment const & env) {
-    lean_assert(m_cache->m_instance_fingerprint == m_lctx.get_instance_fingerprint());
+//    lean_assert(m_cache->m_instance_fingerprint == m_lctx.get_instance_fingerprint());
     options o = m_cache->m_options;
     if (m_cache_manager) {
         m_cache_manager->recycle(m_cache);
@@ -296,15 +290,16 @@ void type_context::set_env(environment const & env) {
 }
 
 void type_context::update_local_instances(expr const & new_local, expr const & new_type) {
-    if (!m_cache->m_instance_fingerprint) {
-        if (auto c_name = is_class(new_type)) {
-            m_local_instances = cons(mk_pair(*c_name, new_local), m_local_instances);
-            flush_instance_cache();
-        }
+    if (auto c_name = is_class(new_type)) {
+        m_local_instances = cons(mk_pair(*c_name, new_local), m_local_instances);
+        flush_instance_cache();
     }
 }
 
 expr type_context::push_local(name const & pp_name, expr const & type, binder_info const & bi) {
+    if (pp_name == name("deceq")) {
+        unsigned i = 0;
+    }
     expr local = m_lctx.mk_local_decl(pp_name, type, bi);
     update_local_instances(local, type);
     return local;
@@ -1917,7 +1912,7 @@ bool type_context::is_def_eq_binding(expr e1, expr e2) {
 }
 
 optional<expr> type_context::mk_class_instance_at(local_context const & lctx, expr const & type) {
-    lean_assert(m_cache->m_instance_fingerprint == m_lctx.get_instance_fingerprint());
+//    lean_assert(m_cache->m_instance_fingerprint == m_lctx.get_instance_fingerprint());
 
     type_context tmp_ctx(m_cache, m_mctx, lctx, m_transparency_mode);
     auto r = tmp_ctx.mk_class_instance(type);
@@ -1931,7 +1926,7 @@ optional<expr> type_context::mk_class_instance_at(local_context const & lctx, ex
         m_cache->m_local_instances      = m_local_instances;
     }
 
-    lean_assert(m_cache->m_instance_fingerprint == m_lctx.get_instance_fingerprint());
+//    lean_assert(m_cache->m_instance_fingerprint == m_lctx.get_instance_fingerprint());
     return r;
 }
 

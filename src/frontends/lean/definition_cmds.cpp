@@ -565,7 +565,7 @@ environment single_definition_cmd_core(parser & p, def_cmd_kind kind, decl_modif
     elaborator elab(p.env(), p.get_options(), metavar_context(), local_context());
     buffer<expr> new_params;
     elaborate_params(elab, params, new_params);
-    elab.set_instance_fingerprint();
+//    elab.set_instance_fingerprint();
     replace_params(params, new_params, fn, val);
 
     auto process = [&](expr val) -> environment {

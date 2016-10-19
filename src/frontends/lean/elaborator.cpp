@@ -1738,6 +1738,11 @@ expr elaborator::visit_equation(expr const & eq) {
         synthesize_no_tactics();
     }
     expr new_lhs_type = instantiate_mvars(infer_type(new_lhs));
+
+    metavar_context mctx = m_ctx.mctx();
+    local_context lctx = m_ctx.lctx().instantiate_mvars(mctx);
+    m_ctx = type_context(m_ctx.env(), m_ctx.get_options(), mctx, lctx, m_ctx.mode());
+
     expr new_rhs      = visit(rhs, some_expr(new_lhs_type));
     new_rhs = enforce_type(new_rhs, new_lhs_type, "equation type mismatch", eq);
     return copy_tag(eq, mk_equation(new_lhs, new_rhs));
