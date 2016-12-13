@@ -684,8 +684,13 @@ expr type_context::whnf_core(expr const & e) {
             return whnf_core(mk_rev_app(::lean::instantiate(binding_body(f), m, args.data() + (num_args - m)),
                                         num_args - m, args.data()));
         } else if (f == f0) {
+            optional<expr> r;
             if (auto r = norm_ext(e)) {
                 /* mainly iota-reduction, it also applies HIT and quotient reduction rules */
+                return whnf_core(*r);
+            } else if (is_stuck(e) && (r = norm_ext(instantiate_mvars(e)))) {
+                /* mainly iota-reduction, it also applies HIT and quotient reduction rules */
+                m_used_assignment = true;
                 return whnf_core(*r);
             } else if (auto r = reduce_projection(e)) {
                 return whnf_core(*r);
