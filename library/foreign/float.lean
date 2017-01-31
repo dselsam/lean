@@ -4,8 +4,8 @@ meta constant float : Type
 
 namespace float
 
-meta constants zero one : float
-meta constants neg inv exp log : float → float
+meta constants zero one pi : float
+meta constants neg inv exp log sqrt tanh : float → float
 meta constants add mul sub div : float → float → float
 
 meta constant to_string : float → string
