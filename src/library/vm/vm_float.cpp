@@ -6,6 +6,7 @@ Author: Daniel Selsam
 #include <iostream>
 #include "library/vm/vm.h"
 #include "library/vm/vm_string.h"
+#include "library/vm/vm_float.h"
 
 namespace lean {
 
@@ -30,11 +31,14 @@ float to_float(vm_obj const & o) {
 
 vm_obj float_zero() { return to_obj(0.0); }
 vm_obj float_one() { return to_obj(1.0); }
+vm_obj float_pi() { return to_obj(3.1415926535897); }
 
 vm_obj float_neg(vm_obj const & x) { return to_obj(-to_float(x)); }
 vm_obj float_inv(vm_obj const & x) { return to_obj(1.0/to_float(x)); }
 vm_obj float_exp(vm_obj const & x) { return to_obj(exp(to_float(x))); }
 vm_obj float_log(vm_obj const & x) { return to_obj(log(to_float(x))); }
+vm_obj float_sqrt(vm_obj const & x) { return to_obj(sqrt(to_float(x))); }
+vm_obj float_tanh(vm_obj const & x) { return to_obj(tanh(to_float(x))); }
 
 vm_obj float_add(vm_obj const & x, vm_obj const & y) { return to_obj(to_float(x) + to_float(y)); }
 vm_obj float_mul(vm_obj const & x, vm_obj const & y) { return to_obj(to_float(x) * to_float(y)); }
@@ -50,10 +54,13 @@ vm_obj float_to_string(vm_obj const & x) {
 void initialize_vm_float() {
     DECLARE_VM_BUILTIN(name({"float", "zero"}),       float_zero);
     DECLARE_VM_BUILTIN(name({"float", "one"}),        float_one);
+    DECLARE_VM_BUILTIN(name({"float", "pi"}),         float_pi);
     DECLARE_VM_BUILTIN(name({"float", "neg"}),        float_neg);
     DECLARE_VM_BUILTIN(name({"float", "inv"}),        float_inv);
     DECLARE_VM_BUILTIN(name({"float", "exp"}),        float_exp);
     DECLARE_VM_BUILTIN(name({"float", "log"}),        float_log);
+    DECLARE_VM_BUILTIN(name({"float", "sqrt"}),       float_sqrt);
+    DECLARE_VM_BUILTIN(name({"float", "tanh"}),       float_tanh);
     DECLARE_VM_BUILTIN(name({"float", "add"}),        float_add);
     DECLARE_VM_BUILTIN(name({"float", "mul"}),        float_mul);
     DECLARE_VM_BUILTIN(name({"float", "sub"}),        float_sub);

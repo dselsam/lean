@@ -235,6 +235,10 @@ if(TRACK_MEMORY_USAGE)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D LEAN_TRACK_MEMORY")
 endif()
 
+# Eigen
+# TODO(dhs): this may need to change
+include_directories(/usr/local/include/eigen3)
+
 # jemalloc
 if(JEMALLOC)
   find_package(Jemalloc)
