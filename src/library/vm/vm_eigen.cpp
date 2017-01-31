@@ -32,10 +32,23 @@ Eigen::ArrayXf to_eigen(vm_obj const & o) {
     return static_cast<vm_eigen*>(to_external(o))->m_val;
 }
 
-vm_obj eigen_to_string(vm_obj const & /* shape */, vm_obj const & x) {
-    std::ostringstream out;
-    out << to_eigen(x);
-    return to_obj(out.str());
+vm_obj eigen_to_string(vm_obj const & shape, vm_obj const & v) {
+    list<unsigned> dims = to_list<unsigned, std::function<unsigned(vm_obj const &)> >(shape, to_unsigned);
+    if (length(dims) <= 1) {
+        std::ostringstream out;
+        out << to_eigen(v).transpose();
+        return to_obj(out.str());
+    } else if (length(dims) == 2) {
+        // Print matrices specially
+        Eigen::Map<Eigen::MatrixXf> M(to_eigen(v).data(), head(dims), head(tail(dims)));
+        std::ostringstream out;
+        out << M.transpose();
+        return to_obj(out.str());
+    } else {
+        std::ostringstream out;
+        out << dims << to_eigen(v).transpose();
+        return to_obj(out.str());
+    }
 }
 
 static long unsigned shape_len(vm_obj const & shape) {

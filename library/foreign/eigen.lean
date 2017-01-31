@@ -45,9 +45,16 @@ end eigen
 namespace Test
 open eigen
 
-meta def t₁ : T [2, 2] := eigen.add (eigen.one _) (eigen.one _)
+meta def t₀ : T [] := eigen.add (eigen.one _) (eigen.one _)
+meta def t₁ : T [2] := eigen.add (eigen.one _) (eigen.one _)
+meta def t₂ : T [2, 2] := eigen.add (eigen.one _) (eigen.one _)
+meta def t₃ : T [2, 2, 2] := eigen.add (eigen.one _) (eigen.one _)
 
+vm_eval t₀
 vm_eval t₁
-vm_eval gemm t₁ t₁
+vm_eval t₂
+vm_eval t₃
+
+--vm_eval gemm t₁ t₁
 
 end Test
