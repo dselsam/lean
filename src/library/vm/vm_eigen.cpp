@@ -53,9 +53,9 @@ vm_obj eigen_to_string(vm_obj const & shape, vm_obj const & v) {
     std::ostringstream out;
     out << dims << std::endl;
     if (optional<pair<unsigned, unsigned> > mn = is_matrix(shape)) {
-        out << std::endl << to_eigen(v);
+        out << to_eigen(v);
     } else {
-        out << std::endl << to_eigen(v).transpose();
+        out << to_eigen(v).transpose();
     }
     return to_obj(out.str());
 }
@@ -103,6 +103,19 @@ vm_obj eigen_pi(vm_obj const & shape) {
     } else {
         return to_obj(Eigen::ArrayXXf::NullaryExpr(shape_len(shape), 1, [&]() {
                     return 3.14159265358979323846;
+                }));
+    }
+}
+
+vm_obj eigen_const(vm_obj const & alpha, vm_obj const & shape) {
+    Eigen::ArrayXXf arr;
+    if (optional<pair<unsigned, unsigned> > mn = is_matrix(shape)) {
+        return to_obj(Eigen::ArrayXXf::NullaryExpr(mn->first, mn->second, [&]() {
+                    return to_float(alpha);
+                }));
+    } else {
+        return to_obj(Eigen::ArrayXXf::NullaryExpr(shape_len(shape), 1, [&]() {
+                    return to_float(alpha);
                 }));
     }
 }
@@ -219,6 +232,7 @@ void initialize_vm_eigen() {
     DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "zero"}),             eigen_zero);
     DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "one"}),              eigen_one);
     DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "pi"}),               eigen_pi);
+    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "const"}),            eigen_const);
 
     DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "neg"}),              eigen_neg);
     DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "inv"}),              eigen_inv);

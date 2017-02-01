@@ -698,6 +698,22 @@ vm_obj tactic_add_decl(vm_obj const & _d, vm_obj const & _s) {
     }
 }
 
+// meta constant add_inductive : name → list name → nat → expr → list (name × expr) → bool → tactic unit
+vm_obj tactic_add_inductive(vm_obj const & ind_name, vm_obj const & lp_names, vm_obj const & num_params, vm_obj const & ind_type, vm_obj const & cs, vm_obj const & is_trusted, vm_obj const & _s) {
+    tactic_state const & s  = to_tactic_state(_s);
+    try {
+        list<inductive::intro_rule> intro_rules = to_list<inductive::intro_rule, std::function<inductive::intro_rule(vm_obj const &)> >(cs, [&](vm_obj const & o) {
+                return inductive::mk_intro_rule(to_name(cfield(o, 0)),
+                                                to_expr(cfield(o, 1))); });
+
+        inductive::inductive_decl decl(to_name(ind_name), to_list_name(lp_names), to_unsigned(num_params), to_expr(ind_type), intro_rules);
+        environment new_env = module::add_inductive(s.env(), decl, to_bool(is_trusted));
+        return mk_tactic_success(set_env(s, new_env));
+    } catch (throwable & ex) {
+        return mk_tactic_exception(ex, s);
+    }
+}
+
 vm_obj tactic_open_namespaces(vm_obj const & s) {
     environment env = to_tactic_state(s).env();
     buffer<name> b;
@@ -811,6 +827,7 @@ void initialize_tactic_state() {
     DECLARE_VM_BUILTIN(name({"tactic", "is_trace_enabled_for"}), tactic_is_trace_enabled_for);
     DECLARE_VM_BUILTIN(name({"tactic", "instantiate_mvars"}),    tactic_instantiate_mvars);
     DECLARE_VM_BUILTIN(name({"tactic", "add_decl"}),             tactic_add_decl);
+    DECLARE_VM_BUILTIN(name({"tactic", "add_inductive"}),        tactic_add_inductive);
     DECLARE_VM_BUILTIN(name({"tactic", "doc_string"}),           tactic_doc_string);
     DECLARE_VM_BUILTIN(name({"tactic", "add_doc_string"}),       tactic_add_doc_string);
     DECLARE_VM_BUILTIN(name({"tactic", "module_doc_strings"}),   tactic_module_doc_strings);
