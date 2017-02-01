@@ -57,16 +57,28 @@ meta def names_to_transport : list name :=
     `certigrad.T.has_mul,
     `certigrad.T.has_sub,
     `certigrad.T.has_div,
-    `certigrad.T.mdot
+
+    `certigrad.T.dot,
+    `certigrad.T.square,
+
+    `certigrad.T.mvn_iso_pdf,
+    `certigrad.T.mvn_iso_logpdf,
+    `certigrad.T.mvn_iso_std_logpdf,
+    `certigrad.T.mvn_transform,
+
+    `certigrad.T.IsContinuous,
+
+    `certigrad.Distribution.Primitive.Grad,
+    `certigrad.Distribution.Primitive,
+    `certigrad.Distribution,
+    `certigrad.PDF,
+
+    `certigrad.Env,
+
+    `certigrad.Op.to_dist._main,
+    `certigrad.Op.to_dist,
+    `certigrad.Node.to_dist
 ]
-
-namespace certigrad
-namespace T
-
-noncomputable def mdot {n : ℕ} (x y : certigrad.T [n]) : certigrad.T [] := sum (x * y)
-
-end T
-end certigrad
 
 open tactic
 
@@ -84,27 +96,51 @@ e^.replace (λ e d,
 meta def meta_copy_decl_using (replacements : name_map name) (src_decl_name : name) (new_decl_name : name) : command :=
 do env  ← get_env,
    decl ← returnex $ env^.get src_decl_name,
-   new_decl ← return $ declaration.defn new_decl_name
-                                        decl^.univ_params
-                                        (apply_replacement replacements decl^.type)
-                                        (apply_replacement replacements decl^.value)
-                                        (reducibility_hints.regular 1 tt)
-                                        ff,
+   new_decl ← return $ match decl with
+              | defn n lp_names ty val rhints trusted :=
+                   declaration.defn new_decl_name
+                            decl^.univ_params
+                            (apply_replacement replacements decl^.type)
+                            (apply_replacement replacements decl^.value)
+                            (reducibility_hints.regular 1 tt)
+                            ff
+              | cnst n lp_names ty trusted :=
+                   declaration.cnst new_decl_name
+                            decl^.univ_params
+                            (apply_replacement replacements decl^.type)
+                            ff
+              end | failed,
    add_decl new_decl,
    copy_attribute `instance src_decl_name tt new_decl_name
 
 open tactic
 
+meta def transport_inductive (env : environment) (replacements : name_map name) (n : name) : command := do
+  decl ← returnex $ env^.get n,
+  cnames ← return $ env^.constructors_of n,
+  cdecls ← monad.mapm (λ cn, returnex $ env^.get cn) cnames,
+  ctypes ← return $ list.map (λ (cdecl : declaration), apply_replacement replacements cdecl^.type) cdecls,
+  add_inductive (approx_name n)
+                decl^.univ_params
+                (env^.inductive_num_params n)
+                (apply_replacement replacements decl^.type)
+                (list.zip cnames ctypes)
+                ff
 
 meta def mtransport : command :=
 let dict : name_map name := rb_map.of_list (list.map (λ n, (n, approx_name n)) (names_to_approx ++ names_to_transport)) in
 list.foldl (λ t (n : name), do
   env ← get_env,
-  t >> meta_copy_decl_using dict n (approx_name n))
+  if environment.is_inductive env n = tt
+  then t >> transport_inductive env dict n
+  else t >> meta_copy_decl_using dict n (approx_name n))
 skip names_to_transport
 
 run_command mtransport
+/-
+print "certigrad.approx.T.dot:"
+print certigrad.approx.T.dot
 
-print certigrad.approx.T.mdot
-
-vm_eval certigrad.approx.T.mdot (1 : certigrad.approx.T [5]) 1
+print "(1 : T [5]) dot 1"
+vm_eval certigrad.approx.T.dot (1 : certigrad.approx.T [5]) 1
+-/
