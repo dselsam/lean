@@ -10,8 +10,8 @@ Author: Leonardo de Moura
 #include "library/vm/vm.h"
 
 namespace lean {
-vm_obj to_obj(Eigen::ArrayXf const & v);
-Eigen::ArrayXf to_eigen(vm_obj const & o);
+vm_obj to_obj(Eigen::ArrayXXf const & v);
+Eigen::ArrayXXf to_eigen(vm_obj const & o);
 
 void initialize_vm_eigen();
 void finalize_vm_eigen();
