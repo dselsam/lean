@@ -52,6 +52,7 @@ vm_obj float_to_string(vm_obj const & x) {
 }
 
 void initialize_vm_float() {
+    /*
     DECLARE_VM_BUILTIN(name({"R", "zero"}),       float_zero);
     DECLARE_VM_BUILTIN(name({"R", "one"}),        float_one);
     DECLARE_VM_BUILTIN(name({"R", "pi"}),         float_pi);
@@ -66,6 +67,7 @@ void initialize_vm_float() {
     DECLARE_VM_BUILTIN(name({"R", "sub"}),        float_sub);
     DECLARE_VM_BUILTIN(name({"R", "div"}),        float_div);
     DECLARE_VM_BUILTIN(name({"R", "to_string"}),  float_to_string);
+    */
 }
 
 void finalize_vm_float() {}
