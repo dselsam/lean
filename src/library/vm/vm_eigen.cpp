@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Author: Daniel Selsam
 */
 #include <iostream>
+#include <random>
 #include "library/vm/vm.h"
 #include "library/vm/vm_nat.h"
 #include "library/vm/vm_list.h"
@@ -32,21 +33,6 @@ Eigen::ArrayXXf to_eigen(vm_obj const & o) {
     return static_cast<vm_eigen*>(to_external(o))->m_val;
 }
 
-vm_obj eigen_to_string(vm_obj const & shape, vm_obj const & v) {
-    list<unsigned> dims = to_list<unsigned, std::function<unsigned(vm_obj const &)> >(shape, to_unsigned);
-    std::ostringstream out;
-    out << dims << std::endl << to_eigen(v).transpose();
-    return to_obj(out.str());
-}
-
-static long unsigned shape_len(vm_obj const & shape) {
-    list<unsigned> dims = to_list<unsigned, std::function<unsigned(vm_obj const &)> >(shape, to_unsigned);
-    long unsigned len = 1;
-    for (unsigned dim : dims)
-        len *= dim;
-    return len;
-}
-
 static optional<pair<unsigned, unsigned> > is_matrix(vm_obj const & shape) {
     list<unsigned> dims = to_list<unsigned, std::function<unsigned(vm_obj const &)> >(shape, to_unsigned);
     if (length(dims) == 2) {
@@ -60,6 +46,26 @@ static vm_obj box(float const & x) {
     Eigen::ArrayXXf arr(1, 1);
     arr(0, 0) = x;
     return to_obj(arr);
+}
+
+vm_obj eigen_to_string(vm_obj const & shape, vm_obj const & v) {
+    list<unsigned> dims = to_list<unsigned, std::function<unsigned(vm_obj const &)> >(shape, to_unsigned);
+    std::ostringstream out;
+    out << dims << std::endl;
+    if (optional<pair<unsigned, unsigned> > mn = is_matrix(shape)) {
+        out << std::endl << to_eigen(v);
+    } else {
+        out << std::endl << to_eigen(v).transpose();
+    }
+    return to_obj(out.str());
+}
+
+static long unsigned shape_len(vm_obj const & shape) {
+    list<unsigned> dims = to_list<unsigned, std::function<unsigned(vm_obj const &)> >(shape, to_unsigned);
+    long unsigned len = 1;
+    for (unsigned dim : dims)
+        len *= dim;
+    return len;
 }
 
 vm_obj eigen_box(vm_obj const & x) {
@@ -136,13 +142,6 @@ vm_obj eigen_get_col_range(vm_obj const & m, vm_obj const & n, vm_obj const & M,
     return to_obj(to_eigen(M).block(0, to_unsigned(cidx), to_unsigned(m), to_unsigned(ncols_to_take)).array());
 }
 
-vm_obj eigen_dot(vm_obj const & /* shape */, vm_obj const & v1, vm_obj const & v2) {
-    throw exception("eigen_dot not yet implemented");
-//    Eigen::ArrayXXf arr(1, 1);
-//    arr(0, 0) = to_eigen(v1).matrix().dot(to_eigen(v2).matrix());
-//    return to_obj(arr);
-}
-
 vm_obj eigen_gemv(vm_obj const & m, vm_obj const & n, vm_obj const & M, vm_obj const & v) {
 // meta constant gemv {m n : ℕ} (M : T [m, n]) (x : T [n]) : T [m]
     Eigen::VectorXf result = to_eigen(M).matrix() * to_eigen(v).matrix();
@@ -155,38 +154,96 @@ vm_obj eigen_gemm(vm_obj const & m, vm_obj const & n, vm_obj const & p, vm_obj c
     return to_obj(result.array());
 }
 
+// Random
+
+struct vm_rng : public vm_external {
+    std::minstd_rand m_val;
+    vm_rng(std::minstd_rand const & rng): m_val(rng) {}
+    virtual ~vm_rng() {}
+    virtual void dealloc() override { this->~vm_rng(); get_vm_allocator().deallocate(sizeof(vm_rng), this); }
+    virtual vm_external * ts_clone(vm_clone_fn const &) override { return new vm_rng(m_val); }
+    virtual vm_external * clone(vm_clone_fn const &) override { return new (get_vm_allocator().allocate(sizeof(vm_rng))) vm_rng(m_val); }
+};
+
+vm_obj to_obj(std::minstd_rand const & rng) {
+    return mk_vm_external(new (get_vm_allocator().allocate(sizeof(vm_rng))) vm_rng(rng));
+}
+
+std::minstd_rand const & to_rng(vm_obj const & o) {
+    lean_assert(is_external(o));
+    lean_assert(dynamic_cast<vm_rng*>(to_external(o)));
+    return static_cast<vm_rng*>(to_external(o))->m_val;
+}
+
+vm_obj eigen_rng_to_string(vm_obj const & rng) {
+    std::ostringstream out;
+    out << to_rng(rng);
+    return to_obj(out.str());
+}
+
+vm_obj eigen_mk_rng(vm_obj const & seed) {
+    // TODO(dhs): take a proof that it is small enough
+    return to_obj(std::minstd_rand(to_unsigned(seed)));
+}
+
+float sample_gauss(std::minstd_rand & g) {
+    std::normal_distribution<> dist;
+    float x = dist(g);
+    std::cout << "sample_gauss: " << x << std::endl;
+    return x;
+}
+
+vm_obj eigen_sample_gauss(vm_obj const & shape, vm_obj const & g_old) {
+    std::cout << "[sample_gauss]" << std::endl;
+    std::minstd_rand g = to_rng(g_old);
+    if (optional<pair<unsigned, unsigned> > mn = is_matrix(shape)) {
+        Eigen::ArrayXXf arr = Eigen::ArrayXXf::NullaryExpr(mn->first, mn->second, [&]() { return sample_gauss(g); });
+        std::cout << "matrix" << arr << std::endl;
+        return mk_vm_pair(to_obj(arr), to_obj(g));
+    } else {
+        Eigen::ArrayXXf arr = Eigen::ArrayXXf::NullaryExpr(shape_len(shape), 1, [&]() { return sample_gauss(g); });
+        std::cout << "non-matrix" << to_eigen(to_obj(arr)) << std::endl;
+        return mk_vm_pair(to_obj(arr), to_obj(g));
+    }
+}
+
 void initialize_vm_eigen() {
-    DECLARE_VM_BUILTIN(name({"T", "to_string"}),        eigen_to_string);
-    DECLARE_VM_BUILTIN(name({"T", "of_nat"}),           eigen_of_nat);
-    DECLARE_VM_BUILTIN(name({"T", "box"}),              eigen_box);
+    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "RNG", "to_string"}),      eigen_rng_to_string);
+    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "RNG", "mk"}),             eigen_mk_rng);
 
-    DECLARE_VM_BUILTIN(name({"T", "zero"}),             eigen_zero);
-    DECLARE_VM_BUILTIN(name({"T", "one"}),              eigen_one);
-    DECLARE_VM_BUILTIN(name({"T", "pi"}),               eigen_pi);
+    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "to_string"}),        eigen_to_string);
 
-    DECLARE_VM_BUILTIN(name({"T", "neg"}),              eigen_neg);
-    DECLARE_VM_BUILTIN(name({"T", "inv"}),              eigen_inv);
-    DECLARE_VM_BUILTIN(name({"T", "exp"}),              eigen_exp);
-    DECLARE_VM_BUILTIN(name({"T", "log"}),              eigen_log);
-    DECLARE_VM_BUILTIN(name({"T", "sqrt"}),             eigen_sqrt);
-    DECLARE_VM_BUILTIN(name({"T", "tanh"}),             eigen_tanh);
+    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "of_nat"}),           eigen_of_nat);
+    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "box"}),              eigen_box);
 
-    DECLARE_VM_BUILTIN(name({"T", "add"}),              eigen_add);
-    DECLARE_VM_BUILTIN(name({"T", "mul"}),              eigen_mul);
-    DECLARE_VM_BUILTIN(name({"T", "sub"}),              eigen_sub);
-    DECLARE_VM_BUILTIN(name({"T", "div"}),              eigen_div);
+    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "zero"}),             eigen_zero);
+    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "one"}),              eigen_one);
+    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "pi"}),               eigen_pi);
 
-    DECLARE_VM_BUILTIN(name({"T", "smul"}),             eigen_smul);
-    DECLARE_VM_BUILTIN(name({"T", "sum"}),              eigen_sum);
-    DECLARE_VM_BUILTIN(name({"T", "prod"}),             eigen_prod);
+    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "neg"}),              eigen_neg);
+    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "inv"}),              eigen_inv);
+    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "exp"}),              eigen_exp);
+    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "log"}),              eigen_log);
+    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "sqrt"}),             eigen_sqrt);
+    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "tanh"}),             eigen_tanh);
 
-    DECLARE_VM_BUILTIN(name({"T", "get_row"}),          eigen_get_row);
-    DECLARE_VM_BUILTIN(name({"T", "get_col"}),          eigen_get_col);
-    DECLARE_VM_BUILTIN(name({"T", "get_col_range"}),    eigen_get_col_range);
+    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "add"}),              eigen_add);
+    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "mul"}),              eigen_mul);
+    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "sub"}),              eigen_sub);
+    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "div"}),              eigen_div);
 
-//    DECLARE_VM_BUILTIN(name({"T", "dot"}),              eigen_dot);
-    DECLARE_VM_BUILTIN(name({"T", "gemv"}),             eigen_gemv);
-    DECLARE_VM_BUILTIN(name({"T", "gemm"}),             eigen_gemm);
+    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "smul"}),             eigen_smul);
+    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "sum"}),              eigen_sum);
+    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "prod"}),             eigen_prod);
+
+    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "get_row"}),          eigen_get_row);
+    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "get_col"}),          eigen_get_col);
+    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "get_col_range"}),    eigen_get_col_range);
+
+    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "gemv"}),             eigen_gemv);
+    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "gemm"}),             eigen_gemm);
+
+    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "sample_gauss"}),     eigen_sample_gauss);
 }
 
 void finalize_vm_eigen() {}
