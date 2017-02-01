@@ -52,20 +52,20 @@ vm_obj float_to_string(vm_obj const & x) {
 }
 
 void initialize_vm_float() {
-    DECLARE_VM_BUILTIN(name({"float", "zero"}),       float_zero);
-    DECLARE_VM_BUILTIN(name({"float", "one"}),        float_one);
-    DECLARE_VM_BUILTIN(name({"float", "pi"}),         float_pi);
-    DECLARE_VM_BUILTIN(name({"float", "neg"}),        float_neg);
-    DECLARE_VM_BUILTIN(name({"float", "inv"}),        float_inv);
-    DECLARE_VM_BUILTIN(name({"float", "exp"}),        float_exp);
-    DECLARE_VM_BUILTIN(name({"float", "log"}),        float_log);
-    DECLARE_VM_BUILTIN(name({"float", "sqrt"}),       float_sqrt);
-    DECLARE_VM_BUILTIN(name({"float", "tanh"}),       float_tanh);
-    DECLARE_VM_BUILTIN(name({"float", "add"}),        float_add);
-    DECLARE_VM_BUILTIN(name({"float", "mul"}),        float_mul);
-    DECLARE_VM_BUILTIN(name({"float", "sub"}),        float_sub);
-    DECLARE_VM_BUILTIN(name({"float", "div"}),        float_div);
-    DECLARE_VM_BUILTIN(name({"float", "to_string"}),  float_to_string);
+    DECLARE_VM_BUILTIN(name({"R", "zero"}),       float_zero);
+    DECLARE_VM_BUILTIN(name({"R", "one"}),        float_one);
+    DECLARE_VM_BUILTIN(name({"R", "pi"}),         float_pi);
+    DECLARE_VM_BUILTIN(name({"R", "neg"}),        float_neg);
+    DECLARE_VM_BUILTIN(name({"R", "inv"}),        float_inv);
+    DECLARE_VM_BUILTIN(name({"R", "exp"}),        float_exp);
+    DECLARE_VM_BUILTIN(name({"R", "log"}),        float_log);
+    DECLARE_VM_BUILTIN(name({"R", "sqrt"}),       float_sqrt);
+    DECLARE_VM_BUILTIN(name({"R", "tanh"}),       float_tanh);
+    DECLARE_VM_BUILTIN(name({"R", "add"}),        float_add);
+    DECLARE_VM_BUILTIN(name({"R", "mul"}),        float_mul);
+    DECLARE_VM_BUILTIN(name({"R", "sub"}),        float_sub);
+    DECLARE_VM_BUILTIN(name({"R", "div"}),        float_div);
+    DECLARE_VM_BUILTIN(name({"R", "to_string"}),  float_to_string);
 }
 
 void finalize_vm_float() {}
