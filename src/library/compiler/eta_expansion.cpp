@@ -11,7 +11,9 @@ Author: Leonardo de Moura
 #include "kernel/inductive/inductive.h"
 #include "library/constants.h"
 #include "library/projection.h"
+#include "library/reducible.h"
 #include "library/aux_recursors.h"
+#include "library/vm/vm.h"
 #include "library/compiler/util.h"
 #include "library/compiler/compiler_step_visitor.h"
 #include "library/compiler/comp_irrelevant.h"
@@ -46,7 +48,21 @@ class eta_expand_fn : public compiler_step_visitor {
     }
 
     expr eta_expand(expr const & e) {
-        return ctx().eta_expand(e);
+        // TODO(dhs): major hack
+        expr ty_fn = get_app_fn(ctx().whnf_pred(ctx().infer(e), [&](expr const & _e) {
+                expr f = get_app_fn(_e);
+                if (!is_constant(f))
+                    return true;
+                else if (is_reducible(ctx().env(), const_name(f)))
+                    return true;
+                else
+                    return false;
+                }));
+
+        if (is_constant(ty_fn) && is_vm_function(ctx().env(), const_name(ty_fn)))
+            return e;
+        else
+            return ctx().eta_expand(e);
     }
 
     expr expand_if_needed(expr const & e) {
