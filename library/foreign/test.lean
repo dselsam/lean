@@ -1,4 +1,4 @@
-import foreign.eigen icml2017.certigrad.tmath
+import foreign.eigen icml2017.certigrad.tmath icml2017.certigrad.compute_grad
 
 meta def approx_name : name → name
 | `certigrad       := `certigrad.approx
@@ -103,6 +103,14 @@ meta def names_to_transport : list name :=
     `certigrad.Env,
 
     `certigrad.Det.Grad,
+    `certigrad.Det.Grad.mk,
+    `certigrad.Det.Grad.rec,
+    `certigrad.Det.Grad.cases_on,
+    `certigrad.Det.Grad.rec_on,
+    `certigrad.Det.Grad.H_cont,
+    `certigrad.Det.Grad.f_pb,
+    `certigrad.Det.Grad.H_f_pb,
+
     `certigrad.Op,
     `certigrad.Op.rec,
     `certigrad.Op.cases_on,
@@ -117,12 +125,41 @@ meta def names_to_transport : list name :=
     `certigrad.Node.rec,
     `certigrad.Node.cases_on,
     `certigrad.Node.rec_on,
+    `certigrad.Node.name,
+    `certigrad.Node.ishapes,
+    `certigrad.Node.oshape,
+    `certigrad.Node.op,
+    `certigrad.Node.parents,
+    `certigrad.Node.H_same_len,
+
+    `certigrad.Target,
+    `certigrad.Target.mk,
+    `certigrad.Target.rec,
+    `certigrad.Target.cases_on,
+    `certigrad.Target.rec_on,
+
+    `certigrad.Graph,
+    `certigrad.Graph.mk,
+    `certigrad.Graph.rec,
+    `certigrad.Graph.cases_on,
+    `certigrad.Graph.rec_on,
 
     `certigrad.Graph.to_dist._main,
-    `certigrad.Graph.to_dist
+    `certigrad.Graph.to_dist,
+
+    `certigrad.sum_costs,
+
+    `certigrad.sum_downstream_costs,
+    `certigrad.compute_grad_slow._main,
+    `certigrad.compute_grad_slow,
+    `certigrad.compute_grad_step._main,
+    `certigrad.compute_grad_step,
+    `certigrad.backprop._main,
+    `certigrad.backprop,
+    `certigrad.bprop
 ]
 
-
+print certigrad.Det.Grad.H_cont
 
 open tactic
 
@@ -177,11 +214,11 @@ meta def mtransport : command :=
 let dict : name_map name := rb_map.of_list (list.map (λ n, (n, approx_name n)) (names_to_approx ++ names_to_transport)) in
 list.foldl (λ t (n : name), do
   env ← get_env,
-  if environment.is_constructor env n = tt then (t >> trace "[C]" >> trace n) else
-  if environment.is_recursor env n = tt then (t >> trace "[R]" >> trace n) else
+  if environment.is_constructor env n = tt then t else
+  if environment.is_recursor env n = tt then t else
   (if environment.is_inductive env n = tt
-   then t >> trace n >> transport_inductive env dict n
-   else t >> trace n >> meta_copy_decl_using dict n (approx_name n)))
+   then t >> transport_inductive env dict n
+   else t >> meta_copy_decl_using dict n (approx_name n)))
 skip names_to_transport
 
 run_command mtransport
