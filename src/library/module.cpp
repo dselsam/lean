@@ -391,8 +391,12 @@ environment update_module_defs(environment const & env, declaration const & d) {
 environment add(environment const & env, certified_declaration const & d) {
     environment new_env = env.add(d);
     declaration _d = d.get_declaration();
-    if (!check_computable(new_env, _d.get_name()))
+    // TODO(dhs): much cleaner if the user needs to annotate it
+    if (is_vm_function(new_env, _d.get_name())) {
+        new_env = mark_comp_override(new_env, _d.get_name());
+    } else if (!check_computable(new_env, _d.get_name())) {
         new_env = mark_noncomputable(new_env, _d.get_name());
+    }
     new_env = update_module_defs(new_env, _d);
     new_env = add(new_env, std::make_shared<decl_modification>(_d, env.trust_lvl()));
     return add_decl_pos_info(new_env, _d.get_name());
