@@ -81,6 +81,58 @@ vm_eval DVec.head₂ (bprop [Identifier.str "cost_sum", Identifier.str "cost_pro
                                       (DMap.insert (Identifier.str "theta_prod") (5 : T [3]) (DMap.mk Identifier T))))
 
 
+section
+open GraphBuilder
+open GraphBuilder.Det
+open GraphBuilder.Rand
+
+def g₁ : Graph := build_graph $ do
+  θ ← param "theta" [2],
+  x ← const (1 : T [2]),
+--  y ← dot 2 θ x,
+  y ← const (1 : T [2]),
+  z ← const (1 : T [2]),
+  cost ← sum [2] y,
+--  cost ← dot 2 θ x,
+  return [y]
+
+
+def foo := DVec.head (bprop g₁~>costs
+                         (list.map Target.shape g₁~>targets) (list.map Target.name g₁~>targets) rfl
+                         g₁~>nodes
+                         (DMap.insert (Identifier.str "theta") (5 : T [2]) (DMap.mk Identifier T)))
+
+
+--  return [cost]
+set_option trace.compiler.code_gen true
+set_option trace.vm.run true
+
+vm_eval DVec.head (bprop g₁~>costs
+                         (list.map Target.shape g₁~>targets) (list.map Target.name g₁~>targets) rfl
+                         g₁~>nodes
+                         (DMap.insert (Identifier.str "theta") (5 : T [2]) (DMap.mk Identifier T)))
+
+set_option trace.compiler.code_gen false
+/-
+
+def g₂ : Graph := build_graph $ do
+  θ ← param "theta" [2],
+  x_all ← const (5 : T [2, 2]),
+  x ← get_col 2 2 x_all ⟨0, sorry⟩,
+  y ← dot 2 x x,
+  cost ← sum [2] y,
+  return [cost]
+
+
+print "tricky one"
+vm_eval DVec.head (bprop g₂~>costs
+                         (list.map Target.shape g₂~>targets) (list.map Target.name g₂~>targets) rfl
+                         g₂~>nodes
+                         (DMap.insert (Identifier.str "theta") (5 : T [2]) (DMap.mk Identifier T)))
+-/
+
+end
+
 /-
 vm_eval AEVB.Programs.build_graph₁ (1 : T [3, 7]) ⟨0, sorry⟩ 2 [] []
 -- {n_x x_dim : ℕ} (x_data : T [x_dim, n_x]) (x_idx : fin n_x) (z_dim : ℕ) (z_hiddens x_hiddens : List (ℕ × String)) : Graph := build_graph $ d
