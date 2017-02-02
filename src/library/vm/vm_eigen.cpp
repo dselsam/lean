@@ -48,12 +48,6 @@ static vm_obj box(float const & x) {
     return to_obj(arr);
 }
 
-vm_obj eigen_tensor() {
-    // TODO(dhs): not sure what to put here
-    throw exception("eigen_tensor not expected to be called");
-    return to_obj(0);
-}
-
 vm_obj eigen_to_string(vm_obj const & shape, vm_obj const & v) {
     list<unsigned> dims = to_list<unsigned, std::function<unsigned(vm_obj const &)> >(shape, to_unsigned);
     std::ostringstream out;
@@ -194,12 +188,6 @@ std::minstd_rand const & to_rng(vm_obj const & o) {
     return static_cast<vm_rng*>(to_external(o))->m_val;
 }
 
-vm_obj eigen_rng() {
-    // TODO(dhs): not sure what to put here
-    throw exception("eigen_rng not expected to be called");
-    return to_obj(0);
-}
-
 vm_obj eigen_rng_to_string(vm_obj const & rng) {
     std::ostringstream out;
     out << to_rng(rng);
@@ -234,11 +222,9 @@ vm_obj eigen_sample_gauss(vm_obj const & shape, vm_obj const & g_old) {
 
 
 void initialize_vm_eigen() {
-    DECLARE_VM_BUILTIN(name({"certigrad", "RNG"}),                   eigen_rng);
     DECLARE_VM_BUILTIN(name({"certigrad", "RNG", "to_string"}),      eigen_rng_to_string);
     DECLARE_VM_BUILTIN(name({"certigrad", "RNG", "mk"}),             eigen_mk_rng);
 
-    DECLARE_VM_BUILTIN(name({"certigrad", "T"}),                     eigen_tensor);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "to_string"}),        eigen_to_string);
 
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "of_nat"}),           eigen_of_nat);
