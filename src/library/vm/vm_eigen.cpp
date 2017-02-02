@@ -203,27 +203,47 @@ vm_obj eigen_mk_rng(vm_obj const & seed) {
     return to_obj(std::minstd_rand(to_unsigned(seed)));
 }
 
-float sample_gauss(std::minstd_rand & g) {
-    std::normal_distribution<> dist;
+static float sample_gauss(float mu, float sigma, std::minstd_rand & g) {
+    std::normal_distribution<float> dist(mu, sigma);
     float x = dist(g);
     std::cout << "sample_gauss: " << x << std::endl;
     return x;
 }
 
-vm_obj eigen_sample_gauss(vm_obj const & shape, vm_obj const & g_old) {
+vm_obj eigen_sample_gauss(vm_obj const & shape, vm_obj const & mu, vm_obj const & sigma, vm_obj const & g_old) {
     std::cout << "[sample_gauss]" << std::endl;
     std::minstd_rand g = to_rng(g_old);
     if (optional<pair<unsigned, unsigned> > mn = is_matrix(shape)) {
-        Eigen::ArrayXXf arr = Eigen::ArrayXXf::NullaryExpr(mn->first, mn->second, [&]() { return sample_gauss(g); });
+        Eigen::ArrayXXf arr = Eigen::ArrayXXf::NullaryExpr(mn->first, mn->second, [&]() { return sample_gauss(unbox(mu), unbox(sigma), g); });
         std::cout << "matrix" << arr << std::endl;
         return mk_vm_pair(to_obj(arr), to_obj(g));
     } else {
-        Eigen::ArrayXXf arr = Eigen::ArrayXXf::NullaryExpr(shape_len(shape), 1, [&]() { return sample_gauss(g); });
+        Eigen::ArrayXXf arr = Eigen::ArrayXXf::NullaryExpr(shape_len(shape), 1, [&]() { return sample_gauss(unbox(mu), unbox(sigma), g); });
         std::cout << "non-matrix" << to_eigen(to_obj(arr)) << std::endl;
         return mk_vm_pair(to_obj(arr), to_obj(g));
     }
 }
 
+static float sample_uniform(float low, float high, std::minstd_rand & g) {
+    std::uniform_real_distribution<float> dist(low, high);
+    float x = dist(g);
+    std::cout << "sample_uniform: " << x << std::endl;
+    return x;
+}
+
+vm_obj eigen_sample_uniform(vm_obj const & shape, vm_obj const & low, vm_obj const & high, vm_obj const & g_old) {
+    std::cout << "[sample_uniform]" << std::endl;
+    std::minstd_rand g = to_rng(g_old);
+    if (optional<pair<unsigned, unsigned> > mn = is_matrix(shape)) {
+        Eigen::ArrayXXf arr = Eigen::ArrayXXf::NullaryExpr(mn->first, mn->second, [&]() { return sample_uniform(unbox(low), unbox(high), g); });
+        std::cout << "matrix" << arr << std::endl;
+        return mk_vm_pair(to_obj(arr), to_obj(g));
+    } else {
+        Eigen::ArrayXXf arr = Eigen::ArrayXXf::NullaryExpr(shape_len(shape), 1, [&]() { return sample_uniform(unbox(low), unbox(high), g); });
+        std::cout << "non-matrix" << to_eigen(to_obj(arr)) << std::endl;
+        return mk_vm_pair(to_obj(arr), to_obj(g));
+    }
+}
 
 void initialize_vm_eigen() {
     DECLARE_VM_BUILTIN(name({"certigrad", "RNG", "to_string"}),      eigen_rng_to_string);
@@ -253,7 +273,7 @@ void initialize_vm_eigen() {
 
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "smul"}),             eigen_smul);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "sum"}),              eigen_sum);
-    DECLARE_VM_BUILTIN(name({"certigrad", "T", "prod"}),              eigen_prod);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "prod"}),             eigen_prod);
 
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "get_row"}),          eigen_get_row);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "get_col"}),          eigen_get_col);
@@ -262,6 +282,7 @@ void initialize_vm_eigen() {
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "gemv"}),             eigen_gemv);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "gemm"}),             eigen_gemm);
 
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "sample_uniform"}),   eigen_sample_uniform);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "sample_gauss"}),     eigen_sample_gauss);
 }
 
