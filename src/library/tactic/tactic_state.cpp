@@ -31,6 +31,7 @@ Author: Leonardo de Moura
 #include "library/vm/vm_expr.h"
 #include "library/vm/vm_list.h"
 #include "library/vm/vm_option.h"
+#include "library/inductive_compiler/add_decl.h"
 #include "library/compiler/vm_compiler.h"
 #include "library/tactic/tactic_state.h"
 
@@ -699,15 +700,39 @@ vm_obj tactic_add_decl(vm_obj const & _d, vm_obj const & _s) {
 }
 
 // meta constant add_inductive : name → list name → nat → expr → list (name × expr) → bool → tactic unit
-vm_obj tactic_add_inductive(vm_obj const & ind_name, vm_obj const & lp_names, vm_obj const & num_params, vm_obj const & ind_type, vm_obj const & cs, vm_obj const & is_trusted, vm_obj const & _s) {
+vm_obj tactic_add_inductive(vm_obj const & _ind_name, vm_obj const & _lp_names, vm_obj const & _num_params, vm_obj const & _ind_type, vm_obj const & _cs, vm_obj const & _is_trusted, vm_obj const & _s) {
     tactic_state const & s  = to_tactic_state(_s);
     try {
-        list<inductive::intro_rule> intro_rules = to_list<inductive::intro_rule, std::function<inductive::intro_rule(vm_obj const &)> >(cs, [&](vm_obj const & o) {
-                return inductive::mk_intro_rule(to_name(cfield(o, 0)),
-                                                to_expr(cfield(o, 1))); });
 
-        inductive::inductive_decl decl(to_name(ind_name), to_list_name(lp_names), to_unsigned(num_params), to_expr(ind_type), intro_rules);
-        environment new_env = module::add_inductive(s.env(), decl, to_bool(is_trusted));
+        buffer<name> lp_names;
+        to_buffer(to_list_name(_lp_names), lp_names);
+
+        buffer<expr> params;
+        buffer<expr> inds;
+        buffer<buffer<expr> > intro_rules;
+
+        intro_rules.emplace_back();
+        to_buffer(to_list<inductive::intro_rule, std::function<inductive::intro_rule(vm_obj const &)> >(_cs, [&](vm_obj const & o) {
+                    return mk_local(to_name(cfield(o, 0)),
+                                    to_expr(cfield(o, 1))); }), intro_rules[0]);
+
+        expr ty = to_expr(_ind_type);
+        for (unsigned i = 0; i < to_unsigned(_num_params); ++i) {
+            expr local = mk_local(mk_fresh_name(), binding_name(ty), binding_domain(ty), binding_info(ty), ty.get_tag());
+            ty = instantiate(binding_body(ty), local);
+            params.push_back(local);
+        }
+        inds.push_back(mk_local(to_name(_ind_name), ty));
+
+        for (expr & ir : intro_rules[0]) {
+            expr ty = mlocal_type(ir);
+            for (expr const & param : params) {
+                ty = instantiate(binding_body(ty), param);
+            }
+            ir = update_local(ir, ty, local_info(ir));
+        }
+
+        environment new_env = add_inductive_declaration(s.env(), s.get_options(), name_map<implicit_infer_kind>(), lp_names, params, inds, intro_rules, to_bool(_is_trusted));
         return mk_tactic_success(set_env(s, new_env));
     } catch (throwable & ex) {
         return mk_tactic_exception(ex, s);
