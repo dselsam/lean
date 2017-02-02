@@ -207,6 +207,13 @@ class erase_irrelevant_fn : public compiler_step_visitor {
         return add_args(major, 6, args);
     }
 
+    /* Remove eq.cases_on applications since they are just "type-casting" operations. */
+    expr visit_eq_cases_on(buffer<expr> & args) {
+        lean_assert(args.size() >= 6);
+        expr major = visit(args[5]);
+        return add_args(major, 6, args);
+    }
+
     expr consume_lambdas(type_context::tmp_locals & locals, expr e) {
         while (true) {
             if (is_lambda(e)) {
@@ -373,6 +380,8 @@ class erase_irrelevant_fn : public compiler_step_visitor {
             name const & n = const_name(fn);
             if (n == get_eq_rec_name()) {
                 return visit_eq_rec(args);
+            } else if (n == get_eq_cases_on_name()) {
+                return visit_eq_cases_on(args);
             } else if (n == get_acc_cases_on_name()) {
                 return visit_acc_cases_on(args);
             } else if (n == get_quot_lift_name()) {

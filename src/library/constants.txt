@@ -59,6 +59,8 @@ eq.mp
 eq.mpr
 eq.nrec
 eq.rec
+eq.rec_on
+eq.cases_on
 eq_rec_eq
 eq.refl
 eq.subst
