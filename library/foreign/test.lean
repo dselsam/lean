@@ -75,24 +75,53 @@ meta def names_to_transport : list name :=
 
     `certigrad.Distribution.Primitive.Grad,
     `certigrad.Distribution.Primitive.Grad.mk,
+    `certigrad.Distribution.Primitive.Grad.rec,
+    `certigrad.Distribution.Primitive.Grad.cases_on,
+    `certigrad.Distribution.Primitive.Grad.rec_on,
+
     `certigrad.Distribution.Primitive,
     `certigrad.Distribution.Primitive.mk,
+    `certigrad.Distribution.Primitive.rec,
+    `certigrad.Distribution.Primitive.cases_on,
+    `certigrad.Distribution.Primitive.rec_on,
+
+
     `certigrad.Distribution,
+    `certigrad.Distribution.rec,
+    `certigrad.Distribution.cases_on,
+    `certigrad.Distribution.rec_on,
     `certigrad.Distribution.dret,
     `certigrad.Distribution.dbind,
     `certigrad.Distribution.dprim,
+
     `certigrad.PDF,
+    `certigrad.PDF.mk,
+    `certigrad.PDF.rec,
+    `certigrad.PDF.cases_on,
+    `certigrad.PDF.rec_on,
 
     `certigrad.Env,
 
     `certigrad.Det.Grad,
     `certigrad.Op,
+    `certigrad.Op.rec,
+    `certigrad.Op.cases_on,
+    `certigrad.Op.rec_on,
     `certigrad.Op.det,
     `certigrad.Op.rand,
-    `certigrad.Op.to_dist._main
---//    `certigrad.Op.to_dist,
---    `certigrad.Node.to_dist
+    `certigrad.Op.to_dist._main,
+    `certigrad.Op.to_dist,
+
+    `certigrad.Node,
+    `certigrad.Node.mk,
+    `certigrad.Node.rec,
+    `certigrad.Node.cases_on,
+    `certigrad.Node.rec_on,
+
+    `certigrad.Graph.to_dist._main,
+    `certigrad.Graph.to_dist
 ]
+
 
 
 open tactic
@@ -149,6 +178,7 @@ let dict : name_map name := rb_map.of_list (list.map (λ n, (n, approx_name n)) 
 list.foldl (λ t (n : name), do
   env ← get_env,
   if environment.is_constructor env n = tt then (t >> trace "[C]" >> trace n) else
+  if environment.is_recursor env n = tt then (t >> trace "[R]" >> trace n) else
   (if environment.is_inductive env n = tt
    then t >> trace n >> transport_inductive env dict n
    else t >> trace n >> meta_copy_decl_using dict n (approx_name n)))
