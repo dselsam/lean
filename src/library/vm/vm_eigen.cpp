@@ -52,6 +52,16 @@ static float unbox(vm_obj const & alpha) {
     return to_eigen(alpha)(0, 0);
 }
 
+vm_obj eigen_real() {
+    // TODO(dhs): awkward
+    return mk_vm_unit();
+}
+
+vm_obj eigen_tensor(vm_obj const & shape) {
+    // TODO(dhs): awkward
+    return mk_vm_unit();
+}
+
 vm_obj eigen_to_string(vm_obj const & shape, vm_obj const & v) {
     list<unsigned> dims = to_list<unsigned, std::function<unsigned(vm_obj const &)> >(shape, to_unsigned);
     std::ostringstream out;
@@ -249,6 +259,8 @@ void initialize_vm_eigen() {
     DECLARE_VM_BUILTIN(name({"certigrad", "RNG", "to_string"}),      eigen_rng_to_string);
     DECLARE_VM_BUILTIN(name({"certigrad", "RNG", "mk"}),             eigen_mk_rng);
 
+    DECLARE_VM_BUILTIN(name({"certigrad", "R"}),                     eigen_real);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T"}),                     eigen_tensor);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "to_string"}),        eigen_to_string);
 
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "of_nat"}),           eigen_of_nat);
