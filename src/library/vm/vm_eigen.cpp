@@ -216,41 +216,33 @@ vm_obj eigen_mk_rng(vm_obj const & seed) {
 static float sample_gauss(float mu, float sigma, std::minstd_rand & g) {
     std::normal_distribution<float> dist(mu, sigma);
     float x = dist(g);
-    std::cout << "sample_gauss: " << x << std::endl;
     return x;
 }
 
-vm_obj eigen_sample_gauss(vm_obj const & shape, vm_obj const & mu, vm_obj const & sigma, vm_obj const & g_old) {
-    std::cout << "[sample_gauss]" << std::endl;
+vm_obj eigen_sample_gauss(vm_obj const & shape, vm_obj const & _mu, vm_obj const & _sigma, vm_obj const & g_old) {
     std::minstd_rand g = to_rng(g_old);
-    if (optional<pair<unsigned, unsigned> > mn = is_matrix(shape)) {
-        Eigen::ArrayXXf arr = Eigen::ArrayXXf::NullaryExpr(mn->first, mn->second, [&]() { return sample_gauss(unbox(mu), unbox(sigma), g); });
-        std::cout << "matrix" << arr << std::endl;
-        return mk_vm_pair(to_obj(arr), to_obj(g));
-    } else {
-        Eigen::ArrayXXf arr = Eigen::ArrayXXf::NullaryExpr(shape_len(shape), 1, [&]() { return sample_gauss(unbox(mu), unbox(sigma), g); });
-        std::cout << "non-matrix" << to_eigen(to_obj(arr)) << std::endl;
-        return mk_vm_pair(to_obj(arr), to_obj(g));
-    }
+    Eigen::ArrayXXf mus = to_eigen(_mu);
+    Eigen::ArrayXXf sigmas = to_eigen(_sigma);
+
+    Eigen::ArrayXXf arr = mus.binaryExpr(sigmas, [&](float const & mu, float const & sigma) {
+            return sample_gauss(mu, sigma, g);
+        });
+    return mk_vm_pair(to_obj(arr), to_obj(g));
 }
 
 static float sample_uniform(float low, float high, std::minstd_rand & g) {
     std::uniform_real_distribution<float> dist(low, high);
     float x = dist(g);
-    std::cout << "sample_uniform: " << x << std::endl;
     return x;
 }
 
 vm_obj eigen_sample_uniform(vm_obj const & shape, vm_obj const & low, vm_obj const & high, vm_obj const & g_old) {
-    std::cout << "[sample_uniform]" << std::endl;
     std::minstd_rand g = to_rng(g_old);
     if (optional<pair<unsigned, unsigned> > mn = is_matrix(shape)) {
         Eigen::ArrayXXf arr = Eigen::ArrayXXf::NullaryExpr(mn->first, mn->second, [&]() { return sample_uniform(unbox(low), unbox(high), g); });
-        std::cout << "matrix" << arr << std::endl;
         return mk_vm_pair(to_obj(arr), to_obj(g));
     } else {
         Eigen::ArrayXXf arr = Eigen::ArrayXXf::NullaryExpr(shape_len(shape), 1, [&]() { return sample_uniform(unbox(low), unbox(high), g); });
-        std::cout << "non-matrix" << to_eigen(to_obj(arr)) << std::endl;
         return mk_vm_pair(to_obj(arr), to_obj(g));
     }
 }
