@@ -478,12 +478,8 @@ struct add_decl_sorry_check : public task<unit> {
 environment add(environment const & env, certified_declaration const & d) {
     environment new_env = env.add(d);
     declaration _d = d.get_declaration();
-    // TODO(dhs): much cleaner if the user needs to annotate it
-    if (is_vm_function(new_env, _d.get_name())) {
-        new_env = mark_comp_override(new_env, _d.get_name());
-    } else if (!check_computable(new_env, _d.get_name())) {
+    if (!check_computable(new_env, _d.get_name()))
         new_env = mark_noncomputable(new_env, _d.get_name());
-    }
     new_env = update_module_defs(new_env, _d);
     new_env = add(new_env, std::make_shared<decl_modification>(_d, env.trust_lvl()));
     get_global_task_queue()->submit<add_decl_sorry_check>(_d, pos_info {g_curr_line, g_curr_column});
