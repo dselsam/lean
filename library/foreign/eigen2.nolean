@@ -1,0 +1,666 @@
+import icml2017.certigrad.util icml2017.certigrad.dvec
+
+open list
+
+namespace certigrad
+namespace approx
+
+constant RNG : Type
+
+namespace RNG
+constant mk : ℕ → RNG
+constant to_string : RNG → string
+
+instance has_to_string : has_to_string RNG := has_to_string.mk to_string
+
+vm_eval mk 5
+--instance : has_to_string RNG :=
+end RNG
+
+constant ℝ : Type
+
+namespace ℝ
+
+constants (zero one pi : ℝ)
+          (inv neg log exp tanh : ℝ → ℝ)
+          (add mul div sub : ℝ → ℝ → ℝ)
+          (square sqrt : ℝ → ℝ)
+          (le lt : ℝ → ℝ → Prop)
+          (of_nat : ℕ → ℝ)
+
+instance : has_zero ℝ := ⟨zero⟩
+instance : has_one ℝ := ⟨one⟩
+instance : has_neg ℝ := ⟨neg⟩
+instance : has_inv ℝ := ⟨inv⟩
+instance : has_add ℝ := ⟨add⟩
+instance : has_mul ℝ := ⟨mul⟩
+instance : has_sub ℝ := ⟨sub⟩
+instance : has_div ℝ := ⟨div⟩
+instance : has_le ℝ := ⟨le⟩
+instance : has_lt ℝ := ⟨lt⟩
+
+instance : inhabited ℝ := ⟨zero⟩
+
+def pos (x : ℝ) : Prop := x > 0
+def nneg (x : ℝ) : Prop := x ≥ 0
+
+-- The algebraic ones will go away once we have e.g. fields
+axiom mul_one : ∀ (x : ℝ), x * 1 = x
+axiom one_mul : ∀ (x : ℝ), 1 * x = x
+axiom mul_zero : ∀ (x : ℝ), x * 0 = 0
+axiom zero_mul : ∀ (x : ℝ), 0 * x = 0
+axiom mul_comm : ∀ (x y : ℝ), x * y = y * x
+axiom mul_assoc : ∀ (x y z : ℝ), x * (y * z) = (x * y) * z
+
+axiom add_zero : ∀ (x : ℝ), x + 0 = x
+axiom zero_add : ∀ (x : ℝ), 0 + x = x
+
+axiom sub_zero : ∀ (x : ℝ), x - 0 = x
+
+axiom mul_nneg_nneg : ∀ (x y : ℝ), x ≥ 0 → y ≥ 0 → x * y ≥ 0
+
+axiom mul_inv : ∀ {x : ℝ}, x ≠ 0 → x * (inv x) = 1
+axiom inv_mul : ∀ {x : ℝ}, x ≠ 0 → (inv x) * x = 1 -- TODO(dhs): follows  from comm
+
+axiom distrib_left : ∀ (α x y : ℝ), (x + y) * α = x * α + y * α
+axiom distrib_right : ∀ (α x y : ℝ), α * (x + y) = α * x + α * y
+end ℝ
+
+@[reducible] def TShape : Type := list ℕ
+
+def T : TShape → Type
+| [] := ℝ
+| (d::ds) := fin d → T ds
+
+namespace T
+
+constant to_string {shape : TShape} : T shape → string
+
+instance {shape : TShape} : has_to_string (T shape) :=
+has_to_string.mk to_string
+
+noncomputable def const (α : T []) : Π (shape : TShape), T shape
+| [] := α
+| (d::ds) := λ (idx : fin d), const ds
+
+def lift₁ (f : T [] → T []) : Π {shape : TShape}, T shape → T shape
+| []       α := f α
+| (d::dhs) x := λ (idx : fin d), lift₁ (x idx)
+
+def lift₂ (f : T [] → T [] → T []) : Π {shape : TShape}, T shape → T shape → T shape
+| []       α β := f α β
+| (d::dhs) x y := λ (idx : fin d), lift₂ (x idx) (y idx)
+
+def plift₁ (P : T [] → Prop) : Π {shape : TShape}, T shape → Prop
+| []       α := P α
+| (d::dhs) x := all_prop (λ (idx : Fin d), plift₁ (x idx)) (downfrom d)
+
+def plift₂ (P : T [] → T [] → Prop) : Π {shape : TShape}, T shape → T shape → Prop
+| []       α β := P α β
+| (d::dhs) x y := all_prop (λ (idx : Fin d), plift₂ (x idx) (y idx)) (downfrom d)
+
+def zero (shape : TShape) : T shape := const (0 : ℝ) shape
+def one (shape : TShape) : T shape := const (1 : ℝ) shape
+
+def pi (shape : TShape) : T shape := const ℝ.pi shape
+
+notation `π` := pi []
+
+def neg {shape : TShape} : T shape → T shape := lift₁ ℝ.neg
+def inv {shape : TShape} : T shape → T shape := lift₁ ℝ.inv
+def log {shape : TShape} : T shape → T shape := lift₁ ℝ.log
+def exp {shape : TShape} : T shape → T shape := lift₁ ℝ.exp
+def sqrt {shape : TShape} : T shape → T shape := lift₁ ℝ.sqrt
+def tanh {shape : TShape} : T shape → T shape := lift₁ ℝ.tanh
+
+def add {shape : TShape} : T shape → T shape → T shape := lift₂ ℝ.add
+def mul {shape : TShape} : T shape → T shape → T shape := lift₂ ℝ.mul
+def sub {shape : TShape} : T shape → T shape → T shape := lift₂ ℝ.sub
+def div {shape : TShape} : T shape → T shape → T shape := lift₂ ℝ.div
+
+def pos {shape : TShape} : T shape → Prop := plift₁ ℝ.pos
+def nneg {shape : TShape} : T shape → Prop := plift₁ ℝ.nneg
+
+def lt {shape : TShape} : T shape → T shape → Prop := plift₂ ℝ.lt
+def le {shape : TShape} : T shape → T shape → Prop := plift₂ ℝ.le
+
+instance (shape : TShape) : has_zero (T shape) := ⟨zero shape⟩
+instance (shape : TShape) : has_one (T shape) := ⟨one shape⟩
+instance (shape : TShape) : has_neg (T shape) := ⟨@neg shape⟩
+instance (shape : TShape) : has_inv (T shape) := ⟨@inv shape⟩
+instance (shape : TShape) : has_add (T shape) := ⟨@add shape⟩
+instance (shape : TShape) : has_mul (T shape) := ⟨@mul shape⟩
+instance (shape : TShape) : has_sub (T shape) := ⟨@sub shape⟩
+instance (shape : TShape) : has_div (T shape) := ⟨@div shape⟩
+instance (shape : TShape) : has_lt (T shape) := ⟨@lt shape⟩
+instance (shape : TShape) : has_le (T shape) := ⟨@le shape⟩
+
+def of_nat : ℕ → T [] := ℝ.of_nat
+
+instance {shape : TShape} : inhabited (T shape) := ⟨0⟩
+
+-- Will go away once we have modules
+-- All provable in terms of T []
+axiom mul_one {shape : TShape} : ∀ (x : T shape), x * 1 = x
+axiom one_mul {shape : TShape} : ∀ (x : T shape), 1 * x = x
+axiom mul_zero {shape : TShape} : ∀ (x : T shape), x * 0 = 0
+axiom zero_mul {shape : TShape} : ∀ (x : T shape), 0 * x = 0
+axiom mul_comm {shape : TShape} : ∀ (x y : T shape), x * y = y * x
+axiom mul_assoc {shape : TShape} : ∀ (x y z : T shape), x * (y * z) = (x * y) * z
+
+axiom add_zero {shape : TShape} : ∀ (x : T shape), x + 0 = x
+axiom zero_add {shape : TShape} : ∀ (x : T shape), 0 + x = x
+
+axiom sub_zero {shape : TShape} : ∀ (x : T shape), x - 0 = x
+
+axiom mul_nneg_nneg {shape : TShape} : ∀ (x y : T shape), x ≥ 0 → y ≥ 0 → x * y ≥ 0
+
+axiom mul_inv {shape : TShape} : ∀ {x : T shape}, x ≠ 0 → x * (inv x) = 1
+axiom inv_mul {shape : TShape} : ∀ {x : T shape}, x ≠ 0 → (inv x) * x = 1 -- TODO(dhs): follows  from comm
+
+axiom mul_neg {shape : TShape} : ∀ (x y : T shape), x * -y = -(x * y)
+axiom distrib_left {shape : TShape} : ∀ (α x y : T shape), (x + y) * α = x * α + y * α
+axiom distrib_right {shape : TShape} : ∀ (α x y : T shape), α * (x + y) = α * x + α * y
+
+def square {shape : TShape} (x : T shape) : T shape := x * x
+lemma square_one {shape : TShape} : square (1 : T shape) = 1 :=
+begin dunfold square, rw mul_one end
+
+def smul (α : T []) : Π {shape : TShape}, T shape → T shape
+| []      x := α * x
+| (d::ds) x := λ (idx : Fin d), smul (x idx)
+
+infixl ` ⬝ ` := smul
+
+lemma smul_zero (α : T []) : ∀ (shape : TShape), α ⬝ (0 : T shape) = 0
+| [] := begin dunfold smul, rw mul_zero end
+| (d::ds) := begin dunfold smul, apply funext, intro idx, apply smul_zero end
+
+lemma one_smul : ∀ (shape : TShape) (x : T shape), 1 ⬝ x = x
+| []      x := begin dunfold smul, apply one_mul end
+| (d::ds) x := begin apply funext, intro idx, apply (one_smul ds) end
+
+lemma zero_smul : ∀ (shape : TShape) (x : T shape), 0 ⬝ x = 0
+| []      x := begin dunfold smul, apply zero_mul end
+| (d::ds) x := begin apply funext, intro idx, apply (zero_smul ds) end
+
+lemma smul_group (α β : T []) : ∀ (shape : TShape) (x : T shape), α ⬝ (β ⬝ x) = (α * β) ⬝ x
+| []      x := begin dunfold smul, apply mul_assoc end
+| (d::ds) x :=
+begin
+change ((λ (idx : Fin d), smul α (smul β (x idx))) = (λ (idx : Fin d), smul (α * β) (x idx))),
+apply funext, intro idx, apply smul_group
+end
+
+lemma smul_add (α : T []) : ∀ (shape : TShape) (x y : T shape), α ⬝ (x + y) = α ⬝ x + α ⬝ y
+| []      x y := begin dunfold smul, apply distrib_right end
+| (d::ds) x y :=
+begin
+dunfold smul,
+change (λ (idx : Fin d), α ⬝ (x + y) idx) = (λ (idx : Fin d), α ⬝ x idx + α ⬝ y idx),
+apply funext, intro idx, apply smul_add,
+end
+
+lemma smul_mul (α : T []) : ∀ {shape : TShape} (x y : T shape), (α ⬝ x) * y = α ⬝ (x * y)
+| []      x  y := begin dunfold smul, exact (mul_assoc α x y)~>symm end
+| (d::ds) x  y :=
+begin
+apply funext, intro idx,
+dunfold smul,
+change α ⬝ x idx * y idx = α ⬝ (x * y) idx,
+apply smul_mul
+end
+
+lemma smul_one_const (α : T []) : ∀ (shape : TShape), α ⬝ (1 : T shape) = const α shape
+| [] := begin dunfold smul const, apply T.mul_one end
+| (d::ds) :=
+begin
+dunfold smul, apply funext, intro idx, dunfold const,
+apply smul_one_const
+end
+
+lemma smul_comm (α β : T []) : α ⬝ β = β ⬝ α := begin dunfold smul, apply mul_comm end
+
+def sum : Π {shape : TShape}, T shape → T []
+| []      x := x
+| (d::ds) x := list.sum (map (λ (idx : Fin d), sum (x idx)) (downfrom d))
+
+lemma foo : true := sorry
+
+def prod : Π {shape : TShape}, T shape → T []
+| []      x := x
+| (d::ds) x := list.prod (map (λ (idx : Fin d), prod (x idx)) (downfrom d))
+
+-- TODO(dhs): general theorem using AC
+lemma foldl_add_foldr {shape : TShape} (xs : List (T shape)) :
+  foldl _root_.add 0 xs = foldr _root_.add 0 xs := sorry
+
+lemma sum_empty_vec (x : T [0]) : sum x = 0 :=
+begin
+dunfold T.sum list.sum list.downfrom list.downfrom_core list.map list.foldl,
+reflexivity
+end
+
+-- TODO(dhs): once we are an add_monoid, just make this a generic theorem
+lemma sum_map_zero {shape : TShape} {α : Type*} : Π (xs : list α), list.sum (map (λ x, (0 : T shape)) xs) = 0
+| [] := rfl
+| (x::xs) :=
+begin
+dunfold list.map list.sum list.foldl,
+rw T.zero_add,
+change (list.sum (map (λ x, (0 : T shape)) xs) = 0),
+apply sum_map_zero
+end
+
+lemma sum_mat_no_cols {nrows : ℕ} (x : T [nrows, 0]) : sum x = 0 :=
+have H₁ : ∀ (idx : Fin nrows), @sum [0] (x idx) = 0, from
+  begin intro idx, erw sum_empty_vec end,
+begin
+dunfold T.sum,
+--rw (funext H₁),
+apply sum_map_zero
+end
+
+lemma sum_zero : Π {shape : TShape}, sum (0 : T shape) = 0
+| [] := rfl
+| (d::ds) :=
+begin
+dunfold T.sum,
+assert H : (λ (idx : Fin d), sum ((0 : T (d::ds)) idx)) = (λ (idx : Fin d), 0),
+apply funext, intro idx,
+erw sum_zero,
+rw H, clear H,
+apply sum_map_zero
+end
+
+lemma sum_vec_all_zero : Π {n : ℕ} (x : T [n]), (∀ idx, x idx = 0) → sum x = 0
+| 0 x H :=
+begin
+dunfold T.sum list.sum list.map list.downfrom list.downfrom_core list.foldl,
+reflexivity
+end
+| (n+1) x H_eq_0 :=
+begin
+dunfold T.sum list.sum,
+rw foldl_add_foldr,
+dunfold list.map list.downfrom list.downfrom_core list.foldr,
+simp [H_eq_0],
+dsimp,
+assert H : (λ (idx : Fin (@_root_.add ℕ _ n 1)), sum (0 : T [])) = (λ (idx : Fin (@_root_.add ℕ _ n 1)), 0),
+apply funext, intro idx,
+exact sum_zero,
+erw H, clear H,
+rw -foldl_add_foldr,
+change 0 + list.sum (map (λ (idx : Fin (@_root_.add ℕ _ n 1)), 0) (downfrom_core (@_root_.add ℕ _ n 1) n sorry)) = 0,
+rw sum_map_zero,
+change (@_root_.add (T []) _ 0 0 = 0),
+erw [T.zero_add],
+end
+
+
+
+--def prod : Π {shape : TShape}, T shape → T []
+--| []      x := x
+--| (d::ds) x := list.prod (map (λ (idx : fin d), prod (x idx)) (downfrom d))
+
+def get_row {m n : ℕ} (M : T [m, n]) (ridx : Fin m) : T [n] :=
+λ (cidx : Fin n), M ridx cidx
+
+def get_col {m n : ℕ} (M : T [m, n]) (cidx : Fin n) : T [m] :=
+λ (ridx : Fin m), M ridx cidx
+
+-- TODO(dhs): prove given properties of SUB, and then prove the lemmas I need
+def get_col_range {m n : ℕ} (M : T [m, n]) (cidx : Fin n) (ncols_to_take : ℕ) : T [m, ncols_to_take] :=
+λ (ridx : Fin m) (cidx' : Fin ncols_to_take), M ridx ⟨cidx'~>val + cidx~>val, sorry⟩
+
+def dot {n : ℕ} (x y : T [n]) : T [] := sum (x * y)
+
+def gemv {m n : ℕ} (M : T [m, n]) (x : T [n]) : T [m] :=
+λ (ridx : Fin m), dot (get_row M ridx) x
+
+def gemm {m n p : ℕ} (M : T [m, n]) (N : T [n, p]) : T [m, p] :=
+λ (ridx : Fin m) (cidx : Fin p), dot (get_row M ridx) (get_col N cidx)
+
+def append_col {n p : ℕ} (N : T [n, p]) (x : T [n]) : T [n, p+1] :=
+λ (ridx : Fin n) (cidx : Fin (p+1)), if cidx~>val = p then x ridx else N ridx ⟨cidx~>val, sorry⟩
+
+lemma get_col_range_append_col {m n : ℕ} (M : T [m, n]) (cidx : Fin n) (ncols_to_take : ℕ) (H_ok : cidx~>val + ncols_to_take < n) :
+  get_col_range M cidx (ncols_to_take + 1) = append_col (get_col_range M cidx ncols_to_take) (get_col M ⟨cidx~>val + ncols_to_take, H_ok⟩) :=
+begin
+dunfold get_col_range get_col append_col,
+apply funext, intro ridx₀,
+apply funext, intro cidx₀,
+assert H_em : cidx₀~>val = ncols_to_take ∨ cidx₀~>val ≠ ncols_to_take, apply classical.em,
+cases H_em with H_eq H_neq,
+-- case 1
+simp [H_eq],
+-- case 2
+simp [H_neq],
+end
+
+lemma gemm_append_col {m n p : ℕ} (M : T [m, n]) (N : T [n, p]) (x : T [n]) :
+  gemm M (append_col N x) = append_col (gemm M N) (gemv M x) :=
+begin
+apply funext, intro ridx, apply funext, intro cidx,
+assertv H_em : fin.val cidx = p ∨ fin.val cidx ≠ p := by apply classical.em,
+dunfold append_col,-- gemm get_col get_row gemv,
+cases H_em with H_eq H_neq,
+-- case 1
+dunfold gemm get_col, dsimp, simp [H_eq], reflexivity,
+-- case 2
+dunfold gemm get_col, dsimp, simp [H_neq]
+end
+
+lemma lift₁_idx (nrows : ℕ) (idx : fin nrows) (f : T [] → T []) {shape : TShape} (x : T (nrows::shape)) :
+  lift₁ f (x idx) = (lift₁ f x) idx := rfl
+
+lemma unary_append_col {m n : ℕ} (M : T [m, n]) (x : T [m]) (f : T [] → T []) :
+  lift₁ f (append_col M x) = append_col (lift₁ f M) (lift₁ f x) :=
+begin
+dunfold lift₁,
+apply funext, intro ridx,
+apply funext, intro cidx,
+dunfold append_col,
+dsimp,
+dunfold lift₁,
+assertv H_em : cidx~>val = n ∨ cidx~>val ≠ n := by apply classical.em,
+cases H_em with H_eq H_neq,
+simp [H_eq, if_true],
+simp [H_neq, if_false],
+end
+
+lemma tanh_append_col {m n : ℕ} (M : T [m, n]) (x : T [m]) : tanh (append_col M x) = append_col (tanh M) (tanh x) :=
+  unary_append_col M x tanh
+
+lemma log_append_col {m n : ℕ} (M : T [m, n]) (x : T [m]) : log (append_col M x) = append_col (log M) (log x) :=
+  unary_append_col M x log
+
+lemma square_append_col {m n : ℕ} (M : T [m, n]) (x : T [m]) : square (append_col M x) = append_col (square M) (square x) :=
+  unary_append_col M x square
+
+lemma exp_append_col {m n : ℕ} (M : T [m, n]) (x : T [m]) : exp (append_col M x) = append_col (exp M) (exp x) :=
+  unary_append_col M x exp
+
+lemma const_add_append_col (α : T []) {m n : ℕ} (M : T [m, n]) (x : T [m]) : const α [m, n+1] + (append_col M x) = append_col (const α [m, n] + M) (const α [m] + x) :=
+begin
+dunfold const,
+apply funext, intro ridx,
+apply funext, intro cidx,
+dunfold T.add append_col,
+dsimp,
+assertv H_em : cidx~>val = n ∨ cidx~>val ≠ n := by apply classical.em,
+cases H_em with H_eq H_neq,
+-- case 1
+erw [Function.function_add_def, Function.function_add_def],
+dsimp,
+simp [H_eq, if_true],
+reflexivity,
+-- case 2
+erw [Function.function_add_def, Function.function_add_def],
+dsimp,
+simp [H_neq, if_false],
+erw [Function.function_add_def, Function.function_add_def],
+end
+
+lemma one_add_append_col {m n : ℕ} (M : T [m, n]) (x : T [m]) : 1 + (append_col M x) = append_col (1 + M) (1 + x) := const_add_append_col 1 M x
+
+lemma sum_append_col : Π {m n : ℕ} (M : T [m, n]) (x : T [m]), sum (append_col M x) = sum M + sum x
+| 0 n M x :=
+begin
+dunfold T.sum list.sum append_col list.sum list.map list.downfrom list.downfrom_core list.foldl,
+rw T.add_zero,
+end
+
+| (m+1) n M x :=
+begin
+dunfold T.sum list.sum append_col list.sum list.map list.downfrom list.downfrom_core,
+rw [foldl_add_foldr, foldl_add_foldr, foldl_add_foldr],
+dunfold list.foldr,
+-- TODO(dhs): finish the proof
+exact sorry
+end
+
+lemma sum_add {shape : TShape} (x y : T shape) : sum (x + y) = sum x + sum y := sorry
+lemma sum_neg {shape : TShape} (x : T shape) : sum (- x) = - (sum x) := sorry
+
+def mvn_iso_pdf {shape : TShape} (μ σ x : T shape) : T [] :=
+    prod ((sqrt (2 * π) ⬝ σ)⁻¹ * exp (- (square $ x - μ) / (2 * square σ)))
+
+-- TODO(dhs): push the log in since this will actually be computed
+def mvn_iso_logpdf {shape : TShape} (μ σ x : T shape) : T [] := log (mvn_iso_pdf μ σ x)
+def mvn_iso_std_logpdf {shape : TShape} (x : T shape) : T [] := mvn_iso_logpdf 0 1 x
+
+lemma mvn_iso_logpdf_append_col {m n : ℕ} (M₁ M₂ : T [m, n]) (x₁ x₂ : T [m]) (y : T [m, n+1]) :
+  mvn_iso_logpdf (append_col M₁ x₁) (append_col M₂ x₂) y =
+  mvn_iso_logpdf M₁ M₂ (get_col_range y ⟨0, sorry⟩ n) + mvn_iso_logpdf x₁ x₂ (get_col y ⟨n, sorry⟩) := sorry
+
+def mvn_transform {shape : TShape} (μ σ x : T shape) : T shape := x * σ + μ
+
+lemma mvn_transform_append_col {m n : ℕ} (M₁ M₂ : T [m, n]) (x₁ x₂ : T [m]) (y : T [m, n+1]) :
+  mvn_transform (append_col M₁ x₁) (append_col M₂ x₂) y =
+  append_col (mvn_transform M₁ M₂ (get_col_range y ⟨0, sorry⟩ n)) (mvn_transform x₁ x₂ (get_col y ⟨n, sorry⟩)) := sorry
+
+lemma get_col_append_col_last {m n : ℕ} (M : T [m, n]) (x : T [m]) :
+  get_col (append_col M x) ⟨n, sorry⟩ = x := sorry
+
+lemma get_col_range_append_col_first {m n : ℕ} (M : T [m, n]) (x : T [m]) :
+  get_col_range (append_col M x) ⟨0, sorry⟩ n = M := sorry
+
+constant integral : Π {shape₁ shape₂ : TShape}, (T shape₁ → T shape₂) → T shape₂
+notation `∫` := integral
+
+axiom integral_scale : Π {shape₁ shape₂ : TShape} (f : T shape₁ → T shape₂) (α : T []),
+  ∫ (λ x, α ⬝ f x) = α ⬝ ∫ (λ x, f x)
+
+-- TODO(dhs): provable
+axiom integral_neg : Π {shape₁ shape₂ : TShape} (f : T shape₁ → T shape₂),
+  ∫ (λ x, - (f x)) = - ∫ (λ x, f x)
+
+axiom integral_add : Π {shape₁ shape₂ : TShape} (f g : T shape₁ → T shape₂),
+  ∫ (λ x, f x + g x) = ∫ (λ x, f x) + ∫ (λ x, g x)
+
+axiom integral_fscale : Π {shape₁ shape₂ : TShape} (f : T shape₁ → T []) (y : T shape₂),
+  ∫ (λ x, f x ⬝ y) = ∫ (λ x, f x) ⬝ y
+
+axiom integral_nneg : ∀ {shape₁ shape₂ : TShape} (f : T shape₁ → T shape₂), (∀ x, nneg (f x)) → nneg (∫ (λ x, f x))
+
+lemma integral_congr {shape₁ shape₂ : TShape} (f g : T shape₁ → T shape₂) (H_fg : ∀ x, f x = g x) : ∫ f = ∫ g :=
+  show ∫ (λ x, f x) = ∫ (λ x, g x), by rw (funext H_fg)
+
+constant IsContinuous {ishape oshape : TShape} : (T ishape → T oshape) → T ishape → Prop
+axiom id_continuous : ∀ {ishape : TShape} (x : T ishape), IsContinuous (λ (x₀ : T ishape), x₀) x
+axiom const_continuous : ∀ {ishape oshape : TShape} (y : T oshape) (x : T ishape), IsContinuous (λ (x₀ : T ishape), y) x
+axiom smul_continuous : ∀ {ishape oshape : TShape} {f : T ishape → T []} {g : T ishape → T oshape} {x : T ishape},
+                          IsContinuous f x → IsContinuous g x → IsContinuous (λ x₀, f x₀ ⬝ g x₀) x
+
+lemma smul_scale_continuous {ishape oshape : TShape} (α : T []) (f : T ishape → T oshape) (x : T ishape) : IsContinuous f x → IsContinuous (λ x₀, α ⬝ f x₀) x :=
+assume (H_f_cont : IsContinuous f x),
+smul_continuous (const_continuous α x) H_f_cont
+
+axiom add_continuous {ishape oshape : TShape} (f g : T ishape → T oshape) (x : T ishape) :
+  IsContinuous f x → IsContinuous g x → IsContinuous (λ x₀, f x₀ + g x₀) x
+
+-- TODO(dhs): looks correct to me
+lemma list_sum_continuous {α : Type} {ishape oshape : TShape} (f : α → T ishape → T oshape) (x : T ishape) (γs : List α) :
+  (∀ (γ : α), γ ∈ γs → IsContinuous (λ (x₀ : T ishape), f γ x₀) x) →
+  IsContinuous (λ (x₀ : T ishape), list.sum (map (λ γ, f γ x₀) γs)) x := sorry
+
+axiom chain_continuous_skip {ishape oshape fshape : TShape} {f : T ishape → T oshape} {g : T ishape → T oshape → T fshape} {x : T ishape} :
+  IsContinuous f x → IsContinuous (λ x₀, g x₀ (f x)) x → IsContinuous (g x) (f x) → IsContinuous (λ x₀, g x₀ (f x₀)) x
+
+-- TODO(dhs): provable given previous one
+axiom chain_continuous {ishape oshape fshape : TShape} {f : T ishape → T oshape} {g : T oshape → T fshape} {x : T ishape} :
+  IsContinuous f x → IsContinuous g (f x) → IsContinuous (λ x, g (f x)) x
+
+lemma continuous_congr {ishape oshape : TShape} (f g : T ishape → T oshape) (x : T ishape) :
+  (∀ x₀, g x₀ = f x₀) → IsContinuous f x → IsContinuous g x :=
+begin intros H H_f, assertv H_gf : g = f := funext H, rw H_gf, exact H_f end
+
+constant grad : Π {ishape : TShape}, (T ishape → T []) → (T ishape → T ishape)
+notation `∇` := grad
+
+axiom grad_constant : ∀ {ishape : TShape} (θ : T ishape) (x : T []),
+  ∇ (λ (θ₀ : T ishape), x) θ = 0
+
+axiom grad_id : ∀ (θ : T []),
+  ∇ (λ (θ₀ : T []), θ₀) θ = 1
+
+axiom grad_add : ∀ {ishape : TShape} (θ : T ishape) (f₁ f₂ : T ishape → T []),
+  ∇ (λ θ₀, f₁ θ₀ + f₂ θ₀) θ = ∇ (λ θ₀, f₁ θ₀) θ + ∇ (λ θ₀, f₂ θ₀) θ
+
+lemma grad_sum {X : Type} {shape : TShape} (θ : T shape) (f : T shape → X → T []) (xs : List X) :
+    ∇ (λ (θ₀ : T shape), list.sum (map (f θ₀) xs)) θ
+    =
+    list.sum (map (λ x, ∇ (λ θ₀, f θ₀ x) θ) xs) := sorry
+
+axiom grad_scale : ∀ {ishape : TShape} (θ : T ishape) (α : T []) (f : T ishape → T []),
+  ∇ (λ θ₀, α ⬝ f θ₀) θ = α ⬝ ∇ (λ θ₀, f θ₀) θ
+
+axiom grad_log : ∀ (θ : T []),  ∇ log θ = inv θ
+
+constant D {ishape oshape : TShape} : (T ishape → T oshape) → T ishape → T (ishape ++ oshape)
+constant tmulT {ishape oshape : TShape} : T (ishape ++ oshape) → T oshape → T ishape
+
+axiom integral_tmulT {ishape oshape fshape : TShape} (M : T (ishape ++ oshape)) (f : T fshape → T oshape) :
+  ∫ (λ x, tmulT M (f x)) = tmulT M (∫ f)
+
+axiom grad_chain_rule : ∀ {shape₁ shape₂ : TShape} (f : T shape₁ → T shape₂) (g : T shape₂ → T []) (θ : T shape₁),
+  ∇ (λ (θ₀ : T shape₁), g (f θ₀)) θ = tmulT (D f θ) (∇ g (f θ))
+
+lemma grad_congr {shape : TShape} {f g : T shape → T []} {x : T shape} (H : ∀ x, f x = g x) : ∇ f x = ∇ g x :=
+begin change (∇ (λ x, f x) x = ∇ (λ x, g x) x), rw (funext H) end
+
+axiom integral_continuous : ∀ {ishape tshape fshape : TShape} (f : T ishape → T tshape → T fshape) (θ : T tshape),
+  (∀ x, IsContinuous (f x) θ) → IsContinuous (λ θ₀, ∫ (λ x₀, f x₀ θ₀)) θ
+
+axiom integral_grad : ∀ {ishape tshape : TShape} (f : T ishape → T tshape → T []) (θ : T tshape),
+  (∀ x, IsContinuous (f x) θ) →
+    ∇ (λ θ₀, ∫ (λ x, f x θ₀)) θ = ∫ (λ x, ∇ (λ θ₀, f x θ₀) θ)
+
+axiom integral_swap {shape₁ shape₂ fshape : TShape} (f : T shape₁ → T shape₂ → T fshape) :
+  integral (λ (x₁ : T shape₁), integral (λ (x₂ : T shape₂), f x₁ x₂))
+  =
+  integral (λ (x₂ : T shape₂), integral (λ (x₁ : T shape₁), f x₁ x₂))
+
+axiom tmulT_scalar {shape : TShape} : ∀ (x : T (shape ++ [])) (y : T []), tmulT x y = y ⬝ (eq.rec_on (append_nil_right shape) x)
+axiom D_scalar {shape : TShape} (f : T shape → T []) (θ : T shape) : (eq.rec_on (append_nil_right shape) (D f θ) : T shape) = ∇ f θ
+
+lemma grad_log_chain {shape : TShape} (θ : T shape) (f : T shape → T []) : ∇ (λ θ₀, log (f θ₀)) θ = inv (f θ) ⬝ ∇ f θ :=
+by rw [grad_chain_rule, tmulT_scalar, D_scalar, grad_log]
+
+def dintegral {oshape : TShape} : Π {ishapes : List TShape}, (DVec T ishapes → T oshape) → T oshape
+| []                f := f DVec.dnil
+| (ishape::ishapes) f := ∫ (λ (x : T ishape), @dintegral ishapes (λ (v : DVec T ishapes), f (DVec.dcons x v)))
+
+lemma dintegral_swap {shape fshape : TShape} : Π {shapes : List TShape} (f : DVec T shapes → T shape → T fshape),
+  dintegral (λ (xs : DVec T shapes), integral (λ (x : T shape), f xs x))
+  =
+  integral (λ (x : T shape), dintegral (λ (xs : DVec T shapes), f xs x))
+| [] f := sorry
+
+| (ds::shapes) f := sorry
+
+lemma dintegral_dswap {fshape : TShape} : Π {shapes₁ shapes₂ : List TShape} (f : DVec T shapes₁ → DVec T shapes₂ → T fshape),
+  dintegral (λ (xs₁ : DVec T shapes₁), dintegral (λ (xs₂ : DVec T shapes₂), f xs₁ xs₂))
+  =
+  dintegral (λ (xs₂ : DVec T shapes₂), dintegral (λ (xs₁ : DVec T shapes₁), f xs₁ xs₂))
+| [] f := sorry
+
+| (ds::shapes) f := sorry
+
+lemma dintegral_scale {shape : TShape} (α : T []) : Π {shapes : List TShape} (f : DVec T shapes → T shape),
+  dintegral (λ (xs : DVec T shapes), α ⬝ f xs) = α ⬝ dintegral (λ xs, f xs)
+| [] f := sorry
+
+| (ds::shapes) f := sorry
+
+lemma dintegral_fscale {shape : TShape} : Π {shapes : List TShape} (f : DVec T shapes → T []) (x : T shape),
+  dintegral (λ (xs : DVec T shapes), f xs ⬝ x) = dintegral (λ xs, f xs) ⬝ x
+| [] f := sorry
+
+| (ds::shapes) f := sorry
+
+constant delta : Π {X : Type}, X → X → T []
+notation `δ` := delta
+
+axiom delta_transform : ∀ {shape : TShape} (x y a b : T shape), δ ⟦x * a + b⟧ ⟦y⟧ = prod a * δ ⟦x⟧ ⟦(y - b) / a⟧
+
+-- TODO(dhs): could clean up δ so there is only one axiom here
+axiom delta_int : ∀ {shape fshape : TShape} (x₀ : T shape) (f : T shape → T fshape), ∫ (λ x, δ ⟦x₀⟧ ⟦x⟧ ⬝ f x) = f x₀
+axiom delta_dint : ∀ {shapes : List TShape} {fshape : TShape} (xs₀ : DVec T shapes) (f : DVec T shapes → T fshape),
+                     dintegral (λ (xs : DVec T shapes), δ xs₀ xs ⬝ f xs) = f xs₀
+
+axiom delta_comm {X : Type} (x y : X) : δ x y = δ y x
+
+-- TODO(dhs): this is provable
+-- TODO(dhs): put in different section
+lemma mvn_integral₁ {shape : TShape} (μ σ : T shape) :
+∫ (λ (x : T shape), T.mvn_iso_pdf μ σ x * T.mvn_iso_logpdf 0 1 x)
+=
+(- 1 / 2) * (of_nat (list.prod shape) * log (2 * π) + T.sum (T.square μ + T.square σ)) := sorry
+
+-- TODO(dhs): this is provable
+lemma mvn_integral₂ {shape : TShape} (μ σ : T shape) :
+∫ (λ (x : T shape), T.mvn_iso_pdf μ σ x * T.mvn_iso_logpdf μ σ x)
+=
+(- 1 / 2) * (of_nat (list.prod shape) * log (2 * π) + T.sum (1 + T.log (T.square σ))) := sorry
+
+--axiom delta_nneg : ∀ {X : Type} (x y : X), δ x y ≥ 0
+--axiom delta_transform : ∀ {X : Type} (x y : X)
+
+/-
+axiom delta_inv {X : Type} (x y : X) (f f_inv : X → X) : (∀ x, f_inv (f x) = x) → δ (f x) y = δ x (f_inv y)
+
+
+
+
+lemma delta_int_mul {X : Type} [HasIntegral X] (x₀ : X) (f : X → T []) : integral (λ x, T.box (f x * δ x₀ x)) = T.box (f x₀) :=
+begin
+assert H : integral (λ x, T.box (f x * δ x₀ x)) = integral (λ x, δ x₀ x ⬝ T.box (f x)),
+apply (congr_arg integral), apply funext, intro x, rw [mul_comm, T.box_smul], rw H, clear H,
+rw delta_int
+end
+
+lemma delta_int_mul_func {X : Type} [HasIntegral X] (x₀ : X) (f : X → T []) (g g_inv : X → X) (H_g : ∀ x, g_inv (g x) = x) :
+  integral (λ x, T.box (f x * δ x₀ (g x))) = T.box (f (g_inv x₀)) :=
+begin
+assert H : integral (λ x, T.box (f x * δ x₀ (g x))) = integral (λ x, T.box (f x * δ (g_inv x₀) x)),
+apply (congr_arg integral), apply funext, intro x,
+rw [delta_comm, delta_inv x x₀ g g_inv H_g, delta_comm], rw H, clear H,
+apply delta_int_mul
+end
+
+lemma delta_int1 {X : Type} [HasIntegral X] (x₀ : X) : integral (λ x, T.box $ δ x₀ x) = T.box 1 :=
+  begin
+    assertv H :(integral (λ (x : X), T.box (δ x₀ x)) = integral (λ (x : X), δ x₀ x ⬝ (λ y, T.box 1) x)) :=
+      begin apply (congr_arg integral), apply funext, intro x, rw T.box_smul_1, end,
+    rw H, clear H, rw delta_int
+  end
+-/
+
+end T
+
+/-
+meta constant smul (α : T []) : Π {shape : TShape}, T shape → T shape
+
+meta constants sum prod : Π {shape : TShape}, T shape → T []
+
+meta constant get_row {m n : ℕ} (M : T [m, n]) (ridx : fin m) : T [n]
+meta constant get_col {m n : ℕ} (M : T [m, n]) (cidx : fin n) : T [m]
+
+meta constant get_col_range {m n : ℕ} (M : T [m, n]) (cidx : fin n) (ncols_to_take : ℕ) : T [m, ncols_to_take]
+
+meta constant gemv {m n : ℕ} (M : T [m, n]) (x : T [n]) : T [m]
+meta constant gemm {m n p : ℕ} (M : T [m, n]) (N : T [n, p]) : T [m, p]
+
+meta constant sample_gauss (shape : TShape) : state RNG (T shape)
+
+end T
+-/
+
+vm_eval T.gemv (2 : T [2, 2]) (2 : T [2])
+vm_eval T.gemm (2 : T [2, 2]) (2 : T [2, 3])
+vm_eval T.dot (2 : T [2]) (2 : T [2])
+
+end approx
+end certigrad
