@@ -48,6 +48,10 @@ static vm_obj box(float const & x) {
     return to_obj(arr);
 }
 
+static float unbox(vm_obj const & alpha) {
+    return to_eigen(alpha)(0, 0);
+}
+
 vm_obj eigen_to_string(vm_obj const & shape, vm_obj const & v) {
     list<unsigned> dims = to_list<unsigned, std::function<unsigned(vm_obj const &)> >(shape, to_unsigned);
     std::ostringstream out;
@@ -111,11 +115,11 @@ vm_obj eigen_const(vm_obj const & alpha, vm_obj const & shape) {
     Eigen::ArrayXXf arr;
     if (optional<pair<unsigned, unsigned> > mn = is_matrix(shape)) {
         return to_obj(Eigen::ArrayXXf::NullaryExpr(mn->first, mn->second, [&]() {
-                    return to_float(alpha);
+                    return unbox(alpha);
                 }));
     } else {
         return to_obj(Eigen::ArrayXXf::NullaryExpr(shape_len(shape), 1, [&]() {
-                    return to_float(alpha);
+                    return unbox(alpha);
                 }));
     }
 }
