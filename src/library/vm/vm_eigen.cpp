@@ -234,45 +234,45 @@ vm_obj eigen_sample_gauss(vm_obj const & shape, vm_obj const & g_old) {
 
 
 void initialize_vm_eigen() {
-    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "RNG"}),                   eigen_rng);
-    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "RNG", "to_string"}),      eigen_rng_to_string);
-    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "RNG", "mk"}),             eigen_mk_rng);
+    DECLARE_VM_BUILTIN(name({"certigrad", "RNG"}),                   eigen_rng);
+    DECLARE_VM_BUILTIN(name({"certigrad", "RNG", "to_string"}),      eigen_rng_to_string);
+    DECLARE_VM_BUILTIN(name({"certigrad", "RNG", "mk"}),             eigen_mk_rng);
 
-    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T"}),                     eigen_tensor);
-    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "to_string"}),        eigen_to_string);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T"}),                     eigen_tensor);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "to_string"}),        eigen_to_string);
 
-    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "of_nat"}),           eigen_of_nat);
-    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "box"}),              eigen_box);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "of_nat"}),           eigen_of_nat);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "box"}),              eigen_box);
 
-    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "zero"}),             eigen_zero);
-    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "one"}),              eigen_one);
-    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "pi"}),               eigen_pi);
-    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "const"}),            eigen_const);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "zero"}),             eigen_zero);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "one"}),              eigen_one);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "pi"}),               eigen_pi);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "const"}),            eigen_const);
 
-    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "neg"}),              eigen_neg);
-    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "inv"}),              eigen_inv);
-    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "exp"}),              eigen_exp);
-    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "log"}),              eigen_log);
-    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "sqrt"}),             eigen_sqrt);
-    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "tanh"}),             eigen_tanh);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "neg"}),              eigen_neg);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "inv"}),              eigen_inv);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "exp"}),              eigen_exp);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "log"}),              eigen_log);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "sqrt"}),             eigen_sqrt);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "tanh"}),             eigen_tanh);
 
-    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "add"}),              eigen_add);
-    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "mul"}),              eigen_mul);
-    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "sub"}),              eigen_sub);
-    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "div"}),              eigen_div);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "add"}),              eigen_add);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "mul"}),              eigen_mul);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "sub"}),              eigen_sub);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "div"}),              eigen_div);
 
-    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "smul"}),             eigen_smul);
-    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "sum"}),              eigen_sum);
-    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "prod"}),              eigen_prod);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "smul"}),             eigen_smul);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "sum"}),              eigen_sum);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "prod"}),              eigen_prod);
 
-    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "get_row"}),          eigen_get_row);
-    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "get_col"}),          eigen_get_col);
-    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "get_col_range"}),    eigen_get_col_range);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "get_row"}),          eigen_get_row);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "get_col"}),          eigen_get_col);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "get_col_range"}),    eigen_get_col_range);
 
-    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "gemv"}),             eigen_gemv);
-    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "gemm"}),             eigen_gemm);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "gemv"}),             eigen_gemv);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "gemm"}),             eigen_gemm);
 
-    DECLARE_VM_BUILTIN(name({"certigrad", "approx", "T", "sample_gauss"}),     eigen_sample_gauss);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "sample_gauss"}),     eigen_sample_gauss);
 }
 
 void finalize_vm_eigen() {}
