@@ -13,10 +13,6 @@ bool is_marked_noncomputable(environment const & env, name const & n);
 bool is_noncomputable(environment const & env, name const & n);
 /** \brief Mark \c n as noncomputable */
 environment mark_noncomputable(environment const & env, name const & n);
-/** \brief Mark \c n as comp_override, to indicate that the code for a
-    declaration will be overriden. */
-environment mark_comp_override(environment const & env, name const & n);
-
 /** \brief In standard mode, check if definitions that are not propositions can compute */
 bool check_computable(environment const & env, name const & n);
 optional<name> get_noncomputable_reason(environment const & env, name const & n);
