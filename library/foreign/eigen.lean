@@ -1,8 +1,7 @@
 import icml2017.certigrad.dvec
 
 namespace certigrad
-namespace approx
-
+--namespace approx
 meta constant RNG : Type
 
 namespace RNG
@@ -71,5 +70,5 @@ meta structure PDF (shapes : List TShape) := (pdf : DVec T shapes → T [])
 
 
 
-end approx
+--end approx
 end certigrad
