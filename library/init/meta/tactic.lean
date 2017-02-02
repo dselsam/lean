@@ -405,9 +405,6 @@ meta constant generalize_core : transparency → expr → name → tactic unit
 meta constant instantiate_mvars : expr → tactic expr
 /- Add the given declaration to the environment -/
 meta constant add_decl : declaration → tactic unit
-/- Add a new inductive datatype to the environment
-   name, universe parameters, number of parameters, type, constructors (name and type), is_meta -/
-meta constant add_inductive : name → list name → nat → expr → list (name × expr) → bool → tactic unit
 /- (doc_string env d k) return the doc string for d (if available) -/
 meta constant doc_string : name → tactic string
 meta constant add_doc_string : name → string → tactic unit
