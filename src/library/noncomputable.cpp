@@ -17,6 +17,7 @@ Author: Leonardo de Moura
 namespace lean {
 struct noncomputable_ext : public environment_extension {
     name_set m_noncomputable;
+    name_set m_comp_override;
     noncomputable_ext() {}
 };
 
@@ -62,6 +63,8 @@ static bool is_noncomputable(type_checker & tc, noncomputable_ext const & ext, n
     environment const & env = tc.env();
     if (ext.m_noncomputable.contains(n))
         return true;
+    if (ext.m_comp_override.contains(n))
+        return false;
     declaration const & d = env.get(n);
     if (!d.is_trusted()) {
         return false; /* ignore nontrusted definitions */
@@ -86,8 +89,17 @@ bool is_marked_noncomputable(environment const & env, name const & n) {
 }
 
 environment mark_noncomputable(environment const & env, name const & n) {
+    std::cout << "[mark_noncomputable: " << n << "]" << std::endl;
     auto ext = get_extension(env);
     ext.m_noncomputable.insert(n);
+    environment new_env = update(env, ext);
+    return module::add(new_env, std::make_shared<noncomputable_modification>(n));
+}
+
+environment mark_comp_override(environment const & env, name const & n) {
+    std::cout << "[mark_comp_override: " << n << "]" << std::endl;
+    auto ext = get_extension(env);
+    ext.m_comp_override.insert(n);
     environment new_env = update(env, ext);
     return module::add(new_env, std::make_shared<noncomputable_modification>(n));
 }
