@@ -1,3 +1,5 @@
+import icml2017.certigrad.dvec
+
 namespace certigrad
 namespace approx
 
@@ -42,6 +44,32 @@ meta constant gemm {m n p : ℕ} (M : T [m, n]) (N : T [n, p]) : T [m, p]
 meta constant sample_gauss (shape : TShape) : state RNG (T shape)
 
 end T
+
+namespace Distribution
+namespace Primitive
+
+meta structure Grad {ishapes : list TShape} {oshape : TShape} (pdf : DVec T ishapes → T oshape → T []) : Type :=
+  (grad_log_pdf : DVec T ishapes → T oshape → ℕ → Π (ishape : TShape), T ishape)
+
+end Primitive
+
+meta structure Primitive (ishapes : List TShape) (oshape : TShape) : Type :=
+  (pdf : DVec T ishapes → (T oshape → T []))
+  (pdf_grad : option (Primitive.Grad pdf))
+  (run : DVec T ishapes → State RNG (T oshape))
+
+end Distribution
+
+meta inductive Distribution : List TShape → Type
+| dret  : Π {shapes : List TShape}, DVec T shapes → Distribution shapes
+| dbind : Π {shapes₁ shapes₂ : List TShape}, Distribution shapes₁ → (DVec T shapes₁ → Distribution shapes₂) → Distribution shapes₂
+| dprim : Π {ishapes : List TShape} {oshape : TShape}, Distribution.Primitive ishapes oshape → DVec T ishapes → Distribution [oshape]
+
+meta structure PDF (shapes : List TShape) := (pdf : DVec T shapes → T [])
+
+
+
+
 
 end approx
 end certigrad
