@@ -146,6 +146,10 @@ vm_obj eigen_mul(vm_obj const & /* shape */, vm_obj const & x, vm_obj const & y)
 vm_obj eigen_sub(vm_obj const & /* shape */, vm_obj const & x, vm_obj const & y) { return to_obj(to_eigen(x) - to_eigen(y)); }
 vm_obj eigen_div(vm_obj const & /* shape */, vm_obj const & x, vm_obj const & y) { return to_obj(to_eigen(x) / to_eigen(y)); }
 
+vm_obj eigen_transpose(vm_obj const & m, vm_obj const & n, vm_obj const & M) {
+    return to_obj(to_eigen(M).transpose());
+}
+
 vm_obj eigen_smul(vm_obj const & alpha, vm_obj const & /* shape */, vm_obj const & x) {
     return to_obj(to_eigen(alpha)(0, 0) * to_eigen(x));
 }
@@ -167,6 +171,11 @@ vm_obj eigen_get_col(vm_obj const & m, vm_obj const & n, vm_obj const & M, vm_ob
 vm_obj eigen_get_col_range(vm_obj const & m, vm_obj const & n, vm_obj const & M, vm_obj const & cidx, vm_obj const & ncols_to_take) {
 // meta constant get_col_range {m n : ℕ} (M : T [m, n]) (cidx : fin n) (ncols_to_take : ℕ) : T [m, ncols_to_take]
     return to_obj(to_eigen(M).block(0, to_unsigned(cidx), to_unsigned(m), to_unsigned(ncols_to_take)).array());
+}
+
+vm_obj eigen_replicate_col(vm_obj const & m, vm_obj const & v, vm_obj const & n) {
+// def replicate_col {m : ℕ} (v : T [m]) (n : ℕ) : T [m, n] :=
+    return to_obj(to_eigen(v).replicate(1, to_unsigned(n)));
 }
 
 vm_obj eigen_gemv(vm_obj const & m, vm_obj const & n, vm_obj const & M, vm_obj const & v) {
@@ -275,6 +284,7 @@ void initialize_vm_eigen() {
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "sub"}),              eigen_sub);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "div"}),              eigen_div);
 
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "transpose"}),        eigen_transpose);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "smul"}),             eigen_smul);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "sum"}),              eigen_sum);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "prod"}),             eigen_prod);
@@ -282,6 +292,8 @@ void initialize_vm_eigen() {
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "get_row"}),          eigen_get_row);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "get_col"}),          eigen_get_col);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "get_col_range"}),    eigen_get_col_range);
+
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "replicate_col"}),    eigen_replicate_col);
 
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "gemv"}),             eigen_gemv);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "gemm"}),             eigen_gemm);
