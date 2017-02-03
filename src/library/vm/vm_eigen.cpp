@@ -173,6 +173,11 @@ vm_obj eigen_get_col_range(vm_obj const & m, vm_obj const & n, vm_obj const & M,
     return to_obj(to_eigen(M).block(0, to_unsigned(cidx), to_unsigned(m), to_unsigned(ncols_to_take)).array());
 }
 
+vm_obj eigen_sum_cols(vm_obj const & m, vm_obj const & n, vm_obj const & M) {
+// def sum_cols {nrows ncols : ℕ} (M : T [nrows, ncols]) : T [nrows] :=
+    return to_obj(to_eigen(M).matrix().rowwise().sum().array());
+}
+
 vm_obj eigen_replicate_col(vm_obj const & m, vm_obj const & v, vm_obj const & n) {
 // def replicate_col {m : ℕ} (v : T [m]) (n : ℕ) : T [m, n] :=
     return to_obj(to_eigen(v).replicate(1, to_unsigned(n)));
@@ -292,6 +297,8 @@ void initialize_vm_eigen() {
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "get_row"}),          eigen_get_row);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "get_col"}),          eigen_get_col);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "get_col_range"}),    eigen_get_col_range);
+
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "sum_cols"}),         eigen_sum_cols);
 
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "replicate_col"}),    eigen_replicate_col);
 
