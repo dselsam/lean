@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Author: Daniel Selsam
 */
 #include <iostream>
+#include <fstream>
 #include <random>
 #include "library/vm/vm.h"
 #include "library/vm/vm_nat.h"
@@ -195,6 +196,43 @@ vm_obj eigen_gemm(vm_obj const & m, vm_obj const & n, vm_obj const & p, vm_obj c
     return to_obj(result.array());
 }
 
+vm_obj eigen_read_from_file(vm_obj const & shape, vm_obj const & _filename, vm_obj const &) {
+    std::string filename = to_string(_filename);
+    std::ifstream in(filename);
+
+    unsigned nrows, ncols;
+    if (optional<pair<unsigned, unsigned> > mn = is_matrix(shape)) {
+        nrows = mn->first;
+        ncols = mn->second;
+    } else {
+        nrows = shape_len(shape);
+        ncols = 1;
+    }
+    Eigen::ArrayXXf arr(nrows, ncols);
+
+    for (unsigned row = 0; row < nrows; row++) {
+        for (unsigned col = 0; col < ncols; col++) {
+            in >> arr(row, col);
+        }
+    }
+    return to_obj(arr);
+}
+
+vm_obj eigen_write_to_file(vm_obj const & shape, vm_obj const & x, vm_obj const & _filename, vm_obj const &) {
+    std::string filename = to_string(_filename);
+    std::ofstream out(filename);
+
+    out.precision(18);
+    out << std::scientific;
+    Eigen::ArrayXXf arr = to_eigen(x);
+    for (unsigned row = 0; row < arr.rows(); row++) {
+        for (unsigned col = 0; col < arr.cols(); col++) {
+            out << arr(row, col) << " ";
+        }
+    }
+    return mk_vm_unit();
+}
+
 // Random
 
 struct vm_rng : public vm_external {
@@ -304,6 +342,9 @@ void initialize_vm_eigen() {
 
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "gemv"}),             eigen_gemv);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "gemm"}),             eigen_gemm);
+
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "read_from_file"}),   eigen_read_from_file);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "write_to_file"}),    eigen_write_to_file);
 
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "sample_uniform"}),   eigen_sample_uniform);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "sample_gauss"}),     eigen_sample_gauss);
