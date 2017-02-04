@@ -309,8 +309,17 @@ class erase_irrelevant_fn : public compiler_step_visitor {
         return add_args(r, 3, args);
     }
 
-    static bool is_builtin_state_monad(expr const & e) {
-        return is_constant(e, get_io_monad_name());
+    bool is_builtin_state_monad(expr const & e) {
+        if (is_constant(e, get_io_monad_name()))
+            return true;
+
+        buffer<expr> args;
+        expr fn = get_app_args(e, args);
+        if (is_constant(fn, get_monad_to_pre_monad_name()) &&
+            is_constant(args[1], get_io_monad_name()))
+            return true;
+
+        return false;
     }
 
     expr visit_monad_bind(expr const & e, buffer<expr> const & args) {
@@ -378,9 +387,11 @@ class erase_irrelevant_fn : public compiler_step_visitor {
                 return visit_quot_mk(args);
             } else if (n == get_subtype_rec_name()) {
                 return visit_subtype_rec(args);
-            } else if (n == get_monad_bind_name() || n == get_pre_monad_bind_name()) {
+            } else if (n == get_monad_bind_name()
+                       || n == get_pre_monad_bind_name()
+                       || n == get_bind_name()) {
                 return visit_monad_bind(e, args);
-            } else if (n == get_monad_ret_name()) {
+            } else if (n == get_monad_ret_name() || n == get_return_name()) {
                 return visit_monad_return(e, args);
             } else if (is_cases_on_recursor(env(), n)) {
                 return visit_cases_on(fn, args);
