@@ -206,6 +206,7 @@ name const * g_monad = nullptr;
 name const * g_monad_map = nullptr;
 name const * g_monad_bind = nullptr;
 name const * g_monad_ret = nullptr;
+name const * g_monad_to_pre_monad = nullptr;
 name const * g_monoid = nullptr;
 name const * g_mul = nullptr;
 name const * g_mul_one = nullptr;
@@ -369,6 +370,7 @@ name const * g_real_is_int = nullptr;
 name const * g_real_of_rat = nullptr;
 name const * g_real_of_int = nullptr;
 name const * g_real_to_int = nullptr;
+name const * g_return = nullptr;
 name const * g_rfl = nullptr;
 name const * g_right_distrib = nullptr;
 name const * g_ring = nullptr;
@@ -686,6 +688,7 @@ void initialize_constants() {
     g_monad_map = new name{"monad", "map"};
     g_monad_bind = new name{"monad", "bind"};
     g_monad_ret = new name{"monad", "ret"};
+    g_monad_to_pre_monad = new name{"monad", "to_pre_monad"};
     g_monoid = new name{"monoid"};
     g_mul = new name{"mul"};
     g_mul_one = new name{"mul_one"};
@@ -849,6 +852,7 @@ void initialize_constants() {
     g_real_of_rat = new name{"real", "of_rat"};
     g_real_of_int = new name{"real", "of_int"};
     g_real_to_int = new name{"real", "to_int"};
+    g_return = new name{"return"};
     g_rfl = new name{"rfl"};
     g_right_distrib = new name{"right_distrib"};
     g_ring = new name{"ring"};
@@ -1167,6 +1171,7 @@ void finalize_constants() {
     delete g_monad_map;
     delete g_monad_bind;
     delete g_monad_ret;
+    delete g_monad_to_pre_monad;
     delete g_monoid;
     delete g_mul;
     delete g_mul_one;
@@ -1330,6 +1335,7 @@ void finalize_constants() {
     delete g_real_of_rat;
     delete g_real_of_int;
     delete g_real_to_int;
+    delete g_return;
     delete g_rfl;
     delete g_right_distrib;
     delete g_ring;
@@ -1647,6 +1653,7 @@ name const & get_monad_name() { return *g_monad; }
 name const & get_monad_map_name() { return *g_monad_map; }
 name const & get_monad_bind_name() { return *g_monad_bind; }
 name const & get_monad_ret_name() { return *g_monad_ret; }
+name const & get_monad_to_pre_monad_name() { return *g_monad_to_pre_monad; }
 name const & get_monoid_name() { return *g_monoid; }
 name const & get_mul_name() { return *g_mul; }
 name const & get_mul_one_name() { return *g_mul_one; }
@@ -1810,6 +1817,7 @@ name const & get_real_is_int_name() { return *g_real_is_int; }
 name const & get_real_of_rat_name() { return *g_real_of_rat; }
 name const & get_real_of_int_name() { return *g_real_of_int; }
 name const & get_real_to_int_name() { return *g_real_to_int; }
+name const & get_return_name() { return *g_return; }
 name const & get_rfl_name() { return *g_rfl; }
 name const & get_right_distrib_name() { return *g_right_distrib; }
 name const & get_ring_name() { return *g_ring; }

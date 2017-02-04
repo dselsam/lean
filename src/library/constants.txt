@@ -201,6 +201,7 @@ monad
 monad.map
 monad.bind
 monad.ret
+monad.to_pre_monad
 monoid
 mul
 mul_one
@@ -364,6 +365,7 @@ real.is_int
 real.of_rat
 real.of_int
 real.to_int
+return
 rfl
 right_distrib
 ring
