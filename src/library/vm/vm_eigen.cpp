@@ -142,6 +142,8 @@ vm_obj eigen_log(vm_obj const & /* shape */, vm_obj const & x) { return to_obj(l
 vm_obj eigen_sqrt(vm_obj const & /* shape */, vm_obj const & x) { return to_obj(sqrt(to_eigen(x))); }
 vm_obj eigen_tanh(vm_obj const & /* shape */, vm_obj const & x) { return to_obj(tanh(to_eigen(x))); }
 
+vm_obj eigen_pow(vm_obj const & /* shape */, vm_obj const & x, vm_obj const & alpha) { return to_obj(to_eigen(x).pow(unbox(alpha))); }
+
 vm_obj eigen_add(vm_obj const & /* shape */, vm_obj const & x, vm_obj const & y) { return to_obj(to_eigen(x) + to_eigen(y)); }
 vm_obj eigen_mul(vm_obj const & /* shape */, vm_obj const & x, vm_obj const & y) { return to_obj(to_eigen(x) * to_eigen(y)); }
 vm_obj eigen_sub(vm_obj const & /* shape */, vm_obj const & x, vm_obj const & y) { return to_obj(to_eigen(x) - to_eigen(y)); }
@@ -151,8 +153,8 @@ vm_obj eigen_transpose(vm_obj const & m, vm_obj const & n, vm_obj const & M) {
     return to_obj(to_eigen(M).transpose());
 }
 
-vm_obj eigen_smul(vm_obj const & alpha, vm_obj const & /* shape */, vm_obj const & x) {
-    return to_obj(to_eigen(alpha)(0, 0) * to_eigen(x));
+vm_obj eigen_smul(vm_obj const & /* shape */, vm_obj const & alpha, vm_obj const & x) {
+    return to_obj(unbox(alpha) * to_eigen(x));
 }
 
 vm_obj eigen_sum(vm_obj const & /* shape */, vm_obj const & x) { return box(to_eigen(x).sum()); }
@@ -321,6 +323,7 @@ void initialize_vm_eigen() {
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "log"}),              eigen_log);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "sqrt"}),             eigen_sqrt);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "tanh"}),             eigen_tanh);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "pow"}),              eigen_pow);
 
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "add"}),              eigen_add);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "mul"}),              eigen_mul);
@@ -328,7 +331,7 @@ void initialize_vm_eigen() {
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "div"}),              eigen_div);
 
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "transpose"}),        eigen_transpose);
-    DECLARE_VM_BUILTIN(name({"certigrad", "T", "smul"}),             eigen_smul);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "scalar_mul"}),       eigen_smul);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "sum"}),              eigen_sum);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "prod"}),             eigen_prod);
 
