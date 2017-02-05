@@ -28,7 +28,7 @@ vm_obj to_obj(Eigen::ArrayXXf const & v) {
     return mk_vm_external(new (get_vm_allocator().allocate(sizeof(vm_eigen))) vm_eigen(v));
 }
 
-Eigen::ArrayXXf to_eigen(vm_obj const & o) {
+Eigen::ArrayXXf const & to_eigen(vm_obj const & o) {
     lean_assert(is_external(o));
     lean_assert(dynamic_cast<vm_eigen*>(to_external(o)));
     return static_cast<vm_eigen*>(to_external(o))->m_val;
@@ -231,6 +231,7 @@ vm_obj eigen_write_to_file(vm_obj const & shape, vm_obj const & x, vm_obj const 
         for (unsigned col = 0; col < arr.cols(); col++) {
             out << arr(row, col) << " ";
         }
+        out << "\n";
     }
     return mk_vm_unit();
 }
