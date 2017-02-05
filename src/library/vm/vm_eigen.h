@@ -10,7 +10,7 @@ Author: Daniel Selsam
 
 namespace lean {
 vm_obj to_obj(Eigen::ArrayXXf const & v);
-Eigen::ArrayXXf to_eigen(vm_obj const & o);
+Eigen::ArrayXXf const & to_eigen(vm_obj const & o);
 
 void initialize_vm_eigen();
 void finalize_vm_eigen();
