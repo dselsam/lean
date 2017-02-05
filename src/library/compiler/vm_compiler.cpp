@@ -400,7 +400,7 @@ static environment vm_compile(environment const & env, buffer<procedure> const &
 }
 
 environment vm_compile(environment const & env, declaration const & d) {
-    if (!d.is_definition() || d.is_theorem() || is_noncomputable(env, d.get_name()) || is_vm_builtin_function(d.get_name()))
+    if (!d.is_definition() || d.is_theorem() || is_vm_builtin_function(d.get_name()))
         return env;
 
     buffer<procedure> procs;
