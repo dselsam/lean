@@ -460,6 +460,7 @@ name const * g_interactive_types_qexpr_list_or_qexpr0_with_pos = nullptr;
 name const * g_interactive_types_colon_tk = nullptr;
 name const * g_interactive_types_assign_tk = nullptr;
 name const * g_interactive_types_comma_tk = nullptr;
+name const * g_T = nullptr;
 name const * g_thunk = nullptr;
 name const * g_to_fmt = nullptr;
 name const * g_to_int = nullptr;
@@ -943,6 +944,7 @@ void initialize_constants() {
     g_interactive_types_colon_tk = new name{"interactive", "types", "colon_tk"};
     g_interactive_types_assign_tk = new name{"interactive", "types", "assign_tk"};
     g_interactive_types_comma_tk = new name{"interactive", "types", "comma_tk"};
+    g_T = new name{"T"};
     g_thunk = new name{"thunk"};
     g_to_fmt = new name{"to_fmt"};
     g_to_int = new name{"to_int"};
@@ -1427,6 +1429,7 @@ void finalize_constants() {
     delete g_interactive_types_colon_tk;
     delete g_interactive_types_assign_tk;
     delete g_interactive_types_comma_tk;
+    delete g_T;
     delete g_thunk;
     delete g_to_fmt;
     delete g_to_int;
@@ -1910,6 +1913,7 @@ name const & get_interactive_types_qexpr_list_or_qexpr0_with_pos_name() { return
 name const & get_interactive_types_colon_tk_name() { return *g_interactive_types_colon_tk; }
 name const & get_interactive_types_assign_tk_name() { return *g_interactive_types_assign_tk; }
 name const & get_interactive_types_comma_tk_name() { return *g_interactive_types_comma_tk; }
+name const & get_T_name() { return *g_T; }
 name const & get_thunk_name() { return *g_thunk; }
 name const & get_to_fmt_name() { return *g_to_fmt; }
 name const & get_to_int_name() { return *g_to_int; }
