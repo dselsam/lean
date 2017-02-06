@@ -171,9 +171,9 @@ vm_obj eigen_get_col(vm_obj const & m, vm_obj const & n, vm_obj const & M, vm_ob
 }
 
 // TODO(dhs): better to take a proof that ncols_to_take is sufficiently small
-vm_obj eigen_get_col_range(vm_obj const & m, vm_obj const & n, vm_obj const & M, vm_obj const & cidx, vm_obj const & ncols_to_take) {
-// meta constant get_col_range {m n : ℕ} (M : T [m, n]) (cidx : fin n) (ncols_to_take : ℕ) : T [m, ncols_to_take]
-    return to_obj(to_eigen(M).block(0, to_unsigned(cidx), to_unsigned(m), to_unsigned(ncols_to_take)).array());
+// Note: cidx comes in as a T []
+vm_obj eigen_get_col_range(vm_obj const & m, vm_obj const & n, vm_obj const & ncols_to_take, vm_obj const & M, vm_obj const & cidx) {
+    return to_obj(to_eigen(M).block(0, round(unbox(cidx)), to_unsigned(m), to_unsigned(ncols_to_take)).array());
 }
 
 vm_obj eigen_sum_cols(vm_obj const & m, vm_obj const & n, vm_obj const & M) {
