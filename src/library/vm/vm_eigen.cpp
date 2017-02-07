@@ -239,13 +239,11 @@ vm_obj eigen_write_to_file(vm_obj const & shape, vm_obj const & x, vm_obj const 
 
 vm_obj eigen_fail(vm_obj const & shape) {
     list<unsigned> dims = to_list<unsigned, std::function<unsigned(vm_obj const &)> >(shape, to_unsigned);
-    std::cout << "certigrad.T.fail default tensor value returned of shape "<< dims << "\n";
-    return eigen_zero(shape);
+    throw exception(sstream() << "certigrad.T.fail default tensor value returned of shape "<< dims << "\n");
 }
 
 vm_obj eigen_error(vm_obj const & shape, vm_obj const & msg) {
-    std::cout << "certigrad.T.error: " << to_string(msg) << "\n";
-    return eigen_zero(shape);
+    throw exception(sstream() << "certigrad.T.error: " << to_string(msg) << "\n");
 }
 
 // Random
