@@ -21,6 +21,7 @@ caching_user_attribute
 cast
 cast_eq
 cast_heq
+certigrad.T
 char
 char.of_nat
 char.of_nat_ne_of_ne
@@ -455,7 +456,6 @@ interactive.types.qexpr_list_or_qexpr0_with_pos
 interactive.types.colon_tk
 interactive.types.assign_tk
 interactive.types.comma_tk
-T
 thunk
 to_fmt
 to_int

@@ -50,10 +50,10 @@ class eta_expand_fn : public compiler_step_visitor {
     expr eta_expand(expr const & e) {
         expr ty_fn = get_app_fn(ctx().whnf_pred(ctx().infer(e), [&](expr const & _e) {
                     expr f = get_app_fn(_e);
-                    return !(is_constant(f) && const_name(f) == get_T_name());
+                    return !(is_constant(f) && const_name(f) == get_certigrad_T_name());
                 }));
 
-        if (is_constant(ty_fn) && const_name(ty_fn) == get_T_name())
+        if (is_constant(ty_fn) && const_name(ty_fn) == get_certigrad_T_name())
             return e;
         else
             return ctx().eta_expand(e);

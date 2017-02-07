@@ -26,6 +26,7 @@ name const * g_caching_user_attribute = nullptr;
 name const * g_cast = nullptr;
 name const * g_cast_eq = nullptr;
 name const * g_cast_heq = nullptr;
+name const * g_certigrad_T = nullptr;
 name const * g_char = nullptr;
 name const * g_char_of_nat = nullptr;
 name const * g_char_of_nat_ne_of_ne = nullptr;
@@ -460,7 +461,6 @@ name const * g_interactive_types_qexpr_list_or_qexpr0_with_pos = nullptr;
 name const * g_interactive_types_colon_tk = nullptr;
 name const * g_interactive_types_assign_tk = nullptr;
 name const * g_interactive_types_comma_tk = nullptr;
-name const * g_T = nullptr;
 name const * g_thunk = nullptr;
 name const * g_to_fmt = nullptr;
 name const * g_to_int = nullptr;
@@ -510,6 +510,7 @@ void initialize_constants() {
     g_cast = new name{"cast"};
     g_cast_eq = new name{"cast_eq"};
     g_cast_heq = new name{"cast_heq"};
+    g_certigrad_T = new name{"certigrad", "T"};
     g_char = new name{"char"};
     g_char_of_nat = new name{"char", "of_nat"};
     g_char_of_nat_ne_of_ne = new name{"char", "of_nat_ne_of_ne"};
@@ -944,7 +945,6 @@ void initialize_constants() {
     g_interactive_types_colon_tk = new name{"interactive", "types", "colon_tk"};
     g_interactive_types_assign_tk = new name{"interactive", "types", "assign_tk"};
     g_interactive_types_comma_tk = new name{"interactive", "types", "comma_tk"};
-    g_T = new name{"T"};
     g_thunk = new name{"thunk"};
     g_to_fmt = new name{"to_fmt"};
     g_to_int = new name{"to_int"};
@@ -995,6 +995,7 @@ void finalize_constants() {
     delete g_cast;
     delete g_cast_eq;
     delete g_cast_heq;
+    delete g_certigrad_T;
     delete g_char;
     delete g_char_of_nat;
     delete g_char_of_nat_ne_of_ne;
@@ -1429,7 +1430,6 @@ void finalize_constants() {
     delete g_interactive_types_colon_tk;
     delete g_interactive_types_assign_tk;
     delete g_interactive_types_comma_tk;
-    delete g_T;
     delete g_thunk;
     delete g_to_fmt;
     delete g_to_int;
@@ -1479,6 +1479,7 @@ name const & get_caching_user_attribute_name() { return *g_caching_user_attribut
 name const & get_cast_name() { return *g_cast; }
 name const & get_cast_eq_name() { return *g_cast_eq; }
 name const & get_cast_heq_name() { return *g_cast_heq; }
+name const & get_certigrad_T_name() { return *g_certigrad_T; }
 name const & get_char_name() { return *g_char; }
 name const & get_char_of_nat_name() { return *g_char_of_nat; }
 name const & get_char_of_nat_ne_of_ne_name() { return *g_char_of_nat_ne_of_ne; }
@@ -1913,7 +1914,6 @@ name const & get_interactive_types_qexpr_list_or_qexpr0_with_pos_name() { return
 name const & get_interactive_types_colon_tk_name() { return *g_interactive_types_colon_tk; }
 name const & get_interactive_types_assign_tk_name() { return *g_interactive_types_assign_tk; }
 name const & get_interactive_types_comma_tk_name() { return *g_interactive_types_comma_tk; }
-name const & get_T_name() { return *g_T; }
 name const & get_thunk_name() { return *g_thunk; }
 name const & get_to_fmt_name() { return *g_to_fmt; }
 name const & get_to_int_name() { return *g_to_int; }

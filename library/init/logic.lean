@@ -614,6 +614,12 @@ is_true trivial
 instance decidable.false : decidable false :=
 is_false not_false
 
+/-
+instance decidable.and (α β : Prop) : decidable α → decidable β → decidable (α ∧ β)
+| (is_true pf₁) (is_true pf₂)  := is_true (and.intro pf₁ pf₂)
+| (is_false pf₁) _ := is_false (assume H : α ∧ β, pf₁ H~>left)
+| _ (is_false pf₂) := is_false (assume H : α ∧ β, pf₂ H~>right)
+-/
 -- We use "dependent" if-then-else to be able to communicate the if-then-else condition
 -- to the branches
 @[inline] def dite (c : Prop) [h : decidable c] {α : Sort u} : (c → α) → (¬ c → α) → α :=
