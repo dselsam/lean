@@ -4,6 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 
 Author: Leonardo de Moura
 */
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <string>
 #include <iostream>
 #include "library/io_state.h"
@@ -41,11 +43,19 @@ vm_obj forever (vm_obj const & action, vm_obj const &) {
     return mk_vm_simple(0);
 }
 
+vm_obj io_mkdir (vm_obj const & dir_name, vm_obj const &) {
+    int status = mkdir(to_string(dir_name).c_str(), S_IRWXU);
+    if (status != 0)
+        throw exception(sstream() << "mkdir(" << to_string(dir_name) << ") failed");
+    return mk_vm_unit();
+}
+
 void initialize_vm_io() {
     DECLARE_VM_BUILTIN("put_str", put_str);
     DECLARE_VM_BUILTIN("put_nat", put_nat);
     DECLARE_VM_BUILTIN("get_line", get_line);
     DECLARE_VM_BUILTIN("forever", forever);
+    DECLARE_VM_BUILTIN("mkdir", io_mkdir);
 }
 
 void finalize_vm_io() {
