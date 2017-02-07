@@ -16,6 +16,8 @@ Author: Daniel Selsam
 
 namespace lean {
 
+static const float eps = 0.00000001;
+
 struct vm_eigen : public vm_external {
     Eigen::ArrayXXf m_val;
     vm_eigen(Eigen::ArrayXXf const & v): m_val(v) {}
@@ -137,9 +139,20 @@ vm_obj eigen_const(vm_obj const & alpha, vm_obj const & shape) {
 }
 
 vm_obj eigen_neg(vm_obj const & /* shape */, vm_obj const & x) { return to_obj(-to_eigen(x)); }
-vm_obj eigen_inv(vm_obj const & /* shape */, vm_obj const & x) { return to_obj(1.0/to_eigen(x)); }
+vm_obj eigen_inv(vm_obj const & /* shape */, vm_obj const & x) {
+    Eigen::ArrayXXf arr = 1.0 / (to_eigen(x));
+    if (!arr.allFinite())
+        throw exception("inv floating point error");
+    return to_obj(arr);
+}
 vm_obj eigen_exp(vm_obj const & /* shape */, vm_obj const & x) { return to_obj(exp(to_eigen(x))); }
-vm_obj eigen_log(vm_obj const & /* shape */, vm_obj const & x) { return to_obj(log(to_eigen(x))); }
+vm_obj eigen_log(vm_obj const & /* shape */, vm_obj const & x) {
+    Eigen::ArrayXXf arr = log(to_eigen(x) + eps);
+    if (!arr.allFinite())
+        throw exception("log floating point error");
+    return to_obj(arr);
+}
+
 vm_obj eigen_sqrt(vm_obj const & /* shape */, vm_obj const & x) { return to_obj(sqrt(to_eigen(x))); }
 vm_obj eigen_tanh(vm_obj const & /* shape */, vm_obj const & x) { return to_obj(tanh(to_eigen(x))); }
 
@@ -148,7 +161,12 @@ vm_obj eigen_pow(vm_obj const & /* shape */, vm_obj const & x, vm_obj const & al
 vm_obj eigen_add(vm_obj const & /* shape */, vm_obj const & x, vm_obj const & y) { return to_obj(to_eigen(x) + to_eigen(y)); }
 vm_obj eigen_mul(vm_obj const & /* shape */, vm_obj const & x, vm_obj const & y) { return to_obj(to_eigen(x) * to_eigen(y)); }
 vm_obj eigen_sub(vm_obj const & /* shape */, vm_obj const & x, vm_obj const & y) { return to_obj(to_eigen(x) - to_eigen(y)); }
-vm_obj eigen_div(vm_obj const & /* shape */, vm_obj const & x, vm_obj const & y) { return to_obj(to_eigen(x) / to_eigen(y)); }
+vm_obj eigen_div(vm_obj const & /* shape */, vm_obj const & x, vm_obj const & y) {
+    Eigen::ArrayXXf arr = to_eigen(x) / to_eigen(y);
+    if (!arr.allFinite())
+        throw exception("div floating point error");
+    return to_obj(arr);
+}
 
 vm_obj eigen_transpose(vm_obj const & m, vm_obj const & n, vm_obj const & M) {
     return to_obj(to_eigen(M).transpose());
@@ -303,11 +321,13 @@ static float sample_uniform(float low, float high, std::minstd_rand & g) {
 
 vm_obj eigen_sample_uniform(vm_obj const & shape, vm_obj const & low, vm_obj const & high, vm_obj const & g_old) {
     std::minstd_rand g = to_rng(g_old);
+    float x_low = unbox(low);
+    float x_high = unbox(high);
     if (optional<pair<unsigned, unsigned> > mn = is_matrix(shape)) {
-        Eigen::ArrayXXf arr = Eigen::ArrayXXf::NullaryExpr(mn->first, mn->second, [&]() { return sample_uniform(unbox(low), unbox(high), g); });
+        Eigen::ArrayXXf arr = Eigen::ArrayXXf::NullaryExpr(mn->first, mn->second, [&]() { return sample_uniform(x_low, x_high, g); });
         return mk_vm_pair(to_obj(arr), to_obj(g));
     } else {
-        Eigen::ArrayXXf arr = Eigen::ArrayXXf::NullaryExpr(shape_len(shape), 1, [&]() { return sample_uniform(unbox(low), unbox(high), g); });
+        Eigen::ArrayXXf arr = Eigen::ArrayXXf::NullaryExpr(shape_len(shape), 1, [&]() { return sample_uniform(x_low, x_high, g); });
         return mk_vm_pair(to_obj(arr), to_obj(g));
     }
 }
