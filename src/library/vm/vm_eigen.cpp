@@ -53,6 +53,10 @@ static float unbox(vm_obj const & alpha) {
     return to_eigen(alpha)(0, 0);
 }
 
+vm_obj eigen_fail(vm_obj const & shape) {
+    throw exception("certigrad.T.fail -- default tensor value returned");
+}
+
 vm_obj eigen_real() {
     // TODO(dhs): awkward
     return mk_vm_unit();
@@ -309,6 +313,7 @@ void initialize_vm_eigen() {
     DECLARE_VM_BUILTIN(name({"certigrad", "R"}),                     eigen_real);
     DECLARE_VM_BUILTIN(name({"certigrad", "T"}),                     eigen_tensor);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "to_string"}),        eigen_to_string);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "fail"}),             eigen_fail);
 
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "of_nat"}),           eigen_of_nat);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "box"}),              eigen_box);

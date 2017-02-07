@@ -327,11 +327,11 @@ static bool check_noncomputable(bool ignore_noncomputable, environment const & e
     if (ignore_noncomputable)
         return true;
     if (!is_noncomputable && is_marked_noncomputable(env, c_real_name)) {
-        auto reason = get_noncomputable_reason(env, c_real_name);
-        lean_assert(reason);
-        report_message(message(file_name, pos, ERROR,
-                               (sstream() << "definition '" << c_name << "' is noncomputable, it depends on '" << *reason << "'").str()));
-        return false;
+        // auto reason = get_noncomputable_reason(env, c_real_name);
+        // lean_assert(reason);
+        // report_message(message(file_name, pos, ERROR,
+        //                        (sstream() << "definition '" << c_name << "' is noncomputable, it depends on '" << *reason << "'").str()));
+        // return false;
     }
     if (is_noncomputable && !is_marked_noncomputable(env, c_real_name)) {
         report_message(message(file_name, pos, WARNING,
