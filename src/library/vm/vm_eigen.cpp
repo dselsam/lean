@@ -6,6 +6,7 @@ Author: Daniel Selsam
 #include <iostream>
 #include <fstream>
 #include <random>
+#include "util/sstream.h"
 #include "library/vm/vm.h"
 #include "library/vm/vm_nat.h"
 #include "library/vm/vm_list.h"
@@ -51,10 +52,6 @@ static vm_obj box(float const & x) {
 
 static float unbox(vm_obj const & alpha) {
     return to_eigen(alpha)(0, 0);
-}
-
-vm_obj eigen_fail(vm_obj const & shape) {
-    throw exception("certigrad.T.fail -- default tensor value returned");
 }
 
 vm_obj eigen_real() {
@@ -240,6 +237,17 @@ vm_obj eigen_write_to_file(vm_obj const & shape, vm_obj const & x, vm_obj const 
     return mk_vm_unit();
 }
 
+vm_obj eigen_fail(vm_obj const & shape) {
+    list<unsigned> dims = to_list<unsigned, std::function<unsigned(vm_obj const &)> >(shape, to_unsigned);
+    std::cout << "certigrad.T.fail default tensor value returned of shape "<< dims << "\n";
+    return eigen_zero(shape);
+}
+
+vm_obj eigen_error(vm_obj const & shape, vm_obj const & msg) {
+    std::cout << "certigrad.T.error: " << to_string(msg) << "\n";
+    return eigen_zero(shape);
+}
+
 // Random
 
 struct vm_rng : public vm_external {
@@ -314,6 +322,7 @@ void initialize_vm_eigen() {
     DECLARE_VM_BUILTIN(name({"certigrad", "T"}),                     eigen_tensor);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "to_string"}),        eigen_to_string);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "fail"}),             eigen_fail);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "error"}),            eigen_error);
 
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "of_nat"}),           eigen_of_nat);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "box"}),              eigen_box);
