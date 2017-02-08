@@ -9,9 +9,11 @@ constant io.monad   : monad io
 
 attribute [instance] io.functor io.monad
 
-constant put_str  : string → io unit
-constant put_nat  : nat → io unit
-constant get_line : io string
+def put_str  : string → io unit := sorry
+def put_nat  : nat → io unit := sorry
+def get_line : io string := sorry
+
+def mkdir : string → io unit := sorry
 
 def put_str_ln {A} [has_to_string A] (s : A) : io unit :=
   put_str $ #"\n" :: (to_string s)
