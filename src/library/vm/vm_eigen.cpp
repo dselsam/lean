@@ -55,18 +55,9 @@ static float unbox(vm_obj const & alpha) {
     return to_eigen(alpha)(0, 0);
 }
 
-vm_obj eigen_rng() {
+vm_obj eigen_dummy() {
     // TODO(dhs): awkward
-    return mk_vm_unit();
-}
-
-vm_obj eigen_real() {
-    // TODO(dhs): awkward
-    return mk_vm_unit();
-}
-
-vm_obj eigen_tensor(vm_obj const & shape) {
-    // TODO(dhs): awkward
+    throw exception("eigen_dummy not supposed to be called");
     return mk_vm_unit();
 }
 
@@ -336,9 +327,19 @@ void initialize_vm_eigen() {
     DECLARE_VM_BUILTIN(name({"certigrad", "RNG", "to_string"}),      eigen_rng_to_string);
     DECLARE_VM_BUILTIN(name({"certigrad", "RNG", "mk"}),             eigen_mk_rng);
 
-    DECLARE_VM_BUILTIN(name({"certigrad", "RNG"}),                   eigen_rng);
-    DECLARE_VM_BUILTIN(name({"certigrad", "R"}),                     eigen_real);
-    DECLARE_VM_BUILTIN(name({"certigrad", "T"}),                     eigen_tensor);
+    DECLARE_VM_BUILTIN(name({"certigrad", "RNG"}),                   eigen_dummy);
+    DECLARE_VM_BUILTIN(name({"certigrad", "R"}),                     eigen_dummy);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T"}),                     eigen_dummy);
+
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "D"}),                eigen_dummy);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "tmulT"}),            eigen_dummy);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "grad"}),             eigen_dummy);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "delta"}),            eigen_dummy);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "integral"}),         eigen_dummy);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "lt"}),               eigen_dummy);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "le"}),               eigen_dummy);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "IsContinuous"}),     eigen_dummy);
+
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "to_string"}),        eigen_to_string);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "fail"}),             eigen_fail);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "error"}),            eigen_error);
