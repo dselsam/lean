@@ -11,7 +11,6 @@ Author: Daniel Selsam
 #include "library/vm/vm_nat.h"
 #include "library/vm/vm_list.h"
 #include "library/vm/vm_string.h"
-#include "library/vm/vm_float.h"
 #include "library/vm/vm_eigen.h"
 
 namespace lean {
@@ -84,10 +83,6 @@ static long unsigned shape_len(vm_obj const & shape) {
     for (unsigned dim : dims)
         len *= dim;
     return len;
-}
-
-vm_obj eigen_box(vm_obj const & x) {
-    return box(to_float(x));
 }
 
 vm_obj eigen_of_nat(vm_obj const & n) {
@@ -343,7 +338,6 @@ void initialize_vm_eigen() {
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "error"}),            eigen_error);
 
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "of_nat"}),           eigen_of_nat);
-    DECLARE_VM_BUILTIN(name({"certigrad", "T", "box"}),              eigen_box);
 
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "zero"}),             eigen_zero);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "one"}),              eigen_one);
