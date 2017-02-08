@@ -55,6 +55,11 @@ static float unbox(vm_obj const & alpha) {
     return to_eigen(alpha)(0, 0);
 }
 
+vm_obj eigen_rng() {
+    // TODO(dhs): awkward
+    return mk_vm_unit();
+}
+
 vm_obj eigen_real() {
     // TODO(dhs): awkward
     return mk_vm_unit();
@@ -331,6 +336,7 @@ void initialize_vm_eigen() {
     DECLARE_VM_BUILTIN(name({"certigrad", "RNG", "to_string"}),      eigen_rng_to_string);
     DECLARE_VM_BUILTIN(name({"certigrad", "RNG", "mk"}),             eigen_mk_rng);
 
+    DECLARE_VM_BUILTIN(name({"certigrad", "RNG"}),                   eigen_rng);
     DECLARE_VM_BUILTIN(name({"certigrad", "R"}),                     eigen_real);
     DECLARE_VM_BUILTIN(name({"certigrad", "T"}),                     eigen_tensor);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "to_string"}),        eigen_to_string);
