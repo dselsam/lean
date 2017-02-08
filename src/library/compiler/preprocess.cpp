@@ -62,7 +62,6 @@ class expand_aux_fn : public compiler_step_visitor {
     }
 
     expr visit_cases_on(expr const & e) {
-        // TODO(dhs): strip eq.cases_on here?
         /* Try to reduce cases_on.
            Remark: we only unfold reducible constants. */
         type_context::transparency_scope scope(ctx(), transparency_mode::Reducible);
