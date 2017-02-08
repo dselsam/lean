@@ -22,7 +22,6 @@ Author: Leonardo de Moura
 #include "library/vm/vm_declaration.h"
 #include "library/vm/vm_environment.h"
 #include "library/vm/vm_task.h"
-#include "library/vm/vm_float.h"
 #include "library/vm/vm_eigen.h"
 
 namespace lean {
@@ -45,12 +44,10 @@ void initialize_vm_core_module() {
     initialize_vm_task();
     initialize_vm_declaration();
     initialize_vm_environment();
-    initialize_vm_float();
     initialize_vm_eigen();
 }
 void finalize_vm_core_module() {
     finalize_vm_eigen();
-    finalize_vm_float();
     finalize_vm_environment();
     finalize_vm_declaration();
     finalize_vm_task();
