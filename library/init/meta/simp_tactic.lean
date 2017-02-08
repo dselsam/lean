@@ -404,6 +404,10 @@ meta def join_user_simp_lemmas : list name → tactic simp_lemmas
 | []         := simp_lemmas.mk_default
 | attr_names := join_user_simp_lemmas_core simp_lemmas.mk attr_names
 
+meta def join_user_fsimp_lemmas : list name → tactic simp_lemmas
+| []         := return simp_lemmas.mk
+| attr_names := join_user_simp_lemmas_core simp_lemmas.mk attr_names
+
 /- Normalize numerical expression, returns a pair (n, pr) where n is the resultant numeral,
    and pr is a proof that the input argument is equal to n. -/
 meta constant norm_num : expr → tactic (expr × expr)

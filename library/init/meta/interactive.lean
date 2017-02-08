@@ -511,6 +511,11 @@ do s₀ ← join_user_simp_lemmas attr_names,
    ex ← ex.mfor (λ n, list.cons n <$> get_eqn_lemmas_for tt n),
    return $ simp_lemmas.erase s₁ $ ex.join
 
+private meta def mk_fsimp_set (attr_names : list name) (hs : list pexpr) (ex : list name) : tactic simp_lemmas :=
+do s₀ ← join_user_fsimp_lemmas attr_names,
+   s₁ ← simp_lemmas.append_pexprs s₀ hs,
+   return $ simp_lemmas.erase s₁ ex
+
 private meta def simp_goal (cfg : simp_config) : simp_lemmas → tactic unit
 | s := do
    (new_target, Heq) ← target >>= simplify_core cfg s `eq,
@@ -559,6 +564,16 @@ It has many variants.
 meta def simp (hs : parse opt_qexpr_list) (attr_names : parse with_ident_list) (ids : parse without_ident_list) (loc : parse location)
               (cfg : simp_config := {}) : tactic unit :=
 simp_core cfg [] hs attr_names ids loc
+
+meta def fsimp (hs : parse opt_qexpr_list) (attr_names : parse with_ident_list) (ids : parse without_ident_list) (loc : parse location)
+              (cfg : simp_config := {}) : tactic unit :=
+do s ← mk_fsimp_set attr_names hs ids,
+   match loc : _ → tactic unit with
+   | [] := simp_goal cfg s
+   | _  := simp_hyps cfg s loc
+   end,
+   try tactic.triv, try (tactic.reflexivity reducible)
+
 
 /--
 Similar to the `simp` tactic, but adds all applicable hypotheses as simplification rules.
