@@ -69,7 +69,6 @@ name const & get_eq_mpr_name();
 name const & get_eq_nrec_name();
 name const & get_eq_rec_name();
 name const & get_eq_rec_on_name();
-name const & get_eq_cases_on_name();
 name const & get_eq_rec_eq_name();
 name const & get_eq_refl_name();
 name const & get_eq_subst_name();

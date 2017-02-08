@@ -154,7 +154,8 @@ vm_obj eigen_add(vm_obj const & /* shape */, vm_obj const & x, vm_obj const & y)
 vm_obj eigen_mul(vm_obj const & /* shape */, vm_obj const & x, vm_obj const & y) { return to_obj(to_eigen(x) * to_eigen(y)); }
 vm_obj eigen_sub(vm_obj const & /* shape */, vm_obj const & x, vm_obj const & y) { return to_obj(to_eigen(x) - to_eigen(y)); }
 vm_obj eigen_div(vm_obj const & /* shape */, vm_obj const & x, vm_obj const & y) {
-    Eigen::ArrayXXf arr = to_eigen(x) / to_eigen(y);
+    // TODO(dhs): denom might be neg
+    Eigen::ArrayXXf arr = to_eigen(x) / (to_eigen(y) + eps);
     if (!arr.allFinite())
         throw exception("div floating point error");
     return to_obj(arr);
