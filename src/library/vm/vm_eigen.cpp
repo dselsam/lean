@@ -88,7 +88,7 @@ vm_obj eigen_of_nat(vm_obj const & n) {
 }
 
 vm_obj eigen_round(vm_obj const & x) {
-    return mk_vm_nat(round(unbox(x)));
+    return mk_vm_nat(static_cast<unsigned>(round(unbox(x))));
 }
 
 vm_obj eigen_zero(vm_obj const & shape) {
