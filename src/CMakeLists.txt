@@ -237,7 +237,7 @@ endif()
 
 # Eigen
 # TODO(dhs): this may need to change
-include_directories(/usr/local/include/eigen3)
+include_directories(${LEAN_SOURCE_DIR}/eigen)
 
 # jemalloc
 if(JEMALLOC)
@@ -316,6 +316,7 @@ configure_file("${LEAN_SOURCE_DIR}/../bin/leanemacs.in" "${LEAN_SOURCE_DIR}/../b
 configure_file("${LEAN_SOURCE_DIR}/../bin/leanemacs.bat.in" "${LEAN_SOURCE_DIR}/../bin/leanemacs.bat")
 
 include_directories("${LEAN_BINARY_DIR}")
+
 add_subdirectory(util)
 set(LEAN_OBJS ${LEAN_OBJS} $<TARGET_OBJECTS:util>)
 add_subdirectory(util/numerics)
