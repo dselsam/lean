@@ -10,6 +10,7 @@ Author: Daniel Selsam
 #include "library/vm/vm.h"
 #include "library/vm/vm_nat.h"
 #include "library/vm/vm_list.h"
+#include "library/vm/vm_io.h"
 #include "library/vm/vm_string.h"
 #include "library/vm/vm_eigen.h"
 
@@ -84,6 +85,10 @@ static long unsigned shape_len(vm_obj const & shape) {
 
 vm_obj eigen_of_nat(vm_obj const & n) {
     return box(float(to_unsigned(n)));
+}
+
+vm_obj eigen_round(vm_obj const & x) {
+    return mk_vm_nat(round(unbox(x)));
 }
 
 vm_obj eigen_zero(vm_obj const & shape) {
@@ -185,7 +190,7 @@ vm_obj eigen_get_col(vm_obj const & m, vm_obj const & n, vm_obj const & M, vm_ob
 // TODO(dhs): better to take a proof that ncols_to_take is sufficiently small
 // Note: cidx comes in as a T []
 vm_obj eigen_get_col_range(vm_obj const & m, vm_obj const & n, vm_obj const & ncols_to_take, vm_obj const & M, vm_obj const & cidx) {
-    return to_obj(to_eigen(M).block(0, round(unbox(cidx)), to_unsigned(m), to_unsigned(ncols_to_take)).array());
+    return to_obj(to_eigen(M).block(0, to_unsigned(cidx), to_unsigned(m), to_unsigned(ncols_to_take)).array());
 }
 
 vm_obj eigen_sum_cols(vm_obj const & m, vm_obj const & n, vm_obj const & M) {
@@ -229,7 +234,7 @@ vm_obj eigen_read_from_file(vm_obj const & shape, vm_obj const & _filename, vm_o
             in >> arr(row, col);
         }
     }
-    return to_obj(arr);
+    return mk_io_result(to_obj(arr));
 }
 
 vm_obj eigen_write_to_file(vm_obj const & shape, vm_obj const & x, vm_obj const & _filename, vm_obj const &) {
@@ -245,7 +250,7 @@ vm_obj eigen_write_to_file(vm_obj const & shape, vm_obj const & x, vm_obj const 
         }
         out << "\n";
     }
-    return mk_vm_unit();
+    return mk_io_result(mk_vm_unit());
 }
 
 vm_obj eigen_fail(vm_obj const & shape) {
@@ -329,9 +334,10 @@ void initialize_vm_eigen() {
     DECLARE_VM_BUILTIN(name({"certigrad", "RNG", "to_string"}),      eigen_rng_to_string);
     DECLARE_VM_BUILTIN(name({"certigrad", "RNG", "mk"}),             eigen_mk_rng);
 
-    /*
+        /*
     DECLARE_VM_BUILTIN(name({"certigrad", "RNG"}),                   eigen_dummy);
     DECLARE_VM_BUILTIN(name({"certigrad", "T"}),                     eigen_dummy);
+
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "D"}),                eigen_dummy);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "tmulT"}),            eigen_dummy);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "grad"}),             eigen_dummy);
@@ -366,6 +372,7 @@ void initialize_vm_eigen() {
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "sub"}),              eigen_sub);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "div"}),              eigen_div);
 
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "round"}),            eigen_round);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "transpose"}),        eigen_transpose);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "scalar_mul"}),       eigen_smul);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "sum"}),              eigen_sum);
