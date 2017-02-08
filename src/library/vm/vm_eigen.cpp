@@ -64,11 +64,12 @@ vm_obj eigen_dummy() {
 vm_obj eigen_to_string(vm_obj const & shape, vm_obj const & v) {
     list<unsigned> dims = to_list<unsigned, std::function<unsigned(vm_obj const &)> >(shape, to_unsigned);
     std::ostringstream out;
-    out << dims << std::endl;
     if (optional<pair<unsigned, unsigned> > mn = is_matrix(shape)) {
-        out << to_eigen(v);
+        out << dims << std::endl << to_eigen(v);
+    } else if (is_nil(dims)) {
+        out << unbox(v);
     } else {
-        out << to_eigen(v).transpose();
+        out << dims << std::endl << to_eigen(v).transpose();
     }
     return to_obj(out.str());
 }
