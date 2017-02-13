@@ -3,7 +3,7 @@ open color
 
 inductive rbtree (A : Type) : color → ℕ → Type
 | leaf {} : rbtree black 0
-| red_node : ∀ {n}, rbtree black n → A -> rbtree black n → rbtree red n
+| red_node : ∀ {n}, rbtree black n → A → rbtree black n → rbtree red n
 | black_node : ∀ {n} (c₁ c₂ : color), rbtree c₁ n → A → rbtree c₂ n → rbtree black (n + 1)
 
 namespace rbtree
@@ -22,32 +22,19 @@ def present' {A : Type} (x : A) : Π {n}, rtree A n → Prop
 | n (red_node' _ _ m₁ a m₂) := present x m₁ ∨ x = a ∨ present x m₂
 
 def balance₁ {A : Type} (data : A) :
-  Π {n}, rtree A n →
-  Π {c}, rbtree A c n →
-  sigma (λ c, rbtree A c (n + 1))
+  Π {n}, rtree A n → Π {c}, rbtree A c n → sigma (λ c, rbtree A c (n + 1))
 
-| n (red_node' red _ (red_node m₂ a₂ m₂') a₁ m₁') cc₁ mm₁ :=
-⟨red, red_node (black_node _ _ m₂ a₂ m₂') a₂ (black_node _ _ mm₁ data m₂')⟩
+| n (red_node' red _ (red_node m₁ a₁ m₁') a m₂) _ m :=
+⟨red, red_node (black_node _ _ m₁ a₁ m₁') a (black_node _ _ m data m₂)⟩
 
-/-
-Definition balance1 n (a : rtree n) (data : nat) c2 :=
-  match a in rtree n return rbtree c2 n
-    -> { c : color & rbtree c (S n) } with
-    | RedNode' _ c0 _ t1 y t2 =>
-      match t1 in rbtree c n return rbtree c0 n -> rbtree c2 n
-        -> { c : color & rbtree c (S n) } with
-        | RedNode _ a x b => fun c d =>
-          {<RedNode (BlackNode a x b) y (BlackNode c data d)>}
-        | t1' => fun t2 =>
-          match t2 in rbtree c n return rbtree Black n -> rbtree c2 n
-            -> { c : color & rbtree c (S n) } with
-            | RedNode _ b x c => fun a d =>
-              {<RedNode (BlackNode a y b) x (BlackNode c data d)>}
-            | b => fun a t => {<BlackNode (RedNode a y b) data t>}
-          end t1'
-      end t2
-  end.
--/
+| n (red_node' _ red m₁ a (red_node m₂ a₂ m₂')) _ m :=
+⟨red, red_node (black_node _ _ m₁ a m₂) a₂ (black_node _ _ m₂ data m₂)⟩
+
+| 0 (red_node' black black leaf a leaf) _ m :=
+⟨black, black_node _ _ (red_node leaf a leaf) data m⟩
+
+| (n+1) (red_node' black black (black_node _ _ m₁ a₁ m₁') a (black_node _ _ m₂ a₂ m₂')) _ m :=
+⟨black, black_node _ _ (red_node (black_node _ _ m₁ a₁ m₁') a (black_node _ _ m₂ a₂ m₂')) data m⟩
 
 
 
