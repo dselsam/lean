@@ -262,6 +262,13 @@ vm_obj eigen_error(vm_obj const & shape, vm_obj const & msg) {
     throw exception(sstream() << "certigrad.T.error: " << to_string(msg) << "\n");
 }
 
+vm_obj eigen_le(vm_obj const & /* shape */, vm_obj const & x, vm_obj const & y) {
+    throw exception("eigen_le not expected to be called");
+}
+vm_obj eigen_lt(vm_obj const & /* shape */, vm_obj const & x, vm_obj const & y) {
+        throw exception("eigen_lt not expected to be called");
+}
+
 // Random
 
 struct vm_rng : public vm_external {
@@ -388,6 +395,9 @@ void initialize_vm_eigen() {
 
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "gemv"}),             eigen_gemv);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "gemm"}),             eigen_gemm);
+
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "le"}),               eigen_le);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "lt"}),               eigen_lt);
 
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "read_from_file"}),   eigen_read_from_file);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "write_to_file"}),    eigen_write_to_file);
