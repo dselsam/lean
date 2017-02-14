@@ -27,19 +27,13 @@ std::string to_string(vm_obj const & o) {
     return r;
 }
 
-vm_obj string_dec_lt(vm_obj const & s1, vm_obj const & s2) {
+vm_obj string_cmp(vm_obj const & s1, vm_obj const & s2) {
     if (to_string(s1) < to_string(s2)) {
-        return mk_vm_constructor(1, to_obj(mk_constant(get_trivial_name())));
+        return mk_vm_simple(0);
+    } else if (to_string(s1) > to_string(s2)) {
+        return mk_vm_simple(2);
     } else {
-        return mk_vm_constructor(0, to_obj(mk_lambda(name{"contra"}, mk_constant(get_false_name()), mk_constant(get_false_name()))));
-    }
-}
-
-vm_obj string_dec_le(vm_obj const & s1, vm_obj const & s2) {
-    if (to_string(s1) <= to_string(s2)) {
-        return mk_vm_constructor(1, to_obj(mk_constant(get_trivial_name())));
-    } else {
-        return mk_vm_constructor(0, to_obj(mk_lambda(name{"contra"}, mk_constant(get_false_name()), mk_constant(get_false_name()))));
+        return mk_vm_simple(1);
     }
 }
 
@@ -53,8 +47,7 @@ vm_obj to_obj(std::string const & str) {
 }
 
 void initialize_vm_string() {
-    DECLARE_VM_BUILTIN(name({"string", "dec_lt"}), string_dec_lt);
-    DECLARE_VM_BUILTIN(name({"string", "dec_le"}), string_dec_le);
+    DECLARE_VM_BUILTIN(name({"string", "cmp"}), string_cmp);
 }
 void finalize_vm_string() {}
 

@@ -17,6 +17,8 @@ has_to_string.mk (λ s, match s with | ordering.lt := "lt" | ordering.eq := "eq"
 class has_ordering (α : Type) :=
 (cmp : α → α → ordering)
 
+def cmp {α : Type} [has_ordering α] : α → α → ordering := has_ordering.cmp
+
 def nat.cmp (a b : nat) : ordering :=
 if a < b      then ordering.lt
 else if a = b then ordering.eq
