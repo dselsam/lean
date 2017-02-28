@@ -604,6 +604,8 @@ rfl
 attribute [simp.sizeof]
 lemma nat_add_zero (n : nat) : n + 0 = n := rfl
 
+attribute [irreducible] sizeof
+
 /- Combinator calculus -/
 namespace combinator
 universes u₁ u₂ u₃
