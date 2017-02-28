@@ -1637,6 +1637,89 @@ class add_nested_inductive_decl_fn {
         }
     };
 
+    void define_nested_cases_on() {
+        for (unsigned ind_idx = 0; ind_idx < m_nested_decl.get_num_inds(); ++ind_idx) {
+            expr const & nested_ind = m_nested_decl.get_ind(ind_idx);
+            expr const & inner_ind = m_inner_decl.get_ind(ind_idx);
+
+            declaration d = m_env.get(inductive::get_elim_name(mlocal_name(inner_ind)));
+            level_param_names lp_names = d.get_univ_params();
+            levels lvls = param_names_to_levels(lp_names);
+
+            expr inner_cases_on = mk_app(mk_constant(name(mlocal_name(inner_ind), "cases_on"), lvls), m_nested_decl.get_params());
+            expr inner_cases_on_type = m_tctx.infer(inner_cases_on);
+
+            expr outer_cases_on_type = Pi(m_nested_decl.get_params(), unpack_type(inner_cases_on_type));
+            expr outer_cases_on_val = Fun(m_nested_decl.get_params(), build_nested_cases_on(ind_idx, inner_cases_on, unpack_type(inner_cases_on_type)));
+            define(name(mlocal_name(nested_ind), "cases_on"), outer_cases_on_type, outer_cases_on_val, lp_names);
+        }
+    }
+
+    expr build_nested_cases_on(unsigned ind_idx, expr const & inner_cases_on, expr const & outer_cases_on_type) {
+        expr C;
+        buffer<expr> indices;
+        expr major_premise;
+        buffer<expr> minor_premises;
+        expr goal = introduce_locals_for_nested_cases_on(ind_idx, outer_cases_on_type, C, indices, major_premise, minor_premises);
+
+        // Only the minor premises need to change
+        lean_assert(m_nested_decl.get_num_intro_rules(ind_idx) == minor_premises.size());
+        buffer<expr> inner_minor_premises;
+        for (unsigned ir_idx = 0; ir_idx < minor_premises.size(); ++ir_idx) {
+            expr const & minor_premise = minor_premises[ir_idx];
+            expr ty = safe_whnf(m_tctx, pack_type(mlocal_type(minor_premise)));
+
+            buffer<expr> inner_minor_premise_args;
+            buffer<expr> inner_minor_premise_rec_args;
+            while (is_pi(ty)) {
+                expr arg = mk_local_for(ty);
+                if (get_app_fn(mlocal_type(arg)) != pack_type(C)) {
+                    lean_assert(inner_minor_premise_rec_args.empty());
+                    inner_minor_premise_args.push_back(arg);
+                } else {
+                    inner_minor_premise_rec_args.push_back(arg);
+                }
+                ty = safe_whnf(m_tctx, instantiate(binding_body(ty), arg));
+            }
+            inner_minor_premises.push_back(build_nested_minor_premise_fn(*this, ind_idx, ir_idx, minor_premise, inner_minor_premise_args,
+                                                                         inner_minor_premise_rec_args, ty)());
+        }
+
+        return Fun(C,
+                   Fun(indices,
+                       Fun(major_premise,
+                           Fun(minor_premises,
+                               mk_app(mk_app(mk_app(mk_app(inner_cases_on, C), indices), major_premise), inner_minor_premises)))));
+    }
+
+    expr introduce_locals_for_nested_cases_on(unsigned ind_idx, expr const & outer_cases_on_type,
+                                              expr & C, buffer<expr> & indices, expr & major_premise,
+                                              buffer<expr> & minor_premises) {
+        expr ty = safe_whnf(m_tctx, outer_cases_on_type);
+
+        C = mk_local_for(ty, "C");
+        ty = safe_whnf(m_tctx, instantiate(binding_body(ty), C));
+
+        while (true) {
+            expr l = mk_local_for(ty);
+            ty = safe_whnf(m_tctx, instantiate(binding_body(ty), l));
+            if (m_nested_decl.is_ind_app(mlocal_type(l), ind_idx)) {
+                major_premise = l;
+                break;
+            } else {
+                indices.push_back(l);
+            }
+        }
+
+        for (unsigned ir_idx = 0; ir_idx < m_nested_decl.get_num_intro_rules(ind_idx); ++ir_idx) {
+            expr minor_premise = mk_local_for(ty);
+            minor_premises.push_back(minor_premise);
+            ty = safe_whnf(m_tctx, instantiate(binding_body(ty), minor_premise));
+        }
+
+        return ty;
+    }
+
     /////////////////////////////////////////////////
     ///// Stage 8: sizeof lemmas for nested ind /////
     /////////////////////////////////////////////////
@@ -1704,6 +1787,7 @@ public:
         build_primitive_pack_unpack();
         define_nested_irs();
         define_nested_recursors();
+        define_nested_cases_on();
         define_nested_sizeof_lemmas();
 
         return optional<environment>(m_env);
