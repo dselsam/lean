@@ -1098,10 +1098,10 @@ public:
         return *C.m_lemmas;
     }
 
-    bool is_compatible(entry const & C, environment const & env, simp_lemmas_token tk) {
+    bool is_compatible(entry const & C, environment const & env, transparency_mode m, simp_lemmas_token tk) {
         if (!env.is_descendant(C.m_env))
             return false;
-        if (get_reducibility_fingerprint(env) != C.m_reducibility_fingerprint)
+        if (m != transparency_mode::None && get_reducibility_fingerprint(env) != C.m_reducibility_fingerprint)
             return false;
         auto & cfg = get_simp_lemmas_config(tk);
         unsigned i = 0;
@@ -1126,7 +1126,7 @@ public:
         entry & C = m_entries[midx][tk];
         if (!C.m_lemmas) return mk_lemmas(env, m, C, tk);
         if (is_eqp(env, C.m_env)) return lemmas_of(C, tk);
-        if (!is_compatible(C, env, tk)) {
+        if (!is_compatible(C, env, m, tk)) {
             lean_trace("simp_lemmas_cache", tout() << "creating new cache\n";);
             return mk_lemmas(env, m, C, tk);
         }
