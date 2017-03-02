@@ -7,12 +7,34 @@ Author: Daniel Selsam
 #include <utility>
 #include <string>
 #include "util/serializer.h"
+#include "util/list_fn.h"
 #include "kernel/environment.h"
 #include "library/inductive_compiler/ginductive.h"
 #include "library/module.h"
+#include "library/constants.h"
 #include "library/kernel_serializer.h"
 
 namespace lean {
+
+
+static unsigned compute_idx_number(expr const & e) {
+    buffer<expr> args;
+    unsigned idx = 0;
+    expr it = e;
+    while (true) {
+        args.clear();
+        expr fn = get_app_args(it, args);
+        if (is_constant(fn) && const_name(fn) == get_psum_inl_name()) {
+            return idx;
+        } else if (is_constant(fn) && const_name(fn) == get_psum_inr_name()) {
+            idx++;
+            it = args[2];
+        } else {
+            return idx;
+        }
+    }
+    lean_unreachable();
+}
 
 struct ginductive_entry {
     ginductive_kind m_kind;
@@ -79,6 +101,11 @@ struct ginductive_env_ext : public environment_extension {
     name_map<unsigned>        m_num_params;
     name_map<name>            m_ir_to_ind;
 
+    name_set                                   m_from_mutual;
+    name_map<unsigned>                         m_ir_to_simulated_ir_offset;
+    name_map<list<pair<unsigned, unsigned> > > m_ind_to_ir_ranges;
+
+
     ginductive_env_ext() {}
 
     void register_ginductive_entry(ginductive_entry const & entry) {
@@ -138,11 +165,22 @@ struct ginductive_env_ext : public environment_extension {
     }
 
     unsigned ir_to_simulated_ir_offset(name basic_ir_name) const {
-        throw exception("NYI");
+        unsigned const * offset = m_ir_to_simulated_ir_offset.find(basic_ir_name);
+        lean_assert(assert);
+        return *offset;
     }
 
     pair<unsigned, unsigned> ind_indices_to_ir_range(name const & basic_ind_name, buffer<expr> const & idxs) const {
-        throw exception("NYI");
+        if (!m_from_mutual.contains(basic_ind_name)) {
+            return mk_pair(0, length(get_intro_rules(basic_ind_name)));
+        }
+
+        lean_assert(idxs.size == 1);
+        unsigned idx_number = compute_idx_number(idxs[0]);
+
+        list<pair<unsigned, unsigned> > const * ranges = m_ind_to_ir_ranges.find(basic_ind_name);
+        lean_assert(ranges);
+        return get_ith(*ranges, idx_number);
     }
 
     list<name> get_all_nested_inds() const {
