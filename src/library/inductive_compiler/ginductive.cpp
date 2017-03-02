@@ -137,6 +137,14 @@ struct ginductive_env_ext : public environment_extension {
         return *mut_ind_names;
     }
 
+    unsigned ir_to_simulated_ir_offset(name basic_ir_name) const {
+        throw exception("NYI");
+    }
+
+    pair<unsigned, unsigned> ind_indices_to_ir_range(name const & basic_ind_name, buffer<expr> const & idxs) const {
+        throw exception("NYI");
+    }
+
     list<name> get_all_nested_inds() const {
         return m_all_nested_inds;
     }
@@ -227,6 +235,14 @@ unsigned get_ginductive_num_params(environment const & env, name const & ind_nam
 
 list<name> get_ginductive_mut_ind_names(environment const & env, name const & ind_name) {
     return get_extension(env).get_mut_ind_names(ind_name);
+}
+
+unsigned ir_to_simulated_ir_offset(environment const & env, name basic_ir_name) {
+    return get_extension(env).ir_to_simulated_ir_offset(basic_ir_name);
+}
+
+pair<unsigned, unsigned> ind_indices_to_ir_range(environment const & env, name const & basic_ind_name, buffer<expr> const & idxs) {
+    return get_extension(env).ind_indices_to_ir_range(basic_ind_name, idxs);
 }
 
 list<name> get_ginductive_all_mutual_inds(environment const & env) {
