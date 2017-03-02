@@ -74,14 +74,14 @@ end X9b
 
 namespace X10
 print "many layers of nesting nested inductive types"
-
-inductive wrap (A : Sort*)
+universe variable u
+inductive wrap (A : Type u)
 | mk : A -> wrap
 
-inductive box (A : Sort*)
+inductive box (A : Type u)
 | mk : A -> wrap box -> box
 
-inductive foo (A : Sort*)
+inductive foo (A : Type u)
 | mk : A -> box foo -> foo
 
 inductive bar

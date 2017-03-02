@@ -359,7 +359,14 @@ class inductive_cmd_fn {
             all_exprs.append(irs);
         }
 
+        all_exprs.push_back(mk_sort(m_u_meta));
         elab.finalize(all_exprs, implicit_lp_names, false, false);
+
+        m_u_meta = sort_level(all_exprs.back());
+        all_exprs.pop_back();
+
+        lean_trace(name({"inductive", "finalize"}), tout() << "[m_u_meta]: " << m_u_meta << "\n";);
+
         m_env = elab.env();
         m_ctx.set_mctx(elab.mctx());
         m_lp_names.append(implicit_lp_names);
@@ -375,7 +382,8 @@ class inductive_cmd_fn {
             level resultant_level;
             metavar_context mctx = m_ctx.mctx();
             level unified_level = mctx.instantiate_mvars(m_u_meta);
-            if (is_zero(unified_level)) {
+//            if (is_zero(unified_level)) {
+            if (!has_param(unified_level)) {
                 // Special support for when the resultant level is inferred to be 0
                 // Note: this only occurs with nested inductive types
                 resultant_level = unified_level;
