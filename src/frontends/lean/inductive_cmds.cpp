@@ -341,6 +341,10 @@ class inductive_cmd_fn {
                 new_ir = update_mlocal(new_ir, replace_u(elab.elaborate(mlocal_type(new_ir)), m_u_meta, m_u_param));
         }
 
+        for (expr & param : new_params) {
+            param = update_mlocal(param, replace_u(mlocal_type(param), m_u_meta, m_u_param));
+        }
+
         for (expr & ind : new_inds) {
             ind = update_mlocal(ind, replace_u(mlocal_type(ind), m_u_meta, m_u_param));
         }
@@ -362,7 +366,7 @@ class inductive_cmd_fn {
         all_exprs.push_back(mk_sort(m_u_meta));
         elab.finalize(all_exprs, implicit_lp_names, false, false);
 
-        m_u_meta = sort_level(all_exprs.back());
+        level u_meta_result = sort_level(all_exprs.back());
         all_exprs.pop_back();
 
         lean_trace(name({"inductive", "finalize"}), tout() << "[m_u_meta]: " << m_u_meta << "\n";);
@@ -383,12 +387,13 @@ class inductive_cmd_fn {
             metavar_context mctx = m_ctx.mctx();
             level unified_level = mctx.instantiate_mvars(m_u_meta);
 //            if (is_zero(unified_level)) {
-            if (!has_param(unified_level)) {
-                // Special support for when the resultant level is inferred to be 0
-                // Note: this only occurs with nested inductive types
-                resultant_level = unified_level;
-            } else {
+            std::cout << "[m_lp_names]: " << to_list(m_lp_names) << "\n";
+            std::cout << "[unified_level]: " << unified_level << "\n";
+            //          if (get_undef_param(unified_level, to_list(m_lp_names))) {
+            if (is_meta(unified_level) || static_cast<bool>(get_undef_param(unified_level, to_list(m_lp_names)))) {
                 resultant_level = infer_resultant_universe(all_exprs.size() - offsets[0] - offsets[1], all_exprs.data() + offsets[0] + offsets[1]);
+            } else {
+                resultant_level = unified_level;
             }
             for (unsigned i = offsets[0]; i < offsets[0] + offsets[1]; ++i) {
                 expr ind_type = replace_u(mlocal_type(all_exprs[i]), m_u_param, resultant_level);
