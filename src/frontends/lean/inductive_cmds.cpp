@@ -368,6 +368,19 @@ class inductive_cmd_fn {
             }
         }
 
+        metavar_context mctx = elab.mctx();
+        bool m_u_meta_undetermined = !static_cast<bool>(mctx.get_assignment(m_u_meta));
+        if (m_infer_result_universe && m_u_meta_undetermined) {
+            for (expr & ind : new_inds) {
+                ind = update_mlocal(ind, replace_u(mlocal_type(ind), m_u_meta, m_u_param));
+            }
+            for (buffer<expr> & irs : new_intro_rules) {
+                for (expr & ir : irs) {
+                    ir = update_mlocal(ir, replace_u(mlocal_type(ir), m_u_meta, m_u_param));
+                }
+            }
+        }
+
         buffer<name> implicit_lp_names;
 
         // TODO(dhs): this is a crazy (temporary) hack around the rigid elaborator API
@@ -393,7 +406,7 @@ class inductive_cmd_fn {
 
         // compute resultant level
         level resultant_level;
-        if (m_infer_result_universe) {
+        if (m_infer_result_universe && m_u_meta_undetermined) {
             resultant_level = infer_resultant_universe(all_exprs.size() - offsets[0] - offsets[1], all_exprs.data() + offsets[0] + offsets[1]);
             for (unsigned i = offsets[0]; i < offsets[0] + offsets[1]; ++i) {
                 expr ind_type = replace_u(mlocal_type(all_exprs[i]), m_u_param, resultant_level);
@@ -406,7 +419,7 @@ class inductive_cmd_fn {
         }
 
         for (unsigned i = 0; i < offsets[0]; ++i) {
-            if (m_infer_result_universe)
+            if (m_infer_result_universe && m_u_meta_undetermined)
                 new_params.push_back(replace_u(all_exprs[i], m_u_param, resultant_level));
             else
                 new_params.push_back(all_exprs[i]);

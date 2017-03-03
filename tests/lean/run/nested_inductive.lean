@@ -77,7 +77,7 @@ print "many layers of nesting nested inductive types"
 
 inductive wrap (A : Sort*)
 | mk : A -> wrap
-
+set_option trace.inductive.unify true
 inductive box (A : Sort*)
 | mk : A -> wrap box -> box
 
