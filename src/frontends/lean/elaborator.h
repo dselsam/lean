@@ -263,6 +263,9 @@ public:
                metavar_context const & mctx, local_context const & lctx,
                bool recover_from_errors = true, bool in_pattern = false);
     ~elaborator();
+    // TODO(dhs): only temporary to test a design
+    type_context & ctx() { return m_ctx; }
+
     metavar_context const & mctx() const { return m_ctx.mctx(); }
     local_context const & lctx() const { return m_ctx.lctx(); }
     expr push_local(name const & n, expr const & type, binder_info const & bi = binder_info()) {

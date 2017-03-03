@@ -15,6 +15,7 @@ Authors: Daniel Selsam, Leonardo de Moura
 #include "kernel/inductive/inductive.h"
 #include "kernel/abstract.h"
 #include "kernel/free_vars.h"
+#include "kernel/find_fn.h"
 #include "library/scoped_ext.h"
 #include "library/locals.h"
 #include "library/attribute_manager.h"
@@ -71,8 +72,8 @@ class inductive_cmd_fn {
     pos_info                        m_pos;
     name_map<implicit_infer_kind>   m_implicit_infer_map;
     bool                            m_explicit_levels; // true if the user is providing explicit universe levels
-    level                           m_u; // temporary auxiliary global universe used for inferring the result
-                                         // universe of an inductive datatype declaration.
+    level                           m_u_param; // TODO(dhs): comment
+    level                           m_u_meta; // TODO(dhs): comment
     bool                            m_infer_result_universe{false};
     optional<std::string>           m_doc_string;
 
@@ -137,20 +138,20 @@ class inductive_cmd_fn {
         }
     }
 
-    level replace_u(level const & l, level const & rlvl) {
+    level replace_u(level const & l, level const & u, level const & rlvl) {
         return replace(l, [&](level const & l) {
-                if (l == m_u) return some_level(rlvl);
+                if (l == u) return some_level(rlvl);
                 else return none_level();
             });
     }
 
-    expr replace_u(expr const & type, level const & rlvl) {
+    expr replace_u(expr const & type, level const & u, level const & rlvl) {
         return replace(type, [&](expr const & e) {
                 if (is_sort(e)) {
-                    return some_expr(update_sort(e, replace_u(sort_level(e), rlvl)));
+                    return some_expr(update_sort(e, replace_u(sort_level(e), u, rlvl)));
                 } else if (is_constant(e)) {
                     return some_expr(update_constant(e, map(const_levels(e),
-                                                            [&](level const & l) { return replace_u(l, rlvl); })));
+                                                            [&](level const & l) { return replace_u(l, u, rlvl); })));
                 } else {
                     return none_expr();
                 }
@@ -168,9 +169,9 @@ class inductive_cmd_fn {
        other max arguments. Otherwise, we throw an exception.
     */
     void accumulate_level(level const & lvl, buffer<level> & r_lvls) {
-        if (lvl == m_u) {
+        if (lvl == m_u_param) {
             return;
-        } else if (occurs(m_u, lvl)) {
+        } else if (occurs(m_u_param, lvl)) {
             if (is_max(lvl)) {
                 accumulate_level(max_lhs(lvl), r_lvls);
                 accumulate_level(max_rhs(lvl), r_lvls);
@@ -190,10 +191,10 @@ class inductive_cmd_fn {
         The universe associated with it will be
                  imax(l_1, imax(l_2, ..., r))
         where l_1 is the unvierse of A_1, l_2 of A_2, and r of B[a_1, ..., a_n].
-        The result placeholder m_u must only appear as r.
+        The result placeholder m_u_param must only appear as r.
     */
     void accumulate_levels(level const & lvl, buffer<level> & r_lvls) {
-        if (lvl == m_u) {
+        if (lvl == m_u_param) {
             // ignore this is the auxiliary lvl
         } else if (is_imax(lvl)) {
             level lhs = imax_lhs(lvl);
@@ -293,6 +294,24 @@ class inductive_cmd_fn {
         }
     }
 
+    void unify_nested_occurrences(type_context & ctx, expr const & ir_type, buffer<expr> const & inds) {
+        expr ty = ir_type;
+        while (is_pi(ty)) {
+            expr arg_ty = binding_domain(ty);
+            for (expr const & ind : inds) {
+                if (static_cast<bool>(find(arg_ty, [&](expr const & e, unsigned) { return is_mlocal(e) && mlocal_name(e) == mlocal_name(ind); }))) {
+                    level nested_level = get_level(ctx, arg_ty);
+                    lean_trace(name({"inductive", "unify"}), tout() << nested_level << " =?= " << m_u_meta << "\n";);
+                    if (!ctx.is_def_eq(nested_level, m_u_meta)) {
+                        throw exception("Can't unify nested occ result level, TODO(dhs): better error message");
+                    }
+                }
+            }
+            expr local = ctx.push_local(binding_name(ty), arg_ty, binding_info(ty));
+            ty = instantiate(binding_body(ty), local);
+        }
+    }
+
     void elaborate_inductive_decls(buffer<expr> const & params, buffer<expr> const & inds, buffer<buffer<expr> > const & intro_rules,
                                    buffer<expr> & new_params, buffer<expr> & new_inds, buffer<buffer<expr> > & new_intro_rules) {
         options opts = m_p.get_options();
@@ -320,7 +339,7 @@ class inductive_cmd_fn {
             if (is_placeholder(l)) {
                 if (m_explicit_levels)
                     throw_error("resultant universe must be provided, when using explicit universe levels");
-                new_ind_type = update_result_sort(new_ind_type, m_u);
+                new_ind_type = update_result_sort(new_ind_type, m_u_meta);
                 m_infer_result_universe = true;
             }
             if (first) {
@@ -337,8 +356,16 @@ class inductive_cmd_fn {
         for (buffer<expr> const & irs : intro_rules) {
             new_intro_rules.emplace_back();
             replace_params(params_no_inds, new_params, inds, new_inds, irs, new_intro_rules.back());
-            for (expr & new_ir : new_intro_rules.back())
+            for (expr & new_ir : new_intro_rules.back()) {
                 new_ir = update_mlocal(new_ir, elab.elaborate(mlocal_type(new_ir)));
+            }
+        }
+
+        // unify nested occurrences
+        for (unsigned ind_idx = 0; ind_idx < inds.size(); ++ ind_idx) {
+            for (expr const & new_ir : new_intro_rules[ind_idx]) {
+                unify_nested_occurrences(elab.ctx(), mlocal_type(new_ir), inds);
+            }
         }
 
         buffer<name> implicit_lp_names;
@@ -369,7 +396,7 @@ class inductive_cmd_fn {
         if (m_infer_result_universe) {
             resultant_level = infer_resultant_universe(all_exprs.size() - offsets[0] - offsets[1], all_exprs.data() + offsets[0] + offsets[1]);
             for (unsigned i = offsets[0]; i < offsets[0] + offsets[1]; ++i) {
-                expr ind_type = replace_u(mlocal_type(all_exprs[i]), resultant_level);
+                expr ind_type = replace_u(mlocal_type(all_exprs[i]), m_u_param, resultant_level);
                 new_inds.push_back(update_mlocal(all_exprs[i], ind_type));
             }
         } else {
@@ -380,7 +407,7 @@ class inductive_cmd_fn {
 
         for (unsigned i = 0; i < offsets[0]; ++i) {
             if (m_infer_result_universe)
-                new_params.push_back(replace_u(all_exprs[i], resultant_level));
+                new_params.push_back(replace_u(all_exprs[i], m_u_param, resultant_level));
             else
                 new_params.push_back(all_exprs[i]);
         }
@@ -397,7 +424,7 @@ class inductive_cmd_fn {
             for (unsigned j = 0; j < offsets[i]; ++j) {
                 expr new_ir = replace_locals(all_exprs[offset+j], offsets[1], all_exprs.data() + offsets[0], c_inds.data());
                 if (m_infer_result_universe)
-                    new_ir = update_mlocal(new_ir, replace_u(mlocal_type(new_ir), resultant_level));
+                    new_ir = update_mlocal(new_ir, replace_u(mlocal_type(new_ir), m_u_param, resultant_level));
                 new_intro_rules.back().push_back(new_ir);
             }
             offset += offsets[i];
@@ -489,7 +516,8 @@ public:
     inductive_cmd_fn(parser & p, decl_attributes const & attrs, bool is_trusted):
         m_p(p), m_env(p.env()), m_attrs(attrs),
         m_is_trusted(is_trusted), m_ctx(p.env()) {
-        m_u = mk_param_univ(tmp_global_univ_name());
+        m_u_meta = m_ctx.mk_univ_metavar_decl();
+        m_u_param = mk_param_univ(tmp_global_univ_name());
         check_attrs(m_attrs);
         m_doc_string = p.get_doc_string();
     }
@@ -571,6 +599,7 @@ void initialize_inductive_cmds() {
     register_trace_class(name({"inductive", "new_params"}));
     register_trace_class(name({"inductive", "finalize"}));
     register_trace_class(name({"inductive", "lp_names"}));
+    register_trace_class(name({"inductive", "unify"}));
 
     g_tmp_global_univ_name = new name(mk_tagged_fresh_name("_inductive_result_level"));
 }
