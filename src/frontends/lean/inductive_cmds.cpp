@@ -176,9 +176,13 @@ class inductive_cmd_fn {
        other max arguments. Otherwise, we throw an exception.
     */
     void accumulate_level(level const & lvl, buffer<level> & r_lvls) {
-        if (lvl == m_u_param) {
+        // TODO(dhs): current spot
+        // What do I need to do here? Which level do I check for? Do I really need 2 different placeholders?
+        // Current thinking:
+        // only one placeholder for the result level
+        if (lvl == m_u_param || lvl == m_lp_param) {
             return;
-        } else if (occurs(m_u_param, lvl)) {
+        } else if (occurs(m_lp_param, lvl)) {
             if (is_max(lvl)) {
                 accumulate_level(max_lhs(lvl), r_lvls);
                 accumulate_level(max_rhs(lvl), r_lvls);
@@ -201,7 +205,7 @@ class inductive_cmd_fn {
         The result placeholder m_u_param must only appear as r.
     */
     void accumulate_levels(level const & lvl, buffer<level> & r_lvls) {
-        if (lvl == m_u_param) {
+        if (lvl == m_lp_param) {
             // ignore this is the auxiliary lvl
         } else if (is_imax(lvl)) {
             level lhs = imax_lhs(lvl);
@@ -234,6 +238,15 @@ class inductive_cmd_fn {
         for_each(lvl, [&](level const & l) {
                 if (is_param(l) && std::find(lps.begin(), lps.end(), l) == lps.end()) {
                     lps.push_back(l);
+                }
+                return true;
+            });
+    }
+
+    void collect_metas(level const & lvl, buffer<level> & ms) {
+        for_each(lvl, [&](level const & l) {
+                if (is_meta(l) && std::find(ms.begin(), ms.end(), l) == ms.end()) {
+                    ms.push_back(l);
                 }
                 return true;
             });
@@ -337,6 +350,17 @@ class inductive_cmd_fn {
         }
     }
 
+    optional<level> get_single_meta(level const & l) {
+        buffer<level> ms;
+        collect_metas(l, ms);
+        if (ms.size() == 1) {
+            return some_level(ms[0]);
+        } else if (ms.size() > 1) {
+            throw exception("resultant level unifies to a function of more than one level parameter, provide explicitly, TODO(dhs): better message");
+        }
+        return none_level();
+    }
+
     optional<level> get_single_level_param(level const & l) {
         buffer<level> lps;
         collect_level_params(l, lps);
@@ -407,11 +431,18 @@ class inductive_cmd_fn {
         metavar_context pre_finalize_mctx = elab.mctx();
         optional<level> u_meta_assignment_pf = pre_finalize_mctx.get_assignment(m_u_meta);
         if (u_meta_assignment_pf) {
-            if (optional<level> lp = get_single_level_param(*u_meta_assignment_pf)) {
+            u_meta_assignment_pf = some_level(pre_finalize_mctx.instantiate_mvars(*u_meta_assignment_pf));
+        }
+
+        if (u_meta_assignment_pf) {
+            if (optional<level> lp = get_single_meta(*u_meta_assignment_pf)) {
+                lean_trace(name({"inductive", "infer_result"}), tout() << "[single-meta]: " << *lp << "\n";);
                 if (!elab.ctx().is_def_eq(*lp, m_lp_param)) {
                     throw exception("resultant level assigned to function of level param with other constraints, TODO(dhs): better message");
                 }
-            }
+                lean_trace(name({"inductive", "infer_result"}), tout() << "[assign single-meta]: " << *lp << " ==> " << m_lp_param << "\n";);
+            } else
+                lean_trace(name({"inductive", "infer_result"}), tout() << "[single-meta]: " << "none" << "\n";);
         }
 
         if (m_infer_result_universe) {
