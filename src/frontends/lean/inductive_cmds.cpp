@@ -41,9 +41,11 @@ Authors: Daniel Selsam, Leonardo de Moura
 #include "frontends/lean/inductive_cmds.h"
 
 namespace lean {
-static name * g_tmp_global_univ_name = nullptr;
+static name * g_tmp_global_univ_name_u = nullptr;
+static name * g_tmp_global_univ_name_lp = nullptr;
 
-static name tmp_global_univ_name() { return *g_tmp_global_univ_name; }
+static name tmp_global_univ_name_u() { return *g_tmp_global_univ_name_u; }
+static name tmp_global_univ_name_lp() { return *g_tmp_global_univ_name_lp; }
 
 static void convert_params_to_kernel(elaborator & elab, buffer<expr> const & lctx_params, buffer<expr> & kernel_params) {
     for (unsigned i = 0; i < lctx_params.size(); ++i) {
@@ -73,6 +75,7 @@ class inductive_cmd_fn {
     name_map<implicit_infer_kind>   m_implicit_infer_map;
     bool                            m_explicit_levels; // true if the user is providing explicit universe levels
     level                           m_u_param; // TODO(dhs): comment
+    level                           m_lp_param; // TODO(dhs): comment
     level                           m_u_meta; // TODO(dhs): comment
     bool                            m_infer_result_universe{false};
     optional<std::string>           m_doc_string;
@@ -334,6 +337,17 @@ class inductive_cmd_fn {
         }
     }
 
+    optional<level> get_single_level_param(level const & l) {
+        buffer<level> lps;
+        collect_level_params(l, lps);
+        if (lps.size() == 1) {
+            return some_level(lps[0]);
+        } else if (lps.size() > 1) {
+            throw exception("resultant level unifies to a function of more than one level parameter, provide explicitly, TODO(dhs): better message");
+        }
+        return none_level();
+    }
+
     void elaborate_inductive_decls(buffer<expr> const & params, buffer<expr> const & inds, buffer<buffer<expr> > const & intro_rules,
                                    buffer<expr> & new_params, buffer<expr> & new_inds, buffer<buffer<expr> > & new_intro_rules) {
         options opts = m_p.get_options();
@@ -390,6 +404,15 @@ class inductive_cmd_fn {
             }
         }
 
+        metavar_context pre_finalize_mctx = elab.mctx();
+        optional<level> u_meta_assignment_pf = pre_finalize_mctx.get_assignment(m_u_meta);
+        if (u_meta_assignment_pf) {
+            if (optional<level> lp = get_single_level_param(*u_meta_assignment_pf)) {
+                if (!elab.ctx().is_def_eq(*lp, m_lp_param)) {
+                    throw exception("resultant level assigned to function of level param with other constraints, TODO(dhs): better message");
+                }
+            }
+        }
 
         if (m_infer_result_universe) {
             for (expr & ind : new_inds) {
@@ -416,14 +439,14 @@ class inductive_cmd_fn {
             all_exprs.append(irs);
         }
 
-        metavar_context pre_finalize_mctx = elab.mctx();
-        bool u_meta_assigned = static_cast<bool>(pre_finalize_mctx.get_assignment(m_u_meta));
-        optional<level> u_meta_assignment;
-        if (u_meta_assigned) {
-            all_exprs.push_back(mk_sort(m_u_meta));
+        // TODO(dhs): push back one or two of the metas
+        if (u_meta_assignment_pf) {
+            all_exprs.push_back(mk_sort(*u_meta_assignment_pf));
         }
         elab.finalize(all_exprs, implicit_lp_names, true, false);
-        if (u_meta_assigned) {
+
+        optional<level> u_meta_assignment;
+        if (u_meta_assignment_pf) {
             // TODO(dhs): just check the assignment?
             u_meta_assignment = optional<level>(sort_level(all_exprs.back()));
             lean_trace(name({"inductive", "unify"}), tout() << "[u_meta_assignment]: " << *u_meta_assignment << "\n";);
@@ -440,32 +463,19 @@ class inductive_cmd_fn {
 
         // compute resultant level
         level resultant_level;
-        optional<level> lp_start, lp_replace;
+        level lp_replacement;
         if (m_infer_result_universe) {
             buffer<level> r_lvls;
             collect_resultant_universes(all_exprs.size() - offsets[0] - offsets[1], all_exprs.data() + offsets[0] + offsets[1], r_lvls);
+            lp_replacement = mk_result_level(r_lvls);
             if (u_meta_assignment) {
-                buffer<level> r_lvls_copy = r_lvls;
-                buffer<level> lps;
-                collect_level_params(*u_meta_assignment, lps);
-                if (lps.size() == 1) {
-                    lp_start = optional<level>(lps[0]);
-                    accumulate_level(*lp_start, r_lvls_copy);
-                    lp_replace = optional<level>(mk_result_level(r_lvls_copy));
-                    lean_trace(name({"inductive", "infer_result"}), tout() << "[lp]: " << *lp_start << " ==> " << *lp_replace << "\n";);
-                } else if (lps.size() > 1) {
-                    throw exception("resultant level unifies to a function of more than one level parameter, provide explicitly, TODO(dhs): better message");
-                }
-
                 r_lvls.push_back(*u_meta_assignment);
-                resultant_level = mk_result_level(r_lvls);
             }
+            resultant_level = mk_result_level(r_lvls);
 
             for (unsigned i = offsets[0]; i < offsets[0] + offsets[1]; ++i) {
                 expr ind_type = replace_u(mlocal_type(all_exprs[i]), m_u_param, resultant_level);
-//                if (lp_start) {
-//                    ind_type = replace_u(ind_type, *lp_start, *lp_replace);
-//                }
+                ind_type = replace_u(ind_type, m_lp_param, lp_replacement);
                 new_inds.push_back(update_mlocal(all_exprs[i], ind_type));
             }
         } else {
@@ -490,14 +500,12 @@ class inductive_cmd_fn {
             new_intro_rules.emplace_back();
             for (unsigned j = 0; j < offsets[i]; ++j) {
                 expr new_ir = all_exprs[offset+j];
-                if (lp_start) {
-                    expr old_ir_type = mlocal_type(new_ir);
-                    new_ir = update_mlocal(new_ir, replace_u(mlocal_type(new_ir), *lp_start, *lp_replace));
-                    lean_trace(name({"inductive", "infer_result"}), tout() << "[repl]: " << old_ir_type << " ==> " << mlocal_type(new_ir) << "\n";);
-                }
+                expr old_ir_type = mlocal_type(new_ir);
+                lean_trace(name({"inductive", "infer_result"}), tout() << "[repl]: " << old_ir_type << " ==> " << mlocal_type(new_ir) << "\n";);
                 new_ir = replace_locals(new_ir, offsets[1], all_exprs.data() + offsets[0], c_inds.data());
                 if (m_infer_result_universe) {
                     new_ir = update_mlocal(new_ir, replace_u(mlocal_type(new_ir), m_u_param, resultant_level));
+                    new_ir = update_mlocal(new_ir, replace_u(mlocal_type(new_ir), m_lp_param, lp_replacement));
                 }
                 new_intro_rules.back().push_back(new_ir);
             }
@@ -591,7 +599,8 @@ public:
         m_p(p), m_env(p.env()), m_attrs(attrs),
         m_is_trusted(is_trusted), m_ctx(p.env()) {
         m_u_meta = m_ctx.mk_univ_metavar_decl();
-        m_u_param = mk_param_univ(tmp_global_univ_name());
+        m_u_param = mk_param_univ(tmp_global_univ_name_u());
+        m_lp_param = mk_param_univ(tmp_global_univ_name_lp());
         check_attrs(m_attrs);
         m_doc_string = p.get_doc_string();
     }
@@ -676,10 +685,12 @@ void initialize_inductive_cmds() {
     register_trace_class(name({"inductive", "unify"}));
     register_trace_class(name({"inductive", "infer_result"}));
 
-    g_tmp_global_univ_name = new name(mk_tagged_fresh_name("_inductive_result_level"));
+    g_tmp_global_univ_name_u = new name(mk_tagged_fresh_name("_inductive_result_level"));
+    g_tmp_global_univ_name_lp = new name(mk_tagged_fresh_name("_inductive_unified_result_level"));
 }
 
 void finalize_inductive_cmds() {
-    delete g_tmp_global_univ_name;
+    delete g_tmp_global_univ_name_u;
+    delete g_tmp_global_univ_name_lp;
 }
 }
