@@ -105,7 +105,6 @@ struct ginductive_env_ext : public environment_extension {
     name_map<unsigned>                         m_ir_to_simulated_ir_offset;
     name_map<list<pair<unsigned, unsigned> > > m_ind_to_ir_ranges;
 
-
     ginductive_env_ext() {}
 
     void register_ginductive_entry(ginductive_entry const & entry) {
@@ -171,9 +170,8 @@ struct ginductive_env_ext : public environment_extension {
     }
 
     pair<unsigned, unsigned> ind_indices_to_ir_range(name const & basic_ind_name, buffer<expr> const & idxs) const {
-        if (!m_from_mutual.contains(basic_ind_name)) {
+        if (!m_from_mutual.contains(basic_ind_name))
             return mk_pair(0, length(get_intro_rules(basic_ind_name)));
-        }
 
         lean_assert(idxs.size == 1);
         unsigned idx_number = compute_idx_number(idxs[0]);
