@@ -38,7 +38,7 @@ vm_obj vm_time_sdiff(vm_obj const & t1, vm_obj const & t2) {
     return to_obj(out.str());
 }
 
-vm_obj io_get_time(vm_obj const &) {
+vm_obj io_get_time(vm_obj const &, vm_obj const &) {
     time_t t = time(NULL);
     return mk_io_result(to_obj(t));
 }
