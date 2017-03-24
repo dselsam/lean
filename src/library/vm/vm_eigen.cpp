@@ -216,7 +216,7 @@ vm_obj eigen_gemm(vm_obj const & m, vm_obj const & n, vm_obj const & p, vm_obj c
     return to_obj(result.array());
 }
 
-vm_obj eigen_read_from_file(vm_obj const & shape, vm_obj const & _filename, vm_obj const &) {
+vm_obj eigen_read_from_file(vm_obj const & shape, vm_obj const & _filename, vm_obj const &, vm_obj const &) {
     std::string filename = to_string(_filename);
     std::ifstream in(filename);
 
@@ -238,7 +238,7 @@ vm_obj eigen_read_from_file(vm_obj const & shape, vm_obj const & _filename, vm_o
     return mk_io_result(to_obj(arr));
 }
 
-vm_obj eigen_write_to_file(vm_obj const & shape, vm_obj const & x, vm_obj const & _filename, vm_obj const &) {
+vm_obj eigen_write_to_file(vm_obj const & shape, vm_obj const & x, vm_obj const & _filename, vm_obj const &, vm_obj const &) {
     std::string filename = to_string(_filename);
     std::ofstream out(filename);
 
@@ -337,7 +337,7 @@ vm_obj eigen_sample_uniform(vm_obj const & shape, vm_obj const & low, vm_obj con
     }
 }
 
-vm_obj io_mkdir(vm_obj const & dir_name, vm_obj const &) {
+vm_obj io_mkdir(vm_obj const & dir_name, vm_obj const &, vm_obj const &) {
     int status = mkdir(to_string(dir_name).c_str(), S_IRWXU);
     return mk_io_result(mk_vm_nat(status));
 }
