@@ -261,7 +261,7 @@ vm_obj eigen_fail(vm_obj const & shape) {
 
 vm_obj eigen_silent_fail(vm_obj const & shape) {
     list<unsigned> dims = to_list<unsigned, std::function<unsigned(vm_obj const &)> >(shape, to_unsigned);
-    std::cout << "certigrad.T.silent_fail default tensor value returned of shape "<< dims << "\n";
+//    std::cout << "certigrad.T.silent_fail default tensor value returned of shape "<< dims << "\n";
     return eigen_pi(shape);
 }
 
