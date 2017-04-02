@@ -260,9 +260,8 @@ vm_obj eigen_fail(vm_obj const & shape) {
 }
 
 vm_obj eigen_silent_fail(vm_obj const & shape) {
-    list<unsigned> dims = to_list<unsigned, std::function<unsigned(vm_obj const &)> >(shape, to_unsigned);
-//    std::cout << "certigrad.T.silent_fail default tensor value returned of shape "<< dims << "\n";
-    return eigen_pi(shape);
+    Eigen::MatrixXf empty;
+    return to_obj(empty);
 }
 
 vm_obj eigen_error(vm_obj const & shape, vm_obj const & msg) {
@@ -351,6 +350,9 @@ vm_obj io_mkdir(vm_obj const & dir_name, vm_obj const &, vm_obj const &) {
 void initialize_vm_eigen() {
     Eigen::initParallel();
     Eigen::setNbThreads(2);
+
+    DECLARE_VM_BUILTIN(name({"certigrad", "RNG"}),                   eigen_dummy);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T"}),                     eigen_dummy);
 
     DECLARE_VM_BUILTIN(name({"certigrad", "RNG", "to_string"}),      eigen_rng_to_string);
     DECLARE_VM_BUILTIN(name({"certigrad", "RNG", "mk"}),             eigen_mk_rng);
