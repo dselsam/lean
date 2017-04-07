@@ -24,6 +24,8 @@ Author: Leonardo de Moura
 #include "library/vm/vm_task.h"
 #include "library/vm/vm_parser.h"
 #include "library/vm/vm_array.h"
+#include "library/vm/vm_eigen.h"
+#include "library/vm/vm_time.h"
 
 namespace lean {
 void initialize_vm_core_module() {
@@ -47,11 +49,15 @@ void initialize_vm_core_module() {
     initialize_vm_environment();
     initialize_vm_parser();
     initialize_vm_array();
+    initialize_vm_eigen();
+    initialize_vm_time();
 }
 
 void finalize_vm_core_module() {
     finalize_vm_array();
+    finalize_vm_time();
     finalize_vm_parser();
+    finalize_vm_eigen();
     finalize_vm_environment();
     finalize_vm_declaration();
     finalize_vm_task();

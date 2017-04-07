@@ -896,6 +896,14 @@ match h with
 | (is_false hnc) := rfl
 end
 
+@[simp]
+lemma dif_true {α : Sort u} {h : decidable true} (t : true → α) (e : ¬ true → α) : (@dite true h α t e) = t trivial :=
+dif_pos trivial
+
+@[simp]
+lemma dif_false {α : Sort u} {h : decidable false} (t : false → α) (e : ¬ false → α) : (@dite false h α t e) = e not_false :=
+dif_neg not_false
+
 lemma dif_ctx_congr {α : Sort u} {b c : Prop} [dec_b : decidable b] [dec_c : decidable c]
                     {x : b → α} {u : c → α} {y : ¬b → α} {v : ¬c → α}
                     (h_c : b ↔ c)
@@ -909,6 +917,7 @@ match dec_b, dec_c with
 | (is_true h₁),  (is_false h₂) := absurd h₁ (iff.mpr (not_iff_not_of_iff h_c) h₂)
 end
 
+@[congr]
 lemma dif_ctx_simp_congr {α : Sort u} {b c : Prop} [dec_b : decidable b]
                          {x : b → α} {u : c → α} {y : ¬b → α} {v : ¬c → α}
                          (h_c : b ↔ c)
