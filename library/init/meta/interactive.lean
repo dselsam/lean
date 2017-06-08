@@ -742,14 +742,6 @@ meta def dunfold : parse ident* → parse location → tactic unit
                           tactic.dunfold new_cs,
                           intron n
 
-private meta def sdunfold_hyps : list name → list name → tactic unit
-| cs []      := skip
-| cs (h::hs) := get_local h >>= sdunfold_at cs >> sdunfold_hyps cs hs
-
-meta def sdunfold : parse ident* → parse location → tactic unit
-| cs [] := do new_cs ← to_qualified_names cs, tactic.sdunfold new_cs
-| cs hs := do new_cs ← to_qualified_names cs, sdunfold_hyps new_cs hs
-
 /- TODO(Leo): add support for non-refl lemmas -/
 meta def unfold : parse ident* → parse location → tactic unit :=
 dunfold

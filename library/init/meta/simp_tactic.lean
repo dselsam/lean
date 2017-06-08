@@ -126,9 +126,6 @@ meta constant dunfold_core (m : transparency) (max_steps : nat) (cs : list name)
 meta def dunfold : list name → tactic unit :=
 λ cs, target >>= dunfold_core transparency.instances default_max_steps cs >>= unsafe_change
 
-meta def sdunfold : list name → tactic unit :=
-λ cs, target >>= dunfold_core semireducible default_max_steps cs >>= change
-
 meta def dunfold_occs_of (occs : list nat) (c : name) : tactic unit :=
 target >>= dunfold_occs_core transparency.instances default_max_steps (occurrences.pos occs) [c] >>= unsafe_change
 
@@ -144,13 +141,6 @@ do num_reverted ← revert h,
    (expr.pi n bi d b : expr) ← target,
    new_d ← dunfold_core transparency.instances default_max_steps cs d,
    unsafe_change $ expr.pi n bi new_d b,
-   intron num_reverted
-
-meta def sdunfold_at (cs : list name) (h : expr) : tactic unit :=
-do num_reverted ← revert h,
-   (expr.pi n bi d b : expr) ← target,
-   new_d ← dunfold_core semireducible default_max_steps cs d,
-   change $ expr.pi n bi new_d b,
    intron num_reverted
 
 structure delta_config :=

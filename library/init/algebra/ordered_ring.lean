@@ -172,8 +172,6 @@ class ordered_ring (α : Type u) extends ring α, ordered_comm_group α, zero_ne
 (mul_nonneg : ∀ a b : α, 0 ≤ a → 0 ≤ b → 0 ≤ a * b)
 (mul_pos    : ∀ a b : α, 0 < a → 0 < b → 0 < a * b)
 
-class ordered_comm_ring (α : Type u) extends ordered_ring α, comm_monoid α
-
 lemma ordered_ring.mul_le_mul_of_nonneg_left [s : ordered_ring α] {a b c : α}
         (h₁ : a ≤ b) (h₂ : 0 ≤ c) : c * a ≤ c * b :=
 have 0 ≤ b - a,       from sub_nonneg_of_le h₁,
