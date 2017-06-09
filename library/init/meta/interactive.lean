@@ -434,6 +434,18 @@ do e ← i_to_expr_strict q,
    tactic.define h e,
    return ()
 
+meta def assertv (h : parse ident) (q₁ : parse $ tk ":" *> texpr) (q₂ : parse $ tk ":=" *> texpr) : tactic unit :=
+do t ← i_to_expr_strict q₁,
+   v ← i_to_expr_strict ``(%%q₂ : %%t),
+   tactic.assertv h t v,
+   return ()
+
+meta def definev (h : parse ident) (q₁ : parse $ tk ":" *> texpr) (q₂ : parse $ tk ":=" *> texpr) : tactic unit :=
+do t ← i_to_expr_strict q₁,
+   v ← i_to_expr_strict ``(%%q₂ : %%t),
+   tactic.definev h t v,
+   return ()
+
 /--
 This tactic applies to any goal. `note h : T := p` adds a new hypothesis of name `h` and type `T` to the current goal if `p` a term of type `T`.
 -/

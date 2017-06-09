@@ -119,8 +119,9 @@ struct get_noncomputable_reason_fn {
         if (m_cache.find(e) != m_cache.end())
             return false;
         m_cache.insert(e);
-        expr type = m_tc.whnf(m_tc.infer(e));
-        return !m_tc.is_prop(type) && !is_sort(type);
+        return true;
+//        expr type = m_tc.whnf(m_tc.infer(e));
+//        return !m_tc.is_prop(type) && !is_sort(type);
     }
 
     void visit_macro(expr const & e) {
