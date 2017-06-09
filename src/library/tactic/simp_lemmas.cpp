@@ -1168,7 +1168,7 @@ static bool instantiate_emetas(type_context & ctx, list<expr> const & _emetas, l
         if (instances[i]) {
             if (auto v = ctx.mk_class_instance(m_type)) {
                 if (!ctx.is_def_eq(m, *v)) {
-                    lean_trace(name({"simp_lemmas", "failure"}),
+                    lean_trace(name({"simp_lemmas", "rewrite", "failure"}),
                                tout() << "unable to assign instance for: " << m_type << "\n";);
                     return false;
                 } else {
@@ -1176,12 +1176,12 @@ static bool instantiate_emetas(type_context & ctx, list<expr> const & _emetas, l
                     continue;
                 }
             } else {
-                lean_trace(name({"simp_lemmas", "failure"}),
+                lean_trace(name({"simp_lemmas", "rewrite", "failure"}),
                            tout() << "unable to synthesize instance for: " << m_type << "\n";);
                 return false;
             }
         } else {
-            lean_trace(name({"simp_lemmas", "failure"}),
+            lean_trace(name({"simp_lemmas", "rewrite", "failure"}),
                        tout() << "failed to assign: " << m << " : " << m_type << "\n";);
             return false;
         }
@@ -1195,7 +1195,7 @@ static expr refl_lemma_rewrite_core(type_context & ctx, expr const & e, simp_lem
 
     if (!ctx.is_def_eq(sl.get_lhs(), e)) return e;
 
-    lean_trace("simp_lemmas",
+    lean_trace(name({"simp_lemmas", "rewrite"}),
                expr new_lhs = ctx.instantiate_mvars(sl.get_lhs());
                expr new_rhs = ctx.instantiate_mvars(sl.get_rhs());
                tout() << "(" << sl.get_id() << ") "
@@ -1346,13 +1346,13 @@ static bool instantiate_emetas(type_context & ctx, vm_obj const & prove_fn, unsi
             if (is_instance) {
                 if (auto v = ctx.mk_class_instance(m_type)) {
                     if (!ctx.is_def_eq(m, *v)) {
-                        lean_trace("simp_lemmas", scope_trace_env scope(env, ctx);
+                        lean_trace(name({"simp_lemmas", "rewrite", "failure"}), scope_trace_env scope(env, ctx);
                                    tout() << "unable to assign instance for: " << m_type << "\n";);
                         failed = true;
                         return;
                     }
                 } else {
-                    lean_trace("simp_lemmas", scope_trace_env scope(env, ctx);
+                    lean_trace(name({"simp_lemmas", "rewrite", "failure"}), scope_trace_env scope(env, ctx);
                                tout() << "unable to synthesize instance for: " << m_type << "\n";);
                     failed = true;
                     return;
@@ -1366,10 +1366,13 @@ static bool instantiate_emetas(type_context & ctx, vm_obj const & prove_fn, unsi
                 if (auto pf = prove(ctx, prove_fn, m_type, s)) {
                     lean_verify(ctx.is_def_eq(m, *pf));
                     return;
+                } else {
+                    lean_trace(name({"simp_lemmas", "rewrite", "failure"}), scope_trace_env scope(env, ctx);
+                               tout() << "failed to prove: " << m << " : " << m_type << "\n";);
                 }
             }
 
-            lean_trace("simp_lemmas", scope_trace_env scope(env, ctx);
+            lean_trace(name({"simp_lemmas", "rewrite", "failure"}), scope_trace_env scope(env, ctx);
                        tout() << "failed to assign: " << m << " : " << m_type << "\n";);
 
             failed = true;
@@ -1383,12 +1386,12 @@ static bool instantiate_emetas(type_context & ctx, vm_obj const & prove_fn, unsi
 static simp_result simp_lemma_rewrite(type_context & ctx, simp_lemma const & sl, vm_obj const & prove_fn, expr const & e, tactic_state const & s) {
     type_context::tmp_mode_scope scope(ctx, sl.get_num_umeta(), sl.get_num_emeta());
     if (!ctx.is_def_eq(sl.get_lhs(), e)) {
-        lean_trace("simp_lemmas", tout() << "fail to unify: " << sl.get_id() << "\n";);
+        lean_trace(name({"simp_lemmas", "rewrite", "failure"}), tout() << "fail to unify: " << sl.get_id() << "\n";);
         return simp_result(e);
     }
 
     if (!instantiate_emetas(ctx, prove_fn, sl.get_num_emeta(), sl.get_emetas(), sl.get_instances(), s)) {
-        lean_trace("simp_lemmas", tout() << "fail to instantiate emetas: " << sl.get_id() << "\n";);
+        lean_trace(name({"simp_lemmas", "rewrite", "failure"}), tout() << "fail to instantiate emetas: " << sl.get_id() << "\n";);
         return simp_result(e);
     }
 
@@ -1400,7 +1403,7 @@ static simp_result simp_lemma_rewrite(type_context & ctx, simp_lemma const & sl,
     expr new_rhs = ctx.instantiate_mvars(sl.get_rhs());
     if (sl.is_permutation()) {
         if (!is_lt(new_rhs, new_lhs, false)) {
-            lean_trace("simp_lemmas", scope_trace_env scope(ctx.env(), ctx);
+            lean_trace(name({"simp_lemmas", "rewrite", "failure"}), scope_trace_env scope(ctx.env(), ctx);
                        tout() << "perm rejected: " << new_rhs << " !< " << new_lhs << "\n";);
             return simp_result(e);
         }
@@ -1427,7 +1430,7 @@ vm_obj simp_lemmas_rewrite_core(transparency_mode const & m, simp_lemmas const &
     for (simp_lemma const & lemma : *srs) {
         simp_result r = simp_lemma_rewrite(ctx, lemma, prove_fn, e, s);
         if (!is_eqp(r.get_new(), e)) {
-            lean_trace("simp_lemmas", scope_trace_env scope(ctx.env(), ctx);
+            lean_trace(name({"simp_lemmas", "rewrite"}), scope_trace_env scope(ctx.env(), ctx);
                        tout() << "[" << lemma.get_id() << "]: " << e << " ==> " << r.get_new() << "\n";);
             vm_obj new_e  = to_obj(r.get_new());
             vm_obj new_pr = to_obj(r.get_proof());
@@ -1530,7 +1533,8 @@ void initialize_simp_lemmas() {
     g_refl_lemma_attr     = new name{"_refl_lemma"};
     register_trace_class("simp_lemmas");
     register_trace_class("simp_lemmas_cache");
-    register_trace_class(name{"simp_lemmas", "failure"});
+    register_trace_class(name{"simp_lemmas", "rewrite"});
+    register_trace_class(name{"simp_lemmas", "rewrite", "failure"});
     register_trace_class(name{"simp_lemmas", "invalid"});
     register_system_attribute(basic_attribute(
             *g_refl_lemma_attr, "marks that a lemma that can be used by the defeq simplifier"));
