@@ -336,6 +336,8 @@ iff.trans (lt_iff_not_ge _ _) $ iff.trans (not_iff_not_of_iff $ mul_self_le_mul_
 
 end linear_ordered_ring
 
+class ordered_comm_ring (α : Type u) extends ordered_ring α, comm_monoid α
+
 class linear_ordered_comm_ring (α : Type u) extends linear_ordered_ring α, comm_monoid α
 
 lemma linear_ordered_comm_ring.eq_zero_or_eq_zero_of_mul_eq_zero [s : linear_ordered_comm_ring α]
