@@ -237,7 +237,8 @@ vm_obj eigen_read_from_file(vm_obj const & shape, vm_obj const & _filename, vm_o
     return mk_io_result(to_obj(arr));
 }
 
-static Eigen::ArrayXXf read_mnist_images(string full_path, int& number_of_images, int& image_size) {
+// Based on code found at https://stackoverflow.com/questions/8286668/how-to-read-mnist-data-in-c
+static Eigen::ArrayXXf read_mnist_images(std::string full_path) {
     auto reverseInt = [](int i) {
         unsigned char c1, c2, c3, c4;
         c1 = i & 255, c2 = (i >> 8) & 255, c3 = (i >> 16) & 255, c4 = (i >> 24) & 255;
@@ -246,7 +247,9 @@ static Eigen::ArrayXXf read_mnist_images(string full_path, int& number_of_images
 
     typedef unsigned char uchar;
 
-    ifstream file(full_path, ios::binary);
+    std::ifstream file(full_path, std::ios::binary);
+
+    int number_of_images, image_size;
 
     if(file.is_open()) {
         int magic_number = 0, n_rows = 0, n_cols = 0;
@@ -254,7 +257,7 @@ static Eigen::ArrayXXf read_mnist_images(string full_path, int& number_of_images
         file.read((char *)&magic_number, sizeof(magic_number));
         magic_number = reverseInt(magic_number);
 
-        if(magic_number != 2051) throw runtime_error("Invalid MNIST image file!");
+        if(magic_number != 2051) throw exception("Invalid MNIST image file!");
 
         file.read((char *)&number_of_images, sizeof(number_of_images)), number_of_images = reverseInt(number_of_images);
         file.read((char *)&n_rows, sizeof(n_rows)), n_rows = reverseInt(n_rows);
@@ -262,41 +265,67 @@ static Eigen::ArrayXXf read_mnist_images(string full_path, int& number_of_images
 
         image_size = n_rows * n_cols;
 
-        Eigen::ArrayXXf mat(number_of_images, image_size_images);
+        Eigen::ArrayXXf dataset(number_of_images, image_size);
 
-        uchar** _dataset = new uchar*[number_of_images];
         for(int i = 0; i < number_of_images; i++) {
             uchar* image = new uchar[image_size];
-            file.read((char *)_dataset[i], image_size);
+            file.read((char *)image, image_size);
+            for (int j = 0; j < image_size; ++j) {
+                dataset(i, j) = ((unsigned int) image[j]) / 256.0;
+            }
         }
-        return _dataset;
+        return dataset;
     } else {
-        throw runtime_error("Cannot open file `" + full_path + "`!");
+        throw exception("Cannot open file `" + full_path + "`!");
     }
 }
 
-vm_obj eigen_read_mnist(vm_obj const & shape, vm_obj const & _filename, vm_obj const &, vm_obj const &) {
-    std::string filename = to_string(_filename);
-    std::ifstream in(filename);
+// Based on code found at https://stackoverflow.com/questions/8286668/how-to-read-mnist-data-in-c
+static Eigen::ArrayXXf read_mnist_labels(std::string full_path) {
+    auto reverseInt = [](int i) {
+        unsigned char c1, c2, c3, c4;
+        c1 = i & 255, c2 = (i >> 8) & 255, c3 = (i >> 16) & 255, c4 = (i >> 24) & 255;
+        return ((int)c1 << 24) + ((int)c2 << 16) + ((int)c3 << 8) + c4;
+    };
 
-    unsigned nrows, ncols;
-    if (optional<pair<unsigned, unsigned> > mn = is_matrix(shape)) {
-        nrows = mn->first;
-        ncols = mn->second;
-    } else {
-        nrows = shape_len(shape);
-        ncols = 1;
-    }
-    Eigen::ArrayXXf arr(nrows, ncols);
+    typedef unsigned char uchar;
 
-    for (unsigned row = 0; row < nrows; row++) {
-        for (unsigned col = 0; col < ncols; col++) {
-            in >> arr(row, col);
+    int number_of_labels;
+    std::ifstream file(full_path, std::ios::binary);
+
+    if(file.is_open()) {
+        int magic_number = 0;
+        file.read((char *)&magic_number, sizeof(magic_number));
+        magic_number = reverseInt(magic_number);
+
+        if(magic_number != 2049) throw exception("Invalid MNIST label file!");
+
+        file.read((char *)&number_of_labels, sizeof(number_of_labels)), number_of_labels = reverseInt(number_of_labels);
+
+        Eigen::ArrayXf labels(number_of_labels);
+        uchar* _labels = new uchar[number_of_labels];
+        file.read((char *)_labels, number_of_labels);
+        for (int j = 0; j < number_of_labels; ++j) {
+            labels(j) = ((float) _labels[j]);
         }
+        return labels;
+    } else {
+        throw exception("Unable to open file `" + full_path + "`!");
     }
-    return mk_io_result(to_obj(arr));
 }
 
+vm_obj eigen_read_mnist(vm_obj const & _dirname, vm_obj const &, vm_obj const &) {
+    std::string dirname = to_string(_dirname);
+    std::string train_images_filename = dirname + "/train-images-idx3-ubyte";
+    std::string train_labels_filename = dirname + "/train-labels-idx1-ubyte";
+
+    std::cout << "reading mnist..." << std::endl;
+    Eigen::ArrayXXf train_images = read_mnist_images(train_images_filename);
+    Eigen::ArrayXf train_labels = read_mnist_labels(train_labels_filename);
+    std::cout << "finished reading mnist" << std::endl;
+
+    return mk_io_result(mk_vm_pair(to_obj(train_images), to_obj(train_labels)));
+}
 
 vm_obj eigen_write_to_file(vm_obj const & /* shape */, vm_obj const & x, vm_obj const & _filename, vm_obj const &, vm_obj const &) {
     std::string filename = to_string(_filename);
@@ -463,6 +492,7 @@ void initialize_vm_eigen() {
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "lt"}),               eigen_lt);
 
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "read_from_file"}),   eigen_read_from_file);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "read_mnist"}),       eigen_read_mnist);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "write_to_file"}),    eigen_write_to_file);
 
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "sample_uniform"}),   eigen_sample_uniform);
