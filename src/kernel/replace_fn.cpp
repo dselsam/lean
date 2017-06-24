@@ -6,53 +6,33 @@ Author: Leonardo de Moura
 */
 #include <vector>
 #include <memory>
+#include "library/expr_unsigned_map.h"
 #include "kernel/replace_fn.h"
 #include "kernel/cache_stack.h"
 
-#ifndef LEAN_DEFAULT_REPLACE_CACHE_CAPACITY
-#define LEAN_DEFAULT_REPLACE_CACHE_CAPACITY 1024*8
-#endif
-
 namespace lean {
 struct replace_cache {
-    struct entry {
-        expr_cell * m_cell;
-        unsigned    m_offset;
-        expr        m_result;
-        entry():m_cell(nullptr) {}
-    };
-    unsigned              m_capacity;
-    std::vector<entry>    m_cache;
-    std::vector<unsigned> m_used;
-    replace_cache(unsigned c):m_capacity(c), m_cache(c) {}
+    expr_unsigned_map<expr> m_cache;
 
     expr * find(expr const & e, unsigned offset) {
-        unsigned i = hash(e.hash_alloc(), offset) % m_capacity;
-        if (m_cache[i].m_cell == e.raw() && m_cache[i].m_offset == offset)
-            return &m_cache[i].m_result;
-        else
+        auto result = m_cache.find({e, offset});
+        if (result != m_cache.end()) {
+            return &result->second;
+        } else {
             return nullptr;
+        }
     }
 
     void insert(expr const & e, unsigned offset, expr const & v) {
-        unsigned i = hash(e.hash_alloc(), offset) % m_capacity;
-        if (m_cache[i].m_cell == nullptr)
-            m_used.push_back(i);
-        m_cache[i].m_cell   = e.raw();
-        m_cache[i].m_offset = offset;
-        m_cache[i].m_result = v;
+        m_cache.insert({{e, offset}, v});
     }
 
     void clear() {
-        for (unsigned i : m_used) {
-            m_cache[i].m_cell   = nullptr;
-            m_cache[i].m_result = expr();
-        }
-        m_used.clear();
+        m_cache.clear();
     }
 };
 
-MK_CACHE_STACK(replace_cache, LEAN_DEFAULT_REPLACE_CACHE_CAPACITY)
+MK_CACHE_STACK(replace_cache, )
 
 class replace_rec_fn {
     replace_cache_ref                                     m_cache;
