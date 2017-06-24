@@ -6,6 +6,7 @@ Author: Leonardo de Moura
 */
 #pragma once
 #include <unordered_map>
+#include <unordered_set>
 #include "kernel/expr.h"
 
 namespace lean {
@@ -31,4 +32,7 @@ struct expr_unsigned_eq_fn {
 /* mapping from (expr, unsigned) -> T */
 template<typename T>
 using expr_unsigned_map = typename std::unordered_map<expr_unsigned, T, expr_unsigned_hash_fn, expr_unsigned_eq_fn>;
+
+using expr_unsigned_set = typename std::unordered_set<expr_unsigned, expr_unsigned_hash_fn, expr_unsigned_eq_fn>;
+
 }
