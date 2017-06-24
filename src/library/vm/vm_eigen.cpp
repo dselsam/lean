@@ -18,7 +18,7 @@ Author: Daniel Selsam
 
 namespace lean {
 
-static const float eps = 0.00000001;
+static const float eps = 0.0000000001;
 
 struct vm_eigen : public vm_external {
     Eigen::ArrayXXf m_val;
@@ -139,7 +139,8 @@ vm_obj eigen_const(vm_obj const & alpha, vm_obj const & shape) {
 
 vm_obj eigen_neg(vm_obj const & /* shape */, vm_obj const & x) { return to_obj(-to_eigen(x)); }
 vm_obj eigen_inv(vm_obj const & /* shape */, vm_obj const & x) {
-    Eigen::ArrayXXf arr = 1.0 / (to_eigen(x));
+    // TODO(dhs): x may be neg
+    Eigen::ArrayXXf arr = 1.0 / (to_eigen(x) + eps);
     if (!arr.allFinite())
         throw exception("inv floating point error");
     return to_obj(arr);
