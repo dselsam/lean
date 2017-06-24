@@ -6,56 +6,63 @@ Author: Leonardo de Moura
 */
 #include <algorithm>
 #include <limits>
+#include <unordered_map>
 #include <vector>
+#include "util/name_hash_map.h"
 #include "kernel/free_vars.h"
 #include "kernel/replace_fn.h"
 #include "kernel/declaration.h"
 #include "kernel/instantiate.h"
 
-#ifndef LEAN_INST_UNIV_CACHE_SIZE
-#define LEAN_INST_UNIV_CACHE_SIZE 1023
-#endif
-
 namespace lean {
-class instantiate_univ_cache {
-    typedef std::tuple<declaration, levels, expr> entry;
-    unsigned                     m_capacity;
-    std::vector<optional<entry>> m_cache;
-public:
-    instantiate_univ_cache(unsigned capacity):m_capacity(capacity) {
-        if (m_capacity == 0)
-            m_capacity++;
-    }
 
+struct iuniv_key {
+    name m_n;
+    levels m_ls;
+    unsigned m_hash;
+    iuniv_key(name const & n, levels const & ls): m_n(n), m_ls(ls) {
+        m_hash = n.hash(); // + 17 * hash(ls);
+    }
+};
+
+struct iuniv_key_hash_fn {
+    unsigned operator()(iuniv_key const & k) const { return k.m_hash; }
+};
+
+struct iuniv_key_eq_fn {
+    bool operator()(iuniv_key const & k1, iuniv_key const & k2) const {
+        return k1.m_n == k2.m_n && k1.m_ls == k2.m_ls;
+    }
+};
+
+struct iuniv_val {
+    declaration m_decl;
+    levels m_ls;
+    expr m_e;
+
+    iuniv_val(declaration const & decl, levels const & ls, expr const & e):
+        m_decl(decl), m_ls(ls), m_e(e) {}
+};
+
+class instantiate_univ_cache {
+    std::unordered_map<iuniv_key, iuniv_val, iuniv_key_hash_fn, iuniv_key_eq_fn> m_cache;
+
+public:
     optional<expr> is_cached(declaration const & d, levels const & ls) {
-        if (m_cache.empty())
+        auto r = m_cache.find({d.get_name(), ls});
+        if (r != m_cache.end()) {
+            return some_expr(r->second.m_e);
+        } else {
             return none_expr();
-        lean_assert(m_cache.size() == m_capacity);
-        unsigned idx = d.get_name().hash() % m_capacity;
-        if (auto it = m_cache[idx]) {
-            declaration d_c; levels ls_c; expr r_c;
-            std::tie(d_c, ls_c, r_c) = *it;
-            if (!is_eqp(d_c, d))
-                return none_expr();
-            if (ls == ls_c)
-                return some_expr(r_c);
-            else
-                return none_expr();
         }
-        return none_expr();
     }
 
     void save(declaration const & d, levels const & ls, expr const & r) {
-        if (m_cache.empty())
-            m_cache.resize(m_capacity);
-        lean_assert(m_cache.size() == m_capacity);
-        unsigned idx = d.get_name().hash() % m_cache.size();
-        m_cache[idx] = entry(d, ls, r);
+        m_cache.insert({{d.get_name(), ls}, {d, ls, r}});
     }
 
     void clear() {
         m_cache.clear();
-        lean_assert(m_cache.empty());
     }
 };
 
@@ -189,8 +196,8 @@ expr instantiate_univ_params(expr const & e, level_param_names const & ps, level
         });
 }
 
-MK_THREAD_LOCAL_GET(instantiate_univ_cache, get_type_univ_cache, LEAN_INST_UNIV_CACHE_SIZE);
-MK_THREAD_LOCAL_GET(instantiate_univ_cache, get_value_univ_cache, LEAN_INST_UNIV_CACHE_SIZE);
+MK_THREAD_LOCAL_GET(instantiate_univ_cache, get_type_univ_cache, );
+MK_THREAD_LOCAL_GET(instantiate_univ_cache, get_value_univ_cache, );
 
 expr instantiate_type_univ_params(declaration const & d, levels const & ls) {
     lean_assert(d.get_num_univ_params() == length(ls));
