@@ -8,6 +8,8 @@ Author: Leonardo de Moura
 #include "kernel/instantiate.h"
 #include "kernel/abstract.h"
 #include "kernel/find_fn.h"
+#include "kernel/expr_maps.h"
+#include "kernel/replace_fn.h"
 #include "kernel/inductive/inductive.h"
 #include "kernel/scope_pos_info_provider.h"
 #include "kernel/free_vars.h"
@@ -775,15 +777,49 @@ static void get_constructors_of(environment const & env, name const & n, buffer<
     to_buffer(get_ginductive_intro_rules(env, n), result);
 }
 
+static expr replace_lmetas(type_context & ctx, expr const & e, list<expr> const & lmetas, expr_struct_map<expr> & dict) {
+    return replace(e, [&](expr const & e) {
+            auto it = dict.find(e);
+            if (it != dict.end()) {
+                return some_expr(it->second);
+            }
+
+            for (expr const & lmeta : lmetas) {
+                if (e == lmeta) {
+                    expr m = ctx.mk_metavar_decl(ctx.lctx(), ctx.infer(e));
+                    dict.insert({lmeta, m});
+                    return some_expr(m);
+                }
+            }
+
+            if (is_local(e)) {
+                expr m = ctx.push_local(local_pp_name(e), replace_lmetas(ctx, ctx.infer(e), lmetas, dict));
+                dict.insert({e, m});
+                return some_expr(m);
+            } else if (is_metavar(e)) {
+                expr m = ctx.mk_metavar_decl(ctx.lctx(), replace_lmetas(ctx, ctx.infer(e), lmetas, dict));
+                dict.insert({e, m});
+                return some_expr(m);
+            } else {
+                return none_expr();
+            }
+        });
+}
+
 /* Given a variable (x : I A idx), where (I A idx) is an inductive datatype,
    for each constructor c of (I A idx), this function invokes fn(t, new_vars) where t is of the form (c A ...),
    where new_vars are fresh variables and are arguments of (c A ...)
    which have not been fixed by typing constraints. Moreover, fn is only invoked if
    the type of (c A ...) matches (I A idx). */
-void for_each_compatible_constructor(type_context & ctx, expr const & var, list<expr> const & lmetas,
+void for_each_compatible_constructor(type_context & ctx, expr const & _var, list<expr> const & lmetas,
                                      std::function<void(expr const &, buffer<expr> &)> const & fn) {
-    lean_assert(is_local(var));
-    expr var_type = whnf_inductive(ctx, ctx.infer(var));
+    lean_assert(is_local(_var));
+
+    expr_struct_map<expr> subst_dict;
+    expr var = replace_lmetas(ctx, _var, lmetas, subst_dict);
+
+    expr var_type = whnf_inductive(ctx, ctx.infer(new_var));
+
     buffer<expr> I_args;
     expr const & I      = get_app_args(var_type, I_args);
     name const & I_name = const_name(I);
@@ -800,9 +836,8 @@ void for_each_compatible_constructor(type_context & ctx, expr const & var, list<
         expr c  = mk_app(mk_constant(c_name, I_ls), I_params);
         expr it = whnf_inductive(ctx, ctx.infer(c));
         {
-            type_context::tmp_mode_scope scope(ctx);
             while (is_pi(it)) {
-                expr new_arg = ctx.mk_tmp_mvar(binding_domain(it));
+                expr new_arg = ctx.mk_metavar_decl(binding_domain(it));
                 c_vars.push_back(new_arg);
                 c_var_names.push_back(binding_name(it));
                 c  = mk_app(c, new_arg);
