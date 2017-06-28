@@ -786,7 +786,7 @@ static expr replace_lmetas(type_context & ctx, expr const & e, list<expr> const 
 
             for (expr const & lmeta : lmetas) {
                 if (e == lmeta) {
-                    expr m = ctx.mk_metavar_decl(ctx.lctx(), ctx.infer(e));
+                    expr m = ctx.mk_tmp_mvar(ctx.infer(e));
                     dict.insert({lmeta, m});
                     return some_expr(m);
                 }
@@ -797,6 +797,7 @@ static expr replace_lmetas(type_context & ctx, expr const & e, list<expr> const 
                 dict.insert({e, m});
                 return some_expr(m);
             } else if (is_metavar(e)) {
+                throw exception(sstream() << "Unexpected meta-variable: " << e);
                 expr m = ctx.mk_metavar_decl(ctx.lctx(), replace_lmetas(ctx, ctx.infer(e), lmetas, dict));
                 dict.insert({e, m});
                 return some_expr(m);
@@ -812,24 +813,31 @@ static expr replace_lmetas(type_context & ctx, expr const & e, list<expr> const 
    which have not been fixed by typing constraints. Moreover, fn is only invoked if
    the type of (c A ...) matches (I A idx). */
 void for_each_compatible_constructor(type_context & ctx, expr const & _var, list<expr> const & lmetas,
-                                     std::function<void(expr const &, buffer<expr> &)> const & fn) {
+                                     std::function<void(expr const &, expr const &, buffer<expr> &)> const & fn) {
     lean_assert(is_local(_var));
 
-    expr_struct_map<expr> subst_dict;
-    expr var = replace_lmetas(ctx, _var, lmetas, subst_dict);
-
-    expr var_type = whnf_inductive(ctx, ctx.infer(new_var));
+    expr var_type = whnf_inductive(ctx, ctx.infer(_var));
 
     buffer<expr> I_args;
     expr const & I      = get_app_args(var_type, I_args);
     name const & I_name = const_name(I);
-    levels const & I_ls = const_levels(I);
-    unsigned nparams    = get_ginductive_num_params(ctx.env(), I_name);
-    buffer<expr> I_params;
-    I_params.append(nparams, I_args.data());
     buffer<name> constructor_names;
     get_constructors_of(ctx.env(), I_name, constructor_names);
     for (name const & c_name : constructor_names) {
+        type_context::tmp_mode_scope scope(ctx);
+        expr_struct_map<expr> subst_dict;
+        expr var = replace_lmetas(ctx, _var, lmetas, subst_dict);
+        expr var_type = whnf_inductive(ctx, ctx.infer(var));
+
+        buffer<expr> I_args;
+        expr const & I      = get_app_args(var_type, I_args);
+        name const & I_name = const_name(I);
+        levels const & I_ls = const_levels(I);
+
+        unsigned nparams    = get_ginductive_num_params(ctx.env(), I_name);
+        buffer<expr> I_params;
+        I_params.append(nparams, I_args.data());
+
         buffer<expr> c_vars;
         buffer<name> c_var_names;
         buffer<expr> new_c_vars;
@@ -837,7 +845,7 @@ void for_each_compatible_constructor(type_context & ctx, expr const & _var, list
         expr it = whnf_inductive(ctx, ctx.infer(c));
         {
             while (is_pi(it)) {
-                expr new_arg = ctx.mk_metavar_decl(binding_domain(it));
+                expr new_arg = ctx.mk_tmp_mvar(binding_domain(it));
                 c_vars.push_back(new_arg);
                 c_var_names.push_back(binding_name(it));
                 c  = mk_app(c, new_arg);
@@ -869,7 +877,7 @@ void for_each_compatible_constructor(type_context & ctx, expr const & _var, list
             }
             c = ctx.instantiate_mvars(c);
         }
-        fn(c, new_c_vars);
+        fn(c, var, new_c_vars);
     }
 }
 

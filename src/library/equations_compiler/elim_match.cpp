@@ -5,6 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Author: Leonardo de Moura
 */
 #include <string>
+#include <iostream>
 #include "util/flet.h"
 #include "util/sexpr/option_declarations.h"
 #include "kernel/instantiate.h"
@@ -566,17 +567,6 @@ struct elim_match_fn {
         return true;
     }
 
-    /** Return true iff the next pattern of some equations is an inaccessible term */
-    bool some_inaccessible(problem const & P) const {
-        for (equation const & eqn : P.m_equations) {
-            lean_assert(eqn.m_patterns);
-            expr const & p = head(eqn.m_patterns);
-            if (is_inaccessible(p))
-                return true;
-        }
-        return false;
-    }
-
     /** Return true iff the next pattern of all equations is an inaccessible term */
     bool all_inaccessible(problem const & P) const {
         for (equation const & eqn : P.m_equations) {
@@ -589,8 +579,24 @@ struct elim_match_fn {
     }
 
     /* Return true iff the next pattern in some of the equations is an inaccessible term. */
-    bool is_inaccessible_transition(problem const & P) const {
-        return some_inaccessible(P);
+    bool is_inaccessible_transition(problem const & P) {
+        bool has_constructor = false;
+        bool has_inaccessible = false;
+
+        for (equation const & eqn : P.m_equations) {
+            type_context ctx = mk_type_context(eqn.m_lctx);
+            lean_assert(eqn.m_patterns);
+            expr const & p = head(eqn.m_patterns);
+            if (is_inaccessible(p)) {
+                has_inaccessible = true;
+            } else if (is_constructor_app(ctx, p)) {
+                has_constructor = true;
+            }
+        }
+        if (has_inaccessible && has_constructor)
+            throw exception(sstream() << "transition has both constructors and inaccessible terms");
+
+        return has_inaccessible;
     }
 
     /** Replace local `x` in `e` with `renaming.find(x)` */
@@ -903,8 +909,8 @@ struct elim_match_fn {
             if (is_local(pattern)) {
                 type_context ctx  = mk_type_context(eqn.m_lctx);
                 for_each_compatible_constructor(ctx, pattern, eqn.m_lmetas,
-                    [&](expr const & c, buffer<expr> const & new_c_vars) {
-                    expr var = pattern;
+                [&](expr const & c, expr const & var, buffer<expr> const & new_c_vars) {
+//                    expr var = pattern;
                     /* We are replacing `var` with `c` */
                     buffer<expr> vars; to_buffer(eqn.m_vars, vars);
                     buffer<expr> new_vars;
