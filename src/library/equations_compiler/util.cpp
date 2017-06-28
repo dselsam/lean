@@ -777,7 +777,7 @@ static void get_constructors_of(environment const & env, name const & n, buffer<
    where new_vars are fresh variables and are arguments of (c A ...)
    which have not been fixed by typing constraints. Moreover, fn is only invoked if
    the type of (c A ...) matches (I A idx). */
-void for_each_compatible_constructor(type_context & ctx, expr const & var,
+void for_each_compatible_constructor(type_context & ctx, expr const & var, list<expr> const & lmetas,
                                      std::function<void(expr const &, buffer<expr> &)> const & fn) {
     lean_assert(is_local(var));
     expr var_type = whnf_inductive(ctx, ctx.infer(var));
@@ -806,12 +806,11 @@ void for_each_compatible_constructor(type_context & ctx, expr const & var,
                 it = whnf_inductive(ctx, instantiate(binding_body(it), new_arg));
             }
             if (!ctx.is_def_eq(var_type, it)) {
-                /* TODO(Leo): do we need this trace?
+                /* TODO(Leo): do we need this trace? */
                 trace_match(
                     auto pp = mk_pp_ctx(ctx.lctx());
                     tout() << "constructor '" << c_name << "' not being considered at complete transition because type\n" << pp(it)
                     << "\ndoes not match\n" << pp(var_type) << "\n";);
-                */
                 continue;
             }
             lean_assert(c_vars.size() == c_var_names.size());
@@ -824,12 +823,11 @@ void for_each_compatible_constructor(type_context & ctx, expr const & var,
                     ctx.assign(c_var, new_c_var);
                     c_var = new_c_var;
                 } else if (has_idx_metavar(c_var)) {
-                    /* TODO(Leo): do we need this trace?
+                    /* TODO(Leo): do we need this trace? */
                     trace_match(
                         auto pp = mk_pp_ctx(ctx.lctx());
                         tout() << "constructor '" << c_name << "' not being considered because at complete transition because " <<
                         "failed to synthesize arguments\n" << pp(ctx.instantiate_mvars(c)) << "\n";);
-                    */
                     continue;
                 }
             }

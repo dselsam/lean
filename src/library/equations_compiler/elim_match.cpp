@@ -88,6 +88,8 @@ struct elim_match_fn {
     struct equation {
         local_context  m_lctx;
         list<expr>     m_patterns;
+        /* locals that will need to be transformed into meta-variables when doing case-analysis */
+        list<expr>     m_lmetas;
         expr           m_rhs;
         /* m_renames map variables in this->m_lctx to problem local context */
         hsubstitution  m_subst;
@@ -633,6 +635,11 @@ struct elim_match_fn {
             if (is_var_transition || is_local(head(eqn.m_patterns))) {
                 new_eqn.m_subst  = add_subst(eqn.m_subst, head(eqn.m_patterns), head(P.m_var_stack));
             }
+            /* If it is a variable in an inaccessible transition, it will need to be transformed into
+               metas for each constructor. */
+            if (!is_var_transition && is_local(head(eqn.m_patterns))) {
+                new_eqn.m_lmetas = cons(head(eqn.m_patterns), new_eqn.m_lmetas);
+            }
             new_eqns.push_back(new_eqn);
         }
         new_P.m_equations = to_list(new_eqns);
@@ -895,7 +902,7 @@ struct elim_match_fn {
             expr const & pattern = head(eqn.m_patterns);
             if (is_local(pattern)) {
                 type_context ctx  = mk_type_context(eqn.m_lctx);
-                for_each_compatible_constructor(ctx, pattern,
+                for_each_compatible_constructor(ctx, pattern, eqn.m_lmetas,
                     [&](expr const & c, buffer<expr> const & new_c_vars) {
                     expr var = pattern;
                     /* We are replacing `var` with `c` */

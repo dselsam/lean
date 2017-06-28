@@ -564,7 +564,7 @@ struct structural_rec_fn {
             get_app_args(lhs, lhs_args);
             if (complete && is_local(lhs_args[m_arg_pos])) {
                 expr var = lhs_args[m_arg_pos];
-                for_each_compatible_constructor(ctx, var,
+                for_each_compatible_constructor(ctx, var, list<expr>() /* TODO(dhs): confirm */,
                 [&](expr const & c, buffer<expr> const & new_c_vars) {
                    buffer<expr> new_vars;
                    buffer<expr> from;
