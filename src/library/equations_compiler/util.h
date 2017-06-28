@@ -110,7 +110,7 @@ bool is_nat_int_char_string_name_value(type_context & ctx, expr const & e);
    where new_vars are fresh variables and are arguments of (c A ...)
    which have not been fixed by typing constraints. Moreover, fn is only invoked if
    the type of (c A ...) matches (I A idx). */
-void for_each_compatible_constructor(type_context & ctx, expr const & var,
+void for_each_compatible_constructor(type_context & ctx, expr const & var, list<expr> const & lmetas,
                                      std::function<void(expr const &, buffer<expr> &)> const & fn);
 
 /* Given the telescope vars [x_1, ..., x_i, ..., x_n] and var := x_i,

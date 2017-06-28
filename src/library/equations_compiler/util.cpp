@@ -55,6 +55,9 @@ static bool get_eqn_compiler_zeta(options const & o) {
     throw exception("ill-formed match/equations expression");
 }
 
+#define trace_match(Code) lean_trace(name({"eqn_compiler", "elim_match"}), Code)
+#define trace_match_debug(Code) lean_trace(name({"debug", "eqn_compiler", "elim_match"}), Code)
+
 static optional<pair<expr, unsigned>> get_eqn_fn_and_arity(expr e) {
     while (is_lambda(e))
         e = binding_body(e);
@@ -808,9 +811,8 @@ void for_each_compatible_constructor(type_context & ctx, expr const & var, list<
             if (!ctx.is_def_eq(var_type, it)) {
                 /* TODO(Leo): do we need this trace? */
                 trace_match(
-                    auto pp = mk_pp_ctx(ctx.lctx());
-                    tout() << "constructor '" << c_name << "' not being considered at complete transition because type\n" << pp(it)
-                    << "\ndoes not match\n" << pp(var_type) << "\n";);
+                    tout() << "constructor '" << c_name << "' not being considered at complete transition because type\n" << it
+                    << "\ndoes not match\n" << var_type << "\n";);
                 continue;
             }
             lean_assert(c_vars.size() == c_var_names.size());
@@ -825,9 +827,8 @@ void for_each_compatible_constructor(type_context & ctx, expr const & var, list<
                 } else if (has_idx_metavar(c_var)) {
                     /* TODO(Leo): do we need this trace? */
                     trace_match(
-                        auto pp = mk_pp_ctx(ctx.lctx());
                         tout() << "constructor '" << c_name << "' not being considered because at complete transition because " <<
-                        "failed to synthesize arguments\n" << pp(ctx.instantiate_mvars(c)) << "\n";);
+                        "failed to synthesize arguments\n" << ctx.instantiate_mvars(c) << "\n";);
                     continue;
                 }
             }
