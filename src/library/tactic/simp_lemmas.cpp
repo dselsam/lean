@@ -1192,10 +1192,14 @@ static expr refl_lemma_rewrite_core(type_context & ctx, expr const & e, simp_lem
         if (!ctx.get_tmp_uvar_assignment(i)) return e;
     }
 
-    lean_trace(name({"simp_lemmas", "rewrite", "success"}),
+    lean_trace(name({"simp_lemmas", "rewrite", "success", "name"}),
+               tout() << "[(refl) " << sl.get_id() << "]\n;";);
+
+    lean_trace(name({"simp_lemmas", "rewrite", "success", "full"}),
                expr new_lhs = ctx.instantiate_mvars(sl.get_lhs());
                expr new_rhs = ctx.instantiate_mvars(sl.get_rhs());
                tout() << "[(refl) " << sl.get_id() << "]: " << new_lhs << " ==> " << new_rhs << "\n";);
+
 
     return ctx.instantiate_mvars(sl.get_rhs());
 }
@@ -1450,7 +1454,10 @@ vm_obj simp_lemmas_rewrite_core(transparency_mode const & m, simp_lemmas const &
     for (simp_lemma const & lemma : *srs) {
         simp_result r = simp_lemma_rewrite(ctx, lemma, prove_fn, e, s);
         if (!is_eqp(r.get_new(), e)) {
-            lean_trace(name({"simp_lemmas", "rewrite", "success"}), scope_trace_env scope(ctx.env(), ctx);
+            lean_trace(name({"simp_lemmas", "rewrite", "success", "name"}), scope_trace_env scope(ctx.env(), ctx);
+                       tout() << "[" << lemma.get_id() << "]\n";);
+
+            lean_trace(name({"simp_lemmas", "rewrite", "success", "full"}), scope_trace_env scope(ctx.env(), ctx);
                        tout() << "[" << lemma.get_id() << "]: " << e << " ==> " << r.get_new() << "\n";);
             vm_obj new_e  = to_obj(r.get_new());
             vm_obj new_pr = to_obj(r.get_proof());
@@ -1554,8 +1561,11 @@ void initialize_simp_lemmas() {
     register_trace_class("simp_lemmas");
     register_trace_class("simp_lemmas_cache");
     register_trace_class(name{"simp_lemmas", "rewrite"});
-    register_trace_class(name{"simp_lemmas", "rewrite", "success"});
+    register_trace_class(name{"simp_lemmas", "rewrite", "success", "name"});
+    register_trace_class(name{"simp_lemmas", "rewrite", "success", "full"});
     register_trace_class(name{"simp_lemmas", "rewrite", "failure"});
+    register_trace_class(name{"simp_lemmas", "rewrite", "failure", "name"});
+    register_trace_class(name{"simp_lemmas", "rewrite", "failure", "full"});
     register_trace_class(name{"simp_lemmas", "invalid"});
     register_system_attribute(basic_attribute(
             *g_refl_lemma_attr, "marks that a lemma that can be used by the defeq simplifier"));

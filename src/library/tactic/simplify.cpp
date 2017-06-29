@@ -48,7 +48,7 @@ Author: Daniel Selsam, Leonardo de Moura
 #define LEAN_DEFAULT_SIMPLIFY_MAX_STEPS 1000000
 #endif
 #ifndef LEAN_DEFAULT_SIMPLIFY_CONTEXTUAL
-#define LEAN_DEFAULT_SIMPLIFY_CONTEXTUAL true
+#define LEAN_DEFAULT_SIMPLIFY_CONTEXTUAL false
 #endif
 #ifndef LEAN_DEFAULT_SIMPLIFY_REWRITE
 #define LEAN_DEFAULT_SIMPLIFY_REWRITE true
@@ -912,6 +912,7 @@ simplify_ext_core_fn::simplify_ext_core_fn(type_context & ctx, defeq_can_state &
 simp_result simplify_ext_core_fn::visit_lambda(expr const & e) {
     if (m_rel != get_eq_name() || !m_cfg.m_use_axioms) return simp_result(e);
     type_context::tmp_locals locals(m_ctx);
+
     expr it = e;
     while (is_lambda(it)) {
         expr d = instantiate_rev(binding_domain(it), locals.size(), locals.as_buffer().data());
@@ -1233,6 +1234,8 @@ void initialize_simplify() {
     register_trace_class(name({"simplify", "congruence"}));
     register_trace_class(name({"simplify", "rewrite"}));
     register_trace_class(name({"simplify", "perm"}));
+    register_trace_class(name({"simplify", "lambda"}));
+    register_trace_class(name({"simplify", "pi"}));
     register_trace_class(name({"debug", "simplify", "try_congruence"}));
 
     DECLARE_VM_BUILTIN(name({"tactic", "simplify_core"}), tactic_simplify_core);
