@@ -281,9 +281,10 @@ if(TRACK_MEMORY_USAGE)
 endif()
 
 # Eigen
-# TODO(dhs): this may need to change
-include_directories(/usr/local/include/eigen3)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
+find_package(Eigen3 3.3 REQUIRED)
+find_package(OpenMP REQUIRED)
+include_directories(${EIGEN3_INCLUDE_DIR})
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 
 # jemalloc
 if(JEMALLOC)
