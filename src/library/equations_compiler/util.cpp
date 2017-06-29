@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 
 Author: Leonardo de Moura
 */
+#include <iostream>
 #include "util/sexpr/option_declarations.h"
 #include "kernel/instantiate.h"
 #include "kernel/abstract.h"
@@ -777,34 +778,47 @@ static void get_constructors_of(environment const & env, name const & n, buffer<
     to_buffer(get_ginductive_intro_rules(env, n), result);
 }
 
-static expr replace_lmetas(type_context & ctx, expr const & e, list<expr> const & lmetas, expr_struct_map<expr> & dict) {
-    return replace(e, [&](expr const & e) {
-            auto it = dict.find(e);
-            if (it != dict.end()) {
-                return some_expr(it->second);
-            }
-
-            for (expr const & lmeta : lmetas) {
-                if (e == lmeta) {
-                    expr m = ctx.mk_tmp_mvar(ctx.infer(e));
-                    dict.insert({lmeta, m});
-                    return some_expr(m);
+static expr replace_lmetas_core(type_context & ctx, expr const & e, list<expr> const & lmetas, expr_struct_map<expr> & dict) {
+    if (is_local(e)) {
+        expr m = ctx.push_local(local_pp_name(e), replace_lmetas_core(ctx, ctx.infer(e), lmetas, dict));
+        std::cout << "Local[1]: " << local_pp_name(e) << "." << mlocal_name(e) << " ==> " << local_pp_name(m) << "." << mlocal_name(m) << std::endl;
+        dict.insert({e, m});
+        return m;
+    } else {
+        return replace(e, [&](expr const & e) {
+                auto it = dict.find(e);
+                if (it != dict.end()) {
+                    return some_expr(it->second);
                 }
-            }
 
-            if (is_local(e)) {
-                expr m = ctx.push_local(local_pp_name(e), replace_lmetas(ctx, ctx.infer(e), lmetas, dict));
-                dict.insert({e, m});
-                return some_expr(m);
-            } else if (is_metavar(e)) {
-                throw exception(sstream() << "Unexpected meta-variable: " << e);
-                expr m = ctx.mk_metavar_decl(ctx.lctx(), replace_lmetas(ctx, ctx.infer(e), lmetas, dict));
-                dict.insert({e, m});
-                return some_expr(m);
-            } else {
-                return none_expr();
-            }
-        });
+                for (expr const & lmeta : lmetas) {
+                    if (e == lmeta) {
+                        expr m = ctx.mk_metavar_decl(ctx.lctx(), replace_lmetas_core(ctx, ctx.infer(e), lmetas, dict));
+                        dict.insert({lmeta, m});
+                        return some_expr(m);
+                    }
+                }
+
+                if (is_local(e)) {
+                    expr m = ctx.push_local(local_pp_name(e), replace_lmetas_core(ctx, ctx.infer(e), lmetas, dict));
+                    std::cout << "Local[2]: " << local_pp_name(e) << "." << mlocal_name(e) << " ==> " << local_pp_name(m) << "." << mlocal_name(m) << std::endl;
+                    dict.insert({e, m});
+                    return some_expr(m);
+                } else if (is_metavar(e)) {
+                    throw exception(sstream() << "Unexpected meta-variable: " << e);
+                    expr m = ctx.mk_metavar_decl(ctx.lctx(), replace_lmetas_core(ctx, ctx.infer(e), lmetas, dict));
+                    dict.insert({e, m});
+                    return some_expr(m);
+                } else {
+                    return none_expr();
+                }
+            });
+    }
+}
+
+static expr replace_lmetas(type_context & ctx, expr const & e, list<expr> const & lmetas, expr_struct_map<expr> & dict) {
+    trace_match(tout() << "REPLACE_LMETAS\n";);
+    return replace_lmetas_core(ctx, e, lmetas, dict);
 }
 
 /* Given a variable (x : I A idx), where (I A idx) is an inductive datatype,
@@ -813,7 +827,7 @@ static expr replace_lmetas(type_context & ctx, expr const & e, list<expr> const 
    which have not been fixed by typing constraints. Moreover, fn is only invoked if
    the type of (c A ...) matches (I A idx). */
 void for_each_compatible_constructor(type_context & ctx, expr const & _var, list<expr> const & lmetas,
-                                     std::function<void(expr const &, expr const &, buffer<expr> &)> const & fn) {
+                                     std::function<void(expr const &, expr const &, expr_struct_map<expr> const &, buffer<expr> &)> const & fn) {
     lean_assert(is_local(_var));
 
     expr var_type = whnf_inductive(ctx, ctx.infer(_var));
@@ -824,10 +838,11 @@ void for_each_compatible_constructor(type_context & ctx, expr const & _var, list
     buffer<name> constructor_names;
     get_constructors_of(ctx.env(), I_name, constructor_names);
     for (name const & c_name : constructor_names) {
-        type_context::tmp_mode_scope scope(ctx);
         expr_struct_map<expr> subst_dict;
         expr var = replace_lmetas(ctx, _var, lmetas, subst_dict);
         expr var_type = whnf_inductive(ctx, ctx.infer(var));
+
+        trace_match(tout() << "var_type: " << var_type << "\n";);
 
         buffer<expr> I_args;
         expr const & I      = get_app_args(var_type, I_args);
@@ -845,7 +860,7 @@ void for_each_compatible_constructor(type_context & ctx, expr const & _var, list
         expr it = whnf_inductive(ctx, ctx.infer(c));
         {
             while (is_pi(it)) {
-                expr new_arg = ctx.mk_tmp_mvar(binding_domain(it));
+                expr new_arg = ctx.mk_metavar_decl(ctx.lctx(), binding_domain(it));
                 c_vars.push_back(new_arg);
                 c_var_names.push_back(binding_name(it));
                 c  = mk_app(c, new_arg);
@@ -862,12 +877,13 @@ void for_each_compatible_constructor(type_context & ctx, expr const & _var, list
             for (unsigned i = 0; i < c_vars.size(); i++) {
                 expr & c_var = c_vars[i];
                 c_var = ctx.instantiate_mvars(c_var);
-                if (is_idx_metavar(c_var)) {
+                // TODO(dhs): track the set specifically
+                if (is_metavar(c_var)) {
                     expr new_c_var = ctx.push_local(c_var_names[i], ctx.instantiate_mvars(ctx.infer(c_var)));
                     new_c_vars.push_back(new_c_var);
                     ctx.assign(c_var, new_c_var);
                     c_var = new_c_var;
-                } else if (has_idx_metavar(c_var)) {
+                } else if (has_metavar(c_var)) {
                     /* TODO(Leo): do we need this trace? */
                     trace_match(
                         tout() << "constructor '" << c_name << "' not being considered because at complete transition because " <<
@@ -877,7 +893,7 @@ void for_each_compatible_constructor(type_context & ctx, expr const & _var, list
             }
             c = ctx.instantiate_mvars(c);
         }
-        fn(c, var, new_c_vars);
+        fn(c, var, subst_dict, new_c_vars);
     }
 }
 

@@ -644,6 +644,7 @@ struct elim_match_fn {
             /* If it is a variable in an inaccessible transition, it will need to be transformed into
                metas for each constructor. */
             if (!is_var_transition && is_local(head(eqn.m_patterns))) {
+                trace_match(tout() << "adding lmeta: " << head(eqn.m_patterns) << "\n";);
                 new_eqn.m_lmetas = cons(head(eqn.m_patterns), new_eqn.m_lmetas);
             }
             new_eqns.push_back(new_eqn);
@@ -909,7 +910,7 @@ struct elim_match_fn {
             if (is_local(pattern)) {
                 type_context ctx  = mk_type_context(eqn.m_lctx);
                 for_each_compatible_constructor(ctx, pattern, eqn.m_lmetas,
-                [&](expr const & c, expr const & var, buffer<expr> const & new_c_vars) {
+                [&](expr const & c, expr const & var, expr_struct_map<expr> const & dict, buffer<expr> const & new_c_vars) {
 //                    expr var = pattern;
                     /* We are replacing `var` with `c` */
                     buffer<expr> vars; to_buffer(eqn.m_vars, vars);
@@ -918,6 +919,12 @@ struct elim_match_fn {
                     buffer<expr> to;
                     update_telescope(ctx, vars, var, c, new_c_vars, new_vars, from, to);
                     equation new_eqn   = eqn;
+                    for (pair<expr, expr> const & ee : dict) {
+                        from.push_back(ee.first);
+                        to.push_back(ee.second);
+                        trace_match(tout() << "[FROM-TO]: " << ee.first << " ==> " << ee.second << "\n";);
+                    }
+
                     new_eqn.m_lctx     = ctx.lctx();
                     new_eqn.m_vars     = to_list(new_vars);
                     new_eqn.m_lhs_args = map(eqn.m_lhs_args, [&](expr const & arg) {

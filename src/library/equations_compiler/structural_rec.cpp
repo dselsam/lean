@@ -565,14 +565,20 @@ struct structural_rec_fn {
             if (complete && is_local(lhs_args[m_arg_pos])) {
                 expr var = lhs_args[m_arg_pos];
                 for_each_compatible_constructor(ctx, var, list<expr>() /* TODO(dhs): confirm */,
-                 [&](expr const & c, expr const & new_var, buffer<expr> const & new_c_vars) {
+               [&](expr const & c, expr const & new_var, expr_struct_map<expr> const & dict, buffer<expr> const & new_c_vars) {
                    buffer<expr> new_vars;
                    buffer<expr> from;
                    buffer<expr> to;
-                   update_telescope(ctx, ue.get_vars(), var, c, new_c_vars,
+                   update_telescope(ctx, ue.get_vars(), new_var, c, new_c_vars,
                                     new_vars, from, to);
                    buffer<expr> new_lhs_args(lhs_args);
                    new_lhs_args[m_arg_pos] = c;
+
+                    for (pair<expr, expr> const & ee : dict) {
+//                        from.push_back(ee.first);
+//                        to.push_back(ee.second);
+                    }
+
                    for (unsigned i = m_arg_pos + 1; i < new_lhs_args.size(); i++)
                        new_lhs_args[i] = replace_locals(new_lhs_args[i], from, to);
                    expr new_lhs = mk_app(new_fn, new_lhs_args);
