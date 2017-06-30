@@ -1193,7 +1193,7 @@ static expr refl_lemma_rewrite_core(type_context & ctx, expr const & e, simp_lem
     }
 
     lean_trace(name({"simp_lemmas", "rewrite", "success", "name"}),
-               tout() << "[(refl) " << sl.get_id() << "]\n;";);
+               tout() << "[(refl) " << sl.get_id() << "]\n";);
 
     lean_trace(name({"simp_lemmas", "rewrite", "success", "full"}),
                expr new_lhs = ctx.instantiate_mvars(sl.get_lhs());
