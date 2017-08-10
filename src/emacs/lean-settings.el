@@ -117,7 +117,7 @@ false (nil)."
 (defcustom lean-keybinding-tab-indent (kbd "TAB")
   "Lean Keybinding for tab-indent"
   :group 'lean-keybinding  :type 'key-sequence)
-(defcustom lean-keybinding-auto-complete (kbd "S-SPC")
+(defcustom lean-keybinding-auto-complete (kbd "TAB")
   "Lean Keybinding for auto completion"
   :group 'lean-keybinding  :type 'key-sequence)
 (defcustom lean-keybinding-hole (kbd "C-c SPC")
