@@ -18,7 +18,7 @@ Author: Daniel Selsam
 
 namespace lean {
 
-static const float eps = 0.0000000001;
+static const float eps = 0.00000000001;
 
 struct vm_eigen : public vm_external {
     Eigen::ArrayXXf m_val;
@@ -111,16 +111,21 @@ vm_obj eigen_one(vm_obj const & shape) {
     }
 }
 
+vm_obj eigen_eps(vm_obj const & shape) {
+    Eigen::ArrayXXf arr;
+    if (optional<pair<unsigned, unsigned> > mn = is_matrix(shape)) {
+      return to_obj(Eigen::ArrayXXf::Constant(mn->first, mn->second, eps));
+    } else {
+      return to_obj(Eigen::ArrayXXf::Constant(shape_len(shape), 1, eps));
+    }
+}
+
 vm_obj eigen_pi(vm_obj const & shape) {
     Eigen::ArrayXXf arr;
     if (optional<pair<unsigned, unsigned> > mn = is_matrix(shape)) {
-        return to_obj(Eigen::ArrayXXf::NullaryExpr(mn->first, mn->second, [&]() {
-                    return 3.14159265358979323846;
-                }));
+      return to_obj(Eigen::ArrayXXf::Constant(mn->first, mn->second, 3.14159265358979323846));
     } else {
-        return to_obj(Eigen::ArrayXXf::NullaryExpr(shape_len(shape), 1, [&]() {
-                    return 3.14159265358979323846;
-                }));
+      return to_obj(Eigen::ArrayXXf::Constant(shape_len(shape), 1, 3.14159265358979323846));
     }
 }
 
@@ -139,15 +144,14 @@ vm_obj eigen_const(vm_obj const & alpha, vm_obj const & shape) {
 
 vm_obj eigen_neg(vm_obj const & /* shape */, vm_obj const & x) { return to_obj(-to_eigen(x)); }
 vm_obj eigen_inv(vm_obj const & /* shape */, vm_obj const & x) {
-    // TODO(dhs): x could be neg
-    Eigen::ArrayXXf arr = 1.0 / (to_eigen(x) + eps);
+    Eigen::ArrayXXf arr = 1.0 / to_eigen(x);
     if (!arr.allFinite())
         throw exception("inv floating point error");
     return to_obj(arr);
 }
 vm_obj eigen_exp(vm_obj const & /* shape */, vm_obj const & x) { return to_obj(exp(to_eigen(x))); }
 vm_obj eigen_log(vm_obj const & /* shape */, vm_obj const & x) {
-    Eigen::ArrayXXf arr = log(to_eigen(x) + eps);
+    Eigen::ArrayXXf arr = log(to_eigen(x));
     if (!arr.allFinite())
         throw exception("log floating point error");
     return to_obj(arr);
@@ -162,8 +166,7 @@ vm_obj eigen_add(vm_obj const & /* shape */, vm_obj const & x, vm_obj const & y)
 vm_obj eigen_mul(vm_obj const & /* shape */, vm_obj const & x, vm_obj const & y) { return to_obj(to_eigen(x) * to_eigen(y)); }
 vm_obj eigen_sub(vm_obj const & /* shape */, vm_obj const & x, vm_obj const & y) { return to_obj(to_eigen(x) - to_eigen(y)); }
 vm_obj eigen_div(vm_obj const & /* shape */, vm_obj const & x, vm_obj const & y) {
-    // TODO(dhs): denom might be neg
-    Eigen::ArrayXXf arr = to_eigen(x) / (to_eigen(y) + eps);
+    Eigen::ArrayXXf arr = to_eigen(x) / to_eigen(y);
     if (!arr.allFinite())
         throw exception("div floating point error");
     return to_obj(arr);
@@ -354,6 +357,7 @@ vm_obj eigen_fail(vm_obj const & shape) {
 }
 
 vm_obj eigen_silent_fail(vm_obj const & /* shape */) {
+    // TODO(dhs): awkward
     Eigen::MatrixXf empty;
     return to_obj(empty);
 }
@@ -466,6 +470,7 @@ void initialize_vm_eigen() {
 
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "zero"}),             eigen_zero);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "one"}),              eigen_one);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "eps"}),              eigen_eps);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "pi"}),               eigen_pi);
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "const"}),            eigen_const);
 
