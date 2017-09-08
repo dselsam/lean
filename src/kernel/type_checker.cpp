@@ -5,6 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Author: Leonardo de Moura
 */
 #include <utility>
+#include <fstream>
 #include <vector>
 #include "util/task.h"
 #include "util/interrupt.h"
@@ -241,7 +242,9 @@ expr type_checker::infer_type_core(expr const & e, bool infer_only) {
 }
 
 expr type_checker::infer_type(expr const & e) {
-    return infer_type_core(e, true);
+  expr ty = infer_type_core(e, true);
+  m_infer_types[e] = ty;
+  return ty;
 }
 
 expr type_checker::check(expr const & e, level_param_names const & ps) {
@@ -699,6 +702,7 @@ bool type_checker::is_def_eq(expr const & t, expr const & s) {
     bool r = is_def_eq_core(t, s);
     if (r)
         m_eqv_manager.add_equiv(t, s);
+    m_is_def_eqs[mk_pair(t, s)] = r;
     return r;
 }
 
@@ -706,7 +710,23 @@ type_checker::type_checker(environment const & env, bool memoize, bool trusted_o
     m_env(env), m_memoize(memoize), m_trusted_only(trusted_only), m_params(nullptr) {
 }
 
-type_checker::~type_checker() {}
+void type_checker::write_data_to_file() {
+  std::ofstream out_infer_type("data_infer_type.out", std::ios::app | std::ios::binary);
+  std::ofstream out_is_def_eq("data_is_def_eq.out", std::ios::app | std::ios::binary);
+  serializer s_infer_type(out_infer_type);
+  for (auto & kv : m_infer_types) {
+    s_infer_type << kv.first << kv.second;
+  }
+
+  serializer s_is_def_eq(out_is_def_eq);
+  for (auto & kv : m_is_def_eqs) {
+    s_is_def_eq << kv.first.first << kv.first.second << kv.second;
+  }
+}
+
+type_checker::~type_checker() {
+  write_data_to_file();
+}
 
 void check_no_metavar(environment const & env, name const & n, expr const & e, bool is_type) {
     if (has_metavar(e))

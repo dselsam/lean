@@ -18,6 +18,7 @@ Author: Leonardo de Moura
 #include "kernel/expr_maps.h"
 #include "kernel/equiv_manager.h"
 #include "kernel/abstract_type_context.h"
+#include "library/expr_pair_maps.h"
 
 namespace lean {
 /** \brief Lean Type Checker. It can also be used to infer types, check whether a
@@ -75,6 +76,10 @@ class type_checker : public abstract_type_context {
     reduction_status lazy_delta_reduction_step(expr & t_n, expr & s_n);
     lbool lazy_delta_reduction(expr & t_n, expr & s_n);
     bool is_def_eq_core(expr const & t, expr const & s);
+
+    void write_data_to_file();
+    expr_struct_map<expr> m_infer_types;
+    expr_pair_struct_map<bool> m_is_def_eqs;
 
 public:
     /** \brief Create a type checker for the given environment.
