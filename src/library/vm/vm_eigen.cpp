@@ -404,19 +404,19 @@ vm_obj eigen_mk_rng(vm_obj const & seed) {
     return to_obj(std::minstd_rand(to_unsigned(seed)));
 }
 
-static float sample_mvn_iso(float mu, float sigma, std::minstd_rand & g) {
+static float sample_mvn(float mu, float sigma, std::minstd_rand & g) {
     std::normal_distribution<float> dist(mu, sigma);
     float x = dist(g);
     return x;
 }
 
-vm_obj eigen_sample_mvn_iso(vm_obj const & /* shape */, vm_obj const & _mu, vm_obj const & _sigma, vm_obj const & g_old) {
+vm_obj eigen_sample_mvn(vm_obj const & /* shape */, vm_obj const & _mu, vm_obj const & _sigma, vm_obj const & g_old) {
     std::minstd_rand g = to_rng(g_old);
     Eigen::ArrayXXf mus = to_eigen(_mu);
     Eigen::ArrayXXf sigmas = to_eigen(_sigma);
 
     Eigen::ArrayXXf arr = mus.binaryExpr(sigmas, [&](float const & mu, float const & sigma) {
-            return sample_mvn_iso(mu, sigma, g);
+            return sample_mvn(mu, sigma, g);
         });
     return mk_vm_pair(to_obj(arr), to_obj(g));
 }
@@ -512,7 +512,7 @@ void initialize_vm_eigen() {
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "write_to_file"}),    eigen_write_to_file);
 
     DECLARE_VM_BUILTIN(name({"certigrad", "T", "sample_uniform"}),   eigen_sample_uniform);
-    DECLARE_VM_BUILTIN(name({"certigrad", "T", "sample_mvn_iso"}),   eigen_sample_mvn_iso);
+    DECLARE_VM_BUILTIN(name({"certigrad", "T", "sample_mvn"}),       eigen_sample_mvn);
 
     DECLARE_VM_BUILTIN(name({"io", "mkdir"}),                        io_mkdir);
 }
