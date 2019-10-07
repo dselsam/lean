@@ -1326,7 +1326,6 @@ struct structure_cmd_fn {
         declare_projections();
         declare_defaults();
         declare_auxiliary();
-        declare_coercions();
         add_doc_string();
         if (!m_inductive_predicate) {
             declare_no_confusion();
@@ -1334,6 +1333,7 @@ struct structure_cmd_fn {
         }
         /* Apply attributes last so that they may access any information on the new decl */
         m_env = m_meta_info.m_attrs.apply(m_env, m_p.ios(), m_name);
+        declare_coercions();
         return m_env;
     }
 };

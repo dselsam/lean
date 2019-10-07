@@ -452,6 +452,7 @@ int main(int argc, char ** argv) {
     bool json_output        = false;
 #endif
 
+    std::cerr << "[";
     standard_search_path path;
 
     options opts;
@@ -771,6 +772,7 @@ int main(int argc, char ** argv) {
             gen_doc(env, opts, out);
         }
 
+        std::cerr << "]";
         return ((ok && !get(has_errors(lt.get_root()))) || test_suite) ? 0 : 1;
     } catch (lean::throwable & ex) {
         lean::message_builder(env, ios, "<unknown>", lean::pos_info(1, 1), lean::ERROR).set_exception(ex).report();

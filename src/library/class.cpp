@@ -5,6 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Author: Leonardo de Moura
 */
 #include <string>
+#include <kernel/find_fn.h>
 #include "util/lbool.h"
 #include "util/sstream.h"
 #include "util/fresh_name.h"
@@ -21,6 +22,7 @@ Author: Leonardo de Moura
 #include "library/class.h"
 #include "library/attribute_manager.h"
 #include "library/trace.h"
+#include "library/normalize.h"
 
 namespace lean {
 enum class class_entry_kind { Class, Instance, Tracker };
@@ -229,8 +231,48 @@ name get_class_name(environment const & env, expr const & e) {
     return c_name;
 }
 
+static name_set deps;
+
+void print_deps(type_context_old & ctx, expr const & e) {
+    for_each(e, [&](expr const & e, unsigned) {
+        if (is_local_decl_ref(e))
+            return false;
+        if (is_constant(e) && !deps.contains(const_name(e))) {
+            deps.insert(const_name(e));
+            auto type = normalize(ctx, ctx.env().get(const_name(e)).get_type(), /* eta */ true);
+            print_deps(ctx, type);
+            std::cerr << "{\"kind\": \"dep\", \"name\": \"" << const_name(e) << "\", \"uparams\": [";
+            for (auto & l : ctx.env().get(const_name(e)).get_univ_params())
+                std::cerr << "\"" << l << "\",";
+            std::cerr << "], \"type\": \"" << type << "\"},\n";
+        }
+        return true;
+    });
+}
+
 environment add_class_core(environment const & env, name const &n, bool persistent) {
     check_class(env, n);
+    if (persistent) {
+        deps.insert(n);
+        sstream ss;
+        ss << "{\"kind\": \"class\", \"name\": \"" << n << "\", \"uparams\": [";
+        for (auto & l : env.get(n).get_univ_params())
+            ss << "\"" << l << "\",";
+        ss << "], \"params\": [";
+        expr type = env.get(n).get_type();
+        type_context_old ctx(env, transparency_mode::Reducible);
+        type_context_old::tmp_locals locals(ctx);
+        while (is_pi(type)) {
+            auto dom = binding_domain(type);
+            dom = normalize(ctx, dom, /* eta */ true);
+            print_deps(ctx, dom);
+            ss << "{\"name\": \"" << binding_name(type) << "\", \"is_out\": " << is_class_out_param(binding_domain(type))
+               << ", \"type\": \"" << dom << "\"},";
+            expr x = locals.push_local_from_binding(type);
+            type = instantiate(binding_body(type), x);
+        }
+        std::cerr << ss.str() << "]},\n";
+    }
     return class_ext::add_entry(env, get_dummy_ios(), class_entry(n), persistent);
 }
 
@@ -268,6 +310,39 @@ environment add_instance_core(environment const & env, name const & n, unsigned 
     }
     name c = get_class_name(env, get_app_fn(type));
     check_is_class(env, c);
+    if (persistent) {
+        type_context_old::transparency_scope _(ctx, transparency_mode::Reducible);
+        sstream ss;
+        ss << "{\"kind\": \"instance\", \"name\": \"" << n << "\", \"class\": \"" << c << "\", \"uparams\": [";
+        for (auto & l : env.get(n).get_univ_params())
+            ss << "\"" << l << "\",";
+        ss << "], \"params\": [";
+        for (auto & l : locals.as_buffer()) {
+            auto dom = ctx.lctx().get_local_decl(l).get_type();
+            dom = normalize(ctx, dom, /* eta */ true);
+            print_deps(ctx, dom);
+            ss << "{\"name\": \"" << mlocal_pp_name(l) << "\"";
+            if (local_info(l).is_inst_implicit()) {
+                auto cls = dom;
+                type_context_old::tmp_locals locals2(ctx);
+                while (true) {
+                    cls = ctx.whnf_head_pred(cls, [&](expr const & e) {
+                        expr const & fn = get_app_fn(e);
+                        return !is_constant(fn) || !S.m_instances.contains(const_name(fn)); });
+                    if (!is_pi(cls))
+                        break;
+                    expr x = locals2.push_local_from_binding(cls);
+                    cls = instantiate(binding_body(cls), x);
+                }
+                ss << ", \"class\": \"" << get_class_name(env, get_app_fn(cls)) << "\"";
+            }
+            ss << ", \"type\": \"" << dom << "\"},";
+        }
+        type = normalize(ctx, type, /* eta */ true);
+        print_deps(ctx, type);
+        ss << "], \"type\": \"" << type << "\"},\n";
+        std::cerr << ss.str();
+    }
     environment new_env = class_ext::add_entry(env, get_dummy_ios(), class_entry(class_entry_kind::Instance, c, n, priority),
                                                persistent);
     return new_env;
