@@ -493,7 +493,7 @@ static void print(std::ostream & out, level l) {
         case level_kind::Meta:
             out << "?" << meta_id(l); break;
         case level_kind::Succ:
-            out << "succ "; print_child(out, succ_of(l)); break;
+            print_child(out, succ_of(l)); out << "+1"; break;
         case level_kind::Max: case level_kind::IMax:
             if (is_max(l))
                 out << "max ";

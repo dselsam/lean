@@ -6,6 +6,7 @@ Author: Leonardo de Moura
 */
 #include <string>
 #include <kernel/find_fn.h>
+#include <frontends/lean/pp.h>
 #include "util/lbool.h"
 #include "util/sstream.h"
 #include "util/fresh_name.h"
@@ -23,6 +24,9 @@ Author: Leonardo de Moura
 #include "library/attribute_manager.h"
 #include "library/trace.h"
 #include "library/normalize.h"
+#include "kernel/replace_fn.h"
+#include "replace_visitor.h"
+#include "private.h"
 
 namespace lean {
 enum class class_entry_kind { Class, Instance, Tracker };
@@ -233,6 +237,14 @@ name get_class_name(environment const & env, expr const & e) {
 
 static name_set deps;
 
+struct norm_binders : replace_visitor {
+protected:
+    expr visit_binding(expr const & expr) override {
+        auto e = replace_visitor::visit_binding(expr);
+        return update_binding(e, binding_domain(e), binding_body(e), binder_info());
+    }
+};
+
 void print_deps(type_context_old & ctx, expr const & e) {
     for_each(e, [&](expr const & e, unsigned) {
         if (is_local_decl_ref(e))
@@ -240,6 +252,7 @@ void print_deps(type_context_old & ctx, expr const & e) {
         if (is_constant(e) && !deps.contains(const_name(e))) {
             deps.insert(const_name(e));
             auto type = normalize(ctx, ctx.env().get(const_name(e)).get_type(), /* eta */ true);
+            type = norm_binders()(type);
             print_deps(ctx, type);
             std::cerr << "{\"kind\": \"dep\", \"name\": \"" << const_name(e) << "\", \"uparams\": [";
             for (auto & l : ctx.env().get(const_name(e)).get_univ_params())
@@ -252,7 +265,7 @@ void print_deps(type_context_old & ctx, expr const & e) {
 
 environment add_class_core(environment const & env, name const &n, bool persistent) {
     check_class(env, n);
-    if (persistent) {
+    if (persistent && !deps.contains(n)) {
         deps.insert(n);
         sstream ss;
         ss << "{\"kind\": \"class\", \"name\": \"" << n << "\", \"uparams\": [";
@@ -310,7 +323,8 @@ environment add_instance_core(environment const & env, name const & n, unsigned 
     }
     name c = get_class_name(env, get_app_fn(type));
     check_is_class(env, c);
-    if (persistent) {
+    if (persistent && !deps.contains(n) && !has_private_prefix(env, n) && c != "has_sizeof") {
+        deps.insert(n);
         type_context_old::transparency_scope _(ctx, transparency_mode::Reducible);
         sstream ss;
         ss << "{\"kind\": \"instance\", \"name\": \"" << n << "\", \"class\": \"" << c << "\", \"uparams\": [";
@@ -340,6 +354,8 @@ environment add_instance_core(environment const & env, name const & n, unsigned 
         }
         type = normalize(ctx, type, /* eta */ true);
         print_deps(ctx, type);
+        //format f = mk_pretty_formatter_factory()(env, options({"pp", "all"}, true), ctx)(type);
+        //ss << "], \"type\": \"" << flatten(f) << "\"},\n";
         ss << "], \"type\": \"" << type << "\"},\n";
         std::cerr << ss.str();
     }

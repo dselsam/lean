@@ -5,6 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Author: Leonardo de Moura
 */
 #include <algorithm>
+#include <iomanip>
 #include "util/flet.h"
 #include "util/interrupt.h"
 #include "util/sexpr/option_declarations.h"
@@ -4061,6 +4062,12 @@ static void instantiate_replacements(type_context_old & ctx,
     }
 }
 
+static expr_set problems;
+void print_deps(type_context_old & ctx, expr const & e);
+struct sanitize_param_names_fn;
+expr sanitize_params(type_context_old & ctx, buffer<name> & new_lp_names, expr const & e);
+expr normalize(abstract_type_context & ctx, expr const & e, bool eta);
+
 optional<expr> type_context_old::mk_class_instance(expr const & type_0) {
     expr type = instantiate_mvars(type_0);
     scope S(*this);
@@ -4101,6 +4108,39 @@ optional<expr> type_context_old::mk_class_instance(expr const & type_0) {
             }
         }
         S.commit();
+        scope S2(*this);
+        type = instantiate_mvars(type);
+        type_context_old::transparency_scope _(*this, transparency_mode::Reducible);
+        type = normalize(*this, type, /* eta */ true);
+        buffer<name> new_lp_names;
+        type = sanitize_params(*this, new_lp_names, type);
+        if (problems.find(type) == problems.end()) {
+            problems.insert(type);
+            type_context_old::tmp_locals locals(*this);
+            expr it = type;
+            while (true) {
+                expr new_it = relaxed_whnf(it);
+                if (!is_pi(new_it))
+                    break;
+                expr local  = locals.push_local_from_binding(new_it);
+                it          = instantiate(binding_body(new_it), local);
+            }
+            buffer<expr> C_args;
+            buffer<expr> new_mvars;
+            expr C = get_app_args(it, C_args);
+            if (!has_local(type) && !has_local(*result)) {
+                print_deps(*this, type);
+                std::cerr << "{\"kind\": \"problem\", ";
+            } else {
+                std::cerr << "{\"kind\": \"ignored_problem\", ";
+            }
+            std::cerr << "\"class\": \"" << const_name(C) << "\", \"uparams\": [";
+            collect_univ_params(type).for_each([&](name const & l) {
+                std::cerr << "\"" << l << "\",";
+            });
+            sstream ss; ss << type;
+            std::cerr << "], \"type\": " << std::quoted(ss.str()) << "},\n";
+        }
     }
     return result;
 }

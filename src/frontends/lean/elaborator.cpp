@@ -3932,6 +3932,10 @@ struct sanitize_param_names_fn : public replace_visitor {
     }
 };
 
+expr sanitize_params(type_context_old & ctx, buffer<name> & new_lp_names, expr const & e) {
+    return sanitize_param_names_fn(ctx, new_lp_names)(e);
+}
+
 /** When the output of the elaborator may contain meta-variables, we convert the type_context_old level meta-variables
     into regular kernel meta-variables. */
 static expr replace_with_simple_metavars(metavar_context mctx, name_map<expr> & cache, expr const & e) {
