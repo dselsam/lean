@@ -3506,6 +3506,8 @@ optional<name> type_context_old::is_class(expr const & type) {
 [[ noreturn ]] static void throw_class_exception(expr const & m, char const * msg) { throw class_exception(m, msg); }
 
 struct instance_synthesizer {
+    unsigned m_max_depth = 0, m_steps = 0;
+
     struct stack_entry {
         expr     m_mvar;
         unsigned m_depth;
@@ -3579,6 +3581,7 @@ struct instance_synthesizer {
     /* Try to synthesize e.m_mvar using instance inst : inst_type. */
     bool try_instance(stack_entry const & e, expr const & inst, expr const & inst_type) {
         try {
+            m_steps++;
             type_context_old::tmp_locals locals(m_ctx);
             expr const & mvar = e.m_mvar;
             expr mvar_type    = m_ctx.infer(mvar);
@@ -3620,6 +3623,7 @@ struct instance_synthesizer {
             while (i > 0) {
                 --i;
                 m_state.m_stack = cons(stack_entry(new_inst_mvars[i], e.m_depth+1), m_state.m_stack);
+                m_max_depth = std::max(m_max_depth, e.m_depth + 1);
             }
             return true;
         } catch (exception & ex) {
@@ -4062,11 +4066,13 @@ static void instantiate_replacements(type_context_old & ctx,
     }
 }
 
-static expr_set problems;
+expr_map_unsigned problems;
+
 void print_deps(type_context_old & ctx, expr const & e);
 struct sanitize_param_names_fn;
 expr sanitize_params(type_context_old & ctx, buffer<name> & new_lp_names, expr const & e);
 expr normalize(abstract_type_context & ctx, expr const & e, bool eta);
+extern mutex cerr_mutex;
 
 optional<expr> type_context_old::mk_class_instance(expr const & type_0) {
     expr type = instantiate_mvars(type_0);
@@ -4074,15 +4080,20 @@ optional<expr> type_context_old::mk_class_instance(expr const & type_0) {
     optional<expr> result;
     buffer<level_pair> u_replacements;
     buffer<expr_pair>  e_replacements;
+    unsigned max_depth, steps;
     if (in_tmp_mode()) {
         expr new_type = preprocess_class(type, u_replacements, e_replacements);
-        result        = instance_synthesizer(*this)(new_type);
+        instance_synthesizer synth(*this);
+        result        = synth(new_type);
+        max_depth = synth.m_max_depth; steps = synth.m_steps;
         if (result)
             instantiate_replacements(*this, u_replacements, e_replacements);
     } else {
         tmp_mode_scope s(*this);
         expr new_type = preprocess_class(type, u_replacements, e_replacements);
-        result        = instance_synthesizer(*this)(new_type);
+        instance_synthesizer synth(*this);
+        result        = synth(new_type);
+        max_depth = synth.m_max_depth; steps = synth.m_steps;
         if (result)
             instantiate_replacements(*this, u_replacements, e_replacements);
     }
@@ -4114,8 +4125,10 @@ optional<expr> type_context_old::mk_class_instance(expr const & type_0) {
         type = normalize(*this, type, /* eta */ true);
         buffer<name> new_lp_names;
         type = sanitize_params(*this, new_lp_names, type);
-        if (problems.find(type) == problems.end()) {
-            problems.insert(type);
+        lock_guard<mutex> guard(cerr_mutex);
+        auto it = problems.find(type);
+        if (it == problems.end()) {
+            problems[type] = 1;
             type_context_old::tmp_locals locals(*this);
             expr it = type;
             while (true) {
@@ -4134,12 +4147,15 @@ optional<expr> type_context_old::mk_class_instance(expr const & type_0) {
             } else {
                 std::cerr << "{\"kind\": \"ignored_problem\", ";
             }
-            std::cerr << "\"class\": \"" << const_name(C) << "\", \"uparams\": [";
+            std::cerr << "\"class\": \"" << const_name(C) << "\", \"max_depth\": " << max_depth
+                    << ", \"steps\": " << steps << ", \"uparams\": [";
             collect_univ_params(type).for_each([&](name const & l) {
                 std::cerr << "\"" << l << "\",";
             });
             sstream ss; ss << type;
             std::cerr << "], \"type\": " << std::quoted(ss.str()) << "},\n";
+        } else {
+            it->second++;
         }
     }
     return result;

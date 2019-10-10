@@ -10,8 +10,8 @@ import matplotlib.pyplot as plt
 
 cls_blacklist = ['has_sizeof', 'has_coe', 'reflected']
 data = open(sys.argv[1]).read()
-data = re.sub(r',\s*\]', ']', data)
-data = json.loads(data)
+data = re.sub(r',\s*([]}])', '\1', data)
+data = json.loads(data)['items']
 
 def write_cls_inst_graph(f):
     G = nx.DiGraph()
@@ -54,7 +54,7 @@ def write_lean3(f):
     i = 0
     for d in data:
         if d['kind'] == 'class':
-            print("class {{{uparams}}} {name} {params}".format(
+            print("class {{{uparams}}} {name} {params} := mk ( )".format(
                 uparams=' '.join(d['uparams']),
                 name=d['name'],
                 params=' '.join(f"({p['name']} : {p['type']})" for p in d['params'])

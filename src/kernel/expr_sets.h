@@ -8,9 +8,11 @@ Author: Leonardo de Moura
 #include <unordered_set>
 #include <utility>
 #include <functional>
+#include <unordered_map>
 #include "util/hash.h"
 #include "kernel/expr.h"
 
 namespace lean {
 typedef std::unordered_set<expr, expr_hash, std::equal_to<expr>> expr_set;
+typedef std::unordered_map<expr, unsigned, expr_hash, std::equal_to<expr>> expr_map_unsigned;
 }

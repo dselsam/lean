@@ -234,6 +234,8 @@ expr mk_field_default_value(environment const & env, name const & full_field_nam
     return mk_app(mk_explicit(mk_constant(*default_name)), args);
 }
 
+extern thread_local bool from_extends;
+
 struct structure_cmd_fn {
     typedef std::vector<pair<name, name>> rename_vector;
     // field_map[i] contains the position of the \c i-th field of a parent structure into this one.
@@ -1219,6 +1221,7 @@ struct structure_cmd_fn {
             if (m_subobjects) {
                 if (!m_private_parents[i]) {
                     if (m_meta_info.m_attrs.has_class() && is_class(m_env, parent_name)) {
+                        flet<bool> _(from_extends, true);
                         // if both are classes, then we also mark coercion_name as an instance
                         m_env = add_instance(m_env, m_name + m_fields[i].get_name(), m_prio, true);
                     }
@@ -1256,6 +1259,7 @@ struct structure_cmd_fn {
             m_env = vm_compile(m_env, m_env.get(coercion_name));
             if (!m_private_parents[i]) {
                 if (m_meta_info.m_attrs.has_class() && is_class(m_env, parent_name)) {
+                    flet<bool> _(from_extends, true);
                     // if both are classes, then we also mark coercion_name as an instance
                     m_env = add_instance(m_env, coercion_name, m_prio, true);
                 }

@@ -500,6 +500,7 @@ static expr consume_ref_annotations(expr const & e) {
 enum local_ref_kind { LocalRef, OverridenLocalRef, NotLocalRef };
 
 static local_ref_kind check_local_ref(environment const & env, expr const & e, unsigned & num_ref_univ_params) {
+    return local_ref_kind::NotLocalRef;
     expr const & rfn = get_app_fn(e);
     if (!is_constant(rfn))
         return NotLocalRef;

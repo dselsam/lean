@@ -246,6 +246,7 @@ protected:
 };
 
 void print_deps(type_context_old & ctx, expr const & e) {
+    auto f = mk_pretty_formatter_factory()(ctx.env(), options({"pp", "all"}, true), ctx);
     for_each(e, [&](expr const & e, unsigned) {
         if (is_local_decl_ref(e))
             return false;
@@ -257,16 +258,20 @@ void print_deps(type_context_old & ctx, expr const & e) {
             std::cerr << "{\"kind\": \"dep\", \"name\": \"" << const_name(e) << "\", \"uparams\": [";
             for (auto & l : ctx.env().get(const_name(e)).get_univ_params())
                 std::cerr << "\"" << l << "\",";
-            std::cerr << "], \"type\": \"" << type << "\"},\n";
+            std::cerr << "], \"type\": \"" << flatten(f(type)) << "\"},\n";
         }
         return true;
     });
 }
 
+mutex cerr_mutex;
+
 environment add_class_core(environment const & env, name const &n, bool persistent) {
     check_class(env, n);
+    lock_guard<mutex> guard(cerr_mutex);
     if (persistent && !deps.contains(n)) {
         deps.insert(n);
+        deps.insert(name(n, "mk"));
         sstream ss;
         ss << "{\"kind\": \"class\", \"name\": \"" << n << "\", \"uparams\": [";
         for (auto & l : env.get(n).get_univ_params())
@@ -306,6 +311,8 @@ bool has_class_out_params(environment const & env, name const & c) {
     return s.m_has_out_params.contains(c);
 }
 
+thread_local bool from_extends = false;
+
 environment add_instance_core(environment const & env, name const & n, unsigned priority, bool persistent) {
     declaration d = env.get(n);
     expr type = d.get_type();
@@ -323,20 +330,27 @@ environment add_instance_core(environment const & env, name const & n, unsigned 
     }
     name c = get_class_name(env, get_app_fn(type));
     check_is_class(env, c);
+    lock_guard<mutex> guard(cerr_mutex);
     if (persistent && !deps.contains(n) && !has_private_prefix(env, n) && c != "has_sizeof") {
         deps.insert(n);
         type_context_old::transparency_scope _(ctx, transparency_mode::Reducible);
         sstream ss;
-        ss << "{\"kind\": \"instance\", \"name\": \"" << n << "\", \"class\": \"" << c << "\", \"uparams\": [";
+        ss << "{\"kind\": \"instance\", \"name\": \"" << n << "\", \"class\": \"" << c << "\", \"from_extends\": "
+         << from_extends << ", \"uparams\": [";
         for (auto & l : env.get(n).get_univ_params())
             ss << "\"" << l << "\",";
         ss << "], \"params\": [";
+        auto f = mk_pretty_formatter_factory()(env, options({"pp", "all"}, true), ctx);
+        bool coercion_like = true;
+        bool has_inst = false;
         for (auto & l : locals.as_buffer()) {
             auto dom = ctx.lctx().get_local_decl(l).get_type();
             dom = normalize(ctx, dom, /* eta */ true);
             print_deps(ctx, dom);
             ss << "{\"name\": \"" << mlocal_pp_name(l) << "\"";
             if (local_info(l).is_inst_implicit()) {
+                if (has_inst) coercion_like = false;
+                has_inst = true;
                 auto cls = dom;
                 type_context_old::tmp_locals locals2(ctx);
                 while (true) {
@@ -348,15 +362,23 @@ environment add_instance_core(environment const & env, name const & n, unsigned 
                     expr x = locals2.push_local_from_binding(cls);
                     cls = instantiate(binding_body(cls), x);
                 }
+                buffer<expr> args; get_app_args(cls, args);
+                for (auto & arg : args)
+                    if (!is_local(arg))
+                        coercion_like = false;
                 ss << ", \"class\": \"" << get_class_name(env, get_app_fn(cls)) << "\"";
             }
-            ss << ", \"type\": \"" << dom << "\"},";
+            ss << ", \"type\": \"" << flatten(f(dom)) << "\"},";
         }
         type = normalize(ctx, type, /* eta */ true);
         print_deps(ctx, type);
-        //format f = mk_pretty_formatter_factory()(env, options({"pp", "all"}, true), ctx)(type);
-        //ss << "], \"type\": \"" << flatten(f) << "\"},\n";
-        ss << "], \"type\": \"" << type << "\"},\n";
+        buffer<expr> args; get_app_args(type, args);
+        for (auto & arg : args)
+            if (!is_local(arg))
+                coercion_like = false;
+        ss << "], \"coercion_like\": " << coercion_like;
+        ss << ", \"type\": \"" << flatten(f(type)) << "\"},\n";
+        //ss << ", \"type\": \"" << type << "\"},\n";
         std::cerr << ss.str();
     }
     environment new_env = class_ext::add_entry(env, get_dummy_ios(), class_entry(class_entry_kind::Instance, c, n, priority),
