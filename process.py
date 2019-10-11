@@ -39,12 +39,20 @@ def write_cls_graph(f):
 def write_coe_graph(f):
     G = nx.DiGraph()
     for d in data:
-        if d['kind'] == 'class':
-            G.add_node(d['name'], shape = 'box')
-        elif d['kind'] == 'instance' and d['class'] not in cls_blacklist:
+        #if d['kind'] == 'class':
+        #    G.add_node(d['name'], shape = 'box')
+        if d['kind'] == 'instance' and d['class'] not in cls_blacklist and d['coercion_like'] == 1:
             cls_params = [p for p in d['params'] if 'class' in p]
-            if len(cls_params) == 1:
+            if len(cls_params) >= 1:
+                G.add_node(cls_params[0]['class'], shape = 'box')
+                #print(d['name'])
+                G.add_node(d['class'], shape = 'box')
                 G.add_edge(cls_params[0]['class'], d['class'])
+    print(f"{len(G)} nodes, {len(G.edges)} edges")
+    n, m, l = max(((n, m, len(list(nx.algorithms.simple_paths.all_simple_paths(G, n, m))))
+                  for n in G for m in G),
+                   key = lambda p: p[2])
+    print(f"{l} paths from {n} to {m}")
     write_dot(G, f)
 
 def write_lean3(f):

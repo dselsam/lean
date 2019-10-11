@@ -356,27 +356,35 @@ environment add_instance_core(environment const & env, name const & n, unsigned 
                 while (true) {
                     cls = ctx.whnf_head_pred(cls, [&](expr const & e) {
                         expr const & fn = get_app_fn(e);
-                        return !is_constant(fn) || !S.m_instances.contains(const_name(fn)); });
+                        return !is_constant(fn) || !S.m_instances.contains(const_name(fn));
+                    });
                     if (!is_pi(cls))
                         break;
                     expr x = locals2.push_local_from_binding(cls);
                     cls = instantiate(binding_body(cls), x);
                 }
-                buffer<expr> args; get_app_args(cls, args);
-                for (auto & arg : args)
-                    if (!is_local(arg))
+                buffer<expr> args;
+                expr fn_type = env.get(const_name(get_app_fn(cls))).get_type();
+                get_app_args(cls, args);
+                for (auto & arg : args) {
+                    if (!is_local(arg) && !binding_info(fn_type).is_inst_implicit())
                         coercion_like = false;
+                    fn_type = binding_body(fn_type);
+                }
                 ss << ", \"class\": \"" << get_class_name(env, get_app_fn(cls)) << "\"";
             }
             ss << ", \"type\": \"" << flatten(f(dom)) << "\"},";
         }
         type = normalize(ctx, type, /* eta */ true);
         print_deps(ctx, type);
+        expr fn_type = env.get(const_name(get_app_fn(type))).get_type();
         buffer<expr> args; get_app_args(type, args);
-        for (auto & arg : args)
-            if (!is_local(arg))
+        for (auto & arg : args) {
+            if (!is_local(arg) && !binding_info(fn_type).is_inst_implicit())
                 coercion_like = false;
-        ss << "], \"coercion_like\": " << coercion_like;
+            fn_type = binding_body(fn_type);
+        }
+        ss << "], \"coercion_like\": " << (has_inst && coercion_like);
         ss << ", \"type\": \"" << flatten(f(type)) << "\"},\n";
         //ss << ", \"type\": \"" << type << "\"},\n";
         std::cerr << ss.str();
