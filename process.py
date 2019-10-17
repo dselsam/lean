@@ -62,23 +62,23 @@ def write_lean3(f):
     i = 0
     for d in data:
         if d['kind'] == 'class':
-            print("class {{{uparams}}} {name} {params} := mk ( )".format(
-                uparams=' '.join(d['uparams']),
+            if not d['params']: # ??
+                continue
+            print("class {name} {params}".format(
                 name=d['name'],
-                params=' '.join(f"({p['name']} : {p['type']})" for p in d['params'])
+                params=' '.join(f"[{p['name']} : {p['type']}]" if 'class' in p else f"({p['name']} : Type)" for p in d['params'])
             ), file=f)
-        elif d['kind'] == 'instance':
-            print("@[instance] constant {{{uparams}}} {name} {params} : {type}".format(
-                uparams=' '.join(d['uparams']),
+        elif d['kind'] == 'instance' and d['is_simple'] == 1:
+            print("@[instance] constant {name} {params} : {type}".format(
                 name=d['name'],
-                params=' '.join(f"{'[' if 'class' in p else '('}{p['name']} : {p['type']}{']' if 'class' in p else ')'}" for p in d['params']),
+                params=' '.join(f"[{p['name']} : {p['type']}]" if 'class' in p else f"({p['name']} : Type)" for p in d['params']),
                 type=d['type']
             ), file=f)
-        elif d['kind'] == 'problem' and d['class'] not in cls_blacklist:
-            i += 1
-            print(f"def {{{' '.join(d['uparams'])}}} p{i} : {d['type']} := infer_instance", file=f)
-        elif d['kind'] == 'dep':
-            print(f"constant {{{' '.join(d['uparams'])}}} {d['name']} : {d['type']}", file=f)
+        #elif d['kind'] == 'problem' and d['class'] not in cls_blacklist:
+        #    i += 1
+        #    print(f"def {{{' '.join(d['uparams'])}}} p{i} : {d['type']} := infer_instance", file=f)
+        #elif d['kind'] == 'dep':
+        #    print(f"constant {{{' '.join(d['uparams'])}}} {d['name']} : {d['type']}", file=f)
     print("end test", file=f)
 
 def write_lean4(f):
@@ -88,25 +88,24 @@ def write_lean4(f):
     def pt(t):
         return re.sub(r'\.\{(?!max)([^(} ]+( [^} ]+)*)\}', lambda m: f".{{{', '.join(m[1].split(' '))}}}", t.replace("Pi ", "forall "))
     for d in data:
-        uparams = "" if len(d['uparams']) == 0 else f".{{{', '.join(d['uparams'])}}}"
+        if not d['params']: # ??
+            continue
         if d['kind'] == 'class':
-            print("class {name}{uparams} {params}".format(
-                uparams=uparams,
+            print("class {name} {params}".format(
                 name=d['name'],
-                params=' '.join(f"({p['name']} : {pt(p['type'])})" for p in d['params'])
+                params=' '.join(f"[{p['name']} : {p['type']}]" if 'class' in p else f"({p['name']} : Type)" for p in d['params'])
             ), file=f)
-        elif d['kind'] == 'instance':
-            print("@[instance] axiom {name}{uparams} {params} : {type}".format(
-                uparams=uparams,
+        elif d['kind'] == 'instance' and d['is_simple'] == 1:
+            print("@[instance] axiom {name} {params} : {type}".format(
                 name=d['name'],
-                params=' '.join(f"{'[' if 'class' in p else '('}{p['name']} : {pt(p['type'])}{']' if 'class' in p else ')'}" for p in d['params']),
-                type=pt(d['type'])
+                params=' '.join(f"[{p['name']} : {p['type']}]" if 'class' in p else f"({p['name']} : Type)" for p in d['params']),
+                type=d['type']
             ), file=f)
-        elif d['kind'] == 'problem' and d['class'] not in cls_blacklist:
-            i += 1
-            print(f"#synth {pt(d['type'])}", file=f)
-        elif d['kind'] == 'dep':
-            print(f"axiom {d['name']}{uparams} : {pt(d['type'])}", file=f)
+        #elif d['kind'] == 'problem' and d['class'] not in cls_blacklist:
+        #    i += 1
+        #    print(f"#synth {pt(d['type'])}", file=f)
+        #elif d['kind'] == 'dep':
+        #    print(f"axiom {d['name']}{uparams} : {pt(d['type'])}", file=f)
     print("end test", file=f)
 
 base = os.path.splitext(sys.argv[1])[0]

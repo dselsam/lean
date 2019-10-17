@@ -247,6 +247,7 @@ protected:
 };
 
 void print_deps(type_context_old & ctx, expr const & e) {
+    return;
     auto f = mk_pretty_formatter_factory()(ctx.env(), options({"pp", "all"}, true), ctx);
     for_each(e, [&](expr const & e, unsigned) {
         if (is_local_decl_ref(e))
@@ -274,23 +275,30 @@ environment add_class_core(environment const & env, name const &n, bool persiste
         deps.insert(n);
         deps.insert(name(n, "mk"));
         sstream ss;
-        ss << "{\"kind\": \"class\", \"name\": \"" << n << "\", \"uparams\": [";
+        auto pos = *get_decl_pos_info(env, n);
+        ss << "{\"kind\": \"class\", \"name\": \"" << n
+                << "\", \"loc\": \"" << get_pos_info_provider()->get_file_name() << ":" << pos.first << ":" << pos.second
+                << "\", \"uparams\": [";
         for (auto & l : env.get(n).get_univ_params())
             ss << "\"" << l << "\",";
         ss << "], \"params\": [";
         expr type = env.get(n).get_type();
         type_context_old ctx(env, transparency_mode::Reducible);
         type_context_old::tmp_locals locals(ctx);
+        auto f = mk_pretty_formatter_factory()(env, options({"pp", "full_names"}, true), ctx);
         while (is_pi(type)) {
             auto dom = binding_domain(type);
             dom = normalize(ctx, dom, /* eta */ true);
             print_deps(ctx, dom);
-            ss << "{\"name\": \"" << binding_name(type) << "\", \"is_out\": " << is_class_out_param(binding_domain(type))
-               << ", \"type\": \"" << dom << "\"},";
+            ss << "{\"name\": \"" << binding_name(type) << "\", \"is_out\": " << is_class_out_param(binding_domain(type));
+            if (binding_info(type).is_inst_implicit()) {
+                ss << ", \"class\": \"" << *ctx.is_class(dom) << "\"";
+            }
+            ss << ", \"type\": \"" << flatten(f(dom)) << "\"},";
             expr x = locals.push_local_from_binding(type);
             type = instantiate(binding_body(type), x);
         }
-        std::cerr << ss.str() << "]},\n";
+        std::cerr << ss.str() << "], \"type\": \"" << flatten(f(type)) << "\"},\n";
     }
     return class_ext::add_entry(env, get_dummy_ios(), class_entry(n), persistent);
 }
@@ -313,6 +321,8 @@ bool has_class_out_params(environment const & env, name const & c) {
 }
 
 thread_local bool from_extends = false;
+
+options opts = options({"pp", "full_names"}, true).update({"pp", "implicit"}, true);
 
 environment add_instance_core(environment const & env, name const & n, unsigned priority, bool persistent) {
     declaration d = env.get(n);
@@ -338,12 +348,14 @@ environment add_instance_core(environment const & env, name const & n, unsigned 
         deps.insert(n);
         type_context_old::transparency_scope _(ctx, transparency_mode::Reducible);
         sstream ss;
+        auto pos = *get_decl_pos_info(env, n);
         ss << "{\"kind\": \"instance\", \"name\": \"" << n << "\", \"class\": \"" << c << "\", \"from_extends\": "
-         << from_extends << ", \"uparams\": [";
+         << from_extends << ", \"loc\": \"" << get_pos_info_provider()->get_file_name() << ":" << pos.first << ":"
+         << pos.second << "\", \"uparams\": [";
         for (auto & l : env.get(n).get_univ_params())
             ss << "\"" << l << "\",";
         ss << "], \"params\": [";
-        auto f = mk_pretty_formatter_factory()(env, options({"pp", "all"}, true), ctx);
+        auto f = mk_pretty_formatter_factory()(env, opts, ctx);
         bool is_simple = true;
         unsigned num_insts = 0;
         unsigned i = 0;

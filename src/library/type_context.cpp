@@ -4119,6 +4119,7 @@ optional<expr> type_context_old::mk_class_instance(expr const & type_0) {
             }
         }
         S.commit();
+        return result;
         scope S2(*this);
         type = instantiate_mvars(type);
         type_context_old::transparency_scope _(*this, transparency_mode::Reducible);
