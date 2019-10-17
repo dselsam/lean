@@ -27,6 +27,7 @@ Author: Leonardo de Moura
 #include "kernel/replace_fn.h"
 #include "replace_visitor.h"
 #include "private.h"
+#include "locals.h"
 
 namespace lean {
 enum class class_entry_kind { Class, Instance, Tracker };
@@ -319,6 +320,7 @@ environment add_instance_core(environment const & env, name const & n, unsigned 
     type_context_old ctx(env, transparency_mode::All);
     class_state S = class_ext::get_state(env);
     type_context_old::tmp_locals locals(ctx);
+    buffer<bool> dep_param;
     while (true) {
         type = ctx.whnf_head_pred(type, [&](expr const & e) {
                 expr const & fn = get_app_fn(e);
@@ -327,6 +329,7 @@ environment add_instance_core(environment const & env, name const & n, unsigned 
             break;
         expr x = locals.push_local_from_binding(type);
         type = instantiate(binding_body(type), x);
+        dep_param.push_back(depends_on(type, x));
     }
     name c = get_class_name(env, get_app_fn(type));
     check_is_class(env, c);
@@ -341,16 +344,16 @@ environment add_instance_core(environment const & env, name const & n, unsigned 
             ss << "\"" << l << "\",";
         ss << "], \"params\": [";
         auto f = mk_pretty_formatter_factory()(env, options({"pp", "all"}, true), ctx);
-        bool coercion_like = true;
-        bool has_inst = false;
+        bool is_simple = true;
+        unsigned num_insts = 0;
+        unsigned i = 0;
         for (auto & l : locals.as_buffer()) {
             auto dom = ctx.lctx().get_local_decl(l).get_type();
             dom = normalize(ctx, dom, /* eta */ true);
             print_deps(ctx, dom);
             ss << "{\"name\": \"" << mlocal_pp_name(l) << "\"";
             if (local_info(l).is_inst_implicit()) {
-                if (has_inst) coercion_like = false;
-                has_inst = true;
+                if (!dep_param[i]) num_insts++;
                 auto cls = dom;
                 type_context_old::tmp_locals locals2(ctx);
                 while (true) {
@@ -368,12 +371,13 @@ environment add_instance_core(environment const & env, name const & n, unsigned 
                 get_app_args(cls, args);
                 for (auto & arg : args) {
                     if (!is_local(arg) && !binding_info(fn_type).is_inst_implicit())
-                        coercion_like = false;
+                        is_simple = false;
                     fn_type = binding_body(fn_type);
                 }
                 ss << ", \"class\": \"" << get_class_name(env, get_app_fn(cls)) << "\"";
             }
             ss << ", \"type\": \"" << flatten(f(dom)) << "\"},";
+            i++;
         }
         type = normalize(ctx, type, /* eta */ true);
         print_deps(ctx, type);
@@ -381,12 +385,11 @@ environment add_instance_core(environment const & env, name const & n, unsigned 
         buffer<expr> args; get_app_args(type, args);
         for (auto & arg : args) {
             if (!is_local(arg) && !binding_info(fn_type).is_inst_implicit())
-                coercion_like = false;
+                is_simple = false;
             fn_type = binding_body(fn_type);
         }
-        ss << "], \"coercion_like\": " << (has_inst && coercion_like);
+        ss << "], \"is_simple\": " << is_simple << ", \"coercion_like\": " << (is_simple && num_insts == 1);
         ss << ", \"type\": \"" << flatten(f(type)) << "\"},\n";
-        //ss << ", \"type\": \"" << type << "\"},\n";
         std::cerr << ss.str();
     }
     environment new_env = class_ext::add_entry(env, get_dummy_ios(), class_entry(class_entry_kind::Instance, c, n, priority),

@@ -44,7 +44,7 @@ def write_coe_graph(f):
         if d['kind'] == 'instance' and d['class'] not in cls_blacklist and d['coercion_like'] == 1:
             cls_params = [p for p in d['params'] if 'class' in p]
             if len(cls_params) >= 1:
-                G.add_node(cls_params[0]['class'], shape = 'box')
+                G.add_node(cls_params[-1]['class'], shape = 'box')
                 #print(d['name'])
                 G.add_node(d['class'], shape = 'box')
                 G.add_edge(cls_params[0]['class'], d['class'])
