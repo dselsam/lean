@@ -8,7 +8,7 @@ import networkx as nx
 from networkx.drawing.nx_pydot import write_dot
 import matplotlib.pyplot as plt
 
-cls_blacklist = ['has_sizeof', 'has_coe', 'reflected']
+cls_blacklist = ['has_sizeof', 'has_coe', 'reflected', 'cau_seq.is_complete', 'directed_system', 'module.directed_system']
 data = open(sys.argv[1]).read()
 data = re.sub(r',\s*([]}])', '\1', data)
 data = json.loads(data)['items']
@@ -108,9 +108,29 @@ def write_lean4(f):
         #    print(f"axiom {d['name']}{uparams} : {pt(d['type'])}", file=f)
     print("end test", file=f)
 
+def write_coq(f):
+    f = open(f, 'w')
+    for d in data:
+        def fix(s):
+            return re.sub(r'\.(?=\w)', '_', s)
+        if not d['params']: # ??
+            continue
+        if d['kind'] == 'class':
+            print(fix("Class {name} {params}.".format(
+                name=d['name'],
+                params=' '.join(f"`({p['name']} : {p['type']})" if 'class' in p else f"({p['name']} : Type)" for p in d['params'])
+            )), file=f)
+        elif d['kind'] == 'instance' and d['is_simple'] == 1:
+            print(fix("Instance {name} {params} : {type} := {{}}.".format(
+                name=d['name'],
+                params=' '.join(f"`({p['name']} : {p['type']})" if 'class' in p else f"({p['name']} : Type)" for p in d['params']),
+                type=d['type']
+            )), file=f)
+
 base = os.path.splitext(sys.argv[1])[0]
 write_cls_inst_graph(base + '.dot')
 write_cls_graph(base + '-classes.dot')
 write_coe_graph(base + '-coercions.dot')
 write_lean3(base + '.lean')
 write_lean4(base + '4.lean')
+write_coq(base + '.v')
