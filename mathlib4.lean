@@ -88,10 +88,10 @@ class is_total_preorder (α : Type) (r : Type)
 class is_partial_order (α : Type) (r : Type)
 @[instance] axiom is_partial_order.to_is_preorder (α : Type) (r : Type) [c : is_partial_order α r] : is_preorder α r
 @[instance] axiom is_partial_order.to_is_antisymm (α : Type) (r : Type) [c : is_partial_order α r] : is_antisymm α r
-class has_to_format (α : Type)
 class is_linear_order (α : Type) (r : Type)
 @[instance] axiom is_linear_order.to_is_partial_order (α : Type) (r : Type) [c : is_linear_order α r] : is_partial_order α r
 @[instance] axiom is_linear_order.to_is_total (α : Type) (r : Type) [c : is_linear_order α r] : is_total α r
+class has_to_format (α : Type)
 class is_equiv (α : Type) (r : Type)
 @[instance] axiom is_equiv.to_is_preorder (α : Type) (r : Type) [c : is_equiv α r] : is_preorder α r
 @[instance] axiom is_equiv.to_is_symm (α : Type) (r : Type) [c : is_equiv α r] : is_symm α r
@@ -125,19 +125,19 @@ class applicative (f : Type)
 @[instance] axiom applicative.to_has_seq_left (f : Type) [c : applicative f] : has_seq_left f
 @[instance] axiom applicative.to_has_seq_right (f : Type) [c : applicative f] : has_seq_right f
 class has_bind (m : Type)
+class partial_order (α : Type)
+@[instance] axiom partial_order.to_preorder (α : Type) [s : partial_order α] : preorder α
 class monad (m : Type)
 @[instance] axiom monad.to_applicative (m : Type) [c : monad m] : applicative m
 @[instance] axiom monad.to_has_bind (m : Type) [c : monad m] : has_bind m
-class partial_order (α : Type)
-@[instance] axiom partial_order.to_preorder (α : Type) [s : partial_order α] : preorder α
 class linear_order (α : Type)
 @[instance] axiom linear_order.to_partial_order (α : Type) [s : linear_order α] : partial_order α
 class has_orelse (f : Type)
-class has_monad_lift (m : Type) (n : Type)
-class has_monad_lift_t (m : Type) (n : Type)
 class alternative (f : Type)
 @[instance] axiom alternative.to_applicative (f : Type) [c : alternative f] : applicative f
 @[instance] axiom alternative.to_has_orelse (f : Type) [c : alternative f] : has_orelse f
+class has_monad_lift (m : Type) (n : Type)
+class has_monad_lift_t (m : Type) (n : Type)
 @[instance] axiom has_monad_lift_t_trans (m : Type) (n : Type) (o : Type) [_inst_1 : has_monad_lift n o] [_inst_2 : has_monad_lift_t m n] : has_monad_lift_t m o
 @[instance] axiom has_monad_lift_t_refl (m : Type) : has_monad_lift_t m m
 class monad_functor (m : Type) (m' : Type) (n : Type) (n' : Type)
@@ -145,12 +145,11 @@ class monad_functor_t (m : Type) (m' : Type) (n : Type) (n' : Type)
 @[instance] axiom monad_functor_t_trans (m : Type) (m' : Type) (n : Type) (n' : Type) (o : Type) (o' : Type) [_inst_1 : monad_functor n n' o o'] [_inst_2 : monad_functor_t m m' n n'] : monad_functor_t m m' o o'
 @[instance] axiom monad_functor_t_refl (m : Type) (m' : Type) : monad_functor_t m m' m m'
 class monad_run (out : Type) (m : Type)
-class monad_fail (m : Type)
-@[instance] axiom monad_fail_lift (m : Type) (n : Type) [_inst_1 : has_monad_lift m n] [_inst_2 : monad_fail m] [_inst_3 : monad n] : monad_fail n
 class decidable_linear_order (α : Type)
 @[instance] axiom decidable_linear_order.to_linear_order (α : Type) [s : decidable_linear_order α] : linear_order α
+class monad_fail (m : Type)
+@[instance] axiom monad_fail_lift (m : Type) (n : Type) [_inst_1 : has_monad_lift m n] [_inst_2 : monad_fail m] [_inst_3 : monad n] : monad_fail n
 class monad_except (ε : Type) (m : Type)
-class reflected (α : Type) (a : Type)
 class monad_except_adapter (ε : Type) (ε' : Type) (m : Type) (m' : Type)
 @[instance] axiom monad_except_adapter_trans (ε : Type) (ε' : Type) (m : Type) (m' : Type) (n : Type) (n' : Type) [_inst_1 : monad_functor m m' n n'] [_inst_2 : monad_except_adapter ε ε' m m'] : monad_except_adapter ε ε' n n'
 class monad_reader (ρ : Type) (m : Type)
@@ -217,14 +216,14 @@ class add_comm_group (α : Type)
 class distrib (α : Type)
 @[instance] axiom distrib.to_has_mul (α : Type) [s : distrib α] : has_mul α
 @[instance] axiom distrib.to_has_add (α : Type) [s : distrib α] : has_add α
+class mul_zero_class (α : Type)
+@[instance] axiom mul_zero_class.to_has_mul (α : Type) [s : mul_zero_class α] : has_mul α
+@[instance] axiom mul_zero_class.to_has_zero (α : Type) [s : mul_zero_class α] : has_zero α
 class ordered_cancel_comm_monoid (α : Type)
 @[instance] axiom ordered_cancel_comm_monoid.to_add_comm_monoid (α : Type) [s : ordered_cancel_comm_monoid α] : add_comm_monoid α
 @[instance] axiom ordered_cancel_comm_monoid.to_add_left_cancel_semigroup (α : Type) [s : ordered_cancel_comm_monoid α] : add_left_cancel_semigroup α
 @[instance] axiom ordered_cancel_comm_monoid.to_add_right_cancel_semigroup (α : Type) [s : ordered_cancel_comm_monoid α] : add_right_cancel_semigroup α
 @[instance] axiom ordered_cancel_comm_monoid.to_partial_order (α : Type) [s : ordered_cancel_comm_monoid α] : partial_order α
-class mul_zero_class (α : Type)
-@[instance] axiom mul_zero_class.to_has_mul (α : Type) [s : mul_zero_class α] : has_mul α
-@[instance] axiom mul_zero_class.to_has_zero (α : Type) [s : mul_zero_class α] : has_zero α
 class zero_ne_one_class (α : Type)
 @[instance] axiom zero_ne_one_class.to_has_zero (α : Type) [s : zero_ne_one_class α] : has_zero α
 @[instance] axiom zero_ne_one_class.to_has_one (α : Type) [s : zero_ne_one_class α] : has_one α
@@ -233,14 +232,14 @@ class semiring (α : Type)
 @[instance] axiom semiring.to_monoid (α : Type) [s : semiring α] : monoid α
 @[instance] axiom semiring.to_distrib (α : Type) [s : semiring α] : distrib α
 @[instance] axiom semiring.to_mul_zero_class (α : Type) [s : semiring α] : mul_zero_class α
-class ordered_comm_group (α : Type)
-@[instance] axiom ordered_comm_group.to_add_comm_group (α : Type) [s : ordered_comm_group α] : add_comm_group α
-@[instance] axiom ordered_comm_group.to_partial_order (α : Type) [s : ordered_comm_group α] : partial_order α
-@[instance] axiom ordered_comm_group.to_ordered_cancel_comm_monoid (α : Type) [s : ordered_comm_group α] : ordered_cancel_comm_monoid α
 class comm_semiring (α : Type)
 @[instance] axiom comm_semiring.to_semiring (α : Type) [s : comm_semiring α] : semiring α
 @[instance] axiom comm_semiring.to_comm_monoid (α : Type) [s : comm_semiring α] : comm_monoid α
 @[instance] axiom comm_semiring_has_dvd (α : Type) [_inst_1 : comm_semiring α] : has_dvd α
+class ordered_comm_group (α : Type)
+@[instance] axiom ordered_comm_group.to_add_comm_group (α : Type) [s : ordered_comm_group α] : add_comm_group α
+@[instance] axiom ordered_comm_group.to_partial_order (α : Type) [s : ordered_comm_group α] : partial_order α
+@[instance] axiom ordered_comm_group.to_ordered_cancel_comm_monoid (α : Type) [s : ordered_comm_group α] : ordered_cancel_comm_monoid α
 class ring (α : Type)
 @[instance] axiom ring.to_add_comm_group (α : Type) [s : ring α] : add_comm_group α
 @[instance] axiom ring.to_monoid (α : Type) [s : ring α] : monoid α
@@ -311,8 +310,8 @@ class discrete_linear_ordered_field (α : Type)
 class unique (α : Type)
 class relator.right_total (α : Type) (β : Type) (R : Type)
 class relator.left_total (α : Type) (β : Type) (R : Type)
-class relator.bi_total (α : Type) (β : Type) (R : Type)
 @[instance] axiom unique.inhabited (α : Type) [_inst_1 : unique α] : inhabited α
+class relator.bi_total (α : Type) (β : Type) (R : Type)
 @[instance] axiom unique.subsingleton (α : Type) [_inst_1 : unique α] : subsingleton α
 class relator.left_unique (α : Type) (β : Type) (R : Type)
 class relator.right_unique (α : Type) (β : Type) (R : Type)
@@ -338,9 +337,9 @@ class computation.terminates (α : Type) (s : Type)
 class monad_writer (ω : Type) (m : Type)
 class bitraversable (t : Type)
 @[instance] axiom bitraversable.to_bifunctor (t : Type) [c : bitraversable t] : bifunctor t
-class monad_writer_adapter (ω : Type) (ω' : Type) (m : Type) (m' : Type)
 class is_lawful_bitraversable (t : Type) [_inst_1 : bitraversable t]
 @[instance] axiom is_lawful_bitraversable.to_is_lawful_bifunctor (t : Type) [_inst_1 : bitraversable t] [c : @is_lawful_bitraversable t _inst_1] : @is_lawful_bifunctor t (@bitraversable.to_bifunctor t _inst_1)
+class monad_writer_adapter (ω : Type) (ω' : Type) (m : Type) (m' : Type)
 @[instance] axiom monad_writer_adapter_trans (ω : Type) (ω' : Type) (m : Type) (m' : Type) (n : Type) (n' : Type) [_inst_1 : monad_functor m m' n n'] [_inst_2 : monad_writer_adapter ω ω' m m'] : monad_writer_adapter ω ω' n n'
 class monad_cont (m : Type)
 class is_lawful_monad_cont (m : Type) [_inst_1 : monad m] [_inst_2 : monad_cont m]
@@ -354,9 +353,9 @@ class category_theory.full (C : Type) [𝒞 : category_theory.category C] (D : T
 class category_theory.monad (C : Type) [𝒞 : category_theory.category C] (T : Type)
 class category_theory.faithful (C : Type) [𝒞 : category_theory.category C] (D : Type) [𝒟 : category_theory.category D] (F : Type)
 @[instance] axiom category_theory.of_groupoid (C : Type) [_inst_1 : category_theory.groupoid C] (X : Type) (Y : Type) (f : Type) : @category_theory.is_iso C (@category_theory.groupoid.to_category C _inst_1) X Y f
-class is_group_anti_hom (α : Type) (β : Type) [_inst_1 : group α] [_inst_2 : group β] (f : Type)
 class is_add_hom (α : Type) (β : Type) [_inst_1 : has_add α] [_inst_2 : has_add β] (f : Type)
 class is_mul_hom (α : Type) (β : Type) [_inst_1 : has_mul α] [_inst_2 : has_mul β] (f : Type)
+class is_group_anti_hom (α : Type) (β : Type) [_inst_1 : group α] [_inst_2 : group β] (f : Type)
 class pSet.definable (n : Type) (a : Type)
 class is_add_monoid_hom (α : Type) (β : Type) [_inst_1 : add_monoid α] [_inst_2 : add_monoid β] (f : Type)
 @[instance] axiom is_add_monoid_hom.to_is_add_hom (α : Type) (β : Type) [_inst_1 : add_monoid α] [_inst_2 : add_monoid β] (f : Type) [c : @is_add_monoid_hom α β _inst_1 _inst_2 f] : @is_add_hom α β (@add_semigroup.to_has_add α (@add_monoid.to_add_semigroup α _inst_1)) (@add_semigroup.to_has_add β (@add_monoid.to_add_semigroup β _inst_2)) f
@@ -372,17 +371,17 @@ class is_order_connected (α : Type) (lt : Type)
 @[instance] axiom is_order_connected_of_is_strict_total_order' (α : Type) (r : Type) [_inst_1 : is_strict_total_order' α r] : is_order_connected α r
 @[instance] axiom is_strict_total_order_of_is_strict_total_order' (α : Type) (r : Type) [_inst_1 : is_strict_total_order' α r] : is_strict_total_order α r
 class is_extensional (α : Type) (r : Type)
-class is_add_group_hom (α : Type) (β : Type) [_inst_1 : add_group α] [_inst_2 : add_group β] (f : Type)
-@[instance] axiom is_add_group_hom.to_is_add_hom (α : Type) (β : Type) [_inst_1 : add_group α] [_inst_2 : add_group β] (f : Type) [c : @is_add_group_hom α β _inst_1 _inst_2 f] : @is_add_hom α β (@add_semigroup.to_has_add α (@add_monoid.to_add_semigroup α (@add_group.to_add_monoid α _inst_1))) (@add_semigroup.to_has_add β (@add_monoid.to_add_semigroup β (@add_group.to_add_monoid β _inst_2))) f
 @[instance] axiom is_extensional_of_is_strict_total_order' (α : Type) (r : Type) [_inst_1 : is_strict_total_order' α r] : is_extensional α r
 class is_well_order (α : Type) (r : Type)
 @[instance] axiom is_well_order.to_is_strict_total_order' (α : Type) (r : Type) [c : is_well_order α r] : is_strict_total_order' α r
 @[instance] axiom is_well_order.is_strict_total_order (α : Type) (r : Type) [_inst_1 : is_well_order α r] : is_strict_total_order α r
 @[instance] axiom is_well_order.is_extensional (α : Type) (r : Type) [_inst_1 : is_well_order α r] : is_extensional α r
-class is_group_hom (α : Type) (β : Type) [_inst_1 : group α] [_inst_2 : group β] (f : Type)
 @[instance] axiom is_well_order.is_trichotomous (α : Type) (r : Type) [_inst_1 : is_well_order α r] : is_trichotomous α r
+class is_add_group_hom (α : Type) (β : Type) [_inst_1 : add_group α] [_inst_2 : add_group β] (f : Type)
+@[instance] axiom is_add_group_hom.to_is_add_hom (α : Type) (β : Type) [_inst_1 : add_group α] [_inst_2 : add_group β] (f : Type) [c : @is_add_group_hom α β _inst_1 _inst_2 f] : @is_add_hom α β (@add_semigroup.to_has_add α (@add_monoid.to_add_semigroup α (@add_group.to_add_monoid α _inst_1))) (@add_semigroup.to_has_add β (@add_monoid.to_add_semigroup β (@add_group.to_add_monoid β _inst_2))) f
 @[instance] axiom is_well_order.is_trans (α : Type) (r : Type) [_inst_1 : is_well_order α r] : is_trans α r
 @[instance] axiom is_well_order.is_irrefl (α : Type) (r : Type) [_inst_1 : is_well_order α r] : is_irrefl α r
+class is_group_hom (α : Type) (β : Type) [_inst_1 : group α] [_inst_2 : group β] (f : Type)
 @[instance] axiom is_well_order.is_asymm (α : Type) (r : Type) [_inst_1 : is_well_order α r] : is_asymm α r
 @[instance] axiom is_group_hom.to_is_mul_hom (α : Type) (β : Type) [_inst_1 : group α] [_inst_2 : group β] (f : Type) [c : @is_group_hom α β _inst_1 _inst_2 f] : @is_mul_hom α β (@semigroup.to_has_mul α (@monoid.to_semigroup α (@group.to_monoid α _inst_1))) (@semigroup.to_has_mul β (@monoid.to_semigroup β (@group.to_monoid β _inst_2))) f
 @[instance] axiom is_group_hom.to_is_monoid_hom (α : Type) (β : Type) [_inst_1 : group α] [_inst_2 : group β] (f : Type) [_inst_3 : @is_group_hom α β _inst_1 _inst_2 f] : @is_monoid_hom α β (@group.to_monoid α _inst_1) (@group.to_monoid β _inst_2) f
@@ -450,25 +449,25 @@ class lattice.complete_lattice (α : Type)
 @[instance] axiom lattice.complete_lattice.to_bounded_lattice (α : Type) [s : lattice.complete_lattice α] : lattice.bounded_lattice α
 @[instance] axiom lattice.complete_lattice.to_has_Sup (α : Type) [s : lattice.complete_lattice α] : lattice.has_Sup α
 @[instance] axiom lattice.complete_lattice.to_has_Inf (α : Type) [s : lattice.complete_lattice α] : lattice.has_Inf α
-class lattice.complete_linear_order (α : Type)
-@[instance] axiom lattice.complete_linear_order.to_complete_lattice (α : Type) [s : lattice.complete_linear_order α] : lattice.complete_lattice α
-@[instance] axiom lattice.complete_linear_order.to_decidable_linear_order (α : Type) [s : lattice.complete_linear_order α] : decidable_linear_order α
+class category_theory.is_equivalence (C : Type) [𝒞 : category_theory.category C] (D : Type) [𝒟 : category_theory.category D] (F : Type)
 class ordered_comm_monoid (α : Type)
 @[instance] axiom ordered_comm_monoid.to_add_comm_monoid (α : Type) [s : ordered_comm_monoid α] : add_comm_monoid α
 @[instance] axiom ordered_comm_monoid.to_partial_order (α : Type) [s : ordered_comm_monoid α] : partial_order α
 class canonically_ordered_monoid (α : Type)
 @[instance] axiom canonically_ordered_monoid.to_ordered_comm_monoid (α : Type) [s : canonically_ordered_monoid α] : ordered_comm_monoid α
 @[instance] axiom canonically_ordered_monoid.to_order_bot (α : Type) [s : canonically_ordered_monoid α] : lattice.order_bot α
-class category_theory.is_equivalence (C : Type) [𝒞 : category_theory.category C] (D : Type) [𝒟 : category_theory.category D] (F : Type)
-class is_semiring_hom (α : Type) (β : Type) [_inst_1 : semiring α] [_inst_2 : semiring β] (f : Type)
+class lattice.complete_linear_order (α : Type)
+@[instance] axiom lattice.complete_linear_order.to_complete_lattice (α : Type) [s : lattice.complete_linear_order α] : lattice.complete_lattice α
+@[instance] axiom lattice.complete_linear_order.to_decidable_linear_order (α : Type) [s : lattice.complete_linear_order α] : decidable_linear_order α
 class category_theory.ess_surj (C : Type) [𝒞 : category_theory.category C] (D : Type) [𝒟 : category_theory.category D] (F : Type)
+class is_semiring_hom (α : Type) (β : Type) [_inst_1 : semiring α] [_inst_2 : semiring β] (f : Type)
+@[instance] axiom category_theory.equivalence.faithful_of_equivalence (C : Type) [𝒞 : category_theory.category C] (D : Type) [𝒟 : category_theory.category D] (F : Type) [_inst_1 : @category_theory.is_equivalence C 𝒞 D 𝒟 F] : @category_theory.faithful C 𝒞 D 𝒟 F
 @[instance] axiom is_semiring_hom.is_add_monoid_hom (α : Type) (β : Type) [_inst_1 : semiring α] [_inst_2 : semiring β] (f : Type) [_inst_3 : @is_semiring_hom α β _inst_1 _inst_2 f] : @is_add_monoid_hom α β (@add_comm_monoid.to_add_monoid α (@semiring.to_add_comm_monoid α _inst_1)) (@add_comm_monoid.to_add_monoid β (@semiring.to_add_comm_monoid β _inst_2)) f
 @[instance] axiom is_semiring_hom.is_monoid_hom (α : Type) (β : Type) [_inst_1 : semiring α] [_inst_2 : semiring β] (f : Type) [_inst_3 : @is_semiring_hom α β _inst_1 _inst_2 f] : @is_monoid_hom α β (@semiring.to_monoid α _inst_1) (@semiring.to_monoid β _inst_2) f
-@[instance] axiom category_theory.equivalence.faithful_of_equivalence (C : Type) [𝒞 : category_theory.category C] (D : Type) [𝒟 : category_theory.category D] (F : Type) [_inst_1 : @category_theory.is_equivalence C 𝒞 D 𝒟 F] : @category_theory.faithful C 𝒞 D 𝒟 F
 class is_ring_hom (α : Type) (β : Type) [_inst_1 : ring α] [_inst_2 : ring β] (f : Type)
+@[instance] axiom category_theory.equivalence.full_of_equivalence (C : Type) [𝒞 : category_theory.category C] (D : Type) [𝒟 : category_theory.category D] (F : Type) [_inst_1 : @category_theory.is_equivalence C 𝒞 D 𝒟 F] : @category_theory.full C 𝒞 D 𝒟 F
 @[instance] axiom is_ring_hom.is_semiring_hom (α : Type) (β : Type) [_inst_1 : ring α] [_inst_2 : ring β] (f : Type) [_inst_3 : @is_ring_hom α β _inst_1 _inst_2 f] : @is_semiring_hom α β (@ring.to_semiring α _inst_1) (@ring.to_semiring β _inst_2) f
 @[instance] axiom is_ring_hom.is_add_group_hom (α : Type) (β : Type) [_inst_1 : ring α] [_inst_2 : ring β] (f : Type) [_inst_3 : @is_ring_hom α β _inst_1 _inst_2 f] : @is_add_group_hom α β (@add_comm_group.to_add_group α (@ring.to_add_comm_group α _inst_1)) (@add_comm_group.to_add_group β (@ring.to_add_comm_group β _inst_2)) f
-@[instance] axiom category_theory.equivalence.full_of_equivalence (C : Type) [𝒞 : category_theory.category C] (D : Type) [𝒟 : category_theory.category D] (F : Type) [_inst_1 : @category_theory.is_equivalence C 𝒞 D 𝒟 F] : @category_theory.full C 𝒞 D 𝒟 F
 class nonzero_comm_semiring (α : Type)
 @[instance] axiom nonzero_comm_semiring.to_comm_semiring (α : Type) [s : nonzero_comm_semiring α] : comm_semiring α
 @[instance] axiom nonzero_comm_semiring.to_zero_ne_one_class (α : Type) [s : nonzero_comm_semiring α] : zero_ne_one_class α
@@ -477,29 +476,30 @@ class nonzero_comm_ring (α : Type)
 @[instance] axiom nonzero_comm_ring.to_zero_ne_one_class (α : Type) [s : nonzero_comm_ring α] : zero_ne_one_class α
 @[instance] axiom nonzero_comm_ring.to_nonzero_comm_semiring (α : Type) [I : nonzero_comm_ring α] : nonzero_comm_semiring α
 @[instance] axiom integral_domain.to_nonzero_comm_ring (α : Type) [id : integral_domain α] : nonzero_comm_ring α
+class category_theory.is_left_adjoint (C : Type) [𝒞 : category_theory.category C] (D : Type) [𝒟 : category_theory.category D] (left : Type)
 class domain (α : Type)
 @[instance] axiom domain.to_ring (α : Type) [s : domain α] : ring α
 @[instance] axiom domain.to_no_zero_divisors (α : Type) [s : domain α] : no_zero_divisors α
 @[instance] axiom domain.to_zero_ne_one_class (α : Type) [s : domain α] : zero_ne_one_class α
-class lattice.complete_distrib_lattice (α : Type)
-@[instance] axiom integral_domain.to_domain (α : Type) [s : integral_domain α] : domain α
-@[instance] axiom lattice.complete_distrib_lattice.to_complete_lattice (α : Type) [s : lattice.complete_distrib_lattice α] : lattice.complete_lattice α
-class category_theory.is_left_adjoint (C : Type) [𝒞 : category_theory.category C] (D : Type) [𝒟 : category_theory.category D] (left : Type)
 class category_theory.is_right_adjoint (C : Type) [𝒞 : category_theory.category C] (D : Type) [𝒟 : category_theory.category D] (right : Type)
+@[instance] axiom integral_domain.to_domain (α : Type) [s : integral_domain α] : domain α
+@[instance] axiom ordered_cancel_comm_monoid.to_ordered_comm_monoid (α : Type) [H : ordered_cancel_comm_monoid α] : ordered_comm_monoid α
+@[instance] axiom division_ring_has_div' (α : Type) [_inst_1 : division_ring α] : has_div α
+@[instance] axiom division_ring.to_domain (α : Type) [s : division_ring α] : domain α
+class lattice.complete_distrib_lattice (α : Type)
+@[instance] axiom lattice.complete_distrib_lattice.to_complete_lattice (α : Type) [s : lattice.complete_distrib_lattice α] : lattice.complete_lattice α
+@[instance] axiom field.to_integral_domain (α : Type) [F : field α] : integral_domain α
 @[instance] axiom lattice.lattice.bounded_distrib_lattice (α : Type) [d : lattice.complete_distrib_lattice α] : lattice.bounded_distrib_lattice α
 class lattice.complete_boolean_algebra (α : Type)
 @[instance] axiom lattice.complete_boolean_algebra.to_boolean_algebra (α : Type) [s : lattice.complete_boolean_algebra α] : lattice.boolean_algebra α
 @[instance] axiom lattice.complete_boolean_algebra.to_complete_distrib_lattice (α : Type) [s : lattice.complete_boolean_algebra α] : lattice.complete_distrib_lattice α
-@[instance] axiom division_ring_has_div' (α : Type) [_inst_1 : division_ring α] : has_div α
-@[instance] axiom ordered_cancel_comm_monoid.to_ordered_comm_monoid (α : Type) [H : ordered_cancel_comm_monoid α] : ordered_comm_monoid α
-@[instance] axiom division_ring.to_domain (α : Type) [s : division_ring α] : domain α
-@[instance] axiom field.to_integral_domain (α : Type) [F : field α] : integral_domain α
 @[instance] axiom decidable_linear_ordered_comm_group.decidable_linear_ordered_cancel_comm_monoid (α : Type) [s : decidable_linear_ordered_comm_group α] : decidable_linear_ordered_cancel_comm_monoid α
 class nonneg_comm_group (α : Type)
 @[instance] axiom nonneg_comm_group.to_add_comm_group (α : Type) [s : nonneg_comm_group α] : add_comm_group α
 @[instance] axiom nonneg_comm_group.to_ordered_comm_group (α : Type) [s : nonneg_comm_group α] : ordered_comm_group α
 class char_zero (α : Type) [_inst_1 : add_monoid α] [_inst_2 : has_one α]
 @[instance] axiom linear_ordered_semiring.to_char_zero (α : Type) [_inst_1 : linear_ordered_semiring α] : @char_zero α (@add_comm_monoid.to_add_monoid α (@ordered_comm_monoid.to_add_comm_monoid α (@ordered_cancel_comm_monoid.to_ordered_comm_monoid α (@ordered_semiring.to_ordered_cancel_comm_monoid α (@linear_ordered_semiring.to_ordered_semiring α _inst_1))))) (@monoid.to_has_one α (@semiring.to_monoid α (@ordered_semiring.to_semiring α (@linear_ordered_semiring.to_ordered_semiring α _inst_1))))
+class category_theory.monoidal_category (C : Type) [𝒞 : category_theory.category C]
 @[instance] axiom linear_ordered_semiring.to_no_top_order (α : Type) [_inst_1 : linear_ordered_semiring α] : @no_top_order α (@partial_order.to_preorder α (@ordered_comm_monoid.to_partial_order α (@ordered_cancel_comm_monoid.to_ordered_comm_monoid α (@ordered_semiring.to_ordered_cancel_comm_monoid α (@linear_ordered_semiring.to_ordered_semiring α _inst_1)))))
 @[instance] axiom linear_ordered_semiring.to_no_bot_order (α : Type) [_inst_1 : linear_ordered_ring α] : @no_bot_order α (@partial_order.to_preorder α (@ordered_comm_monoid.to_partial_order α (@ordered_cancel_comm_monoid.to_ordered_comm_monoid α (@ordered_semiring.to_ordered_cancel_comm_monoid α (@ordered_ring.to_ordered_semiring α (@linear_ordered_ring.to_ordered_ring α _inst_1))))))
 @[instance] axiom to_domain (α : Type) [s : linear_ordered_ring α] : domain α
@@ -507,7 +507,6 @@ class nonneg_ring (α : Type)
 @[instance] axiom nonneg_ring.to_ring (α : Type) [s : nonneg_ring α] : ring α
 @[instance] axiom nonneg_ring.to_zero_ne_one_class (α : Type) [s : nonneg_ring α] : zero_ne_one_class α
 @[instance] axiom nonneg_ring.to_nonneg_comm_group (α : Type) [s : nonneg_ring α] : nonneg_comm_group α
-class category_theory.monoidal_category (C : Type) [𝒞 : category_theory.category C]
 class linear_nonneg_ring (α : Type)
 @[instance] axiom linear_nonneg_ring.to_domain (α : Type) [s : linear_nonneg_ring α] : domain α
 @[instance] axiom linear_nonneg_ring.to_nonneg_comm_group (α : Type) [s : linear_nonneg_ring α] : nonneg_comm_group α
@@ -519,10 +518,10 @@ class canonically_ordered_comm_semiring (α : Type)
 @[instance] axiom canonically_ordered_comm_semiring.to_canonically_ordered_monoid (α : Type) [s : canonically_ordered_comm_semiring α] : canonically_ordered_monoid α
 @[instance] axiom canonically_ordered_comm_semiring.to_comm_semiring (α : Type) [s : canonically_ordered_comm_semiring α] : comm_semiring α
 @[instance] axiom canonically_ordered_comm_semiring.to_zero_ne_one_class (α : Type) [s : canonically_ordered_comm_semiring α] : zero_ne_one_class α
+class category_theory.representable (C : Type) [𝒞 : category_theory.category C] (F : Type)
 @[instance] axiom linear_ordered_field.to_densely_ordered (α : Type) [_inst_1 : linear_ordered_field α] : @densely_ordered α (@partial_order.to_preorder α (@ordered_comm_monoid.to_partial_order α (@ordered_cancel_comm_monoid.to_ordered_comm_monoid α (@ordered_semiring.to_ordered_cancel_comm_monoid α (@ordered_ring.to_ordered_semiring α (@linear_ordered_ring.to_ordered_ring α (@linear_ordered_field.to_linear_ordered_ring α _inst_1)))))))
 @[instance] axiom linear_ordered_field.to_no_top_order (α : Type) [_inst_1 : linear_ordered_field α] : @no_top_order α (@partial_order.to_preorder α (@ordered_comm_monoid.to_partial_order α (@ordered_cancel_comm_monoid.to_ordered_comm_monoid α (@ordered_semiring.to_ordered_cancel_comm_monoid α (@ordered_ring.to_ordered_semiring α (@linear_ordered_ring.to_ordered_ring α (@linear_ordered_field.to_linear_ordered_ring α _inst_1)))))))
 @[instance] axiom linear_ordered_field.to_no_bot_order (α : Type) [_inst_1 : linear_ordered_field α] : @no_bot_order α (@partial_order.to_preorder α (@ordered_comm_monoid.to_partial_order α (@ordered_cancel_comm_monoid.to_ordered_comm_monoid α (@ordered_semiring.to_ordered_cancel_comm_monoid α (@ordered_ring.to_ordered_semiring α (@linear_ordered_ring.to_ordered_ring α (@linear_ordered_field.to_linear_ordered_ring α _inst_1)))))))
-class category_theory.representable (C : Type) [𝒞 : category_theory.category C] (F : Type)
 class is_ring_anti_hom (R : Type) (F : Type) [_inst_1 : ring R] [_inst_2 : ring F] (f : Type)
 @[instance] axiom is_ring_anti_hom.is_add_group_hom (R : Type) (F : Type) [_inst_1 : ring R] [_inst_2 : ring F] (f : Type) [_inst_3 : @is_ring_anti_hom R F _inst_1 _inst_2 f] : @is_add_group_hom R F (@add_comm_group.to_add_group R (@ring.to_add_comm_group R _inst_1)) (@add_comm_group.to_add_group F (@ring.to_add_comm_group F _inst_2)) f
 class category_theory.reflective (C : Type) [𝒞 : category_theory.category C] (D : Type) [𝒟 : category_theory.category D] (R : Type)
@@ -577,23 +576,22 @@ class category_theory.limits.reflects_colimits (C : Type) [𝒞 : category_theor
 @[instance] axiom category_theory.adjunction.is_equivalence_preserves_colimits (C : Type) [𝒞 : category_theory.category C] (D : Type) [𝒟 : category_theory.category D] (E : Type) [_inst_2 : @category_theory.is_equivalence C 𝒞 D 𝒟 E] : @category_theory.limits.preserves_colimits C 𝒞 D 𝒟 E
 class irreducible (α : Type) [_inst_1 : monoid α] (p : Type)
 class floor_ring (α : Type) [_inst_1 : linear_ordered_ring α]
-class archimedean (α : Type) [_inst_1 : ordered_comm_monoid α]
 class normalization_domain (α : Type)
 @[instance] axiom normalization_domain.to_integral_domain (α : Type) [s : normalization_domain α] : integral_domain α
+class archimedean (α : Type) [_inst_1 : ordered_comm_monoid α]
 class gcd_domain (α : Type)
 @[instance] axiom gcd_domain.to_normalization_domain (α : Type) [s : gcd_domain α] : normalization_domain α
 @[instance] axiom category_theory.adjunction.right_adjoint_preserves_limits (C : Type) [𝒞 : category_theory.category C] (D : Type) [𝒟 : category_theory.category D] (F : Type) (G : Type) (adj : Type) : @category_theory.limits.preserves_limits D 𝒟 C 𝒞 G
 @[instance] axiom category_theory.adjunction.is_equivalence_preserves_limits (C : Type) [𝒞 : category_theory.category C] (D : Type) [𝒟 : category_theory.category D] (E : Type) [_inst_2 : @category_theory.is_equivalence D 𝒟 C 𝒞 E] : @category_theory.limits.preserves_limits D 𝒟 C 𝒞 E
-class unique_factorization_domain (α : Type) [_inst_1 : integral_domain α]
 class zsqrtd.nonsquare (x : Type)
+class unique_factorization_domain (α : Type) [_inst_1 : integral_domain α]
 class fin2.is_lt (m : Type) (n : Type)
-class is_add_submonoid (β : Type) [_inst_2 : add_monoid β] (s : Type)
-class is_submonoid (α : Type) [_inst_1 : monoid α] (s : Type)
 class is_absolute_value (α : Type) [_inst_1 : discrete_linear_ordered_field α] (β : Type) [_inst_2 : ring β] (f : Type)
 class fintype (α : Type)
+class is_add_submonoid (β : Type) [_inst_2 : add_monoid β] (s : Type)
+class is_submonoid (α : Type) [_inst_1 : monoid α] (s : Type)
 @[instance] axiom unique.fintype (α : Type) [_inst_1 : unique α] : fintype α
 class nat.prime (p : Type)
-class cau_seq.is_complete (α : Type) [_inst_1 : discrete_linear_ordered_field α] (β : Type) [_inst_2 : ring β] (abv : Type) [_inst_3 : is_absolute_value abv]
 class is_add_subgroup (β : Type) [_inst_2 : add_group β] (s : Type)
 @[instance] axiom is_add_subgroup.to_is_add_submonoid (β : Type) [_inst_2 : add_group β] (s : Type) [c : @is_add_subgroup β _inst_2 s] : @is_add_submonoid β (@add_group.to_add_monoid β _inst_2) s
 class is_subgroup (α : Type) [_inst_1 : group α] (s : Type)
@@ -638,14 +636,14 @@ class lattice.conditionally_complete_linear_order_bot (α : Type)
 @[instance] axiom lattice.conditionally_complete_linear_order_bot.to_conditionally_complete_lattice (α : Type) [s : lattice.conditionally_complete_linear_order_bot α] : lattice.conditionally_complete_lattice α
 @[instance] axiom lattice.conditionally_complete_linear_order_bot.to_decidable_linear_order (α : Type) [s : lattice.conditionally_complete_linear_order_bot α] : decidable_linear_order α
 @[instance] axiom lattice.conditionally_complete_linear_order_bot.to_order_bot (α : Type) [s : lattice.conditionally_complete_linear_order_bot α] : lattice.order_bot α
-@[instance] axiom lattice.conditionally_complete_lattice_of_complete_lattice (α : Type) [_inst_1 : lattice.complete_lattice α] : lattice.conditionally_complete_lattice α
-@[instance] axiom lattice.conditionally_complete_linear_order_of_complete_linear_order (α : Type) [_inst_1 : lattice.complete_linear_order α] : lattice.conditionally_complete_linear_order α
-class category_theory.limits.has_equalizers (C : Type) [𝒞 : category_theory.category C]
-class category_theory.limits.has_coequalizers (C : Type) [𝒞 : category_theory.category C]
 class primcodable (α : Type)
 @[instance] axiom primcodable.to_encodable (α : Type) [c : primcodable α] : encodable α
+@[instance] axiom lattice.conditionally_complete_lattice_of_complete_lattice (α : Type) [_inst_1 : lattice.complete_lattice α] : lattice.conditionally_complete_lattice α
+@[instance] axiom lattice.conditionally_complete_linear_order_of_complete_linear_order (α : Type) [_inst_1 : lattice.complete_linear_order α] : lattice.conditionally_complete_linear_order α
 @[instance] axiom primcodable.of_denumerable (α : Type) [_inst_1 : denumerable α] : primcodable α
 class measurable_space (α : Type)
+class category_theory.limits.has_equalizers (C : Type) [𝒞 : category_theory.category C]
+class category_theory.limits.has_coequalizers (C : Type) [𝒞 : category_theory.category C]
 class category_theory.limits.has_pullbacks (C : Type) [𝒞 : category_theory.category C]
 class category_theory.limits.has_pushouts (C : Type) [𝒞 : category_theory.category C]
 class category_theory.limits.has_binary_products (C : Type) [𝒞 : category_theory.category C]
@@ -658,25 +656,25 @@ class simple_add_group (α : Type) [_inst_1 : add_group α]
 class is_subring (R : Type) [_inst_1 : ring R] (S : Type)
 @[instance] axiom is_subring.to_is_add_subgroup (R : Type) [_inst_1 : ring R] (S : Type) [c : @is_subring R _inst_1 S] : @is_add_subgroup R (@add_comm_group.to_add_group R (@ring.to_add_comm_group R _inst_1)) S
 @[instance] axiom is_subring.to_is_submonoid (R : Type) [_inst_1 : ring R] (S : Type) [c : @is_subring R _inst_1 S] : @is_submonoid R (@ring.to_monoid R _inst_1) S
-class discrete_topology (α : Type) [t : topological_space α]
 class compact_space (α : Type) [_inst_2 : topological_space α]
+class discrete_topology (α : Type) [t : topological_space α]
 class locally_compact_space (α : Type) [_inst_2 : topological_space α]
 class irreducible_space (α : Type) [_inst_2 : topological_space α]
-class connected_space (α : Type) [_inst_2 : topological_space α]
-@[instance] axiom irreducible_space.connected_space (α : Type) [_inst_2 : topological_space α] [_inst_3 : @irreducible_space α _inst_2] : @connected_space α _inst_2
 class is_subfield (F : Type) [_inst_1 : discrete_field F] (S : Type)
 @[instance] axiom is_subfield.to_is_subring (F : Type) [_inst_1 : discrete_field F] (S : Type) [c : @is_subfield F _inst_1 S] : @is_subring F (@domain.to_ring F (@division_ring.to_domain F (@field.to_division_ring F (@discrete_field.to_field F _inst_1)))) S
+class connected_space (α : Type) [_inst_2 : topological_space α]
+@[instance] axiom irreducible_space.connected_space (α : Type) [_inst_2 : topological_space α] [_inst_3 : @irreducible_space α _inst_2] : @connected_space α _inst_2
 class totally_disconnected_space (α : Type) [_inst_2 : topological_space α]
 class totally_separated_space (α : Type) [_inst_2 : topological_space α]
 @[instance] axiom totally_separated_space.totally_disconnected_space (α : Type) [_inst_2 : topological_space α] [_inst_3 : @totally_separated_space α _inst_2] : @totally_disconnected_space α _inst_2
 class t0_space (α : Type) [_inst_2 : topological_space α]
 class t1_space (α : Type) [_inst_2 : topological_space α]
 @[instance] axiom t1_space.t0_space (α : Type) [_inst_1 : topological_space α] [_inst_2 : @t1_space α _inst_1] : @t0_space α _inst_1
-class topological_space.separable_space (α : Type) [t : topological_space α]
 class t2_space (α : Type) [_inst_2 : topological_space α]
+class topological_space.separable_space (α : Type) [t : topological_space α]
+@[instance] axiom t2_space.t1_space (α : Type) [_inst_1 : topological_space α] [_inst_2 : @t2_space α _inst_1] : @t1_space α _inst_1
 class topological_space.first_countable_topology (α : Type) [t : topological_space α]
 class topological_space.second_countable_topology (α : Type) [t : topological_space α]
-@[instance] axiom t2_space.t1_space (α : Type) [_inst_1 : topological_space α] [_inst_2 : @t2_space α _inst_1] : @t1_space α _inst_1
 @[instance] axiom topological_space.second_countable_topology.to_first_countable_topology (α : Type) [t : topological_space α] [_inst_1 : @topological_space.second_countable_topology α t] : @topological_space.first_countable_topology α t
 @[instance] axiom t2_space_discrete (α : Type) [_inst_2 : topological_space α] [_inst_3 : @discrete_topology α _inst_2] : @t2_space α _inst_2
 @[instance] axiom topological_space.second_countable_topology.to_separable_space (α : Type) [t : topological_space α] [_inst_1 : @topological_space.second_countable_topology α t] : @topological_space.separable_space α t
@@ -695,34 +693,34 @@ class mul_action (α : Type) (β : Type) [_inst_1 : monoid α]
 class is_cyclic (α : Type) [_inst_1 : group α]
 class distrib_mul_action (α : Type) (β : Type) [_inst_1 : monoid α] [_inst_2 : add_monoid β]
 @[instance] axiom distrib_mul_action.to_mul_action (α : Type) (β : Type) [_inst_1 : monoid α] [_inst_2 : add_monoid β] [c : @distrib_mul_action α β _inst_1 _inst_2] : @mul_action α β _inst_1
-class uniform_space (α : Type)
-@[instance] axiom uniform_space.to_topological_space (α : Type) [c : uniform_space α] : topological_space α
 class semimodule (α : Type) (β : Type) [_inst_1 : semiring α] [_inst_2 : add_comm_monoid β]
 @[instance] axiom semimodule.to_distrib_mul_action (α : Type) (β : Type) [_inst_1 : semiring α] [_inst_2 : add_comm_monoid β] [c : @semimodule α β _inst_1 _inst_2] : @distrib_mul_action α β (@semiring.to_monoid α _inst_1) (@add_comm_monoid.to_add_monoid β _inst_2)
+class uniform_space (α : Type)
+@[instance] axiom uniform_space.to_topological_space (α : Type) [c : uniform_space α] : topological_space α
 class module (α : Type) (β : Type) [_inst_1 : ring α] [_inst_2 : add_comm_group β]
 @[instance] axiom module.to_semimodule (α : Type) (β : Type) [_inst_1 : ring α] [_inst_2 : add_comm_group β] [c : @module α β _inst_1 _inst_2] : @semimodule α β (@ring.to_semiring α _inst_1) (@add_comm_group.to_add_comm_monoid β _inst_2)
 @[instance] axiom semiring.to_semimodule (α : Type) [r : semiring α] : @semimodule α α r (@semiring.to_add_comm_monoid α r)
 @[instance] axiom ring.to_module (α : Type) [r : ring α] : @module α α r (@ring.to_add_comm_group α r)
-class is_linear_map (α : Type) (β : Type) (γ : Type) [_inst_1 : ring α] [_inst_2 : add_comm_group β] [_inst_3 : add_comm_group γ] [_inst_4 : module α β] [_inst_5 : module α γ] (f : Type)
-class manifold (H : Type) [_inst_1 : topological_space H] (M : Type) [_inst_2 : topological_space M]
+class is_linear_map (α : Type) (β : Type) (γ : Type) [_inst_1 : ring α] [_inst_2 : add_comm_group β] [_inst_3 : add_comm_group γ] [_inst_4 : @module α β _inst_1 _inst_2] [_inst_5 : @module α γ _inst_1 _inst_3] (f : Type)
 class separated (α : Type) [_inst_4 : uniform_space α]
-@[instance] axiom manifold_model_space (H : Type) [_inst_1 : topological_space H] : @manifold H _inst_1 H _inst_1
 @[instance] axiom separated_t2 (α : Type) [_inst_1 : uniform_space α] [s : @separated α _inst_1] : @t2_space α (@uniform_space.to_topological_space α _inst_1)
+class manifold (H : Type) [_inst_1 : topological_space H] (M : Type) [_inst_2 : topological_space M]
+@[instance] axiom manifold_model_space (H : Type) [_inst_1 : topological_space H] : @manifold H _inst_1 H _inst_1
 @[instance] axiom separated_regular (α : Type) [_inst_1 : uniform_space α] [_inst_4 : @separated α _inst_1] : @regular_space α (@uniform_space.to_topological_space α _inst_1)
 class complete_space (α : Type) [_inst_2 : uniform_space α]
-class has_groupoid (H : Type) [_inst_4 : topological_space H] (M : Type) [_inst_5 : topological_space M] [_inst_6 : manifold H M] (G : Type)
-@[instance] axiom has_groupoid_model_space (H : Type) [_inst_4 : topological_space H] (G : Type) : @has_groupoid H _inst_4 H _inst_4 (@manifold_model_space H _inst_4) G
+class has_groupoid (H : Type) [_inst_4 : topological_space H] (M : Type) [_inst_5 : topological_space M] [_inst_6 : @manifold H _inst_4 M _inst_5] (G : Type)
 @[instance] axiom complete_of_compact (α : Type) [_inst_2 : uniform_space α] [_inst_3 : @compact_space α (@uniform_space.to_topological_space α _inst_2)] : @complete_space α _inst_2
 class vector_space (α : Type) (β : Type) [_inst_1 : discrete_field α] [_inst_2 : add_comm_group β]
 @[instance] axiom vector_space.to_module (α : Type) (β : Type) [_inst_1 : discrete_field α] [_inst_2 : add_comm_group β] [c : @vector_space α β _inst_1 _inst_2] : @module α β (@domain.to_ring α (@division_ring.to_domain α (@field.to_division_ring α (@discrete_field.to_field α _inst_1)))) _inst_2
 @[instance] axiom discrete_field.to_vector_space (α : Type) [_inst_1 : discrete_field α] : @vector_space α α _inst_1 (@ring.to_add_comm_group α (@domain.to_ring α (@division_ring.to_domain α (@field.to_division_ring α (@discrete_field.to_field α _inst_1)))))
+@[instance] axiom has_groupoid_model_space (H : Type) [_inst_4 : topological_space H] (G : Type) : @has_groupoid H _inst_4 H _inst_4 (@manifold_model_space H _inst_4) G
+class char_p (α : Type) [_inst_1 : semiring α] (p : Type)
 class has_edist (α : Type)
 class emetric_space (α : Type)
 @[instance] axiom emetric_space.to_has_edist (α : Type) [c : emetric_space α] : has_edist α
 @[instance] axiom emetric_space.to_uniform_space' (α : Type) [_inst_1 : emetric_space α] : uniform_space α
+class perfect_field (α : Type) [_inst_1 : field α] (p : Type) [_inst_2 : @char_p α (@ring.to_semiring α (@domain.to_ring α (@division_ring.to_domain α (@field.to_division_ring α _inst_1)))) p]
 @[instance] axiom to_separated (α : Type) [_inst_1 : emetric_space α] : @separated α (@emetric_space.to_uniform_space' α _inst_1)
-class char_p (α : Type) [_inst_1 : semiring α] (p : Type)
-class perfect_field (α : Type) [_inst_1 : field α] (p : Type) [_inst_2 : char_p α p]
 @[instance] axiom emetric.topological_space.first_countable_topology (α : Type) [_inst_2 : emetric_space α] : @topological_space.first_countable_topology α (@uniform_space.to_topological_space α (@emetric_space.to_uniform_space' α _inst_2))
 class topological_monoid (α : Type) [_inst_1 : topological_space α] [_inst_2 : monoid α]
 class topological_add_monoid (α : Type) [_inst_1 : topological_space α] [_inst_2 : add_monoid α]
@@ -740,9 +738,9 @@ class ordered_topology (α : Type) [t : topological_space α] [_inst_1 : preorde
 @[instance] axiom uniform_add_group.to_topological_add_group (α : Type) [_inst_1 : uniform_space α] [_inst_2 : add_group α] [_inst_3 : @uniform_add_group α _inst_1 _inst_2] : @topological_add_group α (@uniform_space.to_topological_space α _inst_1) _inst_2
 @[instance] axiom ordered_topology.to_t2_space (α : Type) [_inst_1 : topological_space α] [_inst_2 : partial_order α] [t : @ordered_topology α _inst_1 (@partial_order.to_preorder α _inst_2)] : @t2_space α _inst_1
 class orderable_topology (α : Type) [t : topological_space α] [_inst_1 : partial_order α]
-class add_comm_group.is_Z_bilin (α : Type) (β : Type) (γ : Type) [_inst_1 : add_comm_group α] [_inst_2 : add_comm_group β] [_inst_3 : add_comm_group γ] (f : Type)
 @[instance] axiom orderable_topology.to_ordered_topology (α : Type) [_inst_1 : topological_space α] [_inst_2 : linear_order α] [t : @orderable_topology α _inst_1 (@linear_order.to_partial_order α _inst_2)] : @ordered_topology α _inst_1 (@partial_order.to_preorder α (@linear_order.to_partial_order α _inst_2))
 @[instance] axiom orderable_topology.t2_space (α : Type) [_inst_1 : topological_space α] [_inst_2 : linear_order α] [t : @orderable_topology α _inst_1 (@linear_order.to_partial_order α _inst_2)] : @t2_space α _inst_1
+class add_comm_group.is_Z_bilin (α : Type) (β : Type) (γ : Type) [_inst_1 : add_comm_group α] [_inst_2 : add_comm_group β] [_inst_3 : add_comm_group γ] (f : Type)
 @[instance] axiom orderable_topology.regular_space (α : Type) [_inst_1 : topological_space α] [_inst_2 : linear_order α] [t : @orderable_topology α _inst_1 (@linear_order.to_partial_order α _inst_2)] : @regular_space α _inst_1
 class has_dist (α : Type)
 class metric_space (α : Type)
@@ -756,11 +754,11 @@ class proper_space (α : Type) [_inst_2 : metric_space α]
 @[instance] axiom locally_compact_of_proper (α : Type) [_inst_1 : metric_space α] [_inst_2 : @proper_space α _inst_1] : @locally_compact_space α (@uniform_space.to_topological_space α (@metric_space.to_uniform_space' α _inst_1))
 @[instance] axiom complete_of_proper (α : Type) [_inst_1 : metric_space α] [_inst_2 : @proper_space α _inst_1] : @complete_space α (@metric_space.to_uniform_space' α _inst_1)
 @[instance] axiom second_countable_of_proper (α : Type) [_inst_1 : metric_space α] [_inst_2 : @proper_space α _inst_1] : @topological_space.second_countable_topology α (@uniform_space.to_topological_space α (@metric_space.to_uniform_space' α _inst_1))
+class premetric_space (α : Type)
+@[instance] axiom premetric_space.to_has_dist (α : Type) [c : premetric_space α] : has_dist α
 class ideal.is_prime (α : Type) [_inst_1 : comm_ring α] (I : Type)
 class ideal.is_maximal (α : Type) [_inst_1 : comm_ring α] (I : Type)
 @[instance] axiom ideal.is_maximal.is_prime' (α : Type) [_inst_1 : comm_ring α] (I : Type) [H : @ideal.is_maximal α _inst_1 I] : @ideal.is_prime α _inst_1 I
-class premetric_space (α : Type)
-@[instance] axiom premetric_space.to_has_dist (α : Type) [c : premetric_space α] : has_dist α
 class local_ring (α : Type)
 @[instance] axiom local_ring.to_nonzero_comm_ring (α : Type) [c : local_ring α] : nonzero_comm_ring α
 @[instance] axiom local_ring.comm_ring (α : Type) [_inst_1 : local_ring α] : comm_ring α
@@ -781,10 +779,10 @@ class algebra (R : Type) (A : Type) [_inst_1 : comm_ring R] [_inst_2 : ring A]
 @[instance] axiom algebra.has_scalar (R : Type) (A : Type) [_inst_1 : comm_ring R] [_inst_3 : ring A] [_inst_4 : @algebra R A _inst_1 _inst_3] : has_scalar R A
 @[instance] axiom algebra.vector_space (F : Type) (K : Type) [_inst_5 : discrete_field F] [_inst_6 : ring K] [_inst_7 : @algebra F K (@local_ring.comm_ring F (@discrete_field.local_ring F _inst_5)) _inst_6] : @vector_space F K _inst_5 (@ring.to_add_comm_group K _inst_6)
 @[instance] axiom algebra.id (R : Type) [_inst_1 : comm_ring R] : @algebra R R _inst_1 (@comm_ring.to_ring R _inst_1)
-class topological_semimodule (α : Type) (β : Type) [_inst_1 : semiring α] [_inst_2 : topological_space α] [_inst_3 : topological_space β] [_inst_4 : add_comm_monoid β] [_inst_5 : semimodule α β]
-class topological_module (α : Type) (β : Type) [_inst_1 : ring α] [_inst_2 : topological_space α] [_inst_3 : topological_space β] [_inst_4 : add_comm_group β] [_inst_5 : module α β]
+class topological_semimodule (α : Type) (β : Type) [_inst_1 : semiring α] [_inst_2 : topological_space α] [_inst_3 : topological_space β] [_inst_4 : add_comm_monoid β] [_inst_5 : @semimodule α β _inst_1 _inst_4]
+class topological_module (α : Type) (β : Type) [_inst_1 : ring α] [_inst_2 : topological_space α] [_inst_3 : topological_space β] [_inst_4 : add_comm_group β] [_inst_5 : @module α β _inst_1 _inst_4]
 @[instance] axiom topological_module.to_topological_semimodule (α : Type) (β : Type) [_inst_1 : ring α] [_inst_2 : topological_space α] [_inst_3 : topological_space β] [_inst_4 : add_comm_group β] [_inst_5 : @module α β _inst_1 _inst_4] [c : @topological_module α β _inst_1 _inst_2 _inst_3 _inst_4 _inst_5] : @topological_semimodule α β (@ring.to_semiring α _inst_1) _inst_2 _inst_3 (@add_comm_group.to_add_comm_monoid β _inst_4) (@module.to_semimodule α β _inst_1 _inst_4 _inst_5)
-class topological_vector_space (α : Type) (β : Type) [_inst_1 : discrete_field α] [_inst_2 : topological_space α] [_inst_3 : topological_space β] [_inst_4 : add_comm_group β] [_inst_5 : vector_space α β]
+class topological_vector_space (α : Type) (β : Type) [_inst_1 : discrete_field α] [_inst_2 : topological_space α] [_inst_3 : topological_space β] [_inst_4 : add_comm_group β] [_inst_5 : @vector_space α β _inst_1 _inst_4]
 @[instance] axiom topological_vector_space.to_topological_module (α : Type) (β : Type) [_inst_1 : discrete_field α] [_inst_2 : topological_space α] [_inst_3 : topological_space β] [_inst_4 : add_comm_group β] [_inst_5 : @vector_space α β _inst_1 _inst_4] [c : @topological_vector_space α β _inst_1 _inst_2 _inst_3 _inst_4 _inst_5] : @topological_module α β (@domain.to_ring α (@division_ring.to_domain α (@field.to_division_ring α (@discrete_field.to_field α _inst_1)))) _inst_2 _inst_3 _inst_4 (@vector_space.to_module α β _inst_1 _inst_4 _inst_5)
 class has_norm (α : Type)
 class normed_group (α : Type)
@@ -808,10 +806,10 @@ class normed_field (α : Type)
 class nondiscrete_normed_field (α : Type)
 @[instance] axiom nondiscrete_normed_field.to_normed_field (α : Type) [c : nondiscrete_normed_field α] : normed_field α
 @[instance] axiom normed_field.to_normed_ring (α : Type) [i : normed_field α] : normed_ring α
-class is_noetherian (α : Type) (β : Type) [_inst_1 : ring α] [_inst_2 : add_comm_group β] [_inst_3 : module α β]
 class normed_space (α : Type) (β : Type) [_inst_1 : normed_field α] [_inst_2 : normed_group β]
 @[instance] axiom normed_space.to_vector_space (α : Type) (β : Type) [_inst_1 : normed_field α] [_inst_2 : normed_group β] [c : @normed_space α β _inst_1 _inst_2] : @vector_space α β (@normed_field.to_discrete_field α _inst_1) (@normed_group.to_add_comm_group β _inst_2)
 @[instance] axiom normed_field.to_normed_space (α : Type) [_inst_1 : normed_field α] : @normed_space α α _inst_1 (@normed_ring.to_normed_group α (@normed_field.to_normed_ring α _inst_1))
+class is_noetherian (α : Type) (β : Type) [_inst_1 : ring α] [_inst_2 : add_comm_group β] [_inst_3 : @module α β _inst_1 _inst_2]
 @[instance] axiom normed_space.topological_vector_space (α : Type) [_inst_1 : normed_field α] (E : Type) [_inst_3 : normed_group E] [_inst_4 : @normed_space α E _inst_1 _inst_3] : @topological_vector_space α E (@normed_field.to_discrete_field α _inst_1) (@uniform_space.to_topological_space α (@metric_space.to_uniform_space' α (@normed_field.to_metric_space α _inst_1))) (@uniform_space.to_topological_space E (@metric_space.to_uniform_space' E (@normed_group.to_metric_space E _inst_3))) (@normed_group.to_add_comm_group E _inst_3) (@normed_space.to_vector_space α E _inst_1 _inst_3 _inst_4)
 class is_noetherian_ring (α : Type) [_inst_1 : ring α]
 @[instance] axiom is_noetherian_ring.to_is_noetherian (α : Type) [_inst_1 : ring α] [_inst_2 : @is_noetherian_ring α _inst_1] : @is_noetherian α α _inst_1 (@ring.to_add_comm_group α _inst_1) (@ring.to_module α _inst_1)
@@ -821,8 +819,6 @@ class ideal.is_principal (α : Type) [_inst_1 : comm_ring α] (S : Type)
 class principal_ideal_domain (α : Type)
 @[instance] axiom principal_ideal_domain.to_integral_domain (α : Type) [c : principal_ideal_domain α] : integral_domain α
 @[instance] axiom principal_ideal_domain.principal (α : Type) [c : principal_ideal_domain α] (S : Type) : @ideal.is_principal α (@nonzero_comm_ring.to_comm_ring α (@integral_domain.to_nonzero_comm_ring α (@principal_ideal_domain.to_integral_domain α c))) S
-class directed_system (ι : Type) [_inst_2 : nonempty ι] [_inst_3 : directed_order ι] [_inst_4 : Π (a b : ι), decidable (a = b)] (G : Type) [_inst_5 : Π (i : ι) (a b : G i), decidable (a = b)] (f : Type)
-class module.directed_system (R : Type) [_inst_1 : ring R] (ι : Type) [_inst_2 : nonempty ι] [_inst_3 : directed_order ι] [_inst_4 : Π (a b : ι), decidable (a = b)] (G : Type) [_inst_5 : Π (i : ι) (a b : G i), decidable (a = b)] [_inst_6 : Π (i : ι), add_comm_group (G i)] [_inst_7 : Π (i : ι), module R (G i)] (f : Type)
 @[instance] axiom euclidean_domain.to_principal_ideal_domain (α : Type) [_inst_1 : euclidean_domain α] : principal_ideal_domain α
 @[instance] axiom principal_ideal_domain.is_noetherian_ring (α : Type) [_inst_1 : principal_ideal_domain α] : @is_noetherian_ring α (@domain.to_ring α (@integral_domain.to_domain α (@principal_ideal_domain.to_integral_domain α _inst_1)))
 class sequential_space (α : Type) [_inst_3 : topological_space α]

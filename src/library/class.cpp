@@ -268,6 +268,8 @@ void print_deps(type_context_old & ctx, expr const & e) {
 
 mutex cerr_mutex;
 
+options opts = options({"pp", "full_names"}, true).update({"pp", "implicit"}, true);
+
 environment add_class_core(environment const & env, name const &n, bool persistent) {
     check_class(env, n);
     lock_guard<mutex> guard(cerr_mutex);
@@ -285,7 +287,7 @@ environment add_class_core(environment const & env, name const &n, bool persiste
         expr type = env.get(n).get_type();
         type_context_old ctx(env, transparency_mode::Reducible);
         type_context_old::tmp_locals locals(ctx);
-        auto f = mk_pretty_formatter_factory()(env, options({"pp", "full_names"}, true), ctx);
+        auto f = mk_pretty_formatter_factory()(env, opts, ctx);
         while (is_pi(type)) {
             auto dom = binding_domain(type);
             dom = normalize(ctx, dom, /* eta */ true);
@@ -322,8 +324,6 @@ bool has_class_out_params(environment const & env, name const & c) {
 
 thread_local bool from_extends = false;
 
-options opts = options({"pp", "full_names"}, true).update({"pp", "implicit"}, true);
-
 environment add_instance_core(environment const & env, name const & n, unsigned priority, bool persistent) {
     declaration d = env.get(n);
     expr type = d.get_type();
@@ -348,10 +348,13 @@ environment add_instance_core(environment const & env, name const & n, unsigned 
         deps.insert(n);
         type_context_old::transparency_scope _(ctx, transparency_mode::Reducible);
         sstream ss;
-        auto pos = *get_decl_pos_info(env, n);
         ss << "{\"kind\": \"instance\", \"name\": \"" << n << "\", \"class\": \"" << c << "\", \"from_extends\": "
-         << from_extends << ", \"loc\": \"" << get_pos_info_provider()->get_file_name() << ":" << pos.first << ":"
-         << pos.second << "\", \"uparams\": [";
+         << from_extends << ", ";
+        if (auto pos = get_decl_pos_info(env, n)) {
+            ss << "\"loc\": \"" << get_pos_info_provider()->get_file_name() << ":" << pos->first << ":"
+               << pos->second << "\", ";
+        }
+        ss << "\"uparams\": [";
         for (auto & l : env.get(n).get_univ_params())
             ss << "\"" << l << "\",";
         ss << "], \"params\": [";
