@@ -141,6 +141,10 @@ list<expr> const & simp_lemma::get_emetas() const {
     return m_ptr->m_emetas;
 }
 
+levels<expr> const & simp_lemma::get_umetas() const {
+    return m_ptr->m_umetas;
+}
+
 list<bool> const & simp_lemma::get_instances() const {
     return m_ptr->m_instances;
 }
@@ -1403,54 +1407,53 @@ public:
     simp_aux_prover(vm_obj const & prove_fn, tactic_state const & s):
         m_prove_fn(prove_fn), m_state(s) {}
 
-    optional<expr> operator()(tmp_type_context & tmp_ctx, expr const & e) {
-        tactic_state s     = mk_tactic_state_for(m_state.env(), m_state.get_options(), m_state.decl_name(), tmp_ctx.ctx().lctx(), e);
+    optional<expr> operator()(type_context_old & ctx, expr const & e) {
+        tactic_state s     = mk_tactic_state_for(m_state.env(), m_state.get_options(), m_state.decl_name(), ctx.lctx(), e);
         vm_obj r_obj       = invoke(m_prove_fn, to_obj(s));
         optional<tactic_state> s_new = tactic::is_success(r_obj);
         if (!s_new || s_new->goals()) return none_expr();
         metavar_context mctx   = s_new->mctx();
         expr result            = mctx.instantiate_mvars(s_new->main());
         if (has_expr_metavar(result)) return none_expr();
-        tmp_ctx.ctx().set_mctx(mctx);
+        ctx.set_mctx(mctx);
         return some_expr(result);
     }
 };
 
-static bool instantiate_emetas(tmp_type_context & tmp_ctx, vm_obj const & prove_fn, list <expr> const & emetas,
+static bool instantiate_emetas(type_context_old & ctx, vm_obj const & prove_fn, list <expr> const & emetas,
                                list<bool> const & instances, tactic_state const & s) {
     simp_aux_prover prover(prove_fn, s);
-    return instantiate_emetas_fn<simp_aux_prover>(prover)(tmp_ctx, emetas, instances);
+    return instantiate_emetas_fn<simp_aux_prover>(prover)(ctx, emetas, instances);
 }
 
 
 static simp_result simp_lemma_rewrite_core(type_context_old & ctx, simp_lemma const & sl, vm_obj const & prove_fn,
                                            expr const & e, tactic_state const & s) {
-    tmp_type_context tmp_ctx(ctx, sl.get_num_umeta(), sl.get_num_emeta());
-    if (!tmp_ctx.is_def_eq(sl.get_lhs(), e)) {
+    if (!ctx.is_def_eq(sl.get_lhs(), e)) {
         lean_trace("simp_lemmas", tout() << "fail to unify: " << sl.get_id() << "\n";);
         return simp_result(e);
     }
 
-    if (!instantiate_emetas(tmp_ctx, prove_fn, sl.get_emetas(), sl.get_instances(), s)) {
+    if (!instantiate_emetas(ctx, prove_fn, sl.get_emetas(), sl.get_instances(), s)) {
         lean_trace("simp_lemmas", tout() << "fail to instantiate emetas: " << sl.get_id() << "\n";);
         return simp_result(e);
     }
 
     for (unsigned i = 0; i < sl.get_num_umeta(); i++) {
-        if (!tmp_ctx.is_uassigned(i)) return simp_result(e);
+        if (!ctx.is_assigned(i)) return simp_result(e);
     }
 
-    expr new_lhs = tmp_ctx.instantiate_mvars(sl.get_lhs());
-    expr new_rhs = tmp_ctx.instantiate_mvars(sl.get_rhs());
+    expr new_lhs = ctx.instantiate_mvars(sl.get_lhs());
+    expr new_rhs = ctx.instantiate_mvars(sl.get_rhs());
     if (sl.is_permutation()) {
         if (!is_lt(new_rhs, new_lhs, false)) {
-            lean_trace("simp_lemmas", scope_trace_env scope(ctx.env(), tmp_ctx);
+            lean_trace("simp_lemmas", scope_trace_env scope(ctx.env(), ctx);
                        tout() << "perm rejected: " << new_rhs << " !< " << new_lhs << "\n";);
             return simp_result(e);
         }
     }
 
-    expr pf = tmp_ctx.instantiate_mvars(sl.get_proof());
+    expr pf = ctx.instantiate_mvars(sl.get_proof());
     return simp_result(new_rhs, pf);
 }
 

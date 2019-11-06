@@ -46,6 +46,7 @@ public:
 
     /** \brief Return a list containing the expression metavariables in reverse order. */
     list<expr> const & get_emetas() const;
+    list<level> const & get_umetas() const;
 
     /** \brief Return a list of bools indicating whether or not each expression metavariable
         in <tt>get_emetas()</tt> is an instance. */

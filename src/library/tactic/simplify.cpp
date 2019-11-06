@@ -135,7 +135,7 @@ public:
 bool simplify_core_fn::instantiate_emetas(list <expr> const & emetas,
                                           list<bool> const & instances) {
     simp_prover prover(*this);
-    return instantiate_emetas_fn<simp_prover>(prover)(emetas, instances);
+    return instantiate_emetas_fn<simp_prover>(prover)(m_ctx, emetas, instances);
 }
 
 simp_result simplify_core_fn::lift_from_eq(simp_result const & r_eq) {
@@ -213,6 +213,12 @@ expr simplify_core_fn::defeq_canonize_args_step(expr const & e) {
     }
 
     return modified ? mk_app(f, args) : e;
+}
+
+simp_lemma simplify_core_fn::purify_simp_lemma(simp_lemma const & sl_) {
+    simp_lemma sl(sl_);
+    return sl;
+
 }
 
 /* Try user defined congruence lemmas */
@@ -308,11 +314,11 @@ simp_result simplify_core_fn::try_user_congr(expr const & e, simp_lemma const & 
     if (!simplified)
         return simp_result(e);
 
-    if (!instantiate_emetas(m_ctx, cl.get_emetas(), cl.get_instances()))
+    if (!instantiate_emetas(cl.get_emetas(), cl.get_instances()))
         return simp_result(e);
 
-    for (unsigned i = 0; i < cl.get_num_umeta(); i++) {
-        if (!m_ctx.is_uassigned(i))
+    for (level const &l : cl.get_umetas()) {
+        if (!m_ctx.is_assigned(l))
             return simp_result(e);
     }
 
@@ -504,7 +510,7 @@ simp_result simplify_core_fn::rewrite(expr const & e) {
 }
 
 bool simplify_core_fn::match(simp_lemma const & sl, expr const & t) {
-    return ctx.match(sl.get_lhs(), t);
+    return m_ctx.match(sl.get_lhs(), t);
 }
 
 /* If both e and sl.get_lhs() are of the form (f ...),
@@ -521,7 +527,7 @@ static bool should_trace_failure(expr const & e, simp_lemma const & sl) {
 }
 
 simp_result simplify_core_fn::rewrite_core(expr const & e, simp_lemma const & sl) {
-    if (!match(m_ctx, sl, e)) {
+    if (!m_ctx.match(sl.get_lhs(), e)) {
         if (lean_is_trace_enabled(name({"simplify", "rewrite_failure"})) &&
             should_trace_failure(e, sl)) {
             lean_simp_trace_d(m_ctx, name({"simplify", "rewrite_failure"}),
@@ -531,7 +537,7 @@ simp_result simplify_core_fn::rewrite_core(expr const & e, simp_lemma const & sl
         return simp_result(e);
     }
 
-    if (!instantiate_emetas(m_ctx, sl.get_emetas(), sl.get_instances())) {
+    if (!instantiate_emetas(sl.get_emetas(), sl.get_instances())) {
         lean_simp_trace_d(m_ctx, name({"simplify", "failure"}),
                           lean_trace_init_bool(name({"simplify", "failure"}), get_pp_implicit_name(), true);
                           tout() << "fail to instantiate emetas: '" << sl.get_id() << "' at\n"
@@ -539,8 +545,8 @@ simp_result simplify_core_fn::rewrite_core(expr const & e, simp_lemma const & sl
         return simp_result(e);
     }
 
-    for (unsigned i = 0; i < sl.get_num_umeta(); i++) {
-        if (!m_ctx.is_uassigned(i)) {
+    for (level const & l : sl.get_umetas()) {
+        if (!m_ctx.is_assigned(l)) {
             lean_simp_trace_d(m_ctx, name({"simplify", "failure"}),
                               lean_trace_init_bool(name({"simplify", "failure"}), get_pp_universes_name(), true);
                               tout() << "fail to instantiate umetas: '" << sl.get_id() << "'\n";);

@@ -102,6 +102,8 @@ protected:
     expr remove_unnecessary_casts(expr const & e);
     expr defeq_canonize_args_step(expr const & e);
 
+    simp_lemma purify_simp_lemma(simp_lemma const & sl);
+
     /* Congruence */
     simp_result try_user_congrs(expr const & e);
     simp_result try_user_congr(expr const & e, simp_lemma const & cr);
