@@ -1273,8 +1273,8 @@ static expr refl_lemma_rewrite_core(type_context_old & ctx, expr const & e, simp
 
     if (!instantiate_emetas(ctx, sl.get_emetas(), sl.get_instances())) return e;
 
-    for (unsigned i = 0; i < sl.get_num_umeta(); i++) {
-        if (!ctx.get_tmp_uvar_assignment(i)) return e;
+    for (level const & umeta : sl.get_umetas()) {
+        if (!ctx.get_assignment(umeta)) return e;
     }
 
     return ctx.instantiate_mvars(sl.get_rhs());
@@ -1457,6 +1457,8 @@ static simp_result simp_lemma_rewrite_core(type_context_old & ctx, simp_lemma co
 }
 
 simp_lemma purify(type_context_old & ctx, simp_lemma const & sl_) {
+    lean_trace(name({"simp_lemmas", "purify"}), tout() << sl_.get_id() << "\n";);
+
     buffer<expr>  old_emetas;
     buffer<level> old_umetas;
 
@@ -1503,7 +1505,6 @@ simp_lemma purify(type_context_old & ctx, simp_lemma const & sl_) {
                                                });};
 
     for (unsigned i = 0; i < old_emetas.size(); ++i) {
-        std::cout << "[" << i << "] " << old_emetas[i] << " : " << mlocal_type(old_emetas[i]) << std::endl;
         expr new_emeta_type = replace_expr(mlocal_type(old_emetas[i]));
         if (has_idx_metavar(new_emeta_type)) {
             std::cout << "ERROR: HAS_IDX_METAVAR: " << new_emeta_type << std::endl;
@@ -1662,6 +1663,7 @@ void initialize_simp_lemmas() {
     g_refl_lemma_attr     = new name{"_refl_lemma"};
     register_trace_class("simp_lemmas");
     register_trace_class("simp_lemmas_cache");
+    register_trace_class(name{"simp_lemmas", "purify"});
     register_trace_class(name{"simp_lemmas", "failure"});
     register_trace_class(name{"simp_lemmas", "invalid"});
     register_system_attribute(basic_attribute(

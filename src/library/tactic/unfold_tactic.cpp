@@ -47,7 +47,7 @@ optional<expr> dunfold(type_context_old & ctx, expr const & e) {
     buffer<expr> extra_args;
     while (true) {
         for (simp_lemma const & sl : lemmas) {
-            expr new_it = refl_lemma_rewrite(ctx, it, sl);
+            expr new_it = refl_lemma_rewrite(ctx, it, purify(ctx, sl));
             if (new_it != it) {
                 expr new_e = annotated_head_beta_reduce(mk_rev_app(new_it, extra_args));
                 return some_expr(new_e);

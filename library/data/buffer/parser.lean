@@ -182,6 +182,8 @@ list.cons <$> p <*> many (sep >> p)
 def sep_by (sep : parser unit) (p : parser α) : parser (list α) :=
 sep_by1 sep p <|> return []
 
+set_option trace.simp_lemmas.purify true
+
 def fix_core (F : parser α → parser α) : ∀ (max_depth : ℕ), parser α
 | 0             := failure
 | (max_depth+1) := F (fix_core max_depth)
