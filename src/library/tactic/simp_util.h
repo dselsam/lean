@@ -75,7 +75,7 @@ public:
                 }
 
                 if (ctx.is_prop(mvar_type)) {
-                    if (auto pf = m_prover(mvar_type)) {
+                    if (auto pf = m_prover(ctx, mvar_type)) {
                         lean_verify(ctx.is_def_eq(mvar, *pf));
                         return;
                     } else {

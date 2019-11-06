@@ -141,7 +141,7 @@ list<expr> const & simp_lemma::get_emetas() const {
     return m_ptr->m_emetas;
 }
 
-levels<expr> const & simp_lemma::get_umetas() const {
+levels const & simp_lemma::get_umetas() const {
     return m_ptr->m_umetas;
 }
 
@@ -1439,8 +1439,8 @@ static simp_result simp_lemma_rewrite_core(type_context_old & ctx, simp_lemma co
         return simp_result(e);
     }
 
-    for (unsigned i = 0; i < sl.get_num_umeta(); i++) {
-        if (!ctx.is_assigned(i)) return simp_result(e);
+    for (level const & l : sl.get_umetas()) {
+        if (!ctx.is_assigned(l)) return simp_result(e);
     }
 
     expr new_lhs = ctx.instantiate_mvars(sl.get_lhs());

@@ -127,7 +127,7 @@ class simp_prover {
 public:
     simp_prover(simplify_core_fn & s):m_simp(s) {}
 
-    optional<expr> operator()(expr const & e) {
+    optional<expr> operator()(type_context_old &, expr const & e) {
         return m_simp.prove(e);
     }
 };
