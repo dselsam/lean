@@ -222,7 +222,7 @@ simp_result simplify_core_fn::try_user_congrs(expr const & e) {
 
     if (auto cls = sls->find_congr(e)) {
         for (simp_lemma const & cl : *cls) {
-            simp_result r = try_user_congr(e, cl);
+            simp_result r = try_user_congr(e, purify_simp_lemma(cl));
             if (r.get_new() != e)
                 return r;
         }
@@ -230,7 +230,7 @@ simp_result simplify_core_fn::try_user_congrs(expr const & e) {
 
     if (auto cls = sls->find_congr(head_index(expr_kind::Meta))) {
         for (simp_lemma const & cl : *cls) {
-            simp_result r = try_user_congr(e, cl);
+            simp_result r = try_user_congr(e, purify_simp_lemma(cl));
             if (r.get_new() != e)
                 return r;
         }
@@ -491,7 +491,7 @@ simp_result simplify_core_fn::rewrite(expr const & e) {
     }
 
     for (simp_lemma const & lemma : *srs) {
-        simp_result r = rewrite(e, lemma);
+        simp_result r = rewrite(e, purify_simp_lemma(lemma));
         if (!is_eqp(r.get_new(), e)) {
             lean_simp_trace_d(m_ctx, name({"simplify", "rewrite"}),
                               tout() << "[" << lemma.get_id() << "]: "
@@ -521,7 +521,7 @@ static bool should_trace_failure(expr const & e, simp_lemma const & sl) {
 }
 
 simp_result simplify_core_fn::rewrite_core(expr const & e, simp_lemma const & sl) {
-    if (!match(tmp_ctx, sl, e)) {
+    if (!match(m_ctx, sl, e)) {
         if (lean_is_trace_enabled(name({"simplify", "rewrite_failure"})) &&
             should_trace_failure(e, sl)) {
             lean_simp_trace_d(m_ctx, name({"simplify", "rewrite_failure"}),
@@ -531,16 +531,16 @@ simp_result simplify_core_fn::rewrite_core(expr const & e, simp_lemma const & sl
         return simp_result(e);
     }
 
-    if (!instantiate_emetas(tmp_ctx, sl.get_emetas(), sl.get_instances())) {
+    if (!instantiate_emetas(m_ctx, sl.get_emetas(), sl.get_instances())) {
         lean_simp_trace_d(m_ctx, name({"simplify", "failure"}),
                           lean_trace_init_bool(name({"simplify", "failure"}), get_pp_implicit_name(), true);
                           tout() << "fail to instantiate emetas: '" << sl.get_id() << "' at\n"
-                          << e << "\npartially instantiated lemma:\n" << tmp_ctx.instantiate_mvars(sl.get_proof()) << "\n";);
+                          << e << "\npartially instantiated lemma:\n" << m_ctx.instantiate_mvars(sl.get_proof()) << "\n";);
         return simp_result(e);
     }
 
     for (unsigned i = 0; i < sl.get_num_umeta(); i++) {
-        if (!tmp_ctx.is_uassigned(i)) {
+        if (!m_ctx.is_uassigned(i)) {
             lean_simp_trace_d(m_ctx, name({"simplify", "failure"}),
                               lean_trace_init_bool(name({"simplify", "failure"}), get_pp_universes_name(), true);
                               tout() << "fail to instantiate umetas: '" << sl.get_id() << "'\n";);
@@ -548,8 +548,8 @@ simp_result simplify_core_fn::rewrite_core(expr const & e, simp_lemma const & sl
         }
     }
 
-    expr new_lhs = tmp_ctx.instantiate_mvars(sl.get_lhs());
-    expr new_rhs = tmp_ctx.instantiate_mvars(sl.get_rhs());
+    expr new_lhs = m_ctx.instantiate_mvars(sl.get_lhs());
+    expr new_rhs = m_ctx.instantiate_mvars(sl.get_rhs());
 
     if (new_rhs == e) {
         /* TODO(Leo): remove after we have arithmetic normalizer.
@@ -563,13 +563,13 @@ simp_result simplify_core_fn::rewrite_core(expr const & e, simp_lemma const & sl
 
     if (sl.is_permutation()) {
         if (!is_lt(new_rhs, new_lhs, false, &m_ctx.lctx())) {
-            lean_simp_trace(tmp_ctx, name({"simplify", "perm"}),
+            lean_simp_trace(m_ctx, name({"simplify", "perm"}),
                             tout() << "perm rejected: " << new_rhs << " !< " << new_lhs << "\n";);
             return simp_result(e);
         }
     }
 
-    expr pf = tmp_ctx.instantiate_mvars(sl.get_proof());
+    expr pf = m_ctx.instantiate_mvars(sl.get_proof());
     return simp_result(new_rhs, pf);
 }
 
