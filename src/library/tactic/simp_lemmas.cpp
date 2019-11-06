@@ -10,6 +10,7 @@ Author: Leonardo de Moura
 #include "kernel/instantiate.h"
 #include "kernel/for_each_fn.h"
 #include "kernel/find_fn.h"
+#include "kernel/replace_fn.h"
 #include "library/constants.h"
 #include "library/trace.h"
 #include "library/util.h"
@@ -1231,11 +1232,10 @@ static bool instantiate_emetas(type_context_old & ctx, list<expr> const & _emeta
     lean_assert(emetas.size() == instances.size());
     for (unsigned i = 0; i < emetas.size(); ++i) {
         expr m = emetas[i];
-        unsigned mvar_idx = to_meta_idx(m);
         expr m_type = ctx.instantiate_mvars(ctx.infer(m));
         // TODO(Leo, Daniel): do we need the following assertion?
         // lean_assert(!has_expr_metavar(m_type));
-        if (ctx.get_tmp_mvar_assignment(mvar_idx)) continue;
+        if (ctx.get_assignment(m)) continue;
         if (instances[i]) {
             if (auto v = ctx.mk_class_instance(m_type)) {
                 if (!ctx.is_def_eq(m, *v)) {
@@ -1243,7 +1243,7 @@ static bool instantiate_emetas(type_context_old & ctx, list<expr> const & _emeta
                                tout() << "unable to assign instance for: " << m_type << "\n";);
                     return false;
                 } else {
-                    lean_assert(ctx.get_tmp_mvar_assignment(mvar_idx));
+                    lean_assert(ctx.get_assignment(m));
                     continue;
                 }
             } else {
@@ -1458,7 +1458,72 @@ static simp_result simp_lemma_rewrite_core(type_context_old & ctx, simp_lemma co
 }
 
 simp_lemma purify(type_context_old & ctx, simp_lemma const & sl_) {
-    return sl_;
+    buffer<expr>  old_emetas;
+    buffer<level> old_umetas;
+
+    to_buffer(sl_.get_emetas(), old_emetas);
+    to_buffer(sl_.get_umetas(), old_umetas);
+
+    buffer<expr>  new_emetas;
+    buffer<level> new_umetas;
+
+    for (unsigned i = 0; i < old_umetas.size(); ++i) {
+        new_umetas.push_back(ctx.mk_univ_metavar_decl());
+    }
+
+    auto replace_level = [&](level const & l_) {
+                                  return replace(l_, [&](level const & l) {
+                                                        if (!has_meta(l)) {
+                                                            return optional<level>(l);
+                                                        } else if (is_meta(l)) {
+                                                            for (unsigned j = 0; j < new_umetas.size(); ++j) {
+                                                                if (l == old_umetas[j])
+                                                                    return optional<level>(new_umetas[j]);
+                                                            }
+                                                        }
+                                                        return optional<level>();
+                                                     });
+                              };
+
+    auto replace_expr_upto = [&](expr const & e_, unsigned i) {
+                                 return replace(e_, [&](expr const & e, unsigned) {
+                                                        if (!has_metavar(e)) {
+                                                            return optional<expr>(e);
+                                                        } else if (is_constant(e)) {
+                                                            levels new_levels = map(const_levels(e), [&](level const & l) { return replace_level(l); });
+                                                            return optional<expr>(update_constant(e, new_levels));
+                                                        } else if (is_metavar(e)) {
+                                                            for (unsigned j = 0; j < i; ++j) {
+                                                                if (e == old_emetas[j])
+                                                                    return optional<expr>(new_emetas[j]);
+                                                            }
+                                                        }
+                                                        return optional<expr>();
+                                                    });};
+
+    for (unsigned i = 0; i < old_emetas.size(); ++i) {
+        expr new_emeta_type = replace_expr_upto(mlocal_type(old_emetas[i]), i);
+        new_emetas.push_back(ctx.mk_metavar_decl(ctx.lctx(), new_emeta_type));
+    }
+
+    expr new_lhs   = replace_expr_upto(sl_.get_lhs(), new_emetas.size());
+    expr new_rhs   = replace_expr_upto(sl_.get_rhs(), new_emetas.size());
+    expr new_proof = replace_expr_upto(sl_.get_proof(), new_emetas.size());
+
+    switch (sl_.kind()) {
+    case simp_lemma_kind::Simp:
+        return mk_simp_lemma(sl_.get_id(), to_list(new_umetas), to_list(new_emetas),
+                             sl_.get_instances(), new_lhs, new_rhs, new_proof, sl_.is_permutation(), sl_.get_priority());
+    case simp_lemma_kind::Congr:
+        return mk_congr_lemma(sl_.get_id(), to_list(new_umetas), to_list(new_emetas),
+                              sl_.get_instances(), new_lhs, new_rhs, new_proof,
+                              map(sl_.get_congr_hyps(), [&](expr const & hyp) { return replace_expr_upto(hyp, new_emetas.size()); }),
+                              sl_.get_priority());
+    case simp_lemma_kind::Refl:
+        return mk_rfl_lemma(sl_.get_id(), to_list(new_umetas), to_list(new_emetas),
+                             sl_.get_instances(), new_lhs, new_rhs, new_proof, sl_.get_priority());
+    }
+    lean_unreachable();
 }
 
 static vm_obj simp_lemmas_rewrite_core(transparency_mode const & m, simp_lemmas const & sls, vm_obj const & prove_fn,
