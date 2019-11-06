@@ -1457,6 +1457,10 @@ static simp_result simp_lemma_rewrite_core(type_context_old & ctx, simp_lemma co
     return simp_result(new_rhs, pf);
 }
 
+simp_lemma purify(type_context_old & ctx, simp_lemma const & sl_) {
+    return sl_;
+}
+
 static vm_obj simp_lemmas_rewrite_core(transparency_mode const & m, simp_lemmas const & sls, vm_obj const & prove_fn,
                                        name const & R, expr const & e, tactic_state s) {
     LEAN_TACTIC_TRY;
@@ -1470,7 +1474,7 @@ static vm_obj simp_lemmas_rewrite_core(transparency_mode const & m, simp_lemmas 
     type_context_old ctx = cache.mk_type_context(m);
 
     for (simp_lemma const & lemma : *srs) {
-        simp_result r = simp_lemma_rewrite_core(ctx, lemma, prove_fn, e, s);
+        simp_result r = simp_lemma_rewrite_core(ctx, purify(ctx, lemma), prove_fn, e, s);
         if (!is_eqp(r.get_new(), e)) {
             lean_trace("simp_lemmas", scope_trace_env scope(ctx.env(), ctx);
                        tout() << "[" << lemma.get_id() << "]: " << e << " ==> " << r.get_new() << "\n";);
@@ -1502,7 +1506,7 @@ static vm_obj simp_lemmas_drewrite_core(transparency_mode const & m, simp_lemmas
 
     for (simp_lemma const & lemma : *srs) {
         if (lemma.is_refl()) {
-            expr new_e = refl_lemma_rewrite(ctx, e, lemma);
+            expr new_e = refl_lemma_rewrite(ctx, e, purify(ctx, lemma));
             if (new_e != e)
                 return tactic::mk_success(to_obj(new_e), s);
         }

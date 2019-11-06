@@ -163,6 +163,8 @@ environment mark_rfl_lemma(environment const & env, name const & cname);
 /* Return the declaration name for the simp attribute `attr_name` */
 name mk_simp_attr_decl_name(name const & attr_name);
 
+simp_lemma purify(type_context_old & ctx, simp_lemma const & sl);
+
 void initialize_simp_lemmas();
 void finalize_simp_lemmas();
 }

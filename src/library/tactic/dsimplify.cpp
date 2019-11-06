@@ -353,7 +353,7 @@ optional<pair<expr, bool>> dsimplify_fn::post(expr const & e) {
             if (sl.is_refl()) {
                 lean_dsimp_trace(m_ctx, name({"debug", "dsimplify"}),
                                  tout() << "try rewrite " << sl.get_id() << "\n";);
-                new_e = refl_lemma_rewrite(m_ctx, curr_e, sl);
+                new_e = refl_lemma_rewrite(m_ctx, curr_e, purify(m_ctx, sl));
                 if (new_e != curr_e)
                     break;
             }

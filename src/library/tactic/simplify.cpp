@@ -215,12 +215,6 @@ expr simplify_core_fn::defeq_canonize_args_step(expr const & e) {
     return modified ? mk_app(f, args) : e;
 }
 
-simp_lemma simplify_core_fn::purify_simp_lemma(simp_lemma const & sl_) {
-    simp_lemma sl(sl_);
-    return sl;
-
-}
-
 /* Try user defined congruence lemmas */
 simp_result simplify_core_fn::try_user_congrs(expr const & e) {
     simp_lemmas_for const * sls = m_slss.find(m_rel);
@@ -228,7 +222,7 @@ simp_result simplify_core_fn::try_user_congrs(expr const & e) {
 
     if (auto cls = sls->find_congr(e)) {
         for (simp_lemma const & cl : *cls) {
-            simp_result r = try_user_congr(e, purify_simp_lemma(cl));
+            simp_result r = try_user_congr(e, purify(m_ctx, cl));
             if (r.get_new() != e)
                 return r;
         }
@@ -236,7 +230,7 @@ simp_result simplify_core_fn::try_user_congrs(expr const & e) {
 
     if (auto cls = sls->find_congr(head_index(expr_kind::Meta))) {
         for (simp_lemma const & cl : *cls) {
-            simp_result r = try_user_congr(e, purify_simp_lemma(cl));
+            simp_result r = try_user_congr(e, purify(m_ctx, cl));
             if (r.get_new() != e)
                 return r;
         }
@@ -497,7 +491,7 @@ simp_result simplify_core_fn::rewrite(expr const & e) {
     }
 
     for (simp_lemma const & lemma : *srs) {
-        simp_result r = rewrite(e, purify_simp_lemma(lemma));
+        simp_result r = rewrite(e, purify(m_ctx, lemma));
         if (!is_eqp(r.get_new(), e)) {
             lean_simp_trace_d(m_ctx, name({"simplify", "rewrite"}),
                               tout() << "[" << lemma.get_id() << "]: "
