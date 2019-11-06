@@ -95,7 +95,7 @@ protected:
     bool should_defeq_canonize() const {
         return m_cfg.m_canonize_instances || m_cfg.m_canonize_proofs;
     }
-    bool instantiate_emetas(tmp_type_context & tmp_tctx, list <expr> const & emetas,
+    bool instantiate_emetas(list <expr> const & emetas,
                                 list<bool> const & instances);
     simp_result lift_from_eq(simp_result const & r_eq);
     simp_lemmas add_to_slss(simp_lemmas const & slss, buffer<expr> const & ls);
@@ -150,7 +150,7 @@ protected:
     expr reduce(expr e);
     simp_result reduce(simp_result r);
 
-    bool match(tmp_type_context & ctx, simp_lemma const & sl, expr const & t);
+    bool match(simp_lemma const & sl, expr const & t);
 
 public:
     simplify_core_fn(type_context_old & ctx, defeq_canonizer::state & dcs, simp_lemmas const & slss,

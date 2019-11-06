@@ -127,15 +127,15 @@ class simp_prover {
 public:
     simp_prover(simplify_core_fn & s):m_simp(s) {}
 
-    optional<expr> operator()(tmp_type_context &, expr const & e) {
+    optional<expr> operator()(expr const & e) {
         return m_simp.prove(e);
     }
 };
 
-bool simplify_core_fn::instantiate_emetas(tmp_type_context & tmp_ctx, list <expr> const & emetas,
+bool simplify_core_fn::instantiate_emetas(list <expr> const & emetas,
                                           list<bool> const & instances) {
     simp_prover prover(*this);
-    return instantiate_emetas_fn<simp_prover>(prover)(tmp_ctx, emetas, instances);
+    return instantiate_emetas_fn<simp_prover>(prover)(emetas, instances);
 }
 
 simp_result simplify_core_fn::lift_from_eq(simp_result const & r_eq) {
@@ -240,11 +240,10 @@ simp_result simplify_core_fn::try_user_congrs(expr const & e) {
 }
 
 simp_result simplify_core_fn::try_user_congr(expr const & e, simp_lemma const & cl) {
-    tmp_type_context tmp_ctx(m_ctx, cl.get_num_umeta(), cl.get_num_emeta());
-    if (!tmp_ctx.is_def_eq(cl.get_lhs(), e))
+    if (!m_ctx.is_def_eq(cl.get_lhs(), e))
         return simp_result(e);
 
-    lean_simp_trace(tmp_ctx, name({"debug", "simplify", "try_congruence"}),
+    lean_simp_trace(m_ctx, name({"debug", "simplify", "try_congruence"}),
                     tout() << "(" << cl.get_id() << ") " << e << "\n";);
 
     bool simplified = false;
@@ -257,7 +256,7 @@ simp_result simplify_core_fn::try_user_congr(expr const & e, simp_lemma const & 
     for (expr const & m : congr_hyps) {
         factories.emplace_back(m_ctx);
         type_context_old::tmp_locals & local_factory = factories.back();
-        expr m_type = tmp_ctx.instantiate_mvars(tmp_ctx.infer(m));
+        expr m_type = m_ctx.instantiate_mvars(m_ctx.infer(m));
 
         while (is_pi(m_type)) {
             expr d = instantiate_rev(binding_domain(m_type), local_factory.as_buffer().size(),
@@ -269,12 +268,12 @@ simp_result simplify_core_fn::try_user_congr(expr const & e, simp_lemma const & 
         m_type = instantiate_rev(m_type, local_factory.as_buffer().size(), local_factory.as_buffer().data());
 
         expr h_rel, h_lhs, h_rhs;
-        lean_verify(is_simp_relation(tmp_ctx.env(), m_type, h_rel, h_lhs, h_rhs) && is_constant(h_rel));
+        lean_verify(is_simp_relation(m_ctx.env(), m_type, h_rel, h_lhs, h_rhs) && is_constant(h_rel));
         {
             relations.push_back(const_name(h_rel));
             flet<simp_lemmas> set_slss(m_slss, m_cfg.m_contextual ? add_to_slss(m_slss, local_factory.as_buffer()) : m_slss);
 
-            h_lhs = tmp_ctx.instantiate_mvars(h_lhs);
+            h_lhs = m_ctx.instantiate_mvars(h_lhs);
             lean_assert(!has_idx_metavar(h_lhs));
 
             simp_result r_congr_hyp;
@@ -293,14 +292,14 @@ simp_result simplify_core_fn::try_user_congr(expr const & e, simp_lemma const & 
             buffer<expr> new_val_meta_args;
             expr new_val_meta = get_app_args(h_rhs, new_val_meta_args);
             lean_assert(is_metavar(new_val_meta));
-            expr new_val = tmp_ctx.mk_lambda(new_val_meta_args, r_congr_hyp.get_new());
-            tmp_ctx.assign(new_val_meta, new_val);
+            expr new_val = m_ctx.mk_lambda(new_val_meta_args, r_congr_hyp.get_new());
+            m_ctx.assign(new_val_meta, new_val);
 
             expr pf_body = finalize(m_ctx, const_name(h_rel), r_congr_hyp).get_proof();
             expr pf      = local_factory.mk_lambda(pf_body);
-            if (!tmp_ctx.is_def_eq(m, pf)) {
-                lean_simp_trace(tmp_ctx, name({"simplify", "congruence"}),
-                    tout() << "failed to unify proof " << pf << " of " << tmp_ctx.infer(pf););
+            if (!m_ctx.is_def_eq(m, pf)) {
+                lean_simp_trace(m_ctx, name({"simplify", "congruence"}),
+                    tout() << "failed to unify proof " << pf << " of " << m_ctx.infer(pf););
                 return simp_result(e);
             }
         }
@@ -309,20 +308,20 @@ simp_result simplify_core_fn::try_user_congr(expr const & e, simp_lemma const & 
     if (!simplified)
         return simp_result(e);
 
-    if (!instantiate_emetas(tmp_ctx, cl.get_emetas(), cl.get_instances()))
+    if (!instantiate_emetas(m_ctx, cl.get_emetas(), cl.get_instances()))
         return simp_result(e);
 
     for (unsigned i = 0; i < cl.get_num_umeta(); i++) {
-        if (!tmp_ctx.is_uassigned(i))
+        if (!m_ctx.is_uassigned(i))
             return simp_result(e);
     }
 
-    expr e_s = tmp_ctx.instantiate_mvars(cl.get_rhs());
-    expr pf = tmp_ctx.instantiate_mvars(cl.get_proof());
+    expr e_s = m_ctx.instantiate_mvars(cl.get_rhs());
+    expr pf = m_ctx.instantiate_mvars(cl.get_proof());
 
     simp_result r(e_s, pf);
 
-    lean_simp_trace(tmp_ctx, name({"simplify", "congruence"}),
+    lean_simp_trace(m_ctx, name({"simplify", "congruence"}),
                     tout() << "(" << cl.get_id() << ") "
                     << "[" << e << " ==> " << e_s << "]\n";);
 
@@ -504,7 +503,7 @@ simp_result simplify_core_fn::rewrite(expr const & e) {
     return simp_result(e);
 }
 
-bool simplify_core_fn::match(tmp_type_context & ctx, simp_lemma const & sl, expr const & t) {
+bool simplify_core_fn::match(simp_lemma const & sl, expr const & t) {
     return ctx.match(sl.get_lhs(), t);
 }
 
@@ -522,8 +521,6 @@ static bool should_trace_failure(expr const & e, simp_lemma const & sl) {
 }
 
 simp_result simplify_core_fn::rewrite_core(expr const & e, simp_lemma const & sl) {
-    tmp_type_context tmp_ctx(m_ctx, sl.get_num_umeta(), sl.get_num_emeta());
-
     if (!match(tmp_ctx, sl, e)) {
         if (lean_is_trace_enabled(name({"simplify", "rewrite_failure"})) &&
             should_trace_failure(e, sl)) {
