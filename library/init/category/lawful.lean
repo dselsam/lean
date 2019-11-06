@@ -24,9 +24,10 @@ attribute [simp] id_map
 -- `comp_map` does not make a good simp lemma
 
 --set_option pp.all true
+--set_option trace.simplify.rewrite_failure true
 set_option trace.simplify.rewrite true
---set_option trace.type_context.is_def_eq true
 --set_option trace.type_context.is_def_eq_detail true
+--set_option trace.type_context.is_def_eq_detail.type_mismatch true
 
 class is_lawful_applicative (f : Type u → Type v) [applicative f] extends is_lawful_functor f : Prop :=
 (seq_left_eq  : ∀ {α β : Type u} (a : f α) (b : f β), a <* b = const β <$> a <*> b . control_laws_tac)
@@ -39,6 +40,7 @@ class is_lawful_applicative (f : Type u → Type v) [applicative f] extends is_l
 -- default functor law
 (comp_map := begin intros; simp [(pure_seq_eq_map _ _).symm, seq_assoc, map_pure, seq_pure] end)
 
+#exit
 export is_lawful_applicative (seq_left_eq seq_right_eq pure_seq_eq_map map_pure seq_pure seq_assoc)
 attribute [simp] map_pure seq_pure
 

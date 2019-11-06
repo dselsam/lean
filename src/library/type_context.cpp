@@ -1985,7 +1985,7 @@ bool type_context_old::process_assignment(expr const & m, expr const & v) {
            relaxed_is_def_eq. */
         relaxed_scope _(*this);
         if (!is_def_eq_core(t1, t2)) {
-            lean_trace(name({"type_context", "is_def_eq_detail"}),
+            lean_trace(name({"type_context", "is_def_eq_detail", "type_mismatch"}),
                        scope_trace_env scope(env(), *this);
                        tout() << "Type mismatch when assigning " << mvar << " := " << new_v << "\n";
                        tout() << ">> " << t1 << " =?= " << t2 << "\n";);
@@ -4272,6 +4272,7 @@ void initialize_type_context() {
     register_trace_class(name({"type_context", "unification_hint"}));
     register_trace_class(name({"type_context", "is_def_eq"}));
     register_trace_class(name({"type_context", "is_def_eq_detail"}));
+    register_trace_class(name({"type_context", "is_def_eq_detail", "type_mismatch"}));
     register_trace_class(name({"type_context", "univ_is_def_eq"}));
     register_trace_class(name({"type_context", "univ_is_def_eq_detail"}));
     register_trace_class(name({"type_context", "smart_unfolding"}));

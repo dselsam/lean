@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 
 Author: Leonardo de Moura
 */
+#include <iostream>
 #include <vector>
 #include <algorithm>
 #include "kernel/error_msgs.h"
@@ -1262,8 +1263,6 @@ static bool instantiate_emetas(type_context_old & ctx, list<expr> const & _emeta
 
 static expr refl_lemma_rewrite_core(type_context_old & ctx, expr const & e, simp_lemma const & sl) {
     lean_assert(sl.is_refl());
-    type_context_old::tmp_mode_scope scope(ctx, sl.get_num_umeta(), sl.get_num_emeta());
-
     if (!ctx.is_def_eq(sl.get_lhs(), e)) return e;
 
     lean_trace("simp_lemmas",
@@ -1476,7 +1475,7 @@ simp_lemma purify(type_context_old & ctx, simp_lemma const & sl_) {
                                                         if (!has_meta(l)) {
                                                             return optional<level>(l);
                                                         } else if (is_meta(l)) {
-                                                            for (unsigned j = 0; j < new_umetas.size(); ++j) {
+                                                            for (unsigned j = 0; j < old_umetas.size(); ++j) {
                                                                 if (l == old_umetas[j])
                                                                     return optional<level>(new_umetas[j]);
                                                             }
@@ -1485,30 +1484,37 @@ simp_lemma purify(type_context_old & ctx, simp_lemma const & sl_) {
                                                      });
                               };
 
-    auto replace_expr_upto = [&](expr const & e_, unsigned i) {
-                                 return replace(e_, [&](expr const & e, unsigned) {
-                                                        if (!has_metavar(e)) {
-                                                            return optional<expr>(e);
-                                                        } else if (is_constant(e)) {
-                                                            levels new_levels = map(const_levels(e), [&](level const & l) { return replace_level(l); });
-                                                            return optional<expr>(update_constant(e, new_levels));
-                                                        } else if (is_metavar(e)) {
-                                                            for (unsigned j = 0; j < i; ++j) {
-                                                                if (e == old_emetas[j])
-                                                                    return optional<expr>(new_emetas[j]);
-                                                            }
-                                                        }
-                                                        return optional<expr>();
-                                                    });};
+    auto replace_expr = [&](expr const & e_) {
+                            return replace(e_, [&](expr const & e, unsigned) {
+                                                   if (!has_metavar(e)) {
+                                                       return optional<expr>(e);
+                                                   } else if (is_sort(e)) {
+                                                       return optional<expr>(update_sort(e, replace_level(sort_level(e))));
+                                                   } else if (is_constant(e)) {
+                                                       levels new_levels = map(const_levels(e), [&](level const & l) { return replace_level(l); });
+                                                       return optional<expr>(update_constant(e, new_levels));
+                                                   } else if (is_metavar(e)) {
+                                                       for (unsigned j = 0; j < new_emetas.size(); ++j) {
+                                                           if (e == old_emetas[j])
+                                                               return optional<expr>(new_emetas[j]);
+                                                       }
+                                                   }
+                                                   return optional<expr>();
+                                               });};
 
     for (unsigned i = 0; i < old_emetas.size(); ++i) {
-        expr new_emeta_type = replace_expr_upto(mlocal_type(old_emetas[i]), i);
+        std::cout << "[" << i << "] " << old_emetas[i] << " : " << mlocal_type(old_emetas[i]) << std::endl;
+        expr new_emeta_type = replace_expr(mlocal_type(old_emetas[i]));
+        if (has_idx_metavar(new_emeta_type)) {
+            std::cout << "ERROR: HAS_IDX_METAVAR: " << new_emeta_type << std::endl;
+            throw exception(sstream() << "has_idx_metavar: " << new_emeta_type);
+        }
         new_emetas.push_back(ctx.mk_metavar_decl(ctx.lctx(), new_emeta_type));
     }
 
-    expr new_lhs   = replace_expr_upto(sl_.get_lhs(), new_emetas.size());
-    expr new_rhs   = replace_expr_upto(sl_.get_rhs(), new_emetas.size());
-    expr new_proof = replace_expr_upto(sl_.get_proof(), new_emetas.size());
+    expr new_lhs   = replace_expr(sl_.get_lhs());
+    expr new_rhs   = replace_expr(sl_.get_rhs());
+    expr new_proof = replace_expr(sl_.get_proof());
 
     switch (sl_.kind()) {
     case simp_lemma_kind::Simp:
@@ -1517,7 +1523,7 @@ simp_lemma purify(type_context_old & ctx, simp_lemma const & sl_) {
     case simp_lemma_kind::Congr:
         return mk_congr_lemma(sl_.get_id(), to_list(new_umetas), to_list(new_emetas),
                               sl_.get_instances(), new_lhs, new_rhs, new_proof,
-                              map(sl_.get_congr_hyps(), [&](expr const & hyp) { return replace_expr_upto(hyp, new_emetas.size()); }),
+                              map(sl_.get_congr_hyps(), [&](expr const & hyp) { return replace_expr(hyp); }),
                               sl_.get_priority());
     case simp_lemma_kind::Refl:
         return mk_rfl_lemma(sl_.get_id(), to_list(new_umetas), to_list(new_emetas),
