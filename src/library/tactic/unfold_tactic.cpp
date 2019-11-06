@@ -42,12 +42,15 @@ optional<expr> dunfold(type_context_old & ctx, expr const & e) {
     buffer<simp_lemma> lemmas;
     bool refl_only = true;
     get_eqn_lemmas_for(env, const_name(fn), refl_only, lemmas);
+    for (simp_lemma & sl : lemmas) {
+        sl = purify(ctx, sl);
+    }
 
     expr it = e;
     buffer<expr> extra_args;
     while (true) {
         for (simp_lemma const & sl : lemmas) {
-            expr new_it = refl_lemma_rewrite(ctx, it, purify(ctx, sl));
+            expr new_it = refl_lemma_rewrite(ctx, it, sl);
             if (new_it != it) {
                 expr new_e = annotated_head_beta_reduce(mk_rev_app(new_it, extra_args));
                 return some_expr(new_e);
