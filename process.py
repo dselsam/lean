@@ -62,7 +62,7 @@ def write_lean3(f):
     i = 0
     for d in data:
         if d['kind'] == 'class' and d['name'] not in cls_blacklist:
-            if not d['params']: # ??
+            if not d.get('params'): # ??
                 continue
             print("class {name} {params}".format(
                 name=d['name'],
@@ -88,7 +88,7 @@ def write_lean4(f):
     def pt(t):
         return re.sub(r'\.\{(?!max)([^(} ]+( [^} ]+)*)\}', lambda m: f".{{{', '.join(m[1].split(' '))}}}", t.replace("Pi ", "forall "))
     for d in data:
-        if not d['params']: # ??
+        if not d.get('params'): # ??
             continue
         if d['kind'] == 'class' and d['name'] not in cls_blacklist:
             print("class {name} {params}".format(
@@ -113,7 +113,7 @@ def write_coq(f):
     for d in data:
         def fix(s):
             return re.sub(r'\.(?=\w)', '_', s)
-        if not d['params']: # ??
+        if not d.get('params'): # ??
             continue
         if d['kind'] == 'class' and d['name'] not in cls_blacklist:
             print(fix("Class {name} {params} : Set.".format(
