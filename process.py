@@ -91,12 +91,12 @@ def write_lean4(f):
         if not d.get('params'): # ??
             continue
         if d['kind'] == 'class' and d['name'] not in cls_blacklist:
-            print("class {name} {params}".format(
+            print("class {name} {params} := (u:Unit:=())".format(
                 name=d['name'],
                 params=' '.join(f"[{p['name']} : {p['type']}]" if 'class' in p else f"({p['name']} : Type)" for p in d['params'])
             ), file=f)
         elif d['kind'] == 'instance' and d['is_simple'] == 1 and d['class'] not in cls_blacklist:
-            print("@[instance] axiom {name} {params} : {type}".format(
+            print("@[instance] def {name} {params} : {type} := {{}}".format(
                 name=d['name'],
                 params=' '.join(f"[{p['name']} : {p['type']}]" if 'class' in p else f"({p['name']} : Type)" for p in d['params']),
                 type=d['type']
