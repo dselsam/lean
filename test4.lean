@@ -1,22 +1,16 @@
 prelude
-import .mathlib4
+import TypeClassPaper.mathlib4
+
 namespace test
---example (R A : Type) [field R] : has_scalar R A := inferInstance
-example (R A : Type) [field R] [ring A] [algebra R A] : has_scalar R A := inferInstance
-axiom R : Type
-axiom A : Type
-@[instance] axiom fR : field R
-#synth has_scalar R A
-@[instance] axiom rA : ring A
-@[instance] axiom alRA : algebra R A
-#synth has_scalar R A
-namespace test2
-axiom R : Type
-axiom A : Type
-@[instance] axiom fR : discrete_linear_ordered_field R
-#synth has_scalar R A
-@[instance] axiom rA : ring A
-@[instance] axiom alRA : algebra R A
-#synth has_scalar R A
-end test2
+
+def synth_mul_action_example (k α β : Type)
+    (_inst_1 : normed_field k)
+    [_inst_2 : @mul_action k (α → β) (@ring.to_monoid k (@normed_ring.to_ring k (@normed_field.to_normed_ring k _inst_1)))]
+  : Unit := ()
+
+--set_option pp.all true
+set_option trace.class_instances true
+
+def try_synth_mul_action_example (k α β : Type) (_inst_1 : normed_field k) : Unit := synth_mul_action_example k α β _inst_1
+
 end test
