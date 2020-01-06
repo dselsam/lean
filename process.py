@@ -6,6 +6,7 @@ import sys
 import json
 import networkx as nx
 from networkx.drawing.nx_pydot import write_dot
+import networkx
 import matplotlib.pyplot as plt
 
 cls_blacklist = ['reflected', 'cau_seq.is_complete', 'directed_system', 'module.directed_system']
@@ -48,12 +49,31 @@ def write_coe_graph(f):
                 #print(d['name'])
                 G.add_node(d['class'], shape = 'box')
                 G.add_edge(cls_params[0]['class'], d['class'])
+    write_dot(G, f)
+
+def write_pruned_coe_graph(f):
+    G = nx.DiGraph()
+    for d in data:
+        #if d['kind'] == 'class':
+        #    G.add_node(d['name'], shape = 'box')
+        if d['kind'] == 'instance' and d['class'] not in cls_blacklist and d['coercion_like'] == 1:
+            cls_params = [p for p in d['params'] if 'class' in p]
+            if len(cls_params) >= 1:
+                G.add_node(cls_params[-1]['class'], shape = 'box')
+                #print(d['name'])
+                G.add_node(d['class'], shape = 'box')
+                G.add_edge(cls_params[0]['class'], d['class'])
     print(f"{len(G)} nodes, {len(G.edges)} edges")
     n, m, l = max(((n, m, len(list(nx.algorithms.simple_paths.all_simple_paths(G, n, m))))
                   for n in G for m in G),
                    key = lambda p: p[2])
     print(f"{l} paths from {n} to {m}")
-    write_dot(G, f)
+    all_nodes_in_max_path = set()
+    for path in nx.algorithms.simple_paths.all_simple_paths(G, n, m):
+        for p in path:
+            all_nodes_in_max_path.add(p)
+    H = networkx.restricted_view(G, list(set(G.nodes) - all_nodes_in_max_path), [])
+    write_dot(H, f)
 
 def write_lean3(f):
     f = open(f, 'w')
@@ -131,6 +151,7 @@ base = os.path.splitext(sys.argv[1])[0]
 write_cls_inst_graph(base + '.dot')
 write_cls_graph(base + '-classes.dot')
 write_coe_graph(base + '-coercions.dot')
+write_pruned_coe_graph(base + '-pruned-coercions.dot')
 write_lean3(base + '.lean')
 write_lean4(base + '4.lean')
 write_coq(base + '.v')
