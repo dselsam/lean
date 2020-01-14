@@ -5,6 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Author: Leonardo de Moura
 */
 #include <algorithm>
+#include <sstream>
 #include <iomanip>
 #include "util/flet.h"
 #include "util/interrupt.h"
@@ -36,6 +37,20 @@ Author: Leonardo de Moura
 #include "library/check.h"
 
 namespace lean {
+
+std::string escape_json(const std::string &s) {
+    std::ostringstream o;
+    for (auto c = s.cbegin(); c != s.cend(); c++) {
+        if (*c == '"' || *c == '\\' || ('\x00' <= *c && *c <= '\x1f')) {
+            o << "\\u"
+              << std::hex << std::setw(4) << std::setfill('0') << (int)*c;
+        } else {
+            o << *c;
+        }
+    }
+    return o.str();
+}
+
 bool is_at_least_semireducible(transparency_mode m) {
     return m == transparency_mode::All || m == transparency_mode::Semireducible;
 }
@@ -4145,7 +4160,17 @@ optional<expr> type_context_old::mk_class_instance(expr const & type_0) {
                 print_deps(*this, type);
                 std::cerr << "{\"kind\": \"problem\", ";
             } else {
-                std::cerr << "{\"kind\": \"ignored_problem\", ";
+                std::cerr << "{\"kind\": \"non_ground_problem\", ";
+                std::cerr << "\"local-instances\": [ ";
+                bool first = true;
+                for (local_instance inst : reverse(m_local_instances)) {
+                  if (!first) { std::cerr << ", "; }
+                  first = false;
+                  std::ostringstream oss;
+                  oss << infer(inst.get_local());
+                  std::cerr << "\"" << escape_json(oss.str()) << "\"";
+                }
+                std::cerr << "], ";
             }
             std::cerr << "\"class\": \"" << const_name(C) << "\", \"max_depth\": " << max_depth
                     << ", \"steps\": " << steps << ", \"uparams\": [";

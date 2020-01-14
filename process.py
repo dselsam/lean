@@ -14,6 +14,10 @@ data = open(sys.argv[1]).read()
 data = re.sub(r',\s*([]}])', '\1', data)
 data = json.loads(data)['items']
 
+def to_Camel_case(snake):
+    components = snake.split('_')
+    return ''.join(x.title() for x in components)
+
 def write_cls_inst_graph(f):
     G = nx.DiGraph()
     for d in data:
@@ -51,7 +55,7 @@ def write_coe_graph(f):
                 G.add_edge(cls_params[0]['class'], d['class'])
     write_dot(G, f)
 
-def write_pruned_coe_graph(f):
+def write_pruned_coe_graph(f, cached):
     G = nx.DiGraph()
     for d in data:
         #if d['kind'] == 'class':
@@ -63,16 +67,31 @@ def write_pruned_coe_graph(f):
                 #print(d['name'])
                 G.add_node(d['class'], shape = 'box')
                 G.add_edge(cls_params[0]['class'], d['class'])
+
     print(f"{len(G)} nodes, {len(G.edges)} edges")
-    n, m, l = max(((n, m, len(list(nx.algorithms.simple_paths.all_simple_paths(G, n, m))))
-                  for n in G for m in G),
-                   key = lambda p: p[2])
-    print(f"{l} paths from {n} to {m}")
+    if cached:
+        src = "discrete_linear_ordered_field"
+        dst = "has_add"
+        print(f"using cached: %s -> %s" % (src, dst))
+    else:
+        print(f"searching for nodes with most paths...")
+        src, dst, n_paths = max(((n, m, len(list(nx.algorithms.simple_paths.all_simple_paths(G, n, m))))
+                           for n in G for m in G),
+                          key = lambda p: p[2])
+        print(f"{l} n_paths from {src} to {dst}")
     all_nodes_in_max_path = set()
-    for path in nx.algorithms.simple_paths.all_simple_paths(G, n, m):
+    print("Pruning graph...")
+    for path in nx.algorithms.simple_paths.all_simple_paths(G, src, dst):
         for p in path:
             all_nodes_in_max_path.add(p)
+
+    relabel = {}
+    for node in all_nodes_in_max_path:
+        n_paths = len(list(nx.algorithms.simple_paths.all_simple_paths(G, node, dst)))
+        relabel[node] = "%s (%d)" % (to_Camel_case(node), n_paths)
+
     H = networkx.restricted_view(G, list(set(G.nodes) - all_nodes_in_max_path), [])
+    H = networkx.relabel_nodes(H, relabel)
     write_dot(H, f)
 
 def write_lean3(f):
@@ -80,25 +99,27 @@ def write_lean3(f):
     print("noncomputable theory", file=f)
     print("namespace test", file=f)
     i = 0
+    def pt(t):
+        return re.sub(r'\.\{(?!max)([^(} ]+( [^} ]+)*)\}', lambda m: f".{{{', '.join(m[1].split(' '))}}}", t.replace("Pi ", "forall "))
     for d in data:
+        if not d.get('params'): # ??
+            continue
         if d['kind'] == 'class' and d['name'] not in cls_blacklist:
-            if not d.get('params'): # ??
-                continue
-            print("class {name} {params}".format(
+            print("class {name} {params} := (u:unit:=())".format(
                 name=d['name'],
                 params=' '.join(f"[{p['name']} : {p['type']}]" if 'class' in p else f"({p['name']} : Type)" for p in d['params'])
             ), file=f)
         elif d['kind'] == 'instance' and d['is_simple'] == 1 and d['class'] not in cls_blacklist:
-            print("@[instance] constant {name} {params} : {type}".format(
+            print("@[instance] def {name} {params} : {type} := {{}}".format(
                 name=d['name'],
                 params=' '.join(f"[{p['name']} : {p['type']}]" if 'class' in p else f"({p['name']} : Type)" for p in d['params']),
                 type=d['type']
             ), file=f)
         #elif d['kind'] == 'problem' and d['class'] not in cls_blacklist:
         #    i += 1
-        #    print(f"def {{{' '.join(d['uparams'])}}} p{i} : {d['type']} := infer_instance", file=f)
+        #    print(f"#synth {pt(d['type'])}", file=f)
         #elif d['kind'] == 'dep':
-        #    print(f"constant {{{' '.join(d['uparams'])}}} {d['name']} : {d['type']}", file=f)
+        #    print(f"axiom {d['name']}{uparams} : {pt(d['type'])}", file=f)
     print("end test", file=f)
 
 def write_lean4(f):
@@ -148,10 +169,10 @@ def write_coq(f):
             )), file=f)
 
 base = os.path.splitext(sys.argv[1])[0]
-write_cls_inst_graph(base + '.dot')
-write_cls_graph(base + '-classes.dot')
-write_coe_graph(base + '-coercions.dot')
-write_pruned_coe_graph(base + '-pruned-coercions.dot')
-write_lean3(base + '.lean')
-write_lean4(base + '4.lean')
-write_coq(base + '.v')
+#write_cls_inst_graph(base + '.dot')
+#write_cls_graph(base + '-classes.dot')
+#write_coe_graph(base + '-coercions.dot')
+write_pruned_coe_graph(base + '-pruned-coercions.dot', cached=True)
+#write_lean3(base + '.lean')
+#write_lean4(base + '4.lean')
+#write_coq(base + '.v')
