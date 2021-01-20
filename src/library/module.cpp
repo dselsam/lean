@@ -261,6 +261,23 @@ void write_module(loaded_module const & mod, std::ostream & out) {
     s2.write_blob(r);
 }
 
+void write_module_lport(loaded_module const & mod, std::ostream & out) {
+    out << "IMPORT " << static_cast<unsigned>(mod.m_imports.size()) << " ";
+
+    for (auto import : mod.m_imports) {
+        int rel = import.m_relative.has_value() ? *import.m_relative : -1;
+        out << import.m_name << " " << rel << " ";
+    }
+
+    out << "\n";
+    out << "MOD " << mod.m_modifications.size() << "\n";
+
+    lport_exporter x(out);
+    for (auto p : mod.m_modifications) {
+        p->textualize(x);
+    }
+}
+
 static task<bool> has_sorry(modification_list const & mods) {
     std::vector<task<expr>> introduced_exprs;
     for (auto & mod : mods) mod->get_introduced_exprs(introduced_exprs);
@@ -338,6 +355,10 @@ struct decl_modification : public modification {
         s << m_decl << m_trust_lvl;
     }
 
+    void textualize(lport_exporter & x) const override {
+        x.export_declaration(m_decl);
+    }
+
     static std::shared_ptr<modification const> deserialize(deserializer & d) {
         auto decl = read_declaration(d);
         unsigned trust_lvl; d >> trust_lvl;
@@ -365,7 +386,6 @@ struct inductive_modification : public modification {
     inductive::certified_inductive_decl m_decl;
     unsigned m_trust_lvl = LEAN_BELIEVER_TRUST_LEVEL + 1;
 
-
     inductive_modification(inductive::certified_inductive_decl const & decl, unsigned trust_lvl) :
             m_decl(decl), m_trust_lvl(trust_lvl) {}
 
@@ -384,6 +404,10 @@ struct inductive_modification : public modification {
 
     void serialize(serializer & s) const override {
         s << m_decl << m_trust_lvl;
+    }
+
+    void textualize(lport_exporter & x) const override {
+        x.export_inductive(m_decl);
     }
 
     static std::shared_ptr<modification const> deserialize(deserializer & d) {

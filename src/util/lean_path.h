@@ -60,5 +60,6 @@ bool is_olean_file(std::string const & fname);
 std::string name_to_file(name const & fname);
 
 std::string olean_of_lean(std::string const & lean_fn);
+std::string lport_of_lean(std::string const & lean_fn);
 std::string olean_file_to_lean_file(std::string const & olean);
 }
