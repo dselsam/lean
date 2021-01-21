@@ -126,6 +126,39 @@ static gtask compile_olean(std::shared_ptr<module_info const> const & mod, log_t
     }).depends_on(mod_dep).depends_on(olean_deps).depends_on(errs), std::string("saving olean"));
 }
 
+static gtask compile_lport(std::shared_ptr<module_info const> const & mod, log_tree::node const & parsing_lt) {
+    // This file is awkwardly copied/duplicated from compile_olean
+    auto errs = has_errors(parsing_lt);
+
+    gtask mod_dep = mk_deep_dependency(mod->m_result, [] (buffer<gtask> & deps, module_info::parse_result const & res) {
+        for (auto & mdf : res.m_loaded_module->m_modifications)
+            mdf->get_task_dependencies(deps);
+        deps.push_back(res.m_loaded_module->m_uses_sorry);
+    });
+
+    std::vector<gtask> lport_deps;
+    for (auto & dep : mod->m_deps)
+        if (dep.m_mod_info)
+            // TODO: psuh back .olean or .lport dependency?
+            lport_deps.push_back(dep.m_mod_info->m_lport_task);
+
+    return add_library_task(task_builder<unit>([mod, errs] {
+        if (mod->m_source != module_src::LEAN)
+            throw exception("cannot build lport from olean");
+        auto res = get(mod->m_result);
+
+        if (get(errs)) throw exception("not creating lport file because of errors");
+
+        auto lport_fn = lport_of_lean(mod->m_id);
+        exclusive_file_lock output_lock(lport_fn);
+        std::ofstream out(lport_fn);
+        write_module_lport(*res.m_loaded_module, out);
+        out.close();
+        if (!out) throw exception("failed to write lport file");
+        return unit();
+    }).depends_on(mod_dep).depends_on(lport_deps).depends_on(errs), std::string("saving lport"));
+}
+
 // TODO(gabriel): adapt to vfs
 static module_id resolve(search_path const & path,
                          module_id const & module_file_name,
@@ -301,6 +334,12 @@ void module_mgr::build_lean(std::shared_ptr<module_info> const & mod, name_set c
         scope_log_tree_core lt3(&lt);
         mod->m_olean_task = compile_olean(mod, lt2.get());
     }
+
+    if (m_save_lport && !m_use_old_oleans) {
+        scope_log_tree_core lt3(&lt);
+        mod->m_lport_task = compile_lport(mod, lt2.get());
+    }
+
 }
 
 static optional<pos_info> get_first_diff_pos(std::string const & as, std::string const & bs) {

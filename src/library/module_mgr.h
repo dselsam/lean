@@ -57,6 +57,7 @@ struct module_info {
     optional<module_parser_result> m_snapshots;
 
     gtask m_olean_task;
+    gtask m_lport_task;
 
     cancellation_token m_cancel;
     log_tree::node m_lt;
@@ -93,6 +94,7 @@ public:
 class module_mgr {
     bool m_server_mode = false;
     bool m_save_olean = false;
+    bool m_save_lport = false;
     bool m_use_old_oleans = false;
     bool m_report_widgets = true;
 
@@ -136,6 +138,9 @@ public:
 
     void set_save_olean(bool save_olean) { m_save_olean = save_olean; }
     bool get_save_olean() const { return m_save_olean; }
+
+    void set_save_lport(bool save_lport) { m_save_lport = save_lport; }
+    bool get_save_lport() const { return m_save_lport; }
 
     void set_use_old_oleans(bool use_old_oleans) { m_use_old_oleans = use_old_oleans; }
     bool get_use_old_oleans() const { return m_use_old_oleans; }
