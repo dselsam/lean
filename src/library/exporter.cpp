@@ -167,11 +167,22 @@ unsigned lport_exporter::export_unfold_expr(expr const & e) {
 }
 
 void lport_exporter::export_definition(declaration const & d) {
+    auto hints = d.get_hints();
     unsigned n = export_name(d.get_name());
     auto ps = map2<unsigned>(d.get_univ_params(), [&] (name const & p) { return export_name(p); });
     auto t = export_unfold_expr(d.get_type());
     auto v = export_unfold_expr(d.get_value());
-    m_out << "#DEF " << n << " " << t << " " << v;
+
+    m_out << "#DEF " << n << " ";
+    if (hints.get_kind() == reducibility_hints::kind::Abbreviation) {
+        m_out << "A ";
+    } else if (hints.get_kind() == reducibility_hints::kind::Opaque) {
+        m_out << "O ";
+    } else {
+        m_out << hints.get_height() << " ";
+    }
+
+    m_out << t << " " << v;
     for (unsigned p : ps)
         m_out << " " << p;
     m_out << "\n";
