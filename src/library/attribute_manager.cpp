@@ -148,17 +148,19 @@ struct attr_config {
                 << " " << n_attr
                 << " " << e.m_prio
                 << " " << n_decl
-                << " " << e.m_record.deleted()
-                << "\n";
+                << " " << e.m_record.deleted();
 
-        // TODO: who is responsible for the newline?
-        if (!e.m_record.deleted()) {
-            if (is_system_attribute(e.m_attr))
-                get_system_attribute(e.m_attr).textualize_entry(x, *e.m_record.m_data);
-            else
-                // dispatch over the extension, since we can't call get_attribute without an env
-                g_user_attribute_ext->textualize_entry(x, *e.m_record.m_data);
-        }
+        // TODO: this snippet silently crashes on meta/interactive.lean
+        // (and is unnecessary for SIMP attributes)
+        // if (!e.m_record.deleted()) {
+        //     if (is_system_attribute(e.m_attr))
+        //         get_system_attribute(e.m_attr).textualize_entry(x, *e.m_record.m_data);
+        //     else
+        //         // dispatch over the extension, since we can't call get_attribute without an env
+        //         g_user_attribute_ext->textualize_entry(x, *e.m_record.m_data);
+        // }
+
+        x.out() << "\n";
     }
 
     static entry read_entry(deserializer & d) {
