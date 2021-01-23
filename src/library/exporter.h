@@ -35,6 +35,8 @@ class lport_exporter {
     unsigned export_const(expr const & e);
     unsigned export_expr(expr const & e);
     unsigned export_unfold_expr(expr const & e);
+
+    void export_attrs(name const & n);
     void export_definition(declaration const & d);
     void export_axiom(declaration const & d);
     void export_declaration(name const & n);

@@ -12,6 +12,8 @@ Author: Leonardo de Moura, Daniel Selsam
 #include "kernel/instantiate.h"
 #include "kernel/inductive/inductive.h"
 #include "library/module.h"
+#include "library/class.h"
+#include "library/attribute_manager.h"
 
 namespace lean {
 
@@ -198,14 +200,28 @@ void lport_exporter::export_axiom(declaration const & d) {
     m_out << "\n";
 }
 
+void lport_exporter::export_attrs(name const & n) {
+    if (has_attribute(m_env, {"simp"}, n)) {
+        m_out << "#SIMP " << export_name(n) << "\n";
+    }
+    if (is_class(m_env, n)) {
+        m_out << "#CLASS " << export_name(n) << "\n";
+    }
+    if (is_instance(m_env, n)) {
+        m_out << "#INSTANCE " << export_name(n) << "\n";
+    }
+}
+
 void lport_exporter::export_declaration(declaration const & d) {
     if (!d.is_trusted()) return;
 
+    unsigned n;
     if (d.is_definition()) {
-        return export_definition(d);
+        export_definition(d);
     } else {
-        return export_axiom(d);
+        export_axiom(d);
     }
+    export_attrs(d.get_name());
 }
 
 void lport_exporter::export_inductive(inductive::certified_inductive_decl const & cdecl) {
@@ -236,6 +252,7 @@ void lport_exporter::export_inductive(inductive::certified_inductive_decl const 
         m_out << " " << export_name(p);
 
     m_out << "\n";
+    export_attrs(decl.m_name);
 }
 
 lport_exporter::lport_exporter(std::ostream & out, environment const & env) : m_out(out), m_env(env) {
