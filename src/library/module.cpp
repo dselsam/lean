@@ -170,6 +170,14 @@ struct pos_info_mod : public modification {
         s << m_decl_name << m_pos_info.first << m_pos_info.second;
     }
 
+    void textualize(lport_exporter & x) const override {
+        unsigned n = x.export_name(m_decl_name);
+        x.out() << "#POS_INFO " << n
+                << " " << m_pos_info.first
+                << " " << m_pos_info.second
+                << "\n";
+    }
+
     static std::shared_ptr<modification const> deserialize(deserializer & d) {
         name decl_name; unsigned line, column;
         d >> decl_name >> line >> column;

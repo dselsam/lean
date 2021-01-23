@@ -28,23 +28,25 @@ class lport_exporter {
     level_map<unsigned>                 m_level2idx;
     expr_bi_map<unsigned>               m_expr2idx;
 
-    unsigned export_name(name const & n);
     unsigned export_level(level const & l);
     void export_binder_info(binder_info const & bi);
     unsigned export_binding(expr const & e, char const * k);
     unsigned export_const(expr const & e);
+    unsigned export_expr_core(expr const & e);
     unsigned export_expr(expr const & e);
-    unsigned export_unfold_expr(expr const & e);
 
-    void export_attrs(name const & n);
     void export_definition(declaration const & d);
     void export_axiom(declaration const & d);
     void export_declaration(name const & n);
 
 public:
     lport_exporter(std::ostream & out, environment const & env);
+    unsigned export_name(name const & n);
     void export_declaration(declaration const & d);
     void export_inductive(inductive::certified_inductive_decl const & d);
+
+    std::ostream & out();
+    environment & env();
 };
 
 }

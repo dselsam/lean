@@ -91,8 +91,8 @@ void lport_exporter::export_binder_info(binder_info const & bi) {
 
 unsigned lport_exporter::export_binding(expr const & e, char const * k) {
     unsigned n  = export_name(binding_name(e));
-    unsigned e1 = export_expr(binding_domain(e));
-    unsigned e2 = export_expr(binding_body(e));
+    unsigned e1 = export_expr_core(binding_domain(e));
+    unsigned e2 = export_expr_core(binding_body(e));
     unsigned i = static_cast<unsigned>(m_expr2idx.size());
     m_out << i << " " << k << " ";
     export_binder_info(binding_info(e));
@@ -113,7 +113,7 @@ unsigned lport_exporter::export_const(expr const & e) {
     return i;
 }
 
-unsigned lport_exporter::export_expr(expr const & e) {
+unsigned lport_exporter::export_expr_core(expr const & e) {
     auto it = m_expr2idx.find(e);
     if (it != m_expr2idx.end())
         return it->second;
@@ -133,16 +133,16 @@ unsigned lport_exporter::export_expr(expr const & e) {
         i = export_const(e);
         break;
     case expr_kind::App:
-        e1 = export_expr(app_fn(e));
-        e2 = export_expr(app_arg(e));
+        e1 = export_expr_core(app_fn(e));
+        e2 = export_expr_core(app_arg(e));
         i = static_cast<unsigned>(m_expr2idx.size());
         m_out << i << " #EA " << e1 << " " << e2 << "\n";
         break;
     case expr_kind::Let: {
         auto n = export_name(let_name(e));
-        e1 = export_expr(let_type(e));
-        e2 = export_expr(let_value(e));
-        auto e3 = export_expr(let_body(e));
+        e1 = export_expr_core(let_type(e));
+        e2 = export_expr_core(let_value(e));
+        auto e3 = export_expr_core(let_body(e));
         i = static_cast<unsigned>(m_expr2idx.size());
         m_out << i << " #EZ " << n << " " << e1 << " " << e2 << " " << e3 << "\n";
         break;
@@ -164,16 +164,16 @@ unsigned lport_exporter::export_expr(expr const & e) {
     return i;
 }
 
-unsigned lport_exporter::export_unfold_expr(expr const & e) {
-    return export_expr(unfold_all_macros(m_env, e));
+unsigned lport_exporter::export_expr(expr const & e) {
+    return export_expr_core(unfold_all_macros(m_env, e));
 }
 
 void lport_exporter::export_definition(declaration const & d) {
     auto hints = d.get_hints();
     unsigned n = export_name(d.get_name());
     auto ps = map2<unsigned>(d.get_univ_params(), [&] (name const & p) { return export_name(p); });
-    auto t = export_unfold_expr(d.get_type());
-    auto v = export_unfold_expr(d.get_value());
+    auto t = export_expr(d.get_type());
+    auto v = export_expr(d.get_value());
 
     m_out << "#DEF " << n << " ";
     if (hints.get_kind() == reducibility_hints::kind::Abbreviation) {
@@ -193,23 +193,11 @@ void lport_exporter::export_definition(declaration const & d) {
 void lport_exporter::export_axiom(declaration const & d) {
     unsigned n = export_name(d.get_name());
     auto ps = map2<unsigned>(d.get_univ_params(), [&] (name const & p) { return export_name(p); });
-    auto t = export_unfold_expr(d.get_type());
+    auto t = export_expr(d.get_type());
     m_out << "#AX " << n << " " << t;
     for (unsigned p : ps)
         m_out << " " << p;
     m_out << "\n";
-}
-
-void lport_exporter::export_attrs(name const & n) {
-    if (has_attribute(m_env, {"simp"}, n)) {
-        m_out << "#SIMP " << export_name(n) << "\n";
-    }
-    if (is_class(m_env, n)) {
-        m_out << "#CLASS " << export_name(n) << "\n";
-    }
-    if (is_instance(m_env, n)) {
-        m_out << "#INSTANCE " << export_name(n) << "\n";
-    }
 }
 
 void lport_exporter::export_declaration(declaration const & d) {
@@ -221,7 +209,6 @@ void lport_exporter::export_declaration(declaration const & d) {
     } else {
         export_axiom(d);
     }
-    export_attrs(d.get_name());
 }
 
 void lport_exporter::export_inductive(inductive::certified_inductive_decl const & cdecl) {
@@ -231,33 +218,40 @@ void lport_exporter::export_inductive(inductive::certified_inductive_decl const 
         export_name(p);
 
     export_name(decl.m_name);
-    export_unfold_expr(decl.m_type);
+    export_expr(decl.m_type);
 
     for (auto & c : decl.m_intro_rules) {
         export_name(inductive::intro_rule_name(c));
-        export_unfold_expr(inductive::intro_rule_type(c));
+        export_expr(inductive::intro_rule_type(c));
     }
 
     m_out << "#IND " << decl.m_num_params << " "
           << export_name(decl.m_name) << " "
-          << export_unfold_expr(decl.m_type) << " "
+          << export_expr(decl.m_type) << " "
           << length(decl.m_intro_rules);
     for (auto & c : decl.m_intro_rules) {
         // intro rules are stored as local constants, we split them up so that
         // the type checkers do not need to implement local constants.
         m_out << " " << export_name(inductive::intro_rule_name(c))
-              << " " << export_unfold_expr(inductive::intro_rule_type(c));
+              << " " << export_expr(inductive::intro_rule_type(c));
     }
     for (name const & p : decl.m_level_params)
         m_out << " " << export_name(p);
 
     m_out << "\n";
-    export_attrs(decl.m_name);
 }
 
 lport_exporter::lport_exporter(std::ostream & out, environment const & env) : m_out(out), m_env(env) {
     m_name2idx[{}]  = 0;
     m_level2idx[{}] = 0;
+}
+
+std::ostream & lport_exporter::out() {
+    return m_out;
+}
+
+environment & lport_exporter::env() {
+    return m_env;
 }
 
 }

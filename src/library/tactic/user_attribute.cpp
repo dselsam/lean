@@ -203,6 +203,11 @@ struct user_attr_modification : public modification {
         s << m_name;
     }
 
+    void textualize(lport_exporter & x) const override {
+        unsigned n = x.export_name(m_name);
+        x.out() << "#USER_ATTR " << n << "\n";
+    }
+
     static std::shared_ptr<modification const> deserialize(deserializer & d) {
         return std::make_shared<user_attr_modification>(read_name(d));
     }

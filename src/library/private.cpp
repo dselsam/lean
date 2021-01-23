@@ -57,6 +57,13 @@ struct private_modification : public modification {
         s << m_name << m_real;
     }
 
+    void textualize(lport_exporter & x) const override {
+        unsigned n_name = x.export_name(m_name);
+        unsigned n_real = x.export_name(m_real);
+        x.out() << "#PRIVATE " << n_name << " " << n_real << "\n";
+    }
+
+
     static std::shared_ptr<modification const> deserialize(deserializer & d) {
         name n, h;
         d >> n >> h;
