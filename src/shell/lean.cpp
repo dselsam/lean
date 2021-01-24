@@ -215,6 +215,7 @@ static void display_help(std::ostream & out) {
         )
     std::cout << "  -D name=value      set a configuration option (see set_option command)\n";
     std::cout << "Exporting data:\n";
+    std::cout << "  --port             export textual .tlean file for every .lean file\n";
     std::cout << "  --export=file -E   export final environment as textual low-level file\n";
     std::cout << "  --only-export=decl_name   only export the specified declaration (+ dependencies)\n";
     std::cout << "  --test-suite       capture output and status code from each input file $f in $f.produced and $f.status, respectively\n";
@@ -228,6 +229,7 @@ static struct option g_long_options[] = {
     {"make",         no_argument,       0, 'm'},
     {"old-oleans",   no_argument,       0, 'O'},
     {"recursive",    no_argument,       0, 'R'},
+    {"port",         no_argument,       0, 'x'},
     {"export",       required_argument, 0, 'E'},
     {"only-export",  required_argument, 0, 'o'},
     {"memory",       required_argument, 0, 'M'},
@@ -426,6 +428,7 @@ int main(int argc, char ** argv) {
 #endif
     ::initializer init;
     bool make_mode          = false;
+    bool port_mode          = false;
     bool use_old_oleans     = false;
     bool report_widgets     = true;
     bool recursive          = false;
@@ -475,6 +478,11 @@ int main(int argc, char ** argv) {
         case 'm':
             make_mode = true;
             recursive = true;
+            break;
+        case 'x':
+            make_mode = true;
+            recursive = true;
+            port_mode = true;
             break;
         case 'O':
             use_old_oleans = true;
@@ -656,6 +664,7 @@ int main(int argc, char ** argv) {
         }
 
         mod_mgr.set_save_olean(make_mode);
+        mod_mgr.set_save_tlean(port_mode);
 
         std::vector<std::string> args(argv + optind, argv + argc);
         if (recursive) {

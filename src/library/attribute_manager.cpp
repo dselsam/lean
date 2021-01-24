@@ -141,6 +141,18 @@ struct attr_config {
         }
     }
 
+    static void textualize_entry(tlean_exporter & x, entry const & e) {
+        // Note: we do not write the data entry, only the metadata.
+        unsigned n_attr = x.export_name(e.m_attr);
+        unsigned n_decl = x.export_name(e.m_record.m_decl);
+        x.out() << "#ATTR"
+                << " " << n_attr
+                << " " << e.m_prio
+                << " " << n_decl
+                << " " << e.m_record.deleted()
+                << std::endl;
+    }
+
     static entry read_entry(deserializer & d) {
         entry e; bool deleted;
         d >> e.m_attr >> e.m_prio >> e.m_record.m_decl >> deleted;

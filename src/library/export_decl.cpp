@@ -126,6 +126,7 @@ struct active_export_decls_config {
     // uses local scope only
     static const char * get_serialization_key() { return "active_export_decls"; }
     static void write_entry(serializer &, entry const &) { lean_unreachable(); }
+    static void  textualize_entry(tlean_exporter & x, entry const & e) { lean_unreachable(); }
     static entry read_entry(deserializer &) { lean_unreachable(); }
 };
 

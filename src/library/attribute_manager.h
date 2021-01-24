@@ -11,6 +11,7 @@ Author: Leonardo de Moura
 #include "kernel/environment.h"
 #include "library/abstract_parser.h"
 #include "library/io_state.h"
+#include "library/tlean_exporter.h"
 
 #ifndef LEAN_DEFAULT_PRIORITY
 #define LEAN_DEFAULT_PRIORITY 1000u
@@ -49,6 +50,7 @@ protected:
 
     virtual environment set_untyped(environment const &, io_state const &, name const &, unsigned, attr_data_ptr, bool) const = 0;
     virtual void write_entry(serializer &, attr_data const &) const = 0;
+    virtual void textualize_entry(tlean_exporter &, attr_data const &) const {}
     virtual attr_data_ptr read_entry(deserializer &) const = 0;
 public:
     attribute(name const & id, char const * descr, after_set_proc after_set = {}, before_unset_proc before_unset = {}) :
@@ -267,6 +269,9 @@ public:
     virtual ~user_attribute_ext() {}
     virtual name_map<attribute_ptr> get_attributes(environment const & env);
     virtual void write_entry(serializer &, attr_data const &) {
+        lean_unreachable();
+    }
+    virtual void textualize_entry(tlean_exporter &, attr_data const &) {
         lean_unreachable();
     }
     virtual attr_data_ptr read_entry(deserializer &) {
