@@ -32,7 +32,11 @@ structure std_gen :=
 def std_range := (1, 2147483562)
 
 instance : has_repr std_gen :=
-{ repr := λ ⟨s1, s2⟩, "⟨" ++ to_string s1 ++ ", " ++ to_string s2 ++ "⟩" }
+-- TODO: the following seemingly-harmless match triggers a stack-overflow
+-- when type-checking the equational lemma in Lean4.
+--{ repr := λ ⟨s1, s₂⟩, "⟨" ++ to_string s1 ++ ", " ++ to_string s2 ++ "⟩" }
+{ repr := λ gen, "⟨" ++ to_string gen.s1 ++ ", " ++ to_string gen.s2 ++ "⟩" }
+
 
 def std_next : std_gen → nat × std_gen
 | ⟨s1, s2⟩ :=
