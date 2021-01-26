@@ -337,22 +337,34 @@ struct notation_config {
         buffer<expr> args;
         auto & fn = get_app_rev_args(e.get_expr(), args);
 
-        char const * type = nullptr;
+        string kind;
+
         if (args.size() == 1 && args[0] == mk_var(0)) {
             if (e.is_nud()) {
-                type = "#PREFIX";
+                kind = "prefix";
             } else {
-                type = "#POSTFIX";
+                kind = "postfix";
             }
         } else if (!e.is_nud() && args.size() == 2 && args[0] == mk_var(0) && args[1] == mk_var(1)) {
-            type = "#INFIX";
+            kind = "infix"; // we will specialize this shortly
+        } else {
+            return;
         }
 
-        if (type && is_constant(fn)) {
+        if (is_constant(fn)) {
             auto fni = x.export_name(const_name(fn));
-            auto prec_opt = get_expr_precedence(get_token_table(x.env()), t.get_token().get_string());
-            auto prec = prec_opt ? *prec_opt : 0;
-            x.out() << type << " " << fni << " " << prec << " " << t.get_pp_token().get_string() << std::endl;
+
+            auto token_prec_opt = get_expr_precedence(get_token_table(x.env()), t.get_token().get_string());
+            auto token_prec = prec_opt ? *prec_opt : 0;
+            auto rule_prec = t.get_action().rbp();
+
+            // if (k == mixfix_kind::infixr) prec = *prec - 1;
+            if (kind == "infix") {
+                if (rule_prec + 1 == token_prec) { kind = "infixr"; }
+                else { kind = "infixl"; }
+            }
+
+            x.out() << "#MIXFIX " << kind << " " << fni << " " << prec << " " << t.get_pp_token().get_string() << std::endl;
         }
     }
 
