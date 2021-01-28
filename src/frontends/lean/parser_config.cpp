@@ -339,7 +339,9 @@ struct notation_config {
 
         std::string kind;
 
-        if (args.size() == 1 && args[0] == mk_var(0)) {
+        if (args.size() == 0) {
+            kind = "singleton";
+        } else if (args.size() == 1 && args[0] == mk_var(0)) {
             if (e.is_nud()) {
                 kind = "prefix";
             } else {
