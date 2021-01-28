@@ -64,6 +64,20 @@ static environment update(environment const & env, export_decl_env_ext const & e
     return env.update(g_ext->m_ext_id, std::make_shared<export_decl_env_ext>(ext));
 }
 
+// This is just 'add_export_decl' but without re-adding the modification to the module!
+environment activate_export_decl(environment const & env, name const & in_ns, export_decl const & e) {
+    auto ns_map = get_export_decl_extension(env).m_ns_map;
+    list<export_decl> decls;
+    if (ns_map.contains(in_ns))
+        decls = *ns_map.find(in_ns);
+
+    if (std::find(decls.begin(), decls.end(), e) != decls.end())
+        return env;
+
+    auto new_env = update(env, export_decl_env_ext(insert(ns_map, in_ns, cons(e, decls))));
+    return new_env;
+}
+
 struct export_decl_modification : public modification {
     LEAN_MODIFICATION("export_decl")
 
@@ -75,7 +89,7 @@ struct export_decl_modification : public modification {
         m_in_ns(in_ns), m_export_decl(e) {}
 
     void perform(environment & env) const override {
-        env = add_export_decl(env, m_in_ns, m_export_decl);
+        env = activate_export_decl(env, m_in_ns, m_export_decl);
     }
 
     void serialize(serializer & s) const override {
@@ -127,15 +141,7 @@ struct export_decl_modification : public modification {
 };
 
 environment add_export_decl(environment const & env, name const & in_ns, export_decl const & e) {
-    auto ns_map = get_export_decl_extension(env).m_ns_map;
-    list<export_decl> decls;
-    if (ns_map.contains(in_ns))
-        decls = *ns_map.find(in_ns);
-
-    if (std::find(decls.begin(), decls.end(), e) != decls.end())
-        return env;
-
-    auto new_env = update(env, export_decl_env_ext(insert(ns_map, in_ns, cons(e, decls))));
+    auto new_env = activate_export_decl(env, in_ns, e);
     return module::add(new_env, std::make_shared<export_decl_modification>(in_ns, e));
 }
 environment add_export_decl(environment const & env, export_decl const & entry) {
