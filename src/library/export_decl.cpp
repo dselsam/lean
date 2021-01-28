@@ -84,6 +84,38 @@ struct export_decl_modification : public modification {
         write_list<pair<name, name>>(s, m_export_decl.m_renames);
     }
 
+    void textualize(tlean_exporter & x) const override {
+        unsigned n_in_ns = x.export_name(m_in_ns);
+
+        unsigned n_ns = x.export_name(m_export_decl.m_ns);
+        unsigned n_as = x.export_name(m_export_decl.m_as);
+
+        auto n_renames = map2<pair<unsigned, unsigned>>(m_export_decl.m_renames,
+                                                        [&](pair<name, name> const & rn) {
+                                                            return mk_pair(x.export_name(rn.first), x.export_name(rn.second));
+                                                        });
+        auto n_except_names = map2<unsigned>(m_export_decl.m_except_names,
+                                             [&](name const & n) { return x.export_name(n); });
+
+        x.out() << "#EXPORT_DECL"
+                << " " << n_in_ns
+                << " " << n_ns
+                << " " << n_as
+                << " " << m_export_decl.m_had_explicit;
+
+        x.out() << " " << length(n_renames);
+        for (auto n_rename : n_renames) {
+            x.out() << " " << n_rename.first << " " << n_rename.second;
+        }
+
+        x.out() << " " << length(n_except_names);
+        for (auto n_except_name : n_except_names) {
+            x.out() << " " << n_except_name;
+        }
+
+        x.out() << std::endl;
+    }
+
     static std::shared_ptr<modification const> deserialize(deserializer & d) {
         auto m = std::make_shared<export_decl_modification>();
         auto & e = m->m_export_decl;
@@ -126,7 +158,7 @@ struct active_export_decls_config {
     // uses local scope only
     static const char * get_serialization_key() { return "active_export_decls"; }
     static void write_entry(serializer &, entry const &) { lean_unreachable(); }
-    static void  textualize_entry(tlean_exporter & x, entry const & e) { lean_unreachable(); }
+    static void  textualize_entry(tlean_exporter &, entry const &) { lean_unreachable(); }
     static entry read_entry(deserializer &) { lean_unreachable(); }
 };
 
