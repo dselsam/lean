@@ -175,7 +175,7 @@ void tlean_exporter::export_definition(declaration const & d) {
     auto t = export_expr(d.get_type());
     auto v = export_expr(d.get_value());
 
-    m_out << "#DEF " << n << " ";
+    m_out << "#DEF " << n << " " << d.is_theorem() << " ";
     if (hints.get_kind() == reducibility_hints::kind::Abbreviation) {
         m_out << "A ";
     } else if (hints.get_kind() == reducibility_hints::kind::Opaque) {
